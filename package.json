@@ -1,0 +1,38 @@
+{
+  "name": "nn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "nuxt build",
+    "dev": "nuxt dev --host",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "lint": "eslint .",
+    "typecheck": "nuxt typecheck"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0",
+    "@iconify-json/lucide": "^1.2.121",
+    "@iconify-json/simple-icons": "^1.2.92",
+    "@mediapipe/tasks-audio": "^1.0.1",
+    "@mediapipe/tasks-text": "^1.0.1",
+    "@mediapipe/tasks-vision": "^1.0.1",
+    "@mlc-ai/web-llm": "^0.2.84",
+    "@nuxt/ui": "^4.10.0",
+    "@nuxtjs/i18n": "10.6.0",
+    "@tensorflow-models/knn-classifier": "^1.2.6",
+    "@tensorflow-models/mobilenet": "^2.1.1",
+    "@tensorflow-models/speech-commands": "^0.5.4",
+    "@tensorflow/tfjs": "^4.22.0",
+    "nuxt": "^4.5.1",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "@nuxt/eslint": "^1.16.0",
+    "eslint": "^10.8.0",
+    "long": "4.0.0",
+    "typescript": "^6.0.3",
+    "vue-tsc": "^3.3.9"
+  },
+  "packageManager": "pnpm@11.18.0"
+}

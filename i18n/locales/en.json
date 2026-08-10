@@ -1,0 +1,174 @@
+{
+  "welcome": "Welcome",
+  "site": {
+    "title": "AI Tech Demos",
+    "description": "A collection of AI tech demos built with Nuxt v4."
+  },
+  "nav": {
+    "home": "Home",
+    "speech": "Speech"
+  },
+  "category": {
+    "speech": {
+      "title": "Speech",
+      "description": "Speech synthesis and recognition AI demos."
+    }
+  },
+  "home": {
+    "heroTitle": "Explore AI Tech Demos",
+    "heroDescription": "Browse AI tech demos and experience speech synthesis, recognition and more.",
+    "allDemos": "All Demos",
+    "viewDemo": "View Demo",
+    "searchPlaceholder": "Search demos (name, description, tags, category)…",
+    "searchResults": "{count} result(s) found",
+    "searchEmpty": "No matching demos found",
+    "stats": {
+      "demos": "Demos",
+      "categories": "Categories",
+      "ready": "Ready",
+      "planned": "Planned"
+    }
+  },
+  "demo": {
+    "status": {
+      "ready": "Ready",
+      "planned": "Planned"
+    },
+    "run": "Run",
+    "stop": "Stop",
+    "reset": "Reset",
+    "result": "Result",
+    "input": "Input",
+    "backendUnavailable": "Backend not ready: create the venv and install deps.",
+    "noDemo": "No demos in this category yet.",
+    "comingSoon": "Coming soon"
+  },
+  "tts": {
+    "inputPlaceholder": "Type text to speak…",
+    "voice": "Voice",
+    "rate": "Rate",
+    "rateHelp": "Rate offset in percent, 0 = normal.",
+    "volume": "Volume",
+    "volumeHelp": "Volume offset in percent, 0 = normal.",
+    "pitch": "Pitch",
+    "pitchHelp": "Base frequency offset (Hz), 0 = normal.",
+    "download": "Download audio"
+  },
+  "asr": {
+    "lang": "Recognition language",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "hint": "Click \"Start recording\" and speak",
+    "listening": "Listening",
+    "unsupported": "This browser does not support SpeechRecognition.",
+    "continuous": "Continuous",
+    "continuousHelp": "Keep recognizing until stopped; otherwise stop after one utterance.",
+    "interim": "Interim results",
+    "interimHelp": "Show partial transcripts in real time.",
+    "maxAlternatives": "Max alternatives"
+  },
+  "mp": {
+    "webcam": "Webcam",
+    "stop": "Stop",
+    "upload": "Upload image",
+    "clickHint": "Click the image to pick a target to segment",
+    "textPlaceholder": "Enter text to analyze…",
+    "history": "History"
+  },
+  "params": {
+    "title": "Parameters",
+    "minDetectionConfidence": "Min detection confidence",
+    "minSuppressionThreshold": "Suppression threshold",
+    "numFaces": "Max faces",
+    "numHands": "Max hands",
+    "numPoses": "Max poses",
+    "minPresenceConfidence": "Min presence confidence",
+    "minTrackingConfidence": "Min tracking confidence",
+    "minHandPresenceConfidence": "Min hand presence confidence",
+    "minHandDetectionConfidence": "Min hand detection confidence",
+    "minPosePresenceConfidence": "Min pose presence confidence",
+    "maxResults": "Max results",
+    "scoreThreshold": "Score threshold",
+    "outputFaceBlendshapes": "Output face blendshapes",
+    "l2Normalize": "L2 normalize",
+    "l2NormalizeHelp": "L2-normalize embeddings, typical for cosine similarity.",
+    "quantize": "Quantize",
+    "quantizeHelp": "Quantize embeddings to bytes to reduce memory.",
+    "topK": "Top K"
+  },
+  "webllm": {
+    "model": "Model",
+    "load": "Load model",
+    "loaded": "Loaded",
+    "clear": "Clear chat",
+    "empty": "Type a message to start chatting (load a model first).",
+    "inputPlaceholder": "Type a message, press Enter to send…",
+    "send": "Send",
+    "noWebgpu": "WebGPU is not available in this browser. Use the latest Chrome/Edge to run WebLLM.",
+    "system": "System prompt",
+    "temperature": "Temperature",
+    "temperatureHelp": "Higher = more random, lower = more deterministic.",
+    "topP": "Top-P",
+    "topPHelp": "Nucleus sampling probability threshold.",
+    "maxTokens": "Max tokens",
+    "freqPenalty": "Frequency penalty",
+    "presPenalty": "Presence penalty",
+    "useMirror": "Use mirror",
+    "useMirrorHelp": "Proxy through hf-mirror.com via local server to bypass CORS and speed up downloads."
+  },
+  "tf": {
+    "model": "Model",
+    "inputText": "Input text",
+    "inputImage": "Input image",
+    "inputRequired": "Please fill in the input",
+    "candidateLabels": "Candidate labels (comma-separated)",
+    "labelsPlaceholder": "technology, sports, politics",
+    "question": "Question",
+    "context": "Context",
+    "nerPlaceholder": "My name is Sarah and I live in London.",
+    "zeroShotPlaceholder": "I have exciting news about a new AI model.",
+    "summarizePlaceholder": "Paste a long text to summarize…",
+    "qaQPlaceholder": "When was the Eiffel Tower built?",
+    "qaCPlaceholder": "Paste the context containing the answer…",
+    "maskPlaceholder": "The capital of France is [MASK].",
+    "multiLabel": "Multi-label",
+    "multiLabelHelp": "Allow the text to match multiple labels.",
+    "minLength": "Min length",
+    "repetitionPenalty": "Repetition penalty",
+    "depthMap": "Depth map",
+    "depthInvert": "Invert depth",
+    "depthInvertHelp": "Invert brightness: near becomes dark, far becomes bright.",
+    "generating": "Generating…",
+    "captionHint": "Upload an image to auto-generate a caption.",
+    "loadingModel": "Loading model, first run downloads…"
+  },
+  "ml": {
+    "topK": "K value",
+    "topKHelp": "Number of neighbors considered by the KNN classifier.",
+    "captureInterval": "Capture interval (ms)",
+    "captureIntervalHelp": "Interval between sample captures during training.",
+    "epochs": "Training epochs",
+    "epochsHelp": "Number of iterations for neural network training.",
+    "overlapFactor": "Overlap factor",
+    "overlapFactorHelp": "Overlap ratio of audio prediction windows; higher = more sensitive.",
+    "probThreshold": "Confidence threshold",
+    "probThresholdHelp": "Predictions above this value are shown.",
+    "samples": "samples",
+    "train": "Hold to train",
+    "record": "Hold to record",
+    "recording": "Collecting…",
+    "clearAll": "Clear all",
+    "loadModel": "Load model",
+    "trainModel": "Train model",
+    "predict": "Start predicting",
+    "listening": "Listening…",
+    "clickPredict": "Click \"Start predicting\"",
+    "trainFirst": "Collect samples and train first",
+    "loadingMobilenet": "Loading MobileNet feature extractor…",
+    "loadingSpeechCommands": "Loading Speech Commands model…",
+    "renameAfterSamples": "Cannot rename after samples are collected; clear the class first"
+  },
+  "footer": {
+    "builtWith": "Built with Nuxt UI"
+  }
+}

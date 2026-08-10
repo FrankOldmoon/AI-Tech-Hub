@@ -1,0 +1,32 @@
+# Nuxt dev/build outputs
+.output
+.data
+.nuxt
+.nitro
+.cache
+dist
+
+# Node dependencies
+node_modules
+
+# Logs
+logs
+*.log
+
+# Misc
+.DS_Store
+.fleet
+.idea
+
+# Local env files
+.env
+.env.*
+!.env.example
+
+# Python (server/python 各功能独立虚拟环境)
+server/python/**/.venv/
+server/python/**/__pycache__/
+*.pyc
+
+# 预下载的 AI 模型（体积大，不纳入版本控制）
+public/model/

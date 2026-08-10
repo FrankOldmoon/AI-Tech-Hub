@@ -1,0 +1,173 @@
+{
+  "site": {
+    "title": "AI 技术演示",
+    "description": "用 Nuxt v4 构建的 AI 技术演示集合。"
+  },
+  "nav": {
+    "home": "首页",
+    "speech": "语音"
+  },
+  "category": {
+    "speech": {
+      "title": "语音 / Speech",
+      "description": "语音合成、语音识别等语音相关 AI 演示。"
+    }
+  },
+  "home": {
+    "heroTitle": "探索各类 AI 技术演示",
+    "heroDescription": "浏览各类 AI 技术演示，体验语音合成与识别等能力。",
+    "allDemos": "全部演示",
+    "viewDemo": "查看演示",
+    "searchPlaceholder": "搜索 demo（名称、描述、标签、分类）……",
+    "searchResults": "找到 {count} 个结果",
+    "searchEmpty": "没有找到匹配的 demo",
+    "stats": {
+      "demos": "演示数量",
+      "categories": "技术分类",
+      "ready": "可用",
+      "planned": "规划中"
+    }
+  },
+  "demo": {
+    "status": {
+      "ready": "可用",
+      "planned": "规划中"
+    },
+    "run": "运行",
+    "stop": "停止",
+    "reset": "重置",
+    "result": "结果",
+    "input": "输入",
+    "backendUnavailable": "后端未就绪：请创建虚拟环境并安装依赖。",
+    "noDemo": "该分类下暂无演示",
+    "comingSoon": "敬请期待"
+  },
+  "tts": {
+    "inputPlaceholder": "输入要朗读的文本……",
+    "voice": "发音人",
+    "rate": "语速",
+    "rateHelp": "语速偏移百分比，0 为正常。",
+    "volume": "音量",
+    "volumeHelp": "音量偏移百分比，0 为正常。",
+    "pitch": "音调",
+    "pitchHelp": "基频偏移（Hz），0 为正常。",
+    "download": "下载音频"
+  },
+  "asr": {
+    "lang": "识别语言",
+    "start": "开始录音",
+    "stop": "停止录音",
+    "hint": "点击「开始录音」后说话",
+    "listening": "正在聆听",
+    "unsupported": "当前浏览器不支持语音识别 (SpeechRecognition)。",
+    "continuous": "连续识别",
+    "continuousHelp": "开启后持续识别直到手动停止，否则识别一次即停。",
+    "interim": "中间结果",
+    "interimHelp": "实时显示识别中的临时文本。",
+    "maxAlternatives": "候选数量"
+  },
+  "mp": {
+    "webcam": "摄像头",
+    "stop": "停止",
+    "upload": "上传图片",
+    "clickHint": "点击图片选择要分割的目标",
+    "textPlaceholder": "输入要分析的文本……",
+    "history": "历史记录"
+  },
+  "params": {
+    "title": "可调参数",
+    "minDetectionConfidence": "检测置信度",
+    "minSuppressionThreshold": "抑制阈值",
+    "numFaces": "人脸数量上限",
+    "numHands": "手部数量上限",
+    "numPoses": "姿态数量上限",
+    "minPresenceConfidence": "存在置信度",
+    "minTrackingConfidence": "跟踪置信度",
+    "minHandPresenceConfidence": "手部存在置信度",
+    "minHandDetectionConfidence": "手部检测置信度",
+    "minPosePresenceConfidence": "姿态存在置信度",
+    "maxResults": "结果数量上限",
+    "scoreThreshold": "分数阈值",
+    "outputFaceBlendshapes": "输出表情混合",
+    "l2Normalize": "L2 归一化",
+    "l2NormalizeHelp": "对嵌入向量做 L2 归一化，常用于余弦相似度。",
+    "quantize": "量化",
+    "quantizeHelp": "将嵌入向量量化为字节，降低内存占用。",
+    "topK": "返回数量"
+  },
+  "webllm": {
+    "model": "模型",
+    "load": "加载模型",
+    "loaded": "已加载",
+    "clear": "清空对话",
+    "empty": "输入消息开始对话（需先加载模型）。",
+    "inputPlaceholder": "输入消息，Enter 发送……",
+    "send": "发送",
+    "noWebgpu": "当前浏览器不支持 WebGPU，无法运行 WebLLM。请使用最新版 Chrome/Edge。",
+    "system": "系统提示",
+    "temperature": "温度",
+    "temperatureHelp": "越高越随机，越低越确定。",
+    "topP": "Top-P",
+    "topPHelp": "核采样概率阈值。",
+    "maxTokens": "最大生成长度",
+    "freqPenalty": "频率惩罚",
+    "presPenalty": "存在惩罚",
+    "useMirror": "使用镜像源",
+    "useMirrorHelp": "通过本地代理转发 hf-mirror.com，绕过 CORS 限制，加速国内下载。"
+  },
+  "tf": {
+    "model": "模型",
+    "inputText": "输入文本",
+    "inputImage": "输入图片",
+    "inputRequired": "请填写输入内容",
+    "candidateLabels": "候选标签（逗号分隔）",
+    "labelsPlaceholder": "technology, sports, politics",
+    "question": "问题",
+    "context": "上下文",
+    "nerPlaceholder": "My name is Sarah and I live in London.",
+    "zeroShotPlaceholder": "I have exciting news about a new AI model.",
+    "summarizePlaceholder": "粘贴一段长文本以生成摘要……",
+    "qaQPlaceholder": "When was the Eiffel Tower built?",
+    "qaCPlaceholder": "粘贴包含答案的上下文……",
+    "maskPlaceholder": "The capital of France is [MASK].",
+    "multiLabel": "多标签",
+    "multiLabelHelp": "允许文本匹配多个标签。",
+    "minLength": "最小长度",
+    "repetitionPenalty": "重复惩罚",
+    "depthMap": "深度图",
+    "depthInvert": "反转深度",
+    "depthInvertHelp": "反转明暗：近处变暗、远处变亮。",
+    "generating": "生成中……",
+    "captionHint": "上传图片后将自动生成描述。",
+    "loadingModel": "模型加载中，首次需下载……"
+  },
+  "ml": {
+    "topK": "K 值",
+    "topKHelp": "KNN 分类器考虑的近邻数量。",
+    "captureInterval": "采样间隔（毫秒）",
+    "captureIntervalHelp": "训练时采集样本的时间间隔。",
+    "epochs": "训练轮数",
+    "epochsHelp": "神经网络训练的迭代次数。",
+    "overlapFactor": "重叠因子",
+    "overlapFactorHelp": "音频预测窗口的重叠比例，越大越灵敏。",
+    "probThreshold": "置信阈值",
+    "probThresholdHelp": "超过此值才显示预测结果。",
+    "samples": "样本数",
+    "train": "按住训练",
+    "record": "按住录制",
+    "recording": "采集中…",
+    "clearAll": "清空全部",
+    "loadModel": "加载模型",
+    "trainModel": "训练模型",
+    "predict": "开始预测",
+    "listening": "正在聆听…",
+    "clickPredict": "点击「开始预测」",
+    "trainFirst": "请先采集样本并训练",
+    "loadingMobilenet": "正在加载 MobileNet 特征提取器…",
+    "loadingSpeechCommands": "正在加载 Speech Commands 模型…",
+    "renameAfterSamples": "已有样本后无法重命名，请先清空该类别"
+  },
+  "footer": {
+    "builtWith": "基于 Nuxt UI 构建"
+  }
+}
