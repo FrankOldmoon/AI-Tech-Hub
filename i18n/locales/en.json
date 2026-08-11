@@ -100,6 +100,9 @@
   },
   "voiceClone": {
     "uploadRef": "1. Reference audio (your voice sample)",
+    "uploadAudio": "Upload audio",
+    "recordStart": "Start recording",
+    "recordStop": "Stop recording",
     "uploadRefHint": "5-15s clear speech, wav / mp3",
     "text": "2. Text to synthesize",
     "textPlaceholder": "Enter the text to synthesize...",

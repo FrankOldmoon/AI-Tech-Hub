@@ -14,6 +14,13 @@ const taskId = ref<string | null>(null)
 const progress = ref(0)
 const progressText = ref('')
 const resultUrl = ref('')
+// 在线录音
+const recording = ref(false)
+const recordSeconds = ref(0)
+let mediaRecorder: MediaRecorder | null = null
+let recordStream: MediaStream | null = null
+let recordChunks: Blob[] = []
+let recordTimer: number | null = null
 
 const langItems = [
   { label: '中文 (zh-cn)', value: 'zh-cn' },
@@ -35,6 +42,47 @@ function onRefChange(e: Event) {
   refUrl.value = URL.createObjectURL(file)
   error.value = null
   resultUrl.value = ''
+}
+
+async function startRecording() {
+  if (recording.value) return
+  error.value = null
+  try {
+    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    mediaRecorder = new MediaRecorder(recordStream)
+    recordChunks = []
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size) recordChunks.push(e.data)
+    }
+    mediaRecorder.onstop = () => {
+      const blob = new Blob(recordChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
+      const file = new File([blob], `recording-${Date.now()}.webm`, { type: blob.type })
+      refFile.value = file
+      if (refUrl.value) URL.revokeObjectURL(refUrl.value)
+      refUrl.value = URL.createObjectURL(blob)
+      resultUrl.value = ''
+      recordSeconds.value = 0
+    }
+    mediaRecorder.start()
+    recording.value = true
+    recordTimer = window.setInterval(() => {
+      recordSeconds.value++
+    }, 1000)
+  } catch (e: any) {
+    error.value = e?.message || '无法访问麦克风，请检查权限'
+  }
+}
+
+function stopRecording() {
+  mediaRecorder?.stop()
+  recordStream?.getTracks().forEach((t) => t.stop())
+  recordStream = null
+  mediaRecorder = null
+  recording.value = false
+  if (recordTimer !== null) {
+    clearInterval(recordTimer)
+    recordTimer = null
+  }
 }
 
 async function synthesize() {
@@ -116,6 +164,7 @@ async function cancel() {
 
 onBeforeUnmount(() => {
   taskId.value = null
+  stopRecording()
   if (refUrl.value) URL.revokeObjectURL(refUrl.value)
 })
 </script>
@@ -136,11 +185,30 @@ onBeforeUnmount(() => {
         <div class="flex flex-wrap items-center gap-3">
           <UButton
             icon="i-lucide-upload"
-            :label="t('mp.upload')"
+            :label="t('voiceClone.uploadAudio')"
             color="primary"
             variant="subtle"
             @click="fileInput?.click()"
           />
+          <UButton
+            v-if="!recording"
+            icon="i-lucide-mic"
+            :label="t('voiceClone.recordStart')"
+            color="secondary"
+            variant="subtle"
+            @click="startRecording"
+          />
+          <UButton
+            v-else
+            icon="i-lucide-square"
+            :label="t('voiceClone.recordStop')"
+            color="error"
+            @click="stopRecording"
+          />
+          <span v-if="recording" class="flex items-center gap-1.5 text-sm text-error">
+            <span class="size-2 rounded-full bg-error animate-pulse" />
+            {{ recordSeconds }}s
+          </span>
           <input ref="fileInput" type="file" accept="audio/*" class="hidden" @change="onRefChange">
           <span class="text-sm text-muted">{{ t('voiceClone.uploadRefHint') }}</span>
         </div>

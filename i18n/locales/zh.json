@@ -99,6 +99,9 @@
   },
   "voiceClone": {
     "uploadRef": "1. 参考音频（你的声音样本）",
+    "uploadAudio": "上传声音",
+    "recordStart": "开始录音",
+    "recordStop": "停止录音",
     "uploadRefHint": "5-15 秒清晰人声，wav / mp3 均可",
     "text": "2. 要合成的文本",
     "textPlaceholder": "输入要合成的文本……",
