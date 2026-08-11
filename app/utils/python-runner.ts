@@ -1,9 +1,9 @@
 // Python 后端调用客户端：统一与 /api/python/run 通信
-// 约定：每个功能在 server/python/<feature>/main.py，使用各自 .venv 运行
+// 约定：每个功能在 python/<feature>/main.py，使用各自 .venv 运行
 // main.py 从 stdin 读取 JSON，向 stdout 输出 JSON
 
 export interface PythonRunRequest {
-  /** 模块路径，如 'speech/tts' -> server/python/speech/tts/main.py */
+  /** 模块路径，如 'speech/tts' -> python/speech/tts/main.py */
   feature: string
   /** 主输入文本 */
   input?: string

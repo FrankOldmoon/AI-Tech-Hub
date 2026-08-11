@@ -5,7 +5,9 @@
   },
   "nav": {
     "home": "首页",
-    "speech": "语音"
+    "speech": "语音",
+    "ide": "在线 IDE",
+    "menu": "导航菜单"
   },
   "category": {
     "speech": {
@@ -41,6 +43,23 @@
     "backendUnavailable": "后端未就绪：请创建虚拟环境并安装依赖。",
     "noDemo": "该分类下暂无演示",
     "comingSoon": "敬请期待"
+  },
+  "pythonSource": {
+    "title": "Python 最简实现",
+    "loading": "正在加载源码……",
+    "notFound": "暂无对应的 Python 实现文件。",
+    "copy": "复制",
+    "copied": "已复制"
+  },
+  "pyodide": {
+    "title": "Python 在线编辑器",
+    "run": "运行",
+    "input": "输入 (stdin)",
+    "inputPlaceholder": "运行时 stdin 输入，供 input() 读取…",
+    "output": "输出",
+    "loading": "加载 Pyodide…",
+    "ready": "就绪",
+    "error": "加载失败"
   },
   "tts": {
     "inputPlaceholder": "输入要朗读的文本……",

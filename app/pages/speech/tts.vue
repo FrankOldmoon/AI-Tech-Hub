@@ -34,37 +34,52 @@ const error = ref<string | null>(null)
 const audioSrc = ref('')
 const audioFormat = ref('mp3')
 
+/** 释放之前的 object URL，避免内存泄漏 */
+function revokeAudioSrc() {
+  if (audioSrc.value.startsWith('blob:')) {
+    URL.revokeObjectURL(audioSrc.value)
+  }
+}
+
 async function synthesize() {
+  revokeAudioSrc()
   error.value = null
   audioSrc.value = ''
   loading.value = true
   try {
-    const res = await runPython<{ audio?: string, format?: string }>({
-      feature: 'speech/tts',
-      input: text.value,
-      params: {
+    const rate = Number(params.value.rate)
+    const volume = Number(params.value.volume)
+    const pitch = Number(params.value.pitch)
+
+    const res = await fetch('/api/speech/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: text.value,
         voice: String(params.value.voice),
-        rate: Number(params.value.rate),
-        volume: Number(params.value.volume),
-        pitch: Number(params.value.pitch)
-      }
+        rate: rate >= 0 ? `+${rate}%` : `${rate}%`,
+        volume: volume >= 0 ? `+${volume}%` : `${volume}%`,
+        pitch: pitch >= 0 ? `+${pitch}Hz` : `${pitch}Hz`
+      })
     })
-    if (!res.available) {
-      error.value = t('demo.backendUnavailable')
-    } else if (!res.ok) {
-      error.value = res.error || 'error'
-    } else if (res.data?.audio) {
-      audioFormat.value = res.data.format || 'mp3'
-      audioSrc.value = `data:audio/${audioFormat.value};base64,${res.data.audio}`
-    } else {
-      error.value = res.error || 'no audio'
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => null)
+      error.value = errBody?.statusMessage || `HTTP ${res.status}`
+      return
     }
+
+    const blob = await res.blob()
+    audioFormat.value = 'mp3'
+    audioSrc.value = URL.createObjectURL(blob)
   } catch (e) {
     error.value = (e as Error)?.message || String(e)
   } finally {
     loading.value = false
   }
 }
+
+onBeforeUnmount(revokeAudioSrc)
 
 function downloadAudio() {
   if (!audioSrc.value) return

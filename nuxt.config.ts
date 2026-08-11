@@ -14,10 +14,16 @@ export default defineNuxtConfig({
 
   i18n: {
     defaultLocale: 'en',
+    strategy: 'no_prefix',
     locales: [
       { code: 'zh', name: '中文', file: 'zh.json' },
       { code: 'en', name: 'English', file: 'en.json' }
-    ]
+    ],
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_locale',
+      redirectOn: 'root'
+    }
   },
 
   // 首页与分类页可预渲染，单个 demo 页保持动态以支持 Python 后端调用

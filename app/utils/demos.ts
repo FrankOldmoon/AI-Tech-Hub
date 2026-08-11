@@ -23,7 +23,7 @@ export interface Demo {
   description: Localized
   icon: string
   status: DemoStatus
-  /** 对应 server/python 下的模块路径，如 'speech/tts' -> server/python/speech/tts/main.py */
+  /** 对应 python 下的模块路径，如 'speech/tts' -> python/speech/tts/main.py */
   pythonModule?: string
   tags?: string[]
 }
@@ -116,7 +116,18 @@ export const demos: Demo[] = [
     description: { zh: '音频事件分类识别。', en: 'Audio event classification.' },
     icon: 'i-lucide-audio-waveform',
     status: 'ready',
+    pythonModule: 'mediapipe/audio-classifier',
     tags: ['Audio', 'MediaPipe', 'YAMNet']
+  },
+  {
+    slug: 'separation',
+    category: 'speech',
+    title: { zh: '音频分离', en: 'Audio Separation' },
+    description: { zh: '分离人声与伴奏等音轨。', en: 'Separate vocals, drums, bass and other stems.' },
+    icon: 'i-lucide-split',
+    status: 'ready',
+    pythonModule: 'speech/separation',
+    tags: ['Audio', 'Demucs']
   },
   // ===== vision (MediaPipe) =====
   {
@@ -126,6 +137,7 @@ export const demos: Demo[] = [
     description: { zh: '检测图像中的人脸。', en: 'Detect human faces in images.' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
+    pythonModule: 'mediapipe/face-detection',
     tags: ['MediaPipe', 'Face']
   },
   {
@@ -135,6 +147,7 @@ export const demos: Demo[] = [
     description: { zh: '检测人脸 478 个关键点。', en: 'Detect 478 face landmarks.' },
     icon: 'i-lucide-smile',
     status: 'ready',
+    pythonModule: 'mediapipe/face-landmarker',
     tags: ['MediaPipe', 'Face Mesh']
   },
   {
@@ -144,6 +157,7 @@ export const demos: Demo[] = [
     description: { zh: '检测手部 21 个关键点。', en: 'Detect 21 hand landmarks.' },
     icon: 'i-lucide-hand',
     status: 'ready',
+    pythonModule: 'mediapipe/hand-landmarker',
     tags: ['MediaPipe', 'Hand']
   },
   {
@@ -153,6 +167,7 @@ export const demos: Demo[] = [
     description: { zh: '识别手部手势类别。', en: 'Recognize hand gesture categories.' },
     icon: 'i-lucide-hand-metal',
     status: 'ready',
+    pythonModule: 'mediapipe/gesture-recognizer',
     tags: ['MediaPipe', 'Gesture']
   },
   {
@@ -162,6 +177,7 @@ export const demos: Demo[] = [
     description: { zh: '检测人体姿态关键点。', en: 'Detect body pose landmarks.' },
     icon: 'i-lucide-person-standing',
     status: 'ready',
+    pythonModule: 'mediapipe/pose-landmarker',
     tags: ['MediaPipe', 'Pose']
   },
   {
@@ -171,6 +187,7 @@ export const demos: Demo[] = [
     description: { zh: '同时检测人脸、手部与姿态。', en: 'Detect face, hands and pose together.' },
     icon: 'i-lucide-move-3d',
     status: 'ready',
+    pythonModule: 'mediapipe/holistic-landmarker',
     tags: ['MediaPipe', 'Holistic']
   },
   {
@@ -180,6 +197,7 @@ export const demos: Demo[] = [
     description: { zh: '检测图像中的目标并分类。', en: 'Detect and classify objects in images.' },
     icon: 'i-lucide-scan-eye',
     status: 'ready',
+    pythonModule: 'mediapipe/object-detector',
     tags: ['MediaPipe', 'Object']
   },
   {
@@ -189,6 +207,7 @@ export const demos: Demo[] = [
     description: { zh: '对图像内容进行分类。', en: 'Classify image content.' },
     icon: 'i-lucide-image',
     status: 'ready',
+    pythonModule: 'mediapipe/image-classifier',
     tags: ['MediaPipe', 'Classification']
   },
   {
@@ -198,6 +217,7 @@ export const demos: Demo[] = [
     description: { zh: '计算图像相似度。', en: 'Compute image similarity.' },
     icon: 'i-lucide-layers',
     status: 'ready',
+    pythonModule: 'mediapipe/image-embedder',
     tags: ['MediaPipe', 'Embedding']
   },
   {
@@ -207,6 +227,7 @@ export const demos: Demo[] = [
     description: { zh: '分割图像前景。', en: 'Segment image foreground.' },
     icon: 'i-lucide-scissors',
     status: 'ready',
+    pythonModule: 'mediapipe/image-segmenter',
     tags: ['MediaPipe', 'Segmentation']
   },
   {
@@ -216,6 +237,7 @@ export const demos: Demo[] = [
     description: { zh: '点击选取目标并分割。', en: 'Click to segment a target.' },
     icon: 'i-lucide-mouse-pointer-click',
     status: 'ready',
+    pythonModule: 'mediapipe/interactive-segmenter',
     tags: ['MediaPipe', 'Segmentation']
   },
   {
@@ -225,6 +247,7 @@ export const demos: Demo[] = [
     description: { zh: '估计图像中每个像素的深度。', en: 'Estimate per-pixel depth of an image.' },
     icon: 'i-lucide-box',
     status: 'ready',
+    pythonModule: 'transformers/depth-estimation',
     tags: ['Transformers.js', 'Depth']
   },
   {
@@ -234,6 +257,7 @@ export const demos: Demo[] = [
     description: { zh: '生成图像内容的文字描述。', en: 'Generate a text description of an image.' },
     icon: 'i-lucide-text',
     status: 'ready',
+    pythonModule: 'transformers/image-captioning',
     tags: ['Transformers.js', 'Captioning']
   },
   // ===== nlp (MediaPipe Text) =====
@@ -244,6 +268,7 @@ export const demos: Demo[] = [
     description: { zh: '文本情感分类。', en: 'Text sentiment classification.' },
     icon: 'i-lucide-message-square',
     status: 'ready',
+    pythonModule: 'mediapipe/text-classifier',
     tags: ['MediaPipe', 'Sentiment']
   },
   {
@@ -253,6 +278,7 @@ export const demos: Demo[] = [
     description: { zh: '检测文本所属语言。', en: 'Detect text language.' },
     icon: 'i-lucide-globe',
     status: 'ready',
+    pythonModule: 'mediapipe/language-detector',
     tags: ['MediaPipe', 'Language']
   },
   {
@@ -262,6 +288,7 @@ export const demos: Demo[] = [
     description: { zh: '计算文本相似度。', en: 'Compute text similarity.' },
     icon: 'i-lucide-type',
     status: 'ready',
+    pythonModule: 'mediapipe/text-embedder',
     tags: ['MediaPipe', 'Embedding']
   },
   {
@@ -271,6 +298,7 @@ export const demos: Demo[] = [
     description: { zh: '识别文本中的人名、地名、机构等实体。', en: 'Recognize persons, locations, organizations in text.' },
     icon: 'i-lucide-tag',
     status: 'ready',
+    pythonModule: 'transformers/ner',
     tags: ['Transformers.js', 'NER']
   },
   {
@@ -280,6 +308,7 @@ export const demos: Demo[] = [
     description: { zh: '用自定义候选标签对文本分类。', en: 'Classify text with custom candidate labels.' },
     icon: 'i-lucide-list-checks',
     status: 'ready',
+    pythonModule: 'transformers/zero-shot',
     tags: ['Transformers.js', 'Zero-shot']
   },
   {
@@ -289,6 +318,7 @@ export const demos: Demo[] = [
     description: { zh: '生成文本的摘要。', en: 'Generate a summary of the text.' },
     icon: 'i-lucide-file-text',
     status: 'ready',
+    pythonModule: 'transformers/summarization',
     tags: ['Transformers.js', 'Summarization']
   },
   {
@@ -298,6 +328,7 @@ export const demos: Demo[] = [
     description: { zh: '从上下文中抽取问题答案。', en: 'Extract an answer from context.' },
     icon: 'i-lucide-help-circle',
     status: 'ready',
+    pythonModule: 'transformers/qa',
     tags: ['Transformers.js', 'QA']
   },
   {
@@ -307,6 +338,7 @@ export const demos: Demo[] = [
     description: { zh: '预测掩码位置的词。', en: 'Predict the masked token.' },
     icon: 'i-lucide-puzzle',
     status: 'ready',
+    pythonModule: 'transformers/fill-mask',
     tags: ['Transformers.js', 'Mask']
   },
   // ===== aigc (WebLLM) =====
@@ -317,6 +349,7 @@ export const demos: Demo[] = [
     description: { zh: '基于 WebLLM 在浏览器中本地运行的 LLM 对话。', en: 'LLM chat running locally in-browser via WebLLM.' },
     icon: 'i-lucide-message-circle',
     status: 'ready',
+    pythonModule: 'transformers/webllm',
     tags: ['WebLLM', 'WebGPU', 'Llama', 'Qwen']
   },
   // ===== ml (Teachable Machine) =====
@@ -327,6 +360,7 @@ export const demos: Demo[] = [
     description: { zh: '采集摄像头样本训练自定义图像分类器。', en: 'Collect webcam samples to train a custom image classifier.' },
     icon: 'i-lucide-camera',
     status: 'ready',
+    pythonModule: 'ml/image-training',
     tags: ['TensorFlow.js', 'MobileNet', 'KNN']
   },
   {
@@ -336,6 +370,7 @@ export const demos: Demo[] = [
     description: { zh: '采集麦克风样本训练自定义声音分类器。', en: 'Collect microphone samples to train a custom audio classifier.' },
     icon: 'i-lucide-mic',
     status: 'ready',
+    pythonModule: 'ml/audio-training',
     tags: ['TensorFlow.js', 'Speech Commands', 'KNN']
   }
 ]

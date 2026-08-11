@@ -322,6 +322,9 @@ onBeforeUnmount(() => {
         </div>
         <p v-if="stats" class="mt-2 text-xs text-muted">{{ stats }}</p>
       </UCard>
+
+      <!-- 对应的 Python 最简实现源码 -->
+      <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />
     </div>
   </UContainer>
 </template>

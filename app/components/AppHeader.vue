@@ -10,7 +10,8 @@ const navItems = computed(() => [
     to: `/${c.slug}`,
     icon: c.icon,
     active: route.path === `/${c.slug}` || route.path.startsWith(`/${c.slug}/`)
-  }))
+  })),
+  { label: t('nav.ide'), to: '/ide', icon: 'i-lucide-code', active: route.path === '/ide' }
 ])
 
 const otherLocales = computed(() =>

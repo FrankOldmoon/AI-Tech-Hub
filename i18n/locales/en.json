@@ -6,7 +6,9 @@
   },
   "nav": {
     "home": "Home",
-    "speech": "Speech"
+    "speech": "Speech",
+    "ide": "Online IDE",
+    "menu": "Navigation"
   },
   "category": {
     "speech": {
@@ -42,6 +44,23 @@
     "backendUnavailable": "Backend not ready: create the venv and install deps.",
     "noDemo": "No demos in this category yet.",
     "comingSoon": "Coming soon"
+  },
+  "pythonSource": {
+    "title": "Minimal Python Implementation",
+    "loading": "Loading source…",
+    "notFound": "No Python implementation file available.",
+    "copy": "Copy",
+    "copied": "Copied"
+  },
+  "pyodide": {
+    "title": "Python Online Editor",
+    "run": "Run",
+    "input": "Input (stdin)",
+    "inputPlaceholder": "stdin input at runtime, for input()…",
+    "output": "Output",
+    "loading": "Loading Pyodide…",
+    "ready": "Ready",
+    "error": "Load failed"
   },
   "tts": {
     "inputPlaceholder": "Type text to speak…",

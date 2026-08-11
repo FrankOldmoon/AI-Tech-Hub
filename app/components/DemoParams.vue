@@ -42,87 +42,99 @@ function sliderLabel(spec: ParamSpec): string {
 </script>
 
 <template>
-  <UCard>
-    <template #header>
-      <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-        <UIcon name="i-lucide-sliders-horizontal" class="size-4" />
-        {{ title || t('params.title') }}
-      </div>
-    </template>
-    <div class="grid sm:grid-cols-2 gap-x-6 gap-y-4">
-      <template v-for="spec in specs" :key="spec.key">
-        <!-- slider -->
-        <div v-if="spec.type === 'slider'">
-          <label class="flex items-center justify-between text-sm font-medium text-muted mb-1">
-            <span>{{ spec.label }}</span>
-            <span class="text-highlighted tabular-nums">{{ sliderLabel(spec) }}</span>
-          </label>
-          <USlider
-            :model-value="Number(modelValue[spec.key])"
-            :min="spec.min"
-            :max="spec.max"
-            :step="spec.step"
-            :disabled="isDisabled(spec)"
-            @update:model-value="update(spec.key, $event ?? spec.default)"
+  <div class="border border-default rounded-lg overflow-hidden">
+    <UCollapsible>
+      <template #default="{ open }">
+        <button
+          type="button"
+          class="flex items-center gap-2 px-4 py-3 text-sm font-medium text-highlighted w-full cursor-pointer hover:bg-elevated/40 transition-colors"
+        >
+          <UIcon name="i-lucide-sliders-horizontal" class="size-4 text-primary" />
+          <span>{{ title || t('params.title') }}</span>
+          <UIcon
+            name="i-lucide-chevron-down"
+            class="size-4 ms-auto text-muted transition-transform"
+            :class="open ? 'rotate-180' : ''"
           />
-          <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
-        </div>
+        </button>
+      </template>
+      <template #content>
+        <div class="px-4 pb-4 grid sm:grid-cols-2 gap-x-6 gap-y-4 border-t border-default pt-4">
+          <template v-for="spec in specs" :key="spec.key">
+            <!-- slider -->
+            <div v-if="spec.type === 'slider'">
+              <label class="flex items-center justify-between text-sm font-medium text-muted mb-1">
+                <span>{{ spec.label }}</span>
+                <span class="text-highlighted tabular-nums">{{ sliderLabel(spec) }}</span>
+              </label>
+              <USlider
+                :model-value="Number(modelValue[spec.key])"
+                :min="spec.min"
+                :max="spec.max"
+                :step="spec.step"
+                :disabled="isDisabled(spec)"
+                @update:model-value="update(spec.key, $event ?? spec.default)"
+              />
+              <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            </div>
 
-        <!-- number -->
-        <div v-else-if="spec.type === 'number'">
-          <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
-          <UInput
-            type="number"
-            :model-value="Number(modelValue[spec.key])"
-            :min="spec.min"
-            :max="spec.max"
-            :step="spec.step"
-            :disabled="isDisabled(spec)"
-            class="w-full"
-            @update:model-value="update(spec.key, Number($event))"
-          />
-          <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
-        </div>
+            <!-- number -->
+            <div v-else-if="spec.type === 'number'">
+              <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
+              <UInput
+                type="number"
+                :model-value="Number(modelValue[spec.key])"
+                :min="spec.min"
+                :max="spec.max"
+                :step="spec.step"
+                :disabled="isDisabled(spec)"
+                class="w-full"
+                @update:model-value="update(spec.key, Number($event))"
+              />
+              <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            </div>
 
-        <!-- select -->
-        <div v-else-if="spec.type === 'select'">
-          <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
-          <USelect
-            :model-value="modelValue[spec.key]"
-            :items="spec.options || []"
-            :disabled="isDisabled(spec)"
-            class="w-full"
-            @update:model-value="update(spec.key, $event)"
-          />
-          <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
-        </div>
+            <!-- select -->
+            <div v-else-if="spec.type === 'select'">
+              <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
+              <USelect
+                :model-value="modelValue[spec.key]"
+                :items="spec.options || []"
+                :disabled="isDisabled(spec)"
+                class="w-full"
+                @update:model-value="update(spec.key, $event)"
+              />
+              <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            </div>
 
-        <!-- switch -->
-        <div v-else-if="spec.type === 'switch'">
-          <label class="flex items-center justify-between text-sm font-medium text-muted">
-            <span>{{ spec.label }}</span>
-            <USwitch
-              :model-value="Boolean(modelValue[spec.key])"
-              :disabled="isDisabled(spec)"
-              @update:model-value="update(spec.key, $event)"
-            />
-          </label>
-          <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
-        </div>
+            <!-- switch -->
+            <div v-else-if="spec.type === 'switch'">
+              <label class="flex items-center justify-between text-sm font-medium text-muted">
+                <span>{{ spec.label }}</span>
+                <USwitch
+                  :model-value="Boolean(modelValue[spec.key])"
+                  :disabled="isDisabled(spec)"
+                  @update:model-value="update(spec.key, $event)"
+                />
+              </label>
+              <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            </div>
 
-        <!-- text -->
-        <div v-else-if="spec.type === 'text'" class="sm:col-span-2">
-          <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
-          <UTextarea
-            :model-value="String(modelValue[spec.key])"
-            :rows="2"
-            :disabled="isDisabled(spec)"
-            class="w-full"
-            @update:model-value="update(spec.key, String($event))"
-          />
-          <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            <!-- text -->
+            <div v-else-if="spec.type === 'text'" class="sm:col-span-2">
+              <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
+              <UTextarea
+                :model-value="String(modelValue[spec.key])"
+                :rows="2"
+                :disabled="isDisabled(spec)"
+                class="w-full"
+                @update:model-value="update(spec.key, String($event))"
+              />
+              <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
+            </div>
+          </template>
         </div>
       </template>
-    </div>
-  </UCard>
+    </UCollapsible>
+  </div>
 </template>

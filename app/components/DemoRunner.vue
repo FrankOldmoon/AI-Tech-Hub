@@ -9,6 +9,8 @@ interface RunnerDemo {
   description?: string
   icon: string
   status: DemoStatus
+  /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
+  pythonModule?: string
 }
 
 defineProps<{
@@ -25,7 +27,7 @@ const hasAside = computed(() => Boolean(slots.aside))
 
 <template>
   <div class="grid lg:grid-cols-3 gap-6">
-    <div :class="hasAside ? 'lg:col-span-2 space-y-6' : 'space-y-6'">
+    <div :class="hasAside ? 'lg:col-span-2 space-y-6' : 'lg:col-span-3 space-y-6'">
       <!-- 标题区 -->
       <div class="flex items-start gap-4">
         <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
@@ -85,6 +87,9 @@ const hasAside = computed(() => Boolean(slots.aside))
         />
         <slot v-else name="result" />
       </UCard>
+
+      <!-- 对应的 Python 最简实现源码 -->
+      <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />
     </div>
 
     <!-- 侧栏：仅在有 aside 插槽时渲染 -->

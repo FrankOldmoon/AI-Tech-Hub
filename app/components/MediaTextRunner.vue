@@ -13,6 +13,8 @@ interface RunnerDemo {
   description?: string
   icon: string
   status: DemoStatus
+  /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
+  pythonModule?: string
 }
 
 const props = defineProps<{
@@ -121,6 +123,9 @@ async function run() {
         </template>
         <slot name="result" :result="result" :inference-time="inferenceTime" />
       </UCard>
+
+      <!-- 对应的 Python 最简实现源码 -->
+      <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />
     </div>
   </UContainer>
 </template>

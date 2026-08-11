@@ -1,5 +1,5 @@
 /**
- * Nuxt 服务器启动插件：自动为 server/python/ 下的 Python 项目
+ * Nuxt 服务器启动插件：自动为 python 下的 Python 项目
  * 创建虚拟环境并安装依赖。
  *
  * - 已存在 .venv 的项目会跳过

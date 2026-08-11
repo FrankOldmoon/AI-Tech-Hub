@@ -1,5 +1,5 @@
 /**
- * 自动扫描 server/python/ 下的 Python 项目，
+ * 自动扫描 python 下的 Python 项目，
  * 为每个包含 requirements.txt 的目录创建虚拟环境并安装依赖。
  *
  * - 已存在 .venv 的目录会跳过
@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path'
 
 const execAsync = promisify(exec)
 
-const PYTHON_ROOT = resolve(process.cwd(), 'server/python')
+const PYTHON_ROOT = resolve(process.cwd(), 'python')
 
 // 防止并发重复执行
 let running = false
