@@ -39,7 +39,10 @@ async function ensure() {
     })
     classifier.setDefaultSampleRate(16000)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    // 资源加载失败时 e 可能是 Event 对象（无 message），给出友好提示
+    error.value = e instanceof Event
+      ? '模型/WASM 加载失败，请检查网络或稍后重试'
+      : (e?.message || String(e))
   } finally {
     loading.value = false
   }

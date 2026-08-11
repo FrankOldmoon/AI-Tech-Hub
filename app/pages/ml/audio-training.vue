@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
+import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -73,11 +74,12 @@ async function loadModels() {
     // speech-commands 0.5.x 只接受 http(s):// 或 file:// 开头的 URL，
     // 相对路径会报 "Unsupported URL scheme"，因此拼成绝对 URL
     const origin = window.location.origin
+    const scBase = isRemoteDeploy() ? REMOTE_TFJS.speechCommandsBase : `${origin}/model/tfjs/speech-commands`
     recognizer = scMod.create(
       'BROWSER_FFT',
       null, // 提供自定义 modelURL 时 vocabulary 必须为 null（词汇表在 metadata.json 中）
-      `${origin}/model/tfjs/speech-commands/model.json`,
-      `${origin}/model/tfjs/speech-commands/metadata.json`
+      `${scBase}/model.json`,
+      `${scBase}/metadata.json`
     )
     await recognizer.ensureModelLoaded()
     transfer = recognizer.createTransfer('tm-audio')

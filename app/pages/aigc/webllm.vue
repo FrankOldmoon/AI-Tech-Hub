@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
+import { isRemoteDeploy } from '~/utils/remote-models'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -122,21 +123,26 @@ async function loadModel() {
     }
     // 从本地 public/model/webllm/ 加载模型
     // 注意：必须用绝对 URL（WebLLM 内部 cleanModelUrl 会 new URL(相对路径) 且无 base，相对路径会抛 "Invalid URL"）
-    const origin = window.location.origin
-    const localBase = `${origin}/model/webllm`
-    const localLibBase = `${origin}/model/webllm/libs/`
-    const modelList = prebuiltAppConfig.model_list.map((m: any) => ({
-      ...m,
-      model: typeof m.model === 'string'
-        ? m.model.replace('https://huggingface.co', localBase)
-        : m.model,
-      model_lib: typeof m.model_lib === 'string'
-        ? m.model_lib.replace(
-          /^https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\/main\/web-llm-models\/[^/]+\/base\//,
-          localLibBase
-        )
-        : m.model_lib
-    }))
+    // 云端（Vercel）无本地模型：保留默认 HuggingFace / GitHub raw URL 直连
+    const localize = !isRemoteDeploy()
+    let modelList = prebuiltAppConfig.model_list
+    if (localize) {
+      const origin = window.location.origin
+      const localBase = `${origin}/model/webllm`
+      const localLibBase = `${origin}/model/webllm/libs/`
+      modelList = prebuiltAppConfig.model_list.map((m: any) => ({
+        ...m,
+        model: typeof m.model === 'string'
+          ? m.model.replace('https://huggingface.co', localBase)
+          : m.model,
+        model_lib: typeof m.model_lib === 'string'
+          ? m.model_lib.replace(
+            /^https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\/main\/web-llm-models\/[^/]+\/base\//,
+            localLibBase
+          )
+          : m.model_lib
+      }))
+    }
     engine = await CreateMLCEngine(modelId.value, {
       appConfig: { model_list: modelList },
       initProgressCallback: (r: any) => {

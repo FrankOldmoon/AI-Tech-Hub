@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
+import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -63,7 +64,9 @@ async function loadModels() {
     await tf.ready()
     const mobilenetMod = await import('@tensorflow-models/mobilenet')
     const knnMod = await import('@tensorflow-models/knn-classifier')
-    mobilenet = await mobilenetMod.load({ version: 2, alpha: 1.0, modelUrl: '/model/tfjs/mobilenet/model.json' })
+    // 云端无本地模型，使用 tfhub.dev 远程模型（带 CORS）
+    const modelUrl = isRemoteDeploy() ? REMOTE_TFJS.mobilenet : '/model/tfjs/mobilenet/model.json'
+    mobilenet = await mobilenetMod.load({ version: 2, alpha: 1.0, modelUrl })
     classifier = knnMod.create()
     loadProgress.value = ''
   } catch (e: any) {
