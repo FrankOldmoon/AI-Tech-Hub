@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "nuxtjs",
+  "framework": null,
   "buildCommand": "node scripts/vercel-build.mjs",
   "installCommand": "corepack pnpm install"
 }
