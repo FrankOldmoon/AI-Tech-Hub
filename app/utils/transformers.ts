@@ -34,7 +34,9 @@ export const transformersModels = {
   summarization: 'Xenova/distilbart-cnn-6-6',
   qa: 'Xenova/distilbert-base-cased-distilled-squad',
   fillMask: 'Xenova/bert-base-uncased',
-  depthEstimation: 'onnx-community/depth-anything-v1-small',
+  // onnx-community/depth-anything-v1-small 是 gated 仓库（匿名 401），
+  // 改用非受限的 Xenova 转换版
+  depthEstimation: 'Xenova/depth-anything-small-hf',
   imageCaptioning: 'Xenova/vit-gpt2-image-captioning'
 }
 

@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path'
 const execFileAsync = promisify(execFile)
 
 const PYTHON_ROOT = resolve(process.cwd(), 'python')
+const isWindows = process.platform === 'win32'
 
 interface RunBody {
   feature: string
@@ -22,7 +23,9 @@ interface RunBody {
 function findVenvPython(featureDir: string): string | null {
   let dir = featureDir
   while (dir.startsWith(PYTHON_ROOT)) {
-    const venvPython = join(dir, '.venv', 'bin', 'python')
+    const venvPython = isWindows
+      ? join(dir, '.venv', 'Scripts', 'python.exe')
+      : join(dir, '.venv', 'bin', 'python')
     if (existsSync(venvPython)) return venvPython
     if (dir === PYTHON_ROOT) break
     dir = resolve(dir, '..')
@@ -33,7 +36,10 @@ function findVenvPython(featureDir: string): string | null {
 /**
  * 调用 python/<feature>/main.py
  * 约定：
- *  - main.py 位于 feature 目录，从 stdin/argv 读取 JSON { input, params }，向 stdout 输出 JSON
+ *  - main.py 位于 feature 目录，使用 argparse 风格：
+ *      python main.py <input> [--param value ...]
+ *  - input 作为位置参数 argv[1]，params 转换为 --key value 追加
+ *  - main.py 向 stdout 输出结果（文本或 JSON 均可，能解析 JSON 则返回 data）
  *  - 虚拟环境：先在 feature 目录找 .venv，再向上级目录查找（共享 venv）
  *  - 相同依赖的功能放在同一父目录，共享该目录下的 .venv
  */
@@ -65,14 +71,14 @@ export default defineEventHandler(async (event) => {
     }
   }
 
-  const payload = JSON.stringify({
-    input: body.input ?? '',
-    params: body.params ?? {}
-  })
-
   try {
-    // 通过 argv 传递 JSON 载荷（避免 stdin EOF 在某些环境下阻塞）
-    const { stdout, stderr } = await execFileAsync(venvPython, ['main.py', payload], {
+    // argparse 风格：input 作为位置参数，params 转为 --key value
+    const args = ['main.py']
+    if (body.input) args.push(body.input)
+    for (const [key, value] of Object.entries(body.params ?? {})) {
+      args.push(`--${key}`, String(value))
+    }
+    const { stdout, stderr } = await execFileAsync(venvPython, args, {
       cwd: featureDir,
       maxBuffer: 100 * 1024 * 1024,
       timeout: 120000

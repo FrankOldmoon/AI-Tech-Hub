@@ -9,11 +9,19 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
-import { join, resolve } from 'node:path'
+import { join, resolve, sep } from 'node:path'
 
 const execAsync = promisify(exec)
 
 const PYTHON_ROOT = resolve(process.cwd(), 'python')
+
+// Windows 与 Linux/macOS 下虚拟环境目录布局不同
+const isWindows = process.platform === 'win32'
+const VENV_BIN = isWindows ? join('.venv', 'Scripts') : join('.venv', 'bin')
+// Windows 上 `python` 可能是 Microsoft Store 的占位程序，需回退到 `py -3`
+const VENV_CREATE_CMDS = isWindows
+  ? ['python -m venv .venv', 'py -3 -m venv .venv']
+  : ['python3 -m venv .venv']
 
 // 防止并发重复执行
 let running = false
@@ -48,13 +56,13 @@ function findRequirementsDirs(root: string): string[] {
 
 /** 相对路径辅助。 */
 function relativePath(fullPath: string): string {
-  return fullPath.replace(PYTHON_ROOT + '/', '')
+  return fullPath.replace(PYTHON_ROOT + sep, '')
 }
 
 /** 为单个 Python 项目创建虚拟环境并安装依赖。 */
 async function setupVenv(featureDir: string): Promise<void> {
-  const venvPython = join(featureDir, '.venv', 'bin', 'python')
-  const venvPip = join(featureDir, '.venv', 'bin', 'pip')
+  const venvPython = join(featureDir, VENV_BIN, isWindows ? 'python.exe' : 'python')
+  const venvPip = join(featureDir, VENV_BIN, isWindows ? 'pip.exe' : 'pip')
   const reqFile = join(featureDir, 'requirements.txt')
   const relDir = relativePath(featureDir)
 
@@ -67,11 +75,21 @@ async function setupVenv(featureDir: string): Promise<void> {
   console.log(`[python-setup] Creating venv: ${relDir}`)
   // 创建虚拟环境（exec 默认 stdio=pipe，不会 EBADF）
   try {
-    await execAsync('python3 -m venv .venv', {
-      cwd: featureDir,
-      timeout: 120000,
-      maxBuffer: 10 * 1024 * 1024
-    })
+    let lastErr: unknown
+    for (const cmd of VENV_CREATE_CMDS) {
+      try {
+        await execAsync(cmd, {
+          cwd: featureDir,
+          timeout: 120000,
+          maxBuffer: 10 * 1024 * 1024
+        })
+        lastErr = undefined
+        break
+      } catch (e) {
+        lastErr = e
+      }
+    }
+    if (lastErr) throw lastErr
   } catch (e: any) {
     console.error(`[python-setup] ERROR creating venv for ${relDir}: ${e?.message || e}`)
     return

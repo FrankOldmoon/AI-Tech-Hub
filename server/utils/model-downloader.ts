@@ -265,19 +265,22 @@ async function downloadTfjsModels(): Promise<void> {
   console.log('\n=== TensorFlow.js 模型 ===')
   // MobileNet v2 alpha 1.0
   console.log('  --- MobileNet v2 1.0 ---')
-  const mobilenetBase = 'https://storage.googleapis.com/tfjs-models/savedmodel/mobilenet/v2/version_2/alpha_1.00'
+  // storage.googleapis.com 旧路径已失效，改用 tfhub.dev 的 TF.js 模型端点
+  // 注意：此端点对部分客户端（如 curl 的 UA）会返回 HTML 页面，
+  // 但 Node fetch（undici，无自定义 UA）可正常返回二进制，下载器保持默认 fetch 即可
+  const mobilenetBase = 'https://tfhub.dev/google/tfjs-model/imagenet/mobilenet_v2_100_224/classification/2/default/1'
   const mobilenetDir = join(BASE, 'tfjs/mobilenet')
   const mobilenetJson = join(mobilenetDir, 'model.json')
   // 删除可能已损坏的旧文件
   if (existsSync(mobilenetJson) && !readJson(mobilenetJson)) {
     try { unlinkSync(mobilenetJson) } catch { /* ignore */ }
   }
-  await downloadFile(`${mobilenetBase}/model.json`, mobilenetJson)
+  await downloadFile(`${mobilenetBase}/model.json?tfjs-format=file`, mobilenetJson)
   const mobData = readJson(mobilenetJson)
   if (mobData) {
     for (const group of mobData.weightsManifest || []) {
       for (const path of group.paths || []) {
-        await downloadFile(`${mobilenetBase}/${path}`, join(mobilenetDir, path))
+        await downloadFile(`${mobilenetBase}/${path}?tfjs-format=file`, join(mobilenetDir, path))
       }
     }
   }

@@ -75,8 +75,21 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
           <div v-else-if="result?.landmarks?.length" class="text-sm text-muted">
             {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
           </div>
-          <div v-else-if="result?.faceLandmarks?.length" class="text-sm text-muted">
-            {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
+          <div v-else-if="result?.faceLandmarks?.length" class="space-y-1 text-sm">
+            <div class="text-muted">
+              {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
+            </div>
+            <!-- face-landmarker 的表情混合值（前 8 个） -->
+            <div v-if="result.faceBlendshapes?.[0]?.categories?.length" class="space-y-1">
+              <div
+                v-for="(b, bi) in result.faceBlendshapes[0].categories.slice(0, 8)"
+                :key="bi"
+                class="flex justify-between"
+              >
+                <span>{{ b.categoryName }}</span>
+                <span class="text-muted">{{ Math.round((b.score || 0) * 100) }}%</span>
+              </div>
+            </div>
           </div>
           <div v-else-if="result?.poseLandmarks?.length" class="text-sm text-muted">
             {{ result.poseLandmarks.length }} pose(s) · {{ result.poseLandmarks[0].length }} pts

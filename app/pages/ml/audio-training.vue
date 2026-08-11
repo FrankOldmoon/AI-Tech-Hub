@@ -70,11 +70,14 @@ async function loadModels() {
     const tf = await import('@tensorflow/tfjs')
     await tf.ready()
     const scMod = await import('@tensorflow-models/speech-commands')
+    // speech-commands 0.5.x 只接受 http(s):// 或 file:// 开头的 URL，
+    // 相对路径会报 "Unsupported URL scheme"，因此拼成绝对 URL
+    const origin = window.location.origin
     recognizer = scMod.create(
       'BROWSER_FFT',
-      '18w',
-      '/model/tfjs/speech-commands/model.json',
-      '/model/tfjs/speech-commands/metadata.json'
+      null, // 提供自定义 modelURL 时 vocabulary 必须为 null（词汇表在 metadata.json 中）
+      `${origin}/model/tfjs/speech-commands/model.json`,
+      `${origin}/model/tfjs/speech-commands/metadata.json`
     )
     await recognizer.ensureModelLoaded()
     transfer = recognizer.createTransfer('tm-audio')

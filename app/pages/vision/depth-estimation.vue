@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
+import { processImageFile } from '~/utils/image'
 import { setupTransformersEnv, preferredDevice, hasWebGPU, transformersModels } from '~/utils/transformers'
 
 const { t } = useI18n()
@@ -14,7 +15,9 @@ const loading = ref(false)
 const running = ref(false)
 const error = ref<string | null>(null)
 const inferenceTime = ref(0)
-const webgpu = ref(hasWebGPU())
+// SSR 与客户端初始保持一致（false），挂载后再检测，避免 hydration mismatch
+const webgpu = ref(false)
+onMounted(() => { webgpu.value = hasWebGPU() })
 
 // 模型选择：small 体积小、加载快；base/large 精度更高
 const modelItems = [
@@ -63,8 +66,14 @@ async function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  imgSrc.value = URL.createObjectURL(file)
-  await run()
+  try {
+    // 先解码为标准 PNG（处理 HEIC/超大图等 createImageBitmap 不支持的输入）
+    imgSrc.value = await processImageFile(file)
+    await run()
+  } catch (err: any) {
+    error.value = err?.message || String(err)
+    imgSrc.value = ''
+  }
   input.value = ''
 }
 

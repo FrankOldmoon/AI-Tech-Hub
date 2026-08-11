@@ -11,6 +11,9 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const fileName = ref('')
 const fileData = ref<File | null>(null)
+const taskId = ref<string | null>(null)
+const progress = ref(0)
+const progressText = ref('')
 
 interface Stem {
   name: string
@@ -26,16 +29,13 @@ const modelItems = [
 ]
 
 const twoStemsItems = computed(() => [
-  { label: t('separation.twoStemsNone'), value: 'none' },
-  { label: t('separation.vocals'), value: 'vocals' },
-  { label: t('separation.drums'), value: 'drums' },
-  { label: t('separation.bass'), value: 'bass' },
-  { label: t('separation.other'), value: 'other' }
+  { label: t('separation.twoStemsVocals'), value: 'vocals' },
+  { label: t('separation.twoStemsNone'), value: 'none' }
 ])
 
 const specs = computed<ParamSpec[]>(() => [
   { key: 'model', label: t('separation.model'), type: 'select', default: 'htdemucs', options: modelItems, help: t('separation.modelHelp') },
-  { key: 'twoStems', label: t('separation.twoStems'), type: 'select', default: 'none', options: twoStemsItems.value, help: t('separation.twoStemsHelp') }
+  { key: 'twoStems', label: t('separation.twoStems'), type: 'select', default: 'vocals', options: twoStemsItems.value, help: t('separation.twoStemsHelp') }
 ])
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
@@ -63,6 +63,8 @@ async function separate() {
   error.value = null
   stems.value = []
   loading.value = true
+  progress.value = 0
+  progressText.value = t('separation.processing')
   try {
     const formData = new FormData()
     formData.append('file', fileData.value)
@@ -70,25 +72,70 @@ async function separate() {
     const twoStems = String(params.value.twoStems)
     formData.append('twoStems', twoStems === 'none' ? '' : twoStems)
 
-    const res = await $fetch<{ ok: boolean, available?: boolean, stems?: Stem[], error?: string }>('/api/speech/separate', {
+    // 提交任务：立即返回 taskId，后台异步执行
+    const res = await $fetch<{ ok: boolean, taskId?: string, error?: string }>('/api/speech/separate', {
       method: 'POST',
       body: formData
     })
-    if (!res.ok) {
-      if (res.available === false) {
-        error.value = t('demo.backendUnavailable')
-      } else {
-        error.value = res.error || 'error'
-      }
-    } else if (res.stems) {
-      stems.value = res.stems
+    if (!res.ok || !res.taskId) {
+      error.value = res.error || t('demo.backendUnavailable')
+      return
     }
+    taskId.value = res.taskId
+    await pollTask(res.taskId)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
     loading.value = false
   }
 }
+
+/** 轮询任务状态直到完成/失败/取消 */
+async function pollTask(id: string) {
+  while (true) {
+    const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/speech/separate/${id}`, {
+      method: 'GET'
+    }).catch(() => null)
+    if (!res?.ok || !res.task) {
+      error.value = res?.error || '任务查询失败'
+      return
+    }
+    const t = res.task
+    progress.value = t.progress || 0
+    progressText.value = t.message || ''
+    if (t.status === 'done' && t.stems) {
+      stems.value = t.stems
+      return
+    }
+    if (t.status === 'error') {
+      error.value = t.error || t.message || '分离失败'
+      return
+    }
+    if (t.status === 'cancelled') {
+      error.value = t.message || '已取消'
+      return
+    }
+    // 1.5s 轮询
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+}
+
+/** 取消任务 */
+async function cancelSeparation() {
+  if (!taskId.value) return
+  loading.value = false
+  try {
+    await $fetch(`/api/speech/separate/${taskId.value}`, { method: 'DELETE' })
+  } catch { /* ignore */ }
+  taskId.value = null
+  progress.value = 0
+  progressText.value = ''
+  error.value = t('separation.cancelled')
+}
+
+onBeforeUnmount(() => {
+  taskId.value = null
+})
 
 function downloadStem(stem: Stem) {
   const a = document.createElement('a')
@@ -105,7 +152,7 @@ function downloadStem(stem: Stem) {
         :demo="demo"
         :loading="loading"
         :error="error"
-        :notice="loading ? t('separation.processing') : null"
+        :notice="null"
       >
         <!-- 输入 -->
         <template #input>
@@ -143,11 +190,24 @@ function downloadStem(stem: Stem) {
             color="primary"
             @click="separate"
           />
+          <UButton
+            v-if="loading && taskId"
+            icon="i-lucide-x"
+            :label="t('separation.cancel')"
+            color="error"
+            variant="subtle"
+            @click="cancelSeparation"
+          />
         </template>
 
         <!-- 结果 -->
         <template #result>
-          <div v-if="stems.length" class="space-y-4">
+          <!-- 异步任务进度 -->
+          <div v-if="loading" class="space-y-2 py-2">
+            <UProgress :model-value="progress" />
+            <p class="text-xs text-muted">{{ progressText }}</p>
+          </div>
+          <div v-else-if="stems.length" class="space-y-4">
             <p class="text-sm font-medium text-highlighted">{{ t('separation.stems') }}</p>
             <div
               v-for="stem in stems"

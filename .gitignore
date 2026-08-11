@@ -30,3 +30,7 @@ python/**/__pycache__/
 
 # 预下载的 AI 模型（体积大，不纳入版本控制）
 public/model/
+
+# 运行时生成物
+public/generated/
+tmp/

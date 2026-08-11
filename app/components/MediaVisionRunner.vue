@@ -3,6 +3,7 @@ import type { DemoStatus } from '~/utils/demos'
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { mediapipeWasm } from '~/utils/mediapipe'
+import { processImageFile } from '~/utils/image'
 
 /**
  * 通用 MediaPipe 视觉演示运行器
@@ -166,10 +167,12 @@ async function onFileChange(e: Event) {
   loading.value = true
   error.value = null
   try {
-    const bitmap = await createImageBitmap(file)
+    // 先解码为标准 PNG（HEIC/超大图等 createImageBitmap 直接解码会失败）
+    const processedUrl = await processImageFile(file)
     const img = imgRef.value!
-    img.src = URL.createObjectURL(file)
-    await new Promise<void>((resolve) => { img.onload = () => resolve() })
+    img.src = processedUrl
+    await img.decode()
+    const bitmap = await createImageBitmap(await (await fetch(processedUrl)).blob())
     const t0 = performance.now()
     result.value = props.detectImage(det, bitmap)
     inferenceTime.value = Math.round(performance.now() - t0)

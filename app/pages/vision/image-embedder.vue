@@ -9,6 +9,9 @@ const error = ref<string | null>(null)
 const similarity = ref<number | null>(null)
 const img1Src = ref('')
 const img2Src = ref('')
+// 静态 ref（Vue 3 script setup 中动态 :ref 字符串无法通过 $refs 访问）
+const file1Input = ref<HTMLInputElement>()
+const file2Input = ref<HTMLInputElement>()
 
 let embedder: any = null
 
@@ -66,12 +69,18 @@ async function compute() {
         <button
           type="button"
           class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default hover:border-primary transition"
-          @click="(($refs[`file${n}`] as HTMLInputElement)?.click())"
+          @click="(n === 1 ? file1Input : file2Input)?.click()"
         >
           <img v-show="(n === 1 ? img1Src : img2Src)" :src="n === 1 ? img1Src : img2Src" class="w-full h-full object-contain">
           <UIcon v-if="!(n === 1 ? img1Src : img2Src)" name="i-lucide-image-plus" class="size-8 text-muted" />
         </button>
-        <input :ref="`file${n}`" type="file" accept="image/*" class="hidden" @change="onFile($event, n === 1 ? 1 : 2)">
+        <input
+          :ref="(el: any) => { if (el) { if (n === 1) file1Input = el; else file2Input = el } }"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="onFile($event, n === 1 ? 1 : 2)"
+        >
       </div>
     </div>
 
