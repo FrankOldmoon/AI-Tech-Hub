@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
+import { isRemoteDeploy } from '~/utils/remote-models'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -9,6 +10,8 @@ const demo = computed(() => getDemo('speech', 'separation')!)
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+// 云端（Vercel）无 Python 环境：分离不可用，直接提示
+const cloudUnavailable = isRemoteDeploy()
 const fileName = ref('')
 const fileData = ref<File | null>(null)
 const taskId = ref<string | null>(null)
@@ -108,7 +111,7 @@ async function pollTask(id: string) {
       return
     }
     if (t.status === 'error') {
-      error.value = t.error || t.message || '分离失败'
+      error.value = t.message || t.error || '分离失败'
       return
     }
     if (t.status === 'cancelled') {
@@ -148,6 +151,14 @@ function downloadStem(stem: Stem) {
 <template>
   <UContainer>
     <div class="py-8 sm:py-12">
+      <UAlert
+        v-if="cloudUnavailable"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-info"
+        class="mb-6"
+        :title="t('separation.cloudUnavailable')"
+      />
       <DemoRunner
         :demo="demo"
         :loading="loading"

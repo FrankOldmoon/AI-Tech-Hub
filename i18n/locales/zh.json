@@ -81,6 +81,7 @@
     "download": "下载",
     "cancel": "取消",
     "cancelled": "已取消",
+    "cloudUnavailable": "音频分离依赖本地 Python 环境（Demucs），云端部署不支持此功能。请在本机运行 pnpm dev 后使用。",
     "model": "模型",
     "modelHelp": "htdemucs 通用均衡；htdemucs_ft 微调更优；mdx / mdx_extra 偏重分离质量",
     "twoStems": "双轨模式",

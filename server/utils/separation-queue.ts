@@ -200,6 +200,10 @@ async function finalize(task: SeparationTask, files: string[], workDir: string, 
 
 /** 创建并提交分离任务，立即返回 taskId */
 export function enqueueSeparation(file: UploadedFilePart, model: string, twoStems: string): { ok: boolean, taskId?: string, error?: string } {
+  // Serverless（Vercel）无 Python/ffmpeg 运行时：直接返回明确提示，不创建任务
+  if (process.env.VERCEL) {
+    return { ok: false, error: '音频分离需要本地 Python 环境（Demucs），云端部署不支持此功能。请在本机运行 pnpm dev 后使用。' }
+  }
   const m = (model || 'htdemucs').trim()
   const t = (twoStems || '').trim()
   if (!ALLOWED_MODELS.has(m)) return { ok: false, error: `Unsupported model: ${m}` }

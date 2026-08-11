@@ -82,6 +82,7 @@
     "download": "Download",
     "cancel": "Cancel",
     "cancelled": "Cancelled",
+    "cloudUnavailable": "Audio separation requires a local Python environment (Demucs) and is not available on cloud deployment. Run pnpm dev locally to use it.",
     "model": "Model",
     "modelHelp": "htdemucs for general use; htdemucs_ft fine-tuned; mdx / mdx_extra for higher quality",
     "twoStems": "Two-stems mode",
