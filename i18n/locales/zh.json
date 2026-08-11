@@ -97,6 +97,20 @@
     "no_bass": "去贝斯",
     "no_other": "去其他"
   },
+  "voiceClone": {
+    "uploadRef": "1. 参考音频（你的声音样本）",
+    "uploadRefHint": "5-15 秒清晰人声，wav / mp3 均可",
+    "text": "2. 要合成的文本",
+    "textPlaceholder": "输入要合成的文本……",
+    "textRequired": "请输入要合成的文本",
+    "lang": "语言",
+    "synthesize": "开始合成",
+    "processing": "正在提交任务…",
+    "result": "合成结果",
+    "download": "下载",
+    "cancel": "取消",
+    "cancelled": "已取消"
+  },
   "asr": {
     "lang": "识别语言",
     "start": "开始录音",

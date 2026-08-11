@@ -129,6 +129,16 @@ export const demos: Demo[] = [
     pythonModule: 'speech/separation',
     tags: ['Audio', 'Demucs']
   },
+  {
+    slug: 'voice-clone',
+    category: 'speech',
+    title: { zh: '语音克隆', en: 'Voice Cloning' },
+    description: { zh: '用一段参考录音克隆音色并合成任意文本。', en: 'Clone a voice from a reference recording and synthesize any text.' },
+    icon: 'i-lucide-scan-voice',
+    status: 'ready',
+    pythonModule: 'speech/voice-clone',
+    tags: ['Voice', 'XTTS-v2', 'Zero-shot']
+  },
   // ===== vision (MediaPipe) =====
   {
     slug: 'face-detection',

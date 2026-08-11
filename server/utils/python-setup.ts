@@ -6,7 +6,7 @@
  * - 在后台异步执行，不阻塞服务器启动
  * - 通过 server plugin 在服务器启动时自动触发
  */
-import { existsSync, readdirSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { exec } from 'node:child_process'
 import { promisify } from 'node:util'
 import { join, resolve, sep } from 'node:path'
@@ -18,10 +18,28 @@ const PYTHON_ROOT = resolve(process.cwd(), 'python')
 // Windows 与 Linux/macOS 下虚拟环境目录布局不同
 const isWindows = process.platform === 'win32'
 const VENV_BIN = isWindows ? join('.venv', 'Scripts') : join('.venv', 'bin')
-// Windows 上 `python` 可能是 Microsoft Store 的占位程序，需回退到 `py -3`
-const VENV_CREATE_CMDS = isWindows
-  ? ['python -m venv .venv', 'py -3 -m venv .venv']
-  : ['python3 -m venv .venv']
+/** 读取目录下的 .python-version（如 "3.11"），用于指定解释器版本 */
+function pythonVersionOf(featureDir: string): string | null {
+  const vf = join(featureDir, '.python-version')
+  if (!existsSync(vf)) return null
+  const v = readFileSync(vf, 'utf8').trim()
+  return /^\d+(\.\d+)*$/.test(v) ? v : null
+}
+
+/** 根据功能目录构建 venv 创建命令（支持 .python-version 指定版本） */
+function venvCreateCmds(featureDir: string): string[] {
+  const version = pythonVersionOf(featureDir)
+  if (version) {
+    // 指定版本：Windows 用 py -3.11，Linux 用 python3.11
+    return isWindows
+      ? [`py -${version} -m venv .venv`, `python -m venv .venv`]
+      : [`python${version} -m venv .venv`, `python3 -m venv .venv`]
+  }
+  // Windows 上 `python` 可能是 Microsoft Store 的占位程序，需回退到 `py -3`
+  return isWindows
+    ? ['python -m venv .venv', 'py -3 -m venv .venv']
+    : ['python3 -m venv .venv']
+}
 
 // 防止并发重复执行
 let running = false
@@ -76,7 +94,7 @@ async function setupVenv(featureDir: string): Promise<void> {
   // 创建虚拟环境（exec 默认 stdio=pipe，不会 EBADF）
   try {
     let lastErr: unknown
-    for (const cmd of VENV_CREATE_CMDS) {
+    for (const cmd of venvCreateCmds(featureDir)) {
       try {
         await execAsync(cmd, {
           cwd: featureDir,

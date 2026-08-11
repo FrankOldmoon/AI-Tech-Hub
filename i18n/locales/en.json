@@ -98,6 +98,20 @@
     "no_bass": "No bass",
     "no_other": "No other"
   },
+  "voiceClone": {
+    "uploadRef": "1. Reference audio (your voice sample)",
+    "uploadRefHint": "5-15s clear speech, wav / mp3",
+    "text": "2. Text to synthesize",
+    "textPlaceholder": "Enter the text to synthesize...",
+    "textRequired": "Please enter the text to synthesize",
+    "lang": "Language",
+    "synthesize": "Synthesize",
+    "processing": "Submitting task...",
+    "result": "Result",
+    "download": "Download",
+    "cancel": "Cancel",
+    "cancelled": "Cancelled"
+  },
   "asr": {
     "lang": "Recognition language",
     "start": "Start recording",
