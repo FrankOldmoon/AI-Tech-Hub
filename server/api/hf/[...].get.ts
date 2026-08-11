@@ -11,8 +11,9 @@
 import { Readable } from 'node:stream'
 import { createError, getRouterParam, sendStream, setResponseHeader } from 'h3'
 
-// 上游可配置：本地/大陆网络默认 hf-mirror.com；海外部署（Vercel）设 HF_MIRROR_URL=https://huggingface.co
-const MIRROR = process.env.HF_MIRROR_URL || 'https://hf-mirror.com'
+// 上游自动选择：Vercel（海外）用 huggingface.co；本地/大陆网络用 hf-mirror.com；
+// 也可通过 HF_MIRROR_URL 环境变量显式覆盖
+const MIRROR = process.env.HF_MIRROR_URL || (process.env.VERCEL ? 'https://huggingface.co' : 'https://hf-mirror.com')
 
 // 常见文件扩展名 -> MIME
 const MIME: Record<string, string> = {
