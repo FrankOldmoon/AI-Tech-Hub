@@ -104,7 +104,7 @@ export function cancelSeparationTask(id: string): boolean {
 async function runTask(task: SeparationTask, file: UploadedFilePart): Promise<void> {
   const venvPython = findVenvPython()
   if (!venvPython) {
-    patch(task, { status: 'error', progress: 0, message: 'Python 环境未就绪', error: 'venv not found' })
+    patch(task, { status: 'error', progress: 0, message: '音频分离需要本地 Python 环境（Demucs），云端部署暂不支持此功能', error: 'venv not found' })
     return
   }
 

@@ -11,7 +11,8 @@
 import { Readable } from 'node:stream'
 import { createError, getRouterParam, sendStream, setResponseHeader } from 'h3'
 
-const MIRROR = 'https://hf-mirror.com'
+// 上游可配置：本地/大陆网络默认 hf-mirror.com；海外部署（Vercel）设 HF_MIRROR_URL=https://huggingface.co
+const MIRROR = process.env.HF_MIRROR_URL || 'https://hf-mirror.com'
 
 // 常见文件扩展名 -> MIME
 const MIME: Record<string, string> = {
