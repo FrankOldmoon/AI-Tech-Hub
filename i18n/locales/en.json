@@ -760,6 +760,21 @@
     "secondImageHint": "Click or drag a second image (used by two-image tools like feature matching)",
     "replaceSecond": "Replace",
     "planned": "Planned",
+    "faceRegister": {
+      "title": "Face Registration & Recognition",
+      "hint": "Upload a frontal, single-face photo with good lighting first",
+      "name": "Name",
+      "namePlaceholder": "Enter a name, e.g. Alice",
+      "register": "Register Face",
+      "recognize": "Recognize Face",
+      "registeredList": "Registered Faces",
+      "empty": "No faces registered yet — upload a photo and register one",
+      "delete": "Delete",
+      "registered": "Registered",
+      "matched": "Recognized as",
+      "similarity": "Similarity",
+      "notRecognized": "Not recognized (similarity below 0.4 threshold; register this face first)"
+    },
     "comingSoon": "This page is under construction.",
     "noTools": "No tools available on this page yet.",
     "error": "Processing failed"

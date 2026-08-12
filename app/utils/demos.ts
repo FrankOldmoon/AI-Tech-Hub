@@ -1,7 +1,7 @@
 // AI 演示注册表：所有 demo 的元数据集中在此，前端/分类页面统一消费
 // 标题/描述以 { zh, en } 形式存储，便于按当前 locale 取值
 
-export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml' | 'image'
+export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml'
 export type DemoStatus = 'ready' | 'planned'
 
 export interface Localized {
@@ -54,19 +54,10 @@ export const categories: Category[] = [
     slug: 'vision',
     title: { zh: '视觉', en: 'Vision' },
     description: {
-      zh: '人脸、手势、姿态、目标检测、图像分类、分割、深度估计与图像描述等计算机视觉 AI 演示。',
-      en: 'Face, hand, pose, object detection, classification, segmentation, depth estimation and image captioning AI demos.'
+      zh: '图像工坊（查看/变换/像素/颜色/滤镜/形态学/边缘/特征）、人脸、目标检测、分割、OCR 与多模态 AI 视觉演示。',
+      en: 'Image Lab (view/transform/pixel/color/filter/morphology/edge/feature), face, object detection, segmentation, OCR and multimodal AI vision demos.'
     },
     icon: 'i-lucide-eye'
-  },
-  {
-    slug: 'image',
-    title: { zh: '图像工坊', en: 'Image Lab' },
-    description: {
-      zh: '图像查看、几何变换、像素与色彩处理、滤镜增强、经典计算机视觉与 AI 视觉的一站式在线实验室。',
-      en: 'An all-in-one online lab for image viewing, transforms, pixel & color processing, filters, classical CV and AI vision.'
-    },
-    icon: 'i-lucide-image'
   },
   {
     slug: 'nlp',
@@ -712,7 +703,7 @@ export const demos: Demo[] = [
   // ===== image (图像工坊 Image Lab) =====
   {
     slug: 'viewer',
-    category: 'image',
+    category: 'vision',
     title: { zh: '图像查看器', en: 'Image Viewer' },
     description: { zh: '图片信息、像素取色与格式转换下载。', en: 'Image info, pixel color picking, format conversion and download.' },
     icon: 'i-lucide-image',
@@ -722,7 +713,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'transform',
-    category: 'image',
+    category: 'vision',
     title: { zh: '图像变换', en: 'Image Transform' },
     description: { zh: '缩放、裁剪、旋转、翻转、缩放比例、边距、透视与仿射变换。', en: 'Resize, crop, rotate, flip, scale, padding, perspective and affine transform.' },
     icon: 'i-lucide-move-3d',
@@ -732,7 +723,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'pixel',
-    category: 'image',
+    category: 'vision',
     title: { zh: '像素处理', en: 'Pixel Processing' },
     description: { zh: '读取像素、像素网格放大与像素级数学运算。', en: 'Read pixels, magnify the pixel grid and run pixel-level math.' },
     icon: 'i-lucide-grid-3x3',
@@ -742,7 +733,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'color',
-    category: 'image',
+    category: 'vision',
     title: { zh: '颜色处理', en: 'Color Processing' },
     description: { zh: '灰度化、通道提取与合并、色彩空间、颜色替换与量化。', en: 'Grayscale, channel extraction & merge, color spaces, color replacement and quantization.' },
     icon: 'i-lucide-palette',
@@ -752,7 +743,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'adjustment',
-    category: 'image',
+    category: 'vision',
     title: { zh: '图像调整', en: 'Image Adjustment' },
     description: { zh: '亮度、对比度、伽马、饱和度、色相、曝光、白平衡与自动增强。', en: 'Brightness, contrast, gamma, saturation, hue, exposure, white balance and auto enhancement.' },
     icon: 'i-lucide-sliders-horizontal',
@@ -762,7 +753,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'filters',
-    category: 'image',
+    category: 'vision',
     title: { zh: '图像滤镜', en: 'Image Filters' },
     description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜（规划中）。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters (planned).' },
     icon: 'i-lucide-sparkles',
@@ -772,7 +763,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'enhancement',
-    category: 'image',
+    category: 'vision',
     title: { zh: '噪声与增强', en: 'Noise & Enhancement' },
     description: { zh: '加噪、去噪、直方图均衡与图像增强（规划中）。', en: 'Add noise, denoise, histogram equalization and enhancement (planned).' },
     icon: 'i-lucide-waves',
@@ -782,7 +773,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'morphology',
-    category: 'image',
+    category: 'vision',
     title: { zh: '阈值与形态学', en: 'Threshold & Morphology' },
     description: { zh: '二值化、自适应阈值、腐蚀膨胀、开闭运算与形态学梯度（规划中，OpenCV.js）。', en: 'Binary/adaptive/Otsu threshold, erosion, dilation, opening, closing and morphological gradient (planned, OpenCV.js).' },
     icon: 'i-lucide-shapes',
@@ -792,7 +783,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'edge',
-    category: 'image',
+    category: 'vision',
     title: { zh: '边缘与形状检测', en: 'Edge & Shape Detection' },
     description: { zh: 'Sobel、Canny、Harris 角点、Hough 直线与圆检测（规划中，OpenCV.js）。', en: 'Sobel, Canny, Harris corners, Hough lines and circles (planned, OpenCV.js).' },
     icon: 'i-lucide-scan-line',
@@ -802,7 +793,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'object',
-    category: 'image',
+    category: 'vision',
     title: { zh: '颜色与物体检测', en: 'Color & Object Detection' },
     description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别（规划中，OpenCV.js）。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition (planned, OpenCV.js).' },
     icon: 'i-lucide-target',
@@ -812,7 +803,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'features',
-    category: 'image',
+    category: 'vision',
     title: { zh: '特征检测', en: 'Feature Detection' },
     description: { zh: 'ORB/BRISK 关键点与特征匹配（规划中，OpenCV.js）。', en: 'ORB/BRISK keypoints and feature matching (planned, OpenCV.js).' },
     icon: 'i-lucide-crosshair',
@@ -822,9 +813,9 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face',
-    category: 'image',
+    category: 'vision',
     title: { zh: '人脸视觉', en: 'Face Vision' },
-    description: { zh: '人脸检测、关键点、模糊与马赛克（MediaPipe）。', en: 'Face detection, landmarks, blur and pixelation (MediaPipe).' },
+    description: { zh: '人脸检测、关键点、模糊、马赛克与注册识别（MediaPipe + insightface）。', en: 'Face detection, landmarks, blur, pixelation, registration and recognition (MediaPipe + insightface).' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
     pythonModule: 'image/face',
@@ -832,7 +823,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ocr',
-    category: 'image',
+    category: 'vision',
     title: { zh: 'OCR 与文档视觉', en: 'OCR & Document Vision' },
     description: { zh: '文字识别（Tesseract.js）与文档扫描校正（OpenCV.js）。', en: 'Text recognition (Tesseract.js) and document scanning (OpenCV.js).' },
     icon: 'i-lucide-file-text',
@@ -842,7 +833,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ai-vision',
-    category: 'image',
+    category: 'vision',
     title: { zh: 'AI 目标与图像视觉', en: 'AI Object & Image Vision' },
     description: { zh: '图像分类、目标检测、分割、抠图、嵌入与相似度（MediaPipe）。', en: 'Classification, detection, segmentation, background removal, embedding and similarity (MediaPipe).' },
     icon: 'i-lucide-eye',
@@ -852,7 +843,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'multimodal',
-    category: 'image',
+    category: 'vision',
     title: { zh: 'AI 视觉与多模态', en: 'AI Vision & Multimodal' },
     description: { zh: '图像描述与深度估计（Transformers.js），问答/修复/风格迁移见 AIGC。', en: 'Image captioning and depth estimation (Transformers.js); QA/inpainting/style transfer under AIGC.' },
     icon: 'i-lucide-layers',

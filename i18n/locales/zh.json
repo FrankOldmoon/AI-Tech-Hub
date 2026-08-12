@@ -759,6 +759,21 @@
     "secondImageHint": "点击或拖拽第二张图（特征匹配等双图工具使用）",
     "replaceSecond": "更换",
     "planned": "规划中",
+    "faceRegister": {
+      "title": "人脸注册与识别",
+      "hint": "请先上传一张人脸照片（正面、单人、光线充足）",
+      "name": "姓名",
+      "namePlaceholder": "输入姓名，如：张三",
+      "register": "注册此人脸",
+      "recognize": "识别此人脸",
+      "registeredList": "已注册人脸",
+      "empty": "暂无注册，先上传照片并注册吧",
+      "delete": "删除",
+      "registered": "已注册",
+      "matched": "识别为",
+      "similarity": "相似度",
+      "notRecognized": "未识别（相似度低于阈值 0.4，可先注册该人脸）"
+    },
     "comingSoon": "该页面正在建设中，敬请期待。",
     "noTools": "该页面暂无可用的工具。",
     "error": "处理失败"

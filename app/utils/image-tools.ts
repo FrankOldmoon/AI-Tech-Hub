@@ -1786,26 +1786,16 @@ const faceTools: ImageTool[] = [
     }
   },
   {
-    id: 'face-recognition',
+    id: 'face-register',
     page: 'face',
-    name: { zh: '人脸识别 Face Recognition', en: 'Face Recognition' },
-    description: { zh: '用 insightface ArcFace 提取人脸身份嵌入（Python 后端异步任务）。', en: 'Extract face identity embeddings with insightface ArcFace (Python backend).' },
+    name: { zh: '人脸注册与识别 Face Registration', en: 'Face Registration & Recognition' },
+    description: { zh: '注册人脸姓名，之后上传照片即可识别身份（insightface + 浏览器本地注册库）。', en: 'Register faces with names, then identify unknown photos (insightface + local registry).' },
     kind: 'python',
     pythonModule: 'image/face',
-    run: async ({ imageData, lang }) => {
-      const form = new FormData()
-      form.append('file', ai.dataUrlToBlob(toDataUrl(imageData)), 'input.png')
-      form.append('mode', 'recognition')
-      const task = await submitAndPoll('/api/image/face-recognition', form, id => `/api/image/face-recognition/${id}`)
-      const r = task.result || {}
-      return {
-        imageData,
-        info: [
-          { label: lang === 'zh' ? '检测人脸数' : 'Faces', value: `${r.faces ?? 0}` },
-          { label: lang === 'zh' ? '嵌入维度' : 'Embedding dim', value: `${r.dim ?? '-'}` }
-        ]
-      }
-    }
+    run: ({ imageData, lang }) => ({
+      imageData,
+      info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '使用下方「人脸注册与识别」面板完成注册与识别' : 'Use the registration panel below to register and recognize faces' }]
+    })
   },
   {
     id: 'face-verification',

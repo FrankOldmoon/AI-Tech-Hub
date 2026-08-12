@@ -31,7 +31,6 @@ export default defineNuxtConfig({
     '/': { prerender: true },
     '/speech': { prerender: true },
     '/vision': { prerender: true },
-    '/image': { prerender: true },
     '/nlp': { prerender: true },
     '/aigc': { prerender: true },
     '/ml': { prerender: true }

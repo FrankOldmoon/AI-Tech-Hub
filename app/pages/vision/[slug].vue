@@ -1,5 +1,12 @@
 <script setup lang="ts">
+/**
+ * 视觉分类通用页面（统一分发）：
+ * 1. slug 命中图像工坊注册表（imageToolsByPage）-> ImagePlayground（15 个图像工坊页）
+ * 2. 否则命中 MediaPipe visionTasks -> MediaVisionRunner（人脸/手/姿态/检测等旧视觉 demo）
+ * 3. 都没有 -> 404
+ */
 import type { VisionTaskConfig } from '~/utils/mediapipe-vision'
+import { imageToolsByPage } from '~/utils/image-tools'
 
 const route = useRoute()
 const { getDemo } = useDemos()
@@ -7,18 +14,15 @@ const { t } = useI18n()
 
 const slug = computed(() => route.params.slug as string)
 const demo = computed(() => getDemo('vision', slug.value))
+const tools = computed(() => imageToolsByPage(slug.value))
 
 const cfg = ref<VisionTaskConfig | null>(null)
-const notFound = ref(false)
 
 onMounted(async () => {
+  if (tools.value.length) return
   const mod = await import('~/utils/mediapipe-vision')
   const c = mod.visionTasks[slug.value]
-  if (!c) {
-    notFound.value = true
-    return
-  }
-  cfg.value = c
+  if (c) cfg.value = c
 })
 
 const createDetector = computed(() => cfg.value?.create ?? null)
@@ -32,8 +36,12 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
 <template>
   <div v-if="demo">
     <ClientOnly>
+      <!-- 图像工坊模式 -->
+      <ImagePlayground v-if="tools.length" :demo="demo" :tools="tools" />
+
+      <!-- 传统 MediaPipe 模式 -->
       <MediaVisionRunner
-        v-if="cfg && createDetector"
+        v-else-if="cfg && createDetector"
         :demo="demo"
         :create-detector="createDetector!"
         :detect-video="detectVideo"
@@ -99,6 +107,15 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
           </div>
         </template>
       </MediaVisionRunner>
+
+      <UContainer v-else class="py-16">
+        <UAlert
+          color="neutral"
+          variant="subtle"
+          icon="i-lucide-hourglass"
+          :title="t('image.comingSoon')"
+        />
+      </UContainer>
       <template #fallback>
         <div class="py-20 flex items-center justify-center">
           <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-muted" />
@@ -106,9 +123,12 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
       </template>
     </ClientOnly>
   </div>
-  <UContainer v-else>
-    <div class="py-20 text-center text-muted">
-      Demo not found.
-    </div>
+  <UContainer v-else class="py-16">
+    <UAlert
+      color="neutral"
+      variant="subtle"
+      icon="i-lucide-file-question"
+      title="Demo not found"
+    />
   </UContainer>
 </template>
