@@ -25,11 +25,11 @@
 | 🤖 AI 生成 | 浏览器本地 LLM 对话 | WebLLM (Qwen2.5) |
 | 🧠 机器学习 | 图像迁移学习训练 (摄像头) | TensorFlow.js MobileNet + KNN |
 | 🧠 机器学习 | 声音迁移学习训练 (麦克风) | TensorFlow.js Speech Commands |
-| 🖼 图像工坊 | 15 个 Playground 页面（查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸处理/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |
+| 👁 视觉 | 图像处理 Playground（15 页：查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸处理/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |
 
 每个功能页面还附带 **Python 最简参考实现源码**（可展开查看，部分可通过 API 直接执行）。
 
-> 🖼 **图像工坊（已并入 /vision 视觉分类）**：15 个页面，每页承载一组相关工具（工具列表 + 参数面板 + 原图/结果双画布 + 下载 + Python 参考实现）。
+> 🎨 **图像处理 Playground（位于 /vision 视觉分类下）**：15 个页面，每页承载一组相关工具（工具列表 + 参数面板 + 原图/结果双画布 + 下载 + Python 参考实现）。
 > 经典 CV（阈值/边缘/物体/特征）使用本地 `public/opencv/opencv.js`（OpenCV 4.10，约 10MB，懒加载）；
 > 人脸/分类/分割/嵌入用 MediaPipe；OCR 用 Tesseract.js（CDN 懒加载）；多模态用 Transformers.js。
 
@@ -211,7 +211,7 @@ python/
 ├── transformers/       # NLP / 深度估计 / 图像描述
 ├── speech/             # TTS / 分离（Demucs）
 ├── ml/                 # 图像/声音训练参考
-├── image/              # 图像工坊（15 页对应模块，OpenCV 为主）+ 人脸识别（insightface）
+├── image/              # 视觉图像模块（15 个 Playground 页面对应，OpenCV 为主）+ 人脸识别（insightface）
 └── aigc/               # 文生图 / 老照片修复
 ```
 

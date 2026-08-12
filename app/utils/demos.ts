@@ -54,8 +54,8 @@ export const categories: Category[] = [
     slug: 'vision',
     title: { zh: '视觉', en: 'Vision' },
     description: {
-      zh: '图像工坊（查看/变换/像素/颜色/滤镜/形态学/边缘/特征）、人脸、目标检测、分割、OCR 与多模态 AI 视觉演示。',
-      en: 'Image Lab (view/transform/pixel/color/filter/morphology/edge/feature), face, object detection, segmentation, OCR and multimodal AI vision demos.'
+      zh: '图像查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/特征、人脸、目标检测、分割、OCR 与多模态 AI 视觉演示。',
+      en: 'Image view/transform/pixel/color/adjust/filter/enhance/morphology/edge/feature tools, face, object detection, segmentation, OCR and multimodal AI vision demos.'
     },
     icon: 'i-lucide-eye'
   },
@@ -700,7 +700,7 @@ export const demos: Demo[] = [
     pythonModule: 'aigc/photo-restore',
     tags: ['Python', 'Photo Restoration']
   },
-  // ===== image (图像工坊 Image Lab) =====
+  // ===== vision 图像处理 Playground（viewer/transform/... 共 15 页）=====
   {
     slug: 'viewer',
     category: 'vision',
