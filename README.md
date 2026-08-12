@@ -24,8 +24,13 @@
 | 🤖 AI 生成 | 浏览器本地 LLM 对话 | WebLLM (Qwen2.5) |
 | 🧠 机器学习 | 图像迁移学习训练 (摄像头) | TensorFlow.js MobileNet + KNN |
 | 🧠 机器学习 | 声音迁移学习训练 (麦克风) | TensorFlow.js Speech Commands |
+| 🖼 图像工坊 | 15 个 Playground 页面（查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |
 
 每个功能页面还附带 **Python 最简参考实现源码**（可展开查看，部分可通过 API 直接执行）。
+
+> 🖼 **图像工坊（/image）**：每个页面承载一组相关工具（工具列表 + 参数面板 + 原图/结果双画布 + 下载 + Python 参考实现）。
+> 经典 CV（阈值/边缘/物体/特征）使用本地 `public/opencv/opencv.js`（OpenCV 4.10，约 10MB，懒加载）；
+> 人脸/分类/分割/嵌入用 MediaPipe；OCR 用 Tesseract.js（CDN 懒加载）；多模态用 Transformers.js。
 
 ---
 
@@ -165,7 +170,9 @@ python/
 ├── mediapipe/          # 视觉/文本/音频（MediaPipe Tasks API）
 ├── transformers/       # NLP / 深度估计 / 图像描述
 ├── speech/             # TTS / 分离（Demucs）
-└── ml/                 # 图像/声音训练参考
+├── ml/                 # 图像/声音训练参考
+├── image/              # 图像工坊（15 页对应模块，OpenCV 为主）
+└── aigc/               # 文生图 / 老照片修复
 ```
 
 > 已全部适配新版 MediaPipe Tasks API（`mp.tasks`），并可在 Windows 上直接运行。

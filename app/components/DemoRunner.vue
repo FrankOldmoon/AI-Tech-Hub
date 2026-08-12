@@ -75,7 +75,7 @@ const hasAside = computed(() => Boolean(slots.aside))
           v-if="error"
           color="error"
           variant="subtle"
-          icon="i-lucide-alert-triangle"
+          icon="i-lucide-triangle-alert"
           :title="error"
         />
         <UAlert

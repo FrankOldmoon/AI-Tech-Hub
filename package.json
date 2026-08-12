@@ -25,6 +25,7 @@
     "@tensorflow-models/speech-commands": "^0.5.4",
     "@tensorflow/tfjs": "^4.22.0",
     "nuxt": "^4.5.1",
+    "onnxruntime-web": "^1.27.0",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {

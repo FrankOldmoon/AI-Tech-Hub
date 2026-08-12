@@ -1,7 +1,7 @@
 // AI 演示注册表：所有 demo 的元数据集中在此，前端/分类页面统一消费
 // 标题/描述以 { zh, en } 形式存储，便于按当前 locale 取值
 
-export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml'
+export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml' | 'image'
 export type DemoStatus = 'ready' | 'planned'
 
 export interface Localized {
@@ -60,6 +60,15 @@ export const categories: Category[] = [
     icon: 'i-lucide-eye'
   },
   {
+    slug: 'image',
+    title: { zh: '图像工坊', en: 'Image Lab' },
+    description: {
+      zh: '图像查看、几何变换、像素与色彩处理、滤镜增强、经典计算机视觉与 AI 视觉的一站式在线实验室。',
+      en: 'An all-in-one online lab for image viewing, transforms, pixel & color processing, filters, classical CV and AI vision.'
+    },
+    icon: 'i-lucide-image'
+  },
+  {
     slug: 'nlp',
     title: { zh: '自然语言', en: 'NLP' },
     description: {
@@ -72,8 +81,8 @@ export const categories: Category[] = [
     slug: 'aigc',
     title: { zh: 'AI 生成', en: 'AIGC' },
     description: {
-      zh: '在浏览器中运行的 LLM 对话与流式文本生成等 AI 内容生成演示。',
-      en: 'LLM chat and streaming text generation demos running in-browser.'
+      zh: 'LLM 对话、文生图、图像修复与 AI 内容生成演示（浏览器本地 / 本地服务端）。',
+      en: 'LLM chat, text-to-image, image inpainting and AI content generation demos (in-browser / local server).'
     },
     icon: 'i-lucide-sparkles'
   },
@@ -107,7 +116,8 @@ export const demos: Demo[] = [
     description: { zh: '语音识别转文字。', en: 'Speech to text recognition.' },
     icon: 'i-lucide-mic',
     status: 'ready',
-    tags: ['ASR', 'Web Speech API']
+    tags: ['ASR', 'Web Speech API', 'Whisper'],
+    pythonModule: 'speech/asr',
   },
   {
     slug: 'audio-classifier',
@@ -139,6 +149,125 @@ export const demos: Demo[] = [
     pythonModule: 'speech/voice-clone',
     tags: ['Voice', 'XTTS-v2', 'Zero-shot']
   },
+  {
+    slug: 'emotion',
+    category: 'speech',
+    title: { zh: '语音情感识别 (SER)', en: 'Speech Emotion Recognition (SER)' },
+    description: { zh: '识别语音中的情绪（开心/生气/悲伤等）。', en: 'Recognize emotions in speech (happy, angry, sad...).' },
+    icon: 'i-lucide-smile-plus',
+    status: 'ready',
+    tags: ['Emotion', 'wav2vec2', 'transformers.js'],
+    pythonModule: 'speech/emotion',
+  },
+  {
+    slug: 'pitch-detector',
+    category: 'speech',
+    title: { zh: '实时音高检测', en: 'Real-time Pitch Detector' },
+    description: { zh: '用麦克风实时检测音高与音名（YIN 算法）。', en: 'Real-time pitch and note detection from mic (YIN).' },
+    icon: 'i-lucide-audio-waveform',
+    status: 'ready',
+    tags: ['Pitch', 'YIN', 'Web Audio'],
+    pythonModule: 'speech/pitch-detector',
+  },
+  {
+    slug: 'denoise',
+    category: 'speech',
+    title: { zh: '音频降噪增强', en: 'Audio Denoise (Enhancement)' },
+    description: { zh: '用 DeepFilterNet 去除噪声、增强语音。', en: 'Remove noise and enhance speech with DeepFilterNet.' },
+    icon: 'i-lucide-waves',
+    status: 'ready',
+    pythonModule: 'speech/denoise',
+    tags: ['Denoise', 'DeepFilterNet']
+  },
+
+  {
+    slug: 'vad',
+    category: 'speech',
+    title: { zh: '语音活动检测 (VAD)', en: 'Voice Activity Detection (VAD)' },
+    description: { zh: '用 Silero VAD 检测音频中的语音段。', en: 'Detect speech segments in audio with Silero VAD.' },
+    icon: 'i-lucide-mic-vocal',
+    status: 'ready',
+    pythonModule: 'speech/vad',
+    tags: ['VAD', 'Silero']
+  },
+
+  {
+    slug: 'musicgen',
+    category: 'speech',
+    title: { zh: '文生音乐 (MusicGen)', en: 'Music Generation (MusicGen)' },
+    description: { zh: '用文字描述生成一段音乐。', en: 'Generate music from a text description.' },
+    icon: 'i-lucide-music-4',
+    status: 'ready',
+    pythonModule: 'speech/musicgen',
+    tags: ['MusicGen', 'AIGC']
+  },
+
+  {
+    slug: 'visualizer',
+    category: 'speech',
+    title: { zh: '音频可视化', en: 'Audio Visualizer' },
+    description: { zh: '波形 + 频谱图实时可视化音频。', en: 'Visualize audio with waveform and spectrogram.' },
+    icon: 'i-lucide-audio-lines',
+    status: 'ready',
+    pythonModule: 'speech/visualizer',
+    tags: ['Visualizer', 'wavesurfer']
+  },
+
+  {
+    slug: 'meeting',
+    category: 'speech',
+    title: { zh: '会议纪要', en: 'Meeting Notes' },
+    description: { zh: '转写音频并区分说话人，生成会议纪要。', en: 'Transcribe audio, separate speakers and generate meeting notes.' },
+    icon: 'i-lucide-users',
+    status: 'ready',
+    pythonModule: 'speech/meeting',
+    tags: ['Meeting', 'Whisper', 'WeSpeaker']
+  },
+
+  {
+    slug: 'midi',
+    category: 'speech',
+    title: { zh: '音频转 MIDI', en: 'Audio to MIDI' },
+    description: { zh: '把乐器音频转成可编辑的 MIDI 文件。', en: 'Convert instrument audio into an editable MIDI file.' },
+    icon: 'i-lucide-piano',
+    status: 'ready',
+    pythonModule: 'speech/midi',
+    tags: ['MIDI', 'Transcription']
+  },
+
+  {
+    slug: 'speech-translate',
+    category: 'speech',
+    title: { zh: '语音翻译', en: 'Speech Translation' },
+    description: { zh: '语音识别并翻译为英文（Whisper translate）。', en: 'Transcribe speech and translate it to English (Whisper translate).' },
+    icon: 'i-lucide-languages',
+    status: 'ready',
+    pythonModule: 'speech/speech-translate',
+    tags: ['Translate', 'Whisper']
+  },
+
+  {
+    slug: 'lip-sync',
+    category: 'speech',
+    title: { zh: '口型同步 (Wav2Lip)', en: 'Lip Sync (Wav2Lip)' },
+    description: { zh: '让视频中的人脸随音频口型同步。', en: 'Make the face in a video lip-sync to any audio.' },
+    icon: 'i-lucide-clapperboard',
+    status: 'ready',
+    pythonModule: 'speech/lip-sync',
+    tags: ['Wav2Lip', 'Video']
+  },
+
+  {
+    slug: 'singing',
+    category: 'speech',
+    title: { zh: '歌声合成 (DiffSinger)', en: 'Singing Synthesis (DiffSinger)' },
+    description: { zh: '从乐谱与歌词合成歌声（需 GPU 与声库，规划中）。', en: 'Synthesize singing from notes and lyrics (requires GPU + voice bank, planned).' },
+    icon: 'i-lucide-music-2',
+    status: 'planned',
+    pythonModule: 'speech/singing',
+    tags: ['Singing', 'DiffSinger']
+  },
+
   // ===== vision (MediaPipe) =====
   {
     slug: 'face-detection',
@@ -362,6 +491,33 @@ export const demos: Demo[] = [
     pythonModule: 'transformers/webllm',
     tags: ['WebLLM', 'WebGPU', 'Llama', 'Qwen']
   },
+  {
+    slug: 'text-to-image',
+    category: 'aigc',
+    title: { zh: '文生图 (Janus-Pro)', en: 'Text-to-Image (Janus-Pro)' },
+    description: { zh: '用 Janus-Pro-1B 在浏览器本地生成图片，并支持图像理解问答。', en: 'Generate images locally in-browser with Janus-Pro-1B, plus image understanding QA.' },
+    icon: 'i-lucide-image',
+    status: 'ready',
+    tags: ['Janus-Pro', 'Transformers.js', 'WebGPU', 'Multi-modal']
+  },
+  {
+    slug: 'inpainting',
+    category: 'aigc',
+    title: { zh: '图像修复 (Moebius)', en: 'Image Inpainting (Moebius)' },
+    description: { zh: '用 Moebius-0.2B 在浏览器涂抹去除并补全图片区域。', en: 'Paint over image regions to remove and inpaint them with Moebius-0.2B in-browser.' },
+    icon: 'i-lucide-eraser',
+    status: 'ready',
+    tags: ['Moebius', 'Inpainting', 'ONNX Runtime Web', 'WebGPU']
+  },
+  {
+    slug: 'capabilities',
+    category: 'aigc',
+    title: { zh: 'WebGPU 能力诊断', en: 'WebGPU Capabilities' },
+    description: { zh: '检测当前浏览器的 WebGPU 适配器、特性与运行建议。', en: 'Inspect the browser WebGPU adapter, features and recommendations.' },
+    icon: 'i-lucide-gpu',
+    status: 'ready',
+    tags: ['WebGPU', 'Diagnostics']
+  },
   // ===== ml (Teachable Machine) =====
   {
     slug: 'image-training',
@@ -382,7 +538,328 @@ export const demos: Demo[] = [
     status: 'ready',
     pythonModule: 'ml/audio-training',
     tags: ['TensorFlow.js', 'Speech Commands', 'KNN']
-  }
+  },
+  {
+    slug: 'pose-training',
+    category: 'ml',
+    title: { zh: '姿态训练', en: 'Pose Training' },
+    description: { zh: '采集身体姿态样本训练自定义动作分类器（迁移学习）。', en: 'Collect pose samples from the webcam to train a custom gesture classifier (transfer learning).' },
+    icon: 'i-lucide-person-standing',
+    status: 'ready',
+    pythonModule: 'ml/pose-training',
+    tags: ['MediaPipe', 'Pose', 'KNN']
+  },
+  {
+    slug: 'text-training',
+    category: 'ml',
+    title: { zh: '文本训练', en: 'Text Training' },
+    description: { zh: '输入文本样本训练自定义文本分类器（迁移学习）。', en: 'Train a custom text classifier with your own examples (transfer learning).' },
+    icon: 'i-lucide-type',
+    status: 'ready',
+    pythonModule: 'ml/text-training',
+    tags: ['Transformers.js', 'Embedding', 'KNN']
+  },
+  {
+    slug: 'playground',
+    category: 'ml',
+    title: { zh: '神经网络游乐场', en: 'Neural Network Playground' },
+    description: { zh: '在 2D 数据上实时训练神经网络，观察决策边界与损失变化。', en: 'Train a neural network on 2D data in real time and watch the decision boundary and loss evolve.' },
+    icon: 'i-lucide-brain-circuit',
+    status: 'ready',
+    pythonModule: 'ml/playground',
+    tags: ['Neural Network', 'Backprop', 'Playground']
+  },
+  {
+    slug: 'auto-train',
+    category: 'ml',
+    title: { zh: 'CSV 自动训练', en: 'CSV AutoTrain' },
+    description: { zh: '上传 CSV，自动训练多个模型并对比指标，快速上手机器学习工作流。', en: 'Upload a CSV, auto-train multiple models and compare metrics — a quick machine learning workflow.' },
+    icon: 'i-lucide-file-spreadsheet',
+    status: 'ready',
+    pythonModule: 'ml/auto-train',
+    tags: ['scikit-learn', 'AutoML', 'CSV']
+  },
+  {
+    slug: 'kmeans',
+    category: 'ml',
+    title: { zh: 'K-Means 聚类', en: 'K-Means Clustering' },
+    description: { zh: '步进式观察 K-Means 如何把数据点聚成 K 簇（无监督学习）。', en: 'Step through K-Means as it groups points into K clusters (unsupervised learning).' },
+    icon: 'i-lucide-donut',
+    status: 'ready',
+    pythonModule: 'ml/kmeans',
+    tags: ['K-Means', 'Unsupervised', 'Clustering']
+  },
+  {
+    slug: 'regression',
+    category: 'ml',
+    title: { zh: '回归拟合', en: 'Regression Fitting' },
+    description: { zh: '在散点上用梯度下降拟合多项式曲线，观察损失下降。', en: 'Fit a polynomial curve to scatter points with gradient descent and watch the loss drop.' },
+    icon: 'i-lucide-trending-up',
+    status: 'ready',
+    pythonModule: 'ml/regression',
+    tags: ['Regression', 'Gradient Descent', 'Polynomial']
+  },
+  {
+    slug: 'mnist',
+    category: 'ml',
+    title: { zh: 'MNIST 手写数字', en: 'MNIST Handwritten Digits' },
+    description: { zh: '在浏览器中训练神经网络识别手写数字，然后亲手写一个测试它。', en: 'Train a neural network in the browser to recognize handwritten digits, then draw one to test it.' },
+    icon: 'i-lucide-pen-tool',
+    status: 'ready',
+    pythonModule: 'ml/mnist',
+    tags: ['TensorFlow.js', 'MNIST', 'CNN']
+  },
+  {
+    slug: 'cartpole',
+    category: 'ml',
+    title: { zh: '强化学习 CartPole', en: 'Reinforcement Learning: CartPole' },
+    description: { zh: '用策略梯度在浏览器中训练智能体学会平衡倒立摆。', en: 'Train an agent with policy gradient in the browser to balance an inverted pendulum.' },
+    icon: 'i-lucide-rocket',
+    status: 'ready',
+    pythonModule: 'ml/cartpole',
+    tags: ['Reinforcement Learning', 'Policy Gradient', 'TF.js']
+  },
+  {
+    slug: 'forecast',
+    category: 'ml',
+    title: { zh: '时间序列预测', en: 'Time Series Forecasting' },
+    description: { zh: '上传时间序列 CSV，用指数平滑预测未来趋势并显示置信区间。', en: 'Upload a time series CSV and forecast future trends with exponential smoothing and confidence bands.' },
+    icon: 'i-lucide-chart-line',
+    status: 'ready',
+    pythonModule: 'ml/forecast',
+    tags: ['Time Series', 'Holt-Winters', 'statsmodels']
+  },
+  {
+    slug: 'anomaly',
+    category: 'ml',
+    title: { zh: '异常检测', en: 'Anomaly Detection' },
+    description: { zh: '用 IsolationForest 在二维数据中自动找出异常点。', en: 'Automatically find outliers in 2D data with Isolation Forest.' },
+    icon: 'i-lucide-radar',
+    status: 'ready',
+    pythonModule: 'ml/anomaly',
+    tags: ['IsolationForest', 'Outlier', 'scikit-learn']
+  },
+  {
+    slug: 'palette',
+    category: 'ml',
+    title: { zh: '图像主色调', en: 'Image Palette' },
+    description: { zh: '用 K-Means 聚类提取图片的主色调配色板（无监督学习的趣味应用）。', en: 'Extract a color palette from any image with K-Means clustering (a fun unsupervised learning app).' },
+    icon: 'i-lucide-palette',
+    status: 'ready',
+    pythonModule: 'ml/palette',
+    tags: ['K-Means', 'Color', 'Unsupervised']
+  },
+  {
+    slug: 'dim-reduction',
+    category: 'ml',
+    title: { zh: '降维可视化', en: 'Dim Reduction' },
+    description: { zh: '用 PCA / t-SNE 把高维数据降到二维并聚类着色。', en: 'Project high-dimensional data to 2D with PCA / t-SNE and color by cluster.' },
+    icon: 'i-lucide-scatter-chart',
+    status: 'ready',
+    pythonModule: 'ml/dim-reduction',
+    tags: ['PCA', 't-SNE', 'scikit-learn']
+  },
+  {
+    slug: 'svd',
+    category: 'ml',
+    title: { zh: '推荐系统 (SVD)', en: 'Recommender (SVD)' },
+    description: { zh: '在 MovieLens 数据集上用矩阵分解做协同过滤推荐。', en: 'Collaborative filtering with matrix factorization on MovieLens.' },
+    icon: 'i-lucide-star',
+    status: 'ready',
+    pythonModule: 'ml/svd',
+    tags: ['SVD', 'Recommendation', 'MovieLens']
+  },
+  {
+    slug: 'decision-tree',
+    category: 'ml',
+    title: { zh: '决策树', en: 'Decision Tree' },
+    description: { zh: '交互式构建 CART 决策树，观察特征分裂与决策边界。', en: 'Build a CART decision tree interactively and watch feature splits and the decision boundary.' },
+    icon: 'i-lucide-git-branch',
+    status: 'ready',
+    pythonModule: 'ml/decision-tree',
+    tags: ['Decision Tree', 'CART', 'Gini']
+  },
+  {
+    slug: 'flappy',
+    category: 'ml',
+    title: { zh: 'Flappy Bird 神经进化', en: 'Flappy Bird Neuroevolution' },
+    description: { zh: '用遗传算法 + 神经网络在浏览器中训练小鸟学会飞行。', en: 'Train birds to fly in the browser with a genetic algorithm and neural networks.' },
+    icon: 'i-lucide-bird',
+    status: 'ready',
+    pythonModule: 'ml/flappy',
+    tags: ['Neuroevolution', 'Genetic Algorithm', 'Neural Network']
+  },
+  {
+    slug: 'sd-turbo',
+    category: 'aigc',
+    title: { zh: '文生图/图生图 (SD-Turbo)', en: 'Text/Image-to-Image (SD-Turbo)' },
+    description: { zh: '用 SD-Turbo 在本地服务端生成或编辑图片（CPU 友好，1-4 步）。', en: 'Generate or edit images locally with SD-Turbo (CPU-friendly, 1-4 steps).' },
+    icon: 'i-lucide-image',
+    status: 'ready',
+    pythonModule: 'aigc/sd-turbo',
+    tags: ['Python', 'Text/Image-to-Image (SD-Turbo)']
+  },
+  {
+    slug: 'photo-restore',
+    category: 'aigc',
+    title: { zh: '老照片修复', en: 'Photo Restoration' },
+    description: { zh: '用 Real-ESRGAN + CodeFormer 修复模糊老照片与人脸细节。', en: 'Restore blurry old photos and face details with Real-ESRGAN + CodeFormer.' },
+    icon: 'i-lucide-images',
+    status: 'ready',
+    pythonModule: 'aigc/photo-restore',
+    tags: ['Python', 'Photo Restoration']
+  },
+  // ===== image (图像工坊 Image Lab) =====
+  {
+    slug: 'viewer',
+    category: 'image',
+    title: { zh: '图像查看器', en: 'Image Viewer' },
+    description: { zh: '图片信息、像素取色与格式转换下载。', en: 'Image info, pixel color picking, format conversion and download.' },
+    icon: 'i-lucide-image',
+    status: 'ready',
+    pythonModule: 'image/viewer',
+    tags: ['Canvas', 'Info', 'Picker']
+  },
+  {
+    slug: 'transform',
+    category: 'image',
+    title: { zh: '图像变换', en: 'Image Transform' },
+    description: { zh: '缩放、裁剪、旋转、翻转、缩放比例、边距、透视与仿射变换。', en: 'Resize, crop, rotate, flip, scale, padding, perspective and affine transform.' },
+    icon: 'i-lucide-move-3d',
+    status: 'ready',
+    pythonModule: 'image/transform',
+    tags: ['Canvas', 'Geometry']
+  },
+  {
+    slug: 'pixel',
+    category: 'image',
+    title: { zh: '像素处理', en: 'Pixel Processing' },
+    description: { zh: '读取像素、像素网格放大与像素级数学运算。', en: 'Read pixels, magnify the pixel grid and run pixel-level math.' },
+    icon: 'i-lucide-grid-3x3',
+    status: 'ready',
+    pythonModule: 'image/pixel',
+    tags: ['Canvas', 'ImageData']
+  },
+  {
+    slug: 'color',
+    category: 'image',
+    title: { zh: '颜色处理', en: 'Color Processing' },
+    description: { zh: '灰度化、通道提取与合并、色彩空间、颜色替换与量化。', en: 'Grayscale, channel extraction & merge, color spaces, color replacement and quantization.' },
+    icon: 'i-lucide-palette',
+    status: 'ready',
+    pythonModule: 'image/color',
+    tags: ['Canvas', 'Color']
+  },
+  {
+    slug: 'adjustment',
+    category: 'image',
+    title: { zh: '图像调整', en: 'Image Adjustment' },
+    description: { zh: '亮度、对比度、伽马、饱和度、色相、曝光、白平衡与自动增强。', en: 'Brightness, contrast, gamma, saturation, hue, exposure, white balance and auto enhancement.' },
+    icon: 'i-lucide-sliders-horizontal',
+    status: 'ready',
+    pythonModule: 'image/adjust',
+    tags: ['Canvas', 'Adjust']
+  },
+  {
+    slug: 'filters',
+    category: 'image',
+    title: { zh: '图像滤镜', en: 'Image Filters' },
+    description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜（规划中）。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters (planned).' },
+    icon: 'i-lucide-sparkles',
+    status: 'ready',
+    pythonModule: 'image/filters',
+    tags: ['Canvas', 'Filter']
+  },
+  {
+    slug: 'enhancement',
+    category: 'image',
+    title: { zh: '噪声与增强', en: 'Noise & Enhancement' },
+    description: { zh: '加噪、去噪、直方图均衡与图像增强（规划中）。', en: 'Add noise, denoise, histogram equalization and enhancement (planned).' },
+    icon: 'i-lucide-waves',
+    status: 'ready',
+    pythonModule: 'image/enhancement',
+    tags: ['Canvas', 'Denoise']
+  },
+  {
+    slug: 'morphology',
+    category: 'image',
+    title: { zh: '阈值与形态学', en: 'Threshold & Morphology' },
+    description: { zh: '二值化、自适应阈值、腐蚀膨胀、开闭运算与形态学梯度（规划中，OpenCV.js）。', en: 'Binary/adaptive/Otsu threshold, erosion, dilation, opening, closing and morphological gradient (planned, OpenCV.js).' },
+    icon: 'i-lucide-shapes',
+    status: 'ready',
+    pythonModule: 'image/morphology',
+    tags: ['OpenCV.js', 'Threshold']
+  },
+  {
+    slug: 'edge',
+    category: 'image',
+    title: { zh: '边缘与形状检测', en: 'Edge & Shape Detection' },
+    description: { zh: 'Sobel、Canny、Harris 角点、Hough 直线与圆检测（规划中，OpenCV.js）。', en: 'Sobel, Canny, Harris corners, Hough lines and circles (planned, OpenCV.js).' },
+    icon: 'i-lucide-scan-line',
+    status: 'ready',
+    pythonModule: 'image/edge',
+    tags: ['OpenCV.js', 'Edge']
+  },
+  {
+    slug: 'object',
+    category: 'image',
+    title: { zh: '颜色与物体检测', en: 'Color & Object Detection' },
+    description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别（规划中，OpenCV.js）。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition (planned, OpenCV.js).' },
+    icon: 'i-lucide-target',
+    status: 'ready',
+    pythonModule: 'image/object',
+    tags: ['OpenCV.js', 'Contour']
+  },
+  {
+    slug: 'features',
+    category: 'image',
+    title: { zh: '特征检测', en: 'Feature Detection' },
+    description: { zh: 'ORB/BRISK 关键点与特征匹配（规划中，OpenCV.js）。', en: 'ORB/BRISK keypoints and feature matching (planned, OpenCV.js).' },
+    icon: 'i-lucide-crosshair',
+    status: 'ready',
+    pythonModule: 'image/features',
+    tags: ['OpenCV.js', 'Feature']
+  },
+  {
+    slug: 'face',
+    category: 'image',
+    title: { zh: '人脸视觉', en: 'Face Vision' },
+    description: { zh: '人脸检测、关键点、模糊与马赛克（MediaPipe）。', en: 'Face detection, landmarks, blur and pixelation (MediaPipe).' },
+    icon: 'i-lucide-scan-face',
+    status: 'ready',
+    pythonModule: 'image/face',
+    tags: ['MediaPipe', 'Face']
+  },
+  {
+    slug: 'ocr',
+    category: 'image',
+    title: { zh: 'OCR 与文档视觉', en: 'OCR & Document Vision' },
+    description: { zh: '文字识别（Tesseract.js）与文档扫描校正（OpenCV.js）。', en: 'Text recognition (Tesseract.js) and document scanning (OpenCV.js).' },
+    icon: 'i-lucide-file-text',
+    status: 'ready',
+    pythonModule: 'image/ocr',
+    tags: ['Tesseract.js', 'OCR']
+  },
+  {
+    slug: 'ai-vision',
+    category: 'image',
+    title: { zh: 'AI 目标与图像视觉', en: 'AI Object & Image Vision' },
+    description: { zh: '图像分类、目标检测、分割、抠图、嵌入与相似度（MediaPipe）。', en: 'Classification, detection, segmentation, background removal, embedding and similarity (MediaPipe).' },
+    icon: 'i-lucide-eye',
+    status: 'ready',
+    pythonModule: 'image/ai-vision',
+    tags: ['MediaPipe', 'Transformers.js']
+  },
+  {
+    slug: 'multimodal',
+    category: 'image',
+    title: { zh: 'AI 视觉与多模态', en: 'AI Vision & Multimodal' },
+    description: { zh: '图像描述与深度估计（Transformers.js），问答/修复/风格迁移见 AIGC。', en: 'Image captioning and depth estimation (Transformers.js); QA/inpainting/style transfer under AIGC.' },
+    icon: 'i-lucide-layers',
+    status: 'ready',
+    pythonModule: 'image/multimodal',
+    tags: ['Transformers.js', 'Multimodal']
+  },
 ]
 
 // ===== 纯函数辅助（不依赖 Nuxt 上下文，可在任意处使用）=====

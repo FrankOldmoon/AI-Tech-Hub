@@ -9,7 +9,7 @@
  */
 
 import { Readable } from 'node:stream'
-import { createError, getRouterParam, sendStream, setResponseHeader } from 'h3'
+import { createError, getRequestHeaders, getRouterParam, sendStream, setResponseHeader, setResponseStatus } from 'h3'
 
 // 上游自动选择：Vercel（海外）用 huggingface.co；本地/大陆网络用 hf-mirror.com；
 // 也可通过 HF_MIRROR_URL 环境变量显式覆盖
@@ -37,9 +37,14 @@ export default defineEventHandler(async (event) => {
   }
 
   const upstream = `${MIRROR}/${path}`
+  // 转发 Range（ONNX Runtime Web / 大模型分段下载需要 206 响应）
+  const headers: Record<string, string> = {}
+  const range = getRequestHeaders(event).range
+  if (range) headers['Range'] = range
+
   let resp: Response
   try {
-    resp = await fetch(upstream, { redirect: 'follow' })
+    resp = await fetch(upstream, { redirect: 'follow', headers })
   } catch (e) {
     throw createError({
       statusCode: 502,
@@ -55,7 +60,13 @@ export default defineEventHandler(async (event) => {
   }
 
   const ext = path.split('.').pop()?.toLowerCase() ?? ''
+  setResponseStatus(event, resp.status)
   setResponseHeader(event, 'Content-Type', MIME[ext] || resp.headers.get('content-type') || 'application/octet-stream')
   setResponseHeader(event, 'Cache-Control', 'public, max-age=3600')
+  const contentLength = resp.headers.get('content-length')
+  if (contentLength) setResponseHeader(event, 'Content-Length', contentLength)
+  const contentRange = resp.headers.get('content-range')
+  if (contentRange) setResponseHeader(event, 'Content-Range', contentRange)
+  setResponseHeader(event, 'Accept-Ranges', 'bytes')
   return sendStream(event, Readable.fromWeb(resp.body as any))
 })
