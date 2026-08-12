@@ -421,12 +421,6 @@ const modeText = computed(() => {
               </div>
             </div>
 
-            <!-- 人脸注册与识别面板 -->
-            <FaceRegisterPanel
-              v-if="activeTool?.id === 'face-register'"
-              :image-data="original"
-            />
-
             <!-- 错误 -->
             <UAlert
               v-if="error"

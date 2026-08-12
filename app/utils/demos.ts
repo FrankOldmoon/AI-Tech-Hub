@@ -815,11 +815,21 @@ export const demos: Demo[] = [
     slug: 'face',
     category: 'vision',
     title: { zh: '人脸视觉', en: 'Face Vision' },
-    description: { zh: '人脸检测、关键点、模糊、马赛克与注册识别（MediaPipe + insightface）。', en: 'Face detection, landmarks, blur, pixelation, registration and recognition (MediaPipe + insightface).' },
+    description: { zh: '人脸检测、关键点、模糊、马赛克与双图验证（MediaPipe + insightface）。', en: 'Face detection, landmarks, blur, pixelation and two-image verification (MediaPipe + insightface).' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
     pythonModule: 'image/face',
     tags: ['MediaPipe', 'Face']
+  },
+  {
+    slug: 'face-recognition',
+    category: 'vision',
+    title: { zh: '人脸注册与识别', en: 'Face Registration & Recognition' },
+    description: { zh: '一人可上传多张照片或使用摄像头注册，之后上传照片/实时摄像头即可识别身份；支持合影选脸（insightface + 浏览器本地注册库）。', en: 'Enroll a person with multiple photos or your camera, then recognize them via photo upload or live camera; supports picking a face in group photos (insightface + local registry).' },
+    icon: 'i-lucide-user-check',
+    status: 'ready',
+    pythonModule: 'image/face-recognition',
+    tags: ['InsightFace', 'Face']
   },
   {
     slug: 'ocr',

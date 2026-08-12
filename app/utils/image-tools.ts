@@ -1643,7 +1643,9 @@ async function submitAndPoll(
   let task: any = null
   while (Date.now() < deadline) {
     await ai.sleep(1000)
-    task = await $fetch<any>(pollUrl(res.taskId))
+    const body = await $fetch<any>(pollUrl(res.taskId))
+    // GET 响应为 { ok, task }，必须解包，否则 status 恒为 undefined 导致无限轮询
+    task = body?.task ?? body
     if (task && ['done', 'error', 'cancelled'].includes(task.status)) break
   }
   if (!task) throw new Error('任务超时')
@@ -1784,18 +1786,6 @@ const faceTools: ImageTool[] = [
         info: [{ label: lang === 'zh' ? '已马赛克人脸' : 'Faces pixelated', value: `${dets.length}` }]
       }
     }
-  },
-  {
-    id: 'face-register',
-    page: 'face',
-    name: { zh: '人脸注册与识别 Face Registration', en: 'Face Registration & Recognition' },
-    description: { zh: '注册人脸姓名，之后上传照片即可识别身份（insightface + 浏览器本地注册库）。', en: 'Register faces with names, then identify unknown photos (insightface + local registry).' },
-    kind: 'python',
-    pythonModule: 'image/face',
-    run: ({ imageData, lang }) => ({
-      imageData,
-      info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '使用下方「人脸注册与识别」面板完成注册与识别' : 'Use the registration panel below to register and recognize faces' }]
-    })
   },
   {
     id: 'face-verification',
