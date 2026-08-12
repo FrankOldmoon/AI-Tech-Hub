@@ -19,12 +19,13 @@
 | 👁 视觉 | 图像分割 / 交互式分割 | MediaPipe Tasks |
 | 👁 视觉 | 深度估计 | Transformers.js (Depth-Anything) |
 | 👁 视觉 | 图像描述 | Transformers.js (ViT-GPT2) |
+| 👁 视觉 | 人脸注册与识别（一人多样张注册、合影选脸、上传/摄像头实时识别） | InsightFace (ArcFace) + 浏览器本地注册库 |
 | 📝 自然语言 | 文本分类 / 语言检测 / 文本嵌入 | MediaPipe Tasks |
 | 📝 自然语言 | 命名实体识别 / 零样本分类 / 摘要 / 问答 / 完形填空 | Transformers.js |
 | 🤖 AI 生成 | 浏览器本地 LLM 对话 | WebLLM (Qwen2.5) |
 | 🧠 机器学习 | 图像迁移学习训练 (摄像头) | TensorFlow.js MobileNet + KNN |
 | 🧠 机器学习 | 声音迁移学习训练 (麦克风) | TensorFlow.js Speech Commands |
-| 🖼 图像工坊 | 15 个 Playground 页面（查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |
+| 🖼 图像工坊 | 15 个 Playground 页面（查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸处理/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |
 
 每个功能页面还附带 **Python 最简参考实现源码**（可展开查看，部分可通过 API 直接执行）。
 
@@ -93,6 +94,8 @@ public/model/
 - 若模型缺失，前端会通过 `/api/hf/**` 本地代理自动回退下载（绕过 CORS）
 - 模型下载器日志输出在 dev server 控制台 / `dev-server.log`
 
+> 注：人脸识别模型 `buffalo_l`（InsightFace）不在 `public/model/`，由 Python 侧首次使用时自动下载到用户目录 `~/.insightface/`。
+
 ### 服务端 Python 功能（音频分离）
 
 首次调用 `/api/speech/separate` 前会自动（或手动）准备环境：
@@ -104,6 +107,22 @@ py -3 -m venv .venv
 ```
 
 > 服务器插件 `server/plugins/setup-python.ts` 会扫描 `python/**/requirements.txt` 自动创建虚拟环境（Windows 上自动回退 `py -3`）。
+
+### 服务端 Python 功能（人脸注册与识别）
+
+「人脸注册与识别」页（`/vision/face-recognition`）的后端使用 **InsightFace（ArcFace，buffalo_l）** 提取 512 维人脸嵌入；注册库保存在浏览器 localStorage（本机隐私友好，换浏览器会丢失）。
+
+首次调用前会自动（或手动）准备环境：
+
+```bash
+cd python/image/face-recognition
+py -3 -m venv .venv
+.venv\Scripts\pip install -r requirements.txt   # insightface + onnxruntime + opencv-python
+```
+
+- 模型 `buffalo_l`（约 300MB）首次使用时自动下载到用户目录 `~/.insightface/`（不在 `public/model/`，不纳入 git）
+- 常驻 worker 只加载一次模型，之后每次分析复用；空闲 30 分钟自动退出
+- 摄像头拍照注册 / 实时识别需在 `localhost` 或 HTTPS 下使用（浏览器 `getUserMedia` 安全策略）
 
 ---
 
@@ -146,6 +165,27 @@ curl -X DELETE http://localhost:3000/api/speech/separate/<taskId>
 
 线程控制：环境变量 `SEPARATION_THREADS`（默认 6）限制 torch 线程数，避免分离时拖慢系统。
 
+### `POST /api/image/face-recognition`（异步任务）
+人脸识别/验证，采用与音频分离一致的异步任务队列（单并发、常驻 insightface worker）。
+
+```bash
+# 1. 提交任务（multipart/form-data）
+#    mode=recognition 单图提取全部人脸嵌入；mode=verification 双图比对（需 file + file2）
+curl -F "mode=recognition" -F "file=@photo.jpg" \
+  http://localhost:3000/api/image/face-recognition
+# => { "ok": true, "taskId": "uuid" }
+
+# 2. 轮询结果（queued → loading/processing → done/error/cancelled）
+curl http://localhost:3000/api/image/face-recognition/<taskId>
+# => { "ok": true, "task": { "status": "done", "result": { "faces": 1, "dim": 512, "embeddings": [...], "bboxes": [[x1,y1,x2,y2]] } } }
+
+# 3. 取消任务
+curl -X DELETE http://localhost:3000/api/image/face-recognition/<taskId>
+```
+
+- `recognition` 结果包含每张脸的 `embeddings`（512 维）与 `bboxes`（像素坐标），前端据此支持合影选脸
+- `verification` 结果包含 `similarity` 与 `verdict`（`same` / `different` / `no-face`）
+
 ### `GET /api/python/source?feature=...`
 读取 Python 参考实现源码（如 `feature=mediapipe/face-detection`）。
 
@@ -171,7 +211,7 @@ python/
 ├── transformers/       # NLP / 深度估计 / 图像描述
 ├── speech/             # TTS / 分离（Demucs）
 ├── ml/                 # 图像/声音训练参考
-├── image/              # 图像工坊（15 页对应模块，OpenCV 为主）
+├── image/              # 图像工坊（15 页对应模块，OpenCV 为主）+ 人脸识别（insightface）
 └── aigc/               # 文生图 / 老照片修复
 ```
 
@@ -203,6 +243,7 @@ WebLLM 需要 Chrome/Edge 且开启 WebGPU（`chrome://flags` 检查）。不支
 - 模型下载器：`server/utils/model-downloader.ts`（自动下载/跳过已存在）
 - Python 环境初始化：`server/utils/python-setup.ts`（跨平台：Windows 回退 `py -3`）
 - 音频分离队列：`server/utils/separation-queue.ts`
+- 人脸识别队列：`server/utils/face-recognition-queue.ts`（insightface 常驻 worker）
 - 演示注册表：`app/utils/demos.ts`（新增演示只需在此注册 + 创建页面）
 
 ## 📄 License
