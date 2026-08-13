@@ -233,6 +233,9 @@ WebLLM 需要 Chrome/Edge 且开启 WebGPU（`chrome://flags` 检查）。不支
 **Q: 上传图片报 "source image could not be decoded"？**
 页面会自动将图片转为标准 PNG（canvas 预处理），请使用 PNG/JPG/WebP 格式，避免 HEIC/TIFF/SVG。
 
+**Q: 局域网 / 其他设备如何访问？摄像头在局域网能用吗？**
+生产模式（`node .output/server/index.mjs`）默认监听所有网卡，同一局域网设备直接访问 `http://<本机IP>:3000` 即可（本机 IP 用 `ipconfig` 查询；Windows 防火墙需放行 node.exe 入站）。摄像头（`getUserMedia`）要求安全上下文，局域网 HTTP 下不可用；如需局域网使用摄像头，可用自签证书以 HTTPS 启动：设置环境变量 `NITRO_SSL_CERT` / `NITRO_SSL_KEY`（PEM 内容）后再运行 `node .output/server/index.mjs`，其他设备首次访问需接受证书警告。可参考 `tmp/start-https.ps1`（一键生成/启动脚本）。
+
 **Q: 为什么有些模型（BLIP 等）不可用？**
 部分 HuggingFace 仓库为 gated（受限）仓库，匿名无法下载（如 `Xenova/blip-image-captioning-base`、`onnx-community/depth-anything-v1-small`），项目已替换为可用的非受限模型（如 Depth-Anything-Small-hf）。
 
