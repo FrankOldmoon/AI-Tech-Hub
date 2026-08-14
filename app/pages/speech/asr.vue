@@ -14,6 +14,8 @@ const mode = ref<'live' | 'file'>('live')
 
 // ===== 实时模式：Web Speech API =====
 const supported = ref(false)
+/** hydration 完成前不渲染依赖浏览器能力的 notice，避免 SSR/CSR 结构不一致 */
+const hydrated = ref(false)
 const listening = ref(false)
 const interim = ref('')
 const finalText = ref('')
@@ -37,6 +39,7 @@ const specs = computed<ParamSpec[]>(() => [
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
 onMounted(() => {
+  hydrated.value = true
   const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   if (!SR) {
     supported.value = false
@@ -308,7 +311,7 @@ function exportSrt() {
 // ===== DemoRunner 绑定 =====
 const runnerError = computed(() => (mode.value === 'live' ? liveError.value : whisperError.value))
 const runnerNotice = computed(() =>
-  mode.value === 'live' ? (supported.value ? null : t('asr.unsupported')) : null
+  mode.value === 'live' && hydrated.value ? (supported.value ? null : t('asr.unsupported')) : null
 )
 </script>
 
