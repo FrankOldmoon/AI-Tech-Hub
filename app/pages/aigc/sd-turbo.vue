@@ -45,7 +45,19 @@ function onFileChange(e: Event) {
   input.value = ''
 }
 
+const { poll, stop: stopPolling } = useTaskPoller({
+  progress,
+  progressText,
+  error,
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => {
+    if (task.resultUrls?.length) resultUrls.value = task.resultUrls
+    else if (task.resultUrl) resultUrls.value = [task.resultUrl]
+  }
+})
+
 async function run() {
+  if (loading.value) return
   if (!prompt.value.trim()) { error.value = t('demo.inputRequired'); return }
   if (tab.value === 'img2img' && !inputFile.value) { error.value = t('demo.inputRequired'); return }
   error.value = null
@@ -67,7 +79,7 @@ async function run() {
     const res = await $fetch<{ ok: boolean, taskId?: string, error?: string }>('/api/aigc/sd-turbo', { method: 'POST', body: formData })
     if (!res.ok || !res.taskId) { error.value = res.error || '提交失败'; return }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/aigc/sd-turbo/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
@@ -75,22 +87,9 @@ async function run() {
   }
 }
 
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any }>(`/api/aigc/sd-turbo/${id}`, { method: 'GET' }).catch(() => null)
-    if (!res?.ok || !res.task) { error.value = res?.error || '任务查询失败'; return }
-    progress.value = res.task.progress || 0
-    progressText.value = res.task.message || ''
-    if (res.task.status === 'done' && res.task.resultUrls?.length) { resultUrls.value = res.task.resultUrls; return }
-    if (res.task.status === 'done' && res.task.resultUrl) { resultUrls.value = [res.task.resultUrl]; return }
-    if (res.task.status === 'error') { error.value = res.task.message || '处理失败'; return }
-    if (res.task.status === 'cancelled') { error.value = '已取消'; return }
-    await new Promise((r) => setTimeout(r, 1500))
-  }
-}
-
 async function cancel() {
   if (!taskId.value) return
+  stopPolling()
   loading.value = false
   try { await $fetch(`/api/aigc/sd-turbo/${taskId.value}`, { method: 'DELETE' }) } catch { /* ignore */ }
   taskId.value = null

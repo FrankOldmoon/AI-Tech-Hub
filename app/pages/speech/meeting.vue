@@ -28,7 +28,23 @@ function onFileChange(e: Event) {
   }
 }
 
+const { poll } = useTaskPoller({
+  interval: 2000,
+  progress,
+  progressText,
+  error,
+  failMessage: t('demo.backendUnavailable'),
+  cancelledMessage: t('meeting.cancelled'),
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => {
+    segments.value = task.segments || []
+    fullText.value = task.text || ''
+    resultUrl.value = task.resultUrl || ''
+  }
+})
+
 async function run() {
+  if (loading.value) return
   if (!fileData.value) {
     error.value = t('meeting.upload')
     return
@@ -50,41 +66,11 @@ async function run() {
       return
     }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/speech/meeting/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
     loading.value = false
-  }
-}
-
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/speech/meeting/${id}`, {
-      method: 'GET'
-    }).catch(() => null)
-    if (!res?.ok || !res.task) {
-      error.value = res?.error || t('demo.backendUnavailable')
-      return
-    }
-    const task = res.task
-    progress.value = task.progress || 0
-    progressText.value = task.message || ''
-    if (task.status === 'done') {
-      segments.value = task.segments || []
-      fullText.value = task.text || ''
-      resultUrl.value = task.resultUrl || ''
-      return
-    }
-    if (task.status === 'error') {
-      error.value = task.error || task.message || 'error'
-      return
-    }
-    if (task.status === 'cancelled') {
-      error.value = t('meeting.cancelled')
-      return
-    }
-    await new Promise((r) => setTimeout(r, 2000))
   }
 }
 

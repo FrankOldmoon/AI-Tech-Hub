@@ -58,7 +58,19 @@ function stemLabel(name: string): string {
   return translated === key ? name : translated
 }
 
+const { poll, stop: stopPolling } = useTaskPoller({
+  progress,
+  progressText,
+  error,
+  errorMessage: '分离失败',
+  cancelledMessage: '已取消',
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => { if (task.stems) stems.value = task.stems },
+  onError: task => task.message || task.error
+})
+
 async function separate() {
+  if (loading.value) return
   if (!fileData.value) {
     error.value = t('separation.upload')
     return
@@ -85,7 +97,7 @@ async function separate() {
       return
     }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/speech/separate/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
@@ -93,39 +105,10 @@ async function separate() {
   }
 }
 
-/** 轮询任务状态直到完成/失败/取消 */
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/speech/separate/${id}`, {
-      method: 'GET'
-    }).catch(() => null)
-    if (!res?.ok || !res.task) {
-      error.value = res?.error || '任务查询失败'
-      return
-    }
-    const t = res.task
-    progress.value = t.progress || 0
-    progressText.value = t.message || ''
-    if (t.status === 'done' && t.stems) {
-      stems.value = t.stems
-      return
-    }
-    if (t.status === 'error') {
-      error.value = t.message || t.error || '分离失败'
-      return
-    }
-    if (t.status === 'cancelled') {
-      error.value = t.message || '已取消'
-      return
-    }
-    // 1.5s 轮询
-    await new Promise((r) => setTimeout(r, 1500))
-  }
-}
-
 /** 取消任务 */
 async function cancelSeparation() {
   if (!taskId.value) return
+  stopPolling()
   loading.value = false
   try {
     await $fetch(`/api/speech/separate/${taskId.value}`, { method: 'DELETE' })
