@@ -294,6 +294,16 @@ onBeforeUnmount(() => {
 
       <!-- 错误 -->
       <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+      <UButton
+        v-if="error && mode !== 'image'"
+        icon="i-lucide-image-plus"
+        :label="t('demo.useUploadInstead')"
+        color="neutral"
+        variant="soft"
+        size="sm"
+        class="mt-2"
+        @click="fileInput?.click()"
+      />
 
       <!-- 画面区 -->
       <div class="relative w-full max-w-3xl mx-auto rounded-xl overflow-hidden bg-elevated/60 aspect-video flex items-center justify-center">

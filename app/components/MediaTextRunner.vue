@@ -39,8 +39,22 @@ const loading = ref(false)
 const error = ref<string | null>(null)
 const result = ref<any>(null)
 const inferenceTime = ref(0)
+const copied = ref(false)
 
 let task: any = null
+
+async function copyResult() {
+  try {
+    const text = typeof result.value === 'string'
+      ? result.value
+      : JSON.stringify(result.value, null, 2)
+    await navigator.clipboard.writeText(text)
+    copied.value = true
+    setTimeout(() => {
+      copied.value = false
+    }, 1500)
+  } catch { /* clipboard 不可用时静默 */ }
+}
 
 async function ensureTask() {
   if (task) return task
@@ -125,12 +139,26 @@ async function run() {
       <!-- 结果 -->
       <UCard v-if="$slots.result">
         <template #header>
-          <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-terminal" class="size-4" />
-            {{ t('demo.result') }}
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon name="i-lucide-terminal" class="size-4" />
+              {{ t('demo.result') }}
+            </div>
+            <UButton
+              v-if="result"
+              :label="copied ? t('demo.copied') : t('demo.copy')"
+              icon="i-lucide-copy"
+              size="xs"
+              color="neutral"
+              variant="ghost"
+              @click="copyResult"
+            />
           </div>
         </template>
-        <slot name="result" :result="result" :inference-time="inferenceTime" />
+        <div v-if="!result" class="py-8 text-center text-sm text-muted">
+          {{ t('demo.emptyResult') }}
+        </div>
+        <slot v-else name="result" :result="result" :inference-time="inferenceTime" />
       </UCard>
 
       <!-- 对应的 Python 最简实现源码 -->

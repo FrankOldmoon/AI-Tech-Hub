@@ -148,6 +148,9 @@ onBeforeUnmount(() => {
         <a v-if="resultUrl" :href="resultUrl" target="_blank" download class="inline-block mt-2 text-sm text-primary underline">
           {{ t('photoRestore.download') }}
         </a>
+        <p v-if="resultUrl" class="mt-1 text-xs text-muted">
+          {{ t('demo.sessionOnly') }}
+        </p>
       </div>
     </div>
   </MediaDemoShell>

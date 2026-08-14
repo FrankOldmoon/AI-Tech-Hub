@@ -237,7 +237,10 @@ onBeforeUnmount(() => pauseTraining())
     </div>
 
     <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
-    <UAlert v-if="loading && loadProgress" color="primary" variant="subtle" :title="loadProgress" />
+    <div v-if="loading && loadProgress" class="space-y-1">
+      <UProgress size="sm" />
+      <p class="text-xs text-muted">{{ loadProgress }}</p>
+    </div>
 
     <div class="grid lg:grid-cols-[auto_1fr] gap-6 items-start">
       <!-- 画板 -->

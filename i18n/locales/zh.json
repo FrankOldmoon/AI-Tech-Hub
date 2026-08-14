@@ -58,7 +58,12 @@
     "runtimeBrowser": "浏览器本地运行 · 数据不出设备",
     "runtimeServer": "本地服务端处理",
     "modelSize": "模型约 {size}",
-    "viewAll": "查看全部"
+    "viewAll": "查看全部",
+    "copy": "复制",
+    "copied": "已复制",
+    "emptyResult": "运行后结果将显示在这里",
+    "useUploadInstead": "改用上传图片",
+    "sessionOnly": "结果仅本次会话有效，请及时下载"
   },
   "errors": {
     "network": "网络请求失败，请检查网络后重试。",
