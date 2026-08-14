@@ -121,7 +121,7 @@
 | 0 | `chore/release-v0.1` | 基线 v0.11.0 + 计划 | ✅ 完成 |
 | 1 | `fix/ml-poller` ✅ | ML 4 页轮询迁移 useTaskPoller；demos.ts 6 处 ready→planned（commit `941db0a`，lint/typecheck 零新增） | ✅ 完成 |
 | 1 | `feat/sample-assets` ✅ | P0-4：素材 4 图 + 4 音频（1.89MB，无版权）；MediaVisionRunner/ImagePlayground「试试示例」；MediaTextRunner 默认输入；asr/denoise/separation/emotion/voice-clone 5 页示例按钮（commit `de84304`+`e177f62`，lint/typecheck 零新增，冒烟 5 页 200） | ✅ 完成 |
-| 2 | `fix/error-messages` | 错误 util + 权限 util + i18n 硬编码 + 上传校验 | 待开始 |
+| 2 | `fix/error-messages` ✅ | 错误映射/权限/上传 util；65 处 humanError 替换（37 文件）；8 页 mediaError；硬编码 i18n；useTaskPoller 兜底国际化；11 个服务端队列补大小限制（commit `d2423a6`+`0349984`+`db05cf5`，lint/typecheck 零新增，冒烟 7 页 200）。**前端上传校验并入批次 3 上传组件统一** | ✅ 完成 |
 | 3 | `fix/runner-ux` | Runner 进度/竞态 + 网格 + 暗色 + 上传组件 | 待开始 |
 | 4 | `feat/demo-metadata` + `fix/nav-seo` | 注册表字段 + 徽章 + 导航 + SEO | 待开始 |
 | 5 | `fix/polish` | P2 质感清单 | 待开始 |
