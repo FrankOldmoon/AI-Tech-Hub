@@ -11,7 +11,7 @@
   },
   "category": {
     "speech": {
-      "title": "语音 / Speech",
+      "title": "语音",
       "description": "语音合成、语音识别等语音相关 AI 演示。"
     }
   },
@@ -40,6 +40,7 @@
     "reset": "重置",
     "result": "结果",
     "input": "输入",
+    "inputRequired": "请先填写输入内容",
     "backendUnavailable": "后端未就绪：请创建虚拟环境并安装依赖。",
     "noDemo": "该分类下暂无演示",
     "comingSoon": "敬请期待"
