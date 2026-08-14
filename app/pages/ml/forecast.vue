@@ -15,7 +15,6 @@ const taskId = ref('')
 const progress = ref(0)
 const message = ref('')
 const report = ref<any>(null)
-let pollTimer: ReturnType<typeof setInterval> | null = null
 
 function parseCsvHeader(text: string): string[] {
   const firstLine = text.split(/\r?\n/).find(line => line.trim().length > 0) || ''
@@ -41,9 +40,19 @@ function onFileChange(e: Event) {
   reader.readAsText(file.slice(0, 65536))
 }
 
-function stopPolling() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-}
+const { poll, stop: stopPolling } = useTaskPoller({
+  interval: 1800,
+  progress,
+  progressText: message,
+  error,
+  timeoutMessage: t('demo.taskTimeout'),
+  failMessage: t('ml.forecast.error'),
+  errorMessage: t('ml.forecast.error'),
+  onCancelled: () => t('ml.forecast.cancelled'),
+  onDone: async (task) => {
+    if (task.reportUrl) report.value = await $fetch(task.reportUrl)
+  }
+})
 
 async function submit() {
   const file = fileInput.value?.files?.[0]
@@ -68,41 +77,12 @@ async function submit() {
       return
     }
     taskId.value = res.taskId
-    poll()
+    await poll(`/api/ml/forecast/${res.taskId}`)
+    submitting.value = false
   } catch (e: any) {
     error.value = e?.message || String(e)
     submitting.value = false
   }
-}
-
-function poll() {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/ml/forecast/${taskId.value}`)
-      if (!res.ok || !res.task) {
-        error.value = res.error || t('ml.forecast.error')
-        stopPolling(); submitting.value = false
-        return
-      }
-      const td = res.task
-      progress.value = td.progress
-      message.value = td.message
-      if (td.status === 'done') {
-        stopPolling(); submitting.value = false
-        if (td.reportUrl) report.value = await $fetch(td.reportUrl)
-      } else if (td.status === 'error') {
-        stopPolling(); submitting.value = false
-        error.value = td.error || td.message
-      } else if (td.status === 'cancelled') {
-        stopPolling(); submitting.value = false
-        error.value = t('ml.forecast.cancelled')
-      }
-    } catch (e: any) {
-      error.value = e?.message || String(e)
-      stopPolling(); submitting.value = false
-    }
-  }, 1800)
 }
 
 async function cancel() {
@@ -143,8 +123,6 @@ const chart = computed(() => {
     }).join(' ')
   return { W, H, PAD, histLine, fcLine, band, splitX: x(r.dates.length - 1), min, max, allDates, allValues, historyCount: r.dates.length }
 })
-
-onBeforeUnmount(() => stopPolling())
 </script>
 
 <template>

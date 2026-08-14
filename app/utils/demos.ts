@@ -820,7 +820,7 @@ export const demos: Demo[] = [
     title: { zh: '图像滤镜', en: 'Image Filters' },
     description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜（规划中）。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters (planned).' },
     icon: 'i-lucide-sparkles',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/filters',
     tags: ['Canvas', 'Filter']
   },
@@ -830,7 +830,7 @@ export const demos: Demo[] = [
     title: { zh: '噪声与增强', en: 'Noise & Enhancement' },
     description: { zh: '加噪、去噪、直方图均衡与图像增强（规划中）。', en: 'Add noise, denoise, histogram equalization and enhancement (planned).' },
     icon: 'i-lucide-waves',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/enhancement',
     tags: ['Canvas', 'Denoise']
   },
@@ -840,7 +840,7 @@ export const demos: Demo[] = [
     title: { zh: '阈值与形态学', en: 'Threshold & Morphology' },
     description: { zh: '二值化、自适应阈值、腐蚀膨胀、开闭运算与形态学梯度（规划中，OpenCV.js）。', en: 'Binary/adaptive/Otsu threshold, erosion, dilation, opening, closing and morphological gradient (planned, OpenCV.js).' },
     icon: 'i-lucide-shapes',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/morphology',
     tags: ['OpenCV.js', 'Threshold']
   },
@@ -850,7 +850,7 @@ export const demos: Demo[] = [
     title: { zh: '边缘与形状检测', en: 'Edge & Shape Detection' },
     description: { zh: 'Sobel、Canny、Harris 角点、Hough 直线与圆检测（规划中，OpenCV.js）。', en: 'Sobel, Canny, Harris corners, Hough lines and circles (planned, OpenCV.js).' },
     icon: 'i-lucide-scan-line',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/edge',
     tags: ['OpenCV.js', 'Edge']
   },
@@ -860,7 +860,7 @@ export const demos: Demo[] = [
     title: { zh: '颜色与物体检测', en: 'Color & Object Detection' },
     description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别（规划中，OpenCV.js）。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition (planned, OpenCV.js).' },
     icon: 'i-lucide-target',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/object',
     tags: ['OpenCV.js', 'Contour']
   },
@@ -870,7 +870,7 @@ export const demos: Demo[] = [
     title: { zh: '特征检测', en: 'Feature Detection' },
     description: { zh: 'ORB/BRISK 关键点与特征匹配（规划中，OpenCV.js）。', en: 'ORB/BRISK keypoints and feature matching (planned, OpenCV.js).' },
     icon: 'i-lucide-crosshair',
-    status: 'ready',
+    status: 'planned',
     pythonModule: 'image/features',
     tags: ['OpenCV.js', 'Feature']
   },

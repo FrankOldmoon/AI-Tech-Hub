@@ -13,7 +13,6 @@ const taskId = ref('')
 const progress = ref(0)
 const message = ref('')
 const report = ref<any>(null)
-let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const methodOptions = computed(() => [
   { label: 'PCA', value: 'pca' },
@@ -29,9 +28,19 @@ function onFileChange(e: Event) {
   report.value = null
 }
 
-function stopPolling() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-}
+const { poll, stop: stopPolling } = useTaskPoller({
+  interval: 1800,
+  progress,
+  progressText: message,
+  error,
+  timeoutMessage: t('demo.taskTimeout'),
+  failMessage: t('ml.dimReduction.error'),
+  errorMessage: t('ml.dimReduction.error'),
+  onCancelled: () => t('ml.dimReduction.cancelled'),
+  onDone: async (task) => {
+    if (task.reportUrl) report.value = await $fetch(task.reportUrl)
+  }
+})
 
 async function submit() {
   const file = fileInput.value?.files?.[0]
@@ -54,41 +63,12 @@ async function submit() {
       return
     }
     taskId.value = res.taskId
-    poll()
+    await poll(`/api/ml/dim-reduction/${res.taskId}`)
+    submitting.value = false
   } catch (e: any) {
     error.value = e?.message || String(e)
     submitting.value = false
   }
-}
-
-function poll() {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/ml/dim-reduction/${taskId.value}`)
-      if (!res.ok || !res.task) {
-        error.value = res.error || t('ml.dimReduction.error')
-        stopPolling(); submitting.value = false
-        return
-      }
-      const td = res.task
-      progress.value = td.progress
-      message.value = td.message
-      if (td.status === 'done') {
-        stopPolling(); submitting.value = false
-        if (td.reportUrl) report.value = await $fetch(td.reportUrl)
-      } else if (td.status === 'error') {
-        stopPolling(); submitting.value = false
-        error.value = td.error || td.message
-      } else if (td.status === 'cancelled') {
-        stopPolling(); submitting.value = false
-        error.value = t('ml.dimReduction.cancelled')
-      }
-    } catch (e: any) {
-      error.value = e?.message || String(e)
-      stopPolling(); submitting.value = false
-    }
-  }, 1800)
 }
 
 async function cancel() {
@@ -125,8 +105,6 @@ function drawReport() {
 watch(report, () => {
   if (report.value) nextTick(drawReport)
 })
-
-onBeforeUnmount(() => stopPolling())
 </script>
 
 <template>
