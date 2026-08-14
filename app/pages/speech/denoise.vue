@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -27,6 +28,20 @@ function onFileChange(e: Event) {
     resultUrl.value = ''
     if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
     originalUrl.value = URL.createObjectURL(input.files[0])
+  }
+}
+
+async function useSample() {
+  try {
+    const f = await fetchSample('/samples/audio/noisy-speech.wav')
+    fileData.value = f
+    fileName.value = f.name
+    error.value = null
+    resultUrl.value = ''
+    if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
+    originalUrl.value = URL.createObjectURL(f)
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
   }
 }
 
@@ -103,6 +118,17 @@ onBeforeUnmount(() => {
               class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
               @change="onFileChange"
             />
+            <div class="mt-3">
+              <UButton
+                icon="i-lucide-flask-conical"
+                :label="t('samples.trySample')"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                :disabled="loading"
+                @click="useSample"
+              />
+            </div>
           </div>
           <audio v-if="originalUrl" :src="originalUrl" controls class="mt-4 w-full max-w-md" />
         </template>

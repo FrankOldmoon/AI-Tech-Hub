@@ -2,6 +2,7 @@
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
+import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -155,6 +156,17 @@ function onFileChange(e: Event) {
   whisperError.value = null
   resultText.value = ''
   resultChunks.value = []
+}
+
+async function useSample() {
+  try {
+    audioFile.value = await fetchSample('/samples/audio/speech.wav')
+    whisperError.value = null
+    resultText.value = ''
+    resultChunks.value = []
+  } catch (e) {
+    whisperError.value = (e as Error)?.message || String(e)
+  }
 }
 
 function pickFile() {
@@ -352,6 +364,13 @@ const runnerNotice = computed(() =>
                   variant="outline"
                   :disabled="transcribing"
                   @click="pickFile"
+                />
+                <UButton
+                  icon="i-lucide-flask-conical"
+                  :label="t('samples.trySample')"
+                  variant="soft"
+                  :disabled="transcribing"
+                  @click="useSample"
                 />
               </div>
               <div class="grid sm:grid-cols-2 gap-x-6 gap-y-4">

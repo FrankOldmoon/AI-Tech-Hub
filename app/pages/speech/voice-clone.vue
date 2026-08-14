@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { fetchSample } from '~/utils/samples'
+
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'voice-clone')!)
@@ -42,6 +44,19 @@ function onRefChange(e: Event) {
   refUrl.value = URL.createObjectURL(file)
   error.value = null
   resultUrl.value = ''
+}
+
+async function useSample() {
+  try {
+    const f = await fetchSample('/samples/audio/speech.wav')
+    refFile.value = f
+    if (refUrl.value) URL.revokeObjectURL(refUrl.value)
+    refUrl.value = URL.createObjectURL(f)
+    error.value = null
+    resultUrl.value = ''
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
+  }
 }
 
 async function startRecording() {
@@ -174,6 +189,13 @@ onBeforeUnmount(() => {
             color="primary"
             variant="subtle"
             @click="fileInput?.click()"
+          />
+          <UButton
+            icon="i-lucide-flask-conical"
+            :label="t('samples.trySample')"
+            color="neutral"
+            variant="soft"
+            @click="useSample"
           />
           <UButton
             v-if="!recording"

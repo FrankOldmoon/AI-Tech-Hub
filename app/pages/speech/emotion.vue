@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
+import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -39,6 +40,19 @@ function onFileChange(e: Event) {
   audioUrl.value = URL.createObjectURL(f)
   result.value = []
   error.value = null
+}
+
+async function useSample() {
+  try {
+    const f = await fetchSample('/samples/audio/speech.wav')
+    audioFile.value = f
+    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
+    audioUrl.value = URL.createObjectURL(f)
+    result.value = []
+    error.value = null
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
+  }
 }
 
 async function startRecording() {
@@ -198,6 +212,12 @@ const maxScore = computed(() => Math.max(...result.value.map((r) => r.score), 0)
               :label="audioFile ? audioFile.name : t('emotion.upload')"
               variant="outline"
               @click="pickFile"
+            />
+            <UButton
+              icon="i-lucide-flask-conical"
+              :label="t('samples.trySample')"
+              variant="soft"
+              @click="useSample"
             />
           </div>
           <audio v-if="audioUrl" :src="audioUrl" controls class="mt-4 w-full max-w-md" />
