@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 /**
  * 从后端读取并展示对应功能的最简 Python 实现源码。
@@ -72,7 +73,7 @@ async function load() {
       await highlightCode()
     }
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

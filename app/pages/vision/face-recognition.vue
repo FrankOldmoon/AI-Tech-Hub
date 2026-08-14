@@ -16,6 +16,7 @@ import {
   makeThumb,
   MATCH_THRESHOLD
 } from '~/utils/face-registry'
+import { humanError } from '~/utils/errors'
 import type { RegisteredFace } from '~/utils/face-registry'
 import type { PickedPhoto } from '~/utils/face-studio'
 import FaceCamera from '~/components/FaceCamera.vue'
@@ -95,7 +96,7 @@ async function onRegister() {
     regPhotos.value = []
     name.value = ''
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     busyRegister.value = false
   }
@@ -114,7 +115,7 @@ async function onRecognize() {
     const embeddings = ok.map(p => p.analysis!.embeddings[Math.min(p.selectedFace, p.analysis!.faces - 1)])
     result.value = recognizeEmbeddings(embeddings)
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     busyRecognize.value = false
   }

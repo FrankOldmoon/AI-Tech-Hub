@@ -1,5 +1,7 @@
 <script setup lang="ts">
+const { t } = useI18n()
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
+import { humanError } from '~/utils/errors'
 
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'image-embedder')!)
@@ -50,7 +52,7 @@ async function compute() {
     const e2 = emb.embed(b2)
     similarity.value = ImageEmbedder.cosineSimilarity(e1.embeddings[0], e2.embeddings[0])
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

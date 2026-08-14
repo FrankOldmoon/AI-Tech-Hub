@@ -5,6 +5,7 @@
  * - 识别图表 / 手写 / 场景 / 物体
  */
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
 import { setupTransformersEnv, preferredDevice, hasWebGPU } from '~/utils/transformers'
@@ -96,7 +97,7 @@ async function ensureModel() {
     env.allowLocalModels = prevAllowLocal
     modelReady.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     progressFile.value = ''
@@ -190,7 +191,7 @@ async function send() {
     })
     stats.value = `${numTokens} tok · ${tps.toFixed(1)} tok/s`
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     generating.value = false
   }

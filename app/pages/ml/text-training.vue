@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
 
@@ -76,7 +77,7 @@ async function loadModels() {
     classifier = knnMod.create()
     loadProgress.value = ''
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -106,7 +107,7 @@ async function embed(text: string): Promise<number[] | null> {
     const out = await extractor(text, { pooling: 'mean', normalize: true })
     return Array.from(out.data) as number[]
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
     return null
   }
 }
@@ -157,7 +158,7 @@ async function predict() {
       .map((name, i) => ({ name, score: confidences[name] ?? confidences[i] ?? 0 }))
       .sort((a, b) => b.score - a.score)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     predicting.value = false
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DemoStatus } from '~/utils/demos'
+import { humanError } from '~/utils/errors'
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import {
@@ -73,7 +74,7 @@ async function ensurePipeline() {
       dtype: 'q8'
     } as any)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -110,7 +111,7 @@ async function run() {
     result.value = await p(...args, opts)
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     running.value = false
   }

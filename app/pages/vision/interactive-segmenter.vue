@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
+import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -29,7 +30,7 @@ async function ensure() {
       baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate: 'GPU' }
     })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -52,7 +53,7 @@ async function onFileChange(e: Event) {
     redraw()
     hasImage.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     input.value = ''
@@ -97,7 +98,7 @@ async function onCanvasClick(e: MouseEvent) {
     }])
     redraw(mask, { x: nx, y: ny })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

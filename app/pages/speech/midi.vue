@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -69,7 +70,7 @@ async function run() {
     taskId.value = res.taskId
     await poll(`/api/speech/midi/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

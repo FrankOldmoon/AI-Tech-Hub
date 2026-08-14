@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy } from '~/utils/remote-models'
 import { fetchSample } from '~/utils/samples'
@@ -61,7 +62,7 @@ async function useSample() {
     error.value = null
     stems.value = []
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -113,7 +114,7 @@ async function separate() {
     taskId.value = res.taskId
     await poll(`/api/speech/separate/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
 import { setupTransformersEnv, hasWebGPU } from '~/utils/transformers'
@@ -108,7 +109,7 @@ async function ensureModel() {
     env.allowLocalModels = prevAllowLocal
     modelReady.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     progressFile.value = ''
@@ -140,7 +141,7 @@ async function generate() {
     generatedUrl.value = URL.createObjectURL(blob)
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     running.value = false
   }
@@ -184,7 +185,7 @@ async function ask() {
     })
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     running.value = false
   }

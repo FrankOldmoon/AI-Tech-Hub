@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
 
@@ -85,7 +86,7 @@ async function loadModels() {
     transfer = recognizer.createTransfer('tm-audio')
     loadProgress.value = ''
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -105,7 +106,7 @@ async function startTraining(idx: number) {
       await transfer.collectExample(classNames.value[idx])
       sampleCounts.value[idx] = transfer.countExamples()?.[classNames.value[idx]] || 0
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
       collecting = false
     }
     if (collecting && collectClass === idx) {
@@ -173,7 +174,7 @@ async function trainModel() {
     loadProgress.value = ''
     startPredict()
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     training.value = false
   }
@@ -198,7 +199,7 @@ async function startPredict() {
       probabilityThreshold: 0
     })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
 
@@ -38,7 +39,7 @@ async function ensure() {
       quantize: Boolean(params.value.quantize)
     })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -65,7 +66,7 @@ async function compute() {
     similarity.value = TextEmbedderCtor.cosineSimilarity(r1.embeddings[0], r2.embeddings[0])
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

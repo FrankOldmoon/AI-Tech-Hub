@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DemoStatus } from '~/utils/demos'
+import { humanError } from '~/utils/errors'
 import { mediapipeWasm } from '~/utils/mediapipe'
 
 /**
@@ -42,7 +43,7 @@ async function ensureTask() {
     const text = await FilesetResolver.forTextTasks(mediapipeWasm.text)
     task = await props.createTask(text)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -61,7 +62,7 @@ async function run() {
     result.value = t0[props.method](input.value)
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -57,7 +58,7 @@ async function processFile(file: File) {
     colors.value = runKMeans(pts, k.value)
     URL.revokeObjectURL(url)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

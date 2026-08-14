@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -45,7 +46,7 @@ async function loadData() {
     initDrawCanvas()
     loadProgress.value = ''
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -179,7 +180,7 @@ async function predictDigit() {
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     predicting.value = false
   }

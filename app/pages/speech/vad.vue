@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -71,7 +72,7 @@ async function detect() {
     taskId.value = res.taskId
     await poll(`/api/speech/vad/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

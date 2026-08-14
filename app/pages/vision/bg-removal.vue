@@ -5,6 +5,7 @@
  * - WebGPU 优先，WASM 兜底；数据不出浏览器
  */
 import { processImageFile } from '~/utils/image'
+import { humanError } from '~/utils/errors'
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
 
 const { t } = useI18n()
@@ -56,7 +57,7 @@ async function ensureModel() {
     })
     modelReady.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     progressFile.value = ''
@@ -118,7 +119,7 @@ async function removeBg() {
     resultUrl.value = canvas.toDataURL('image/png')
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     running.value = false
   }

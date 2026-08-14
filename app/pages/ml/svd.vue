@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { runPython } from '~/utils/python-runner'
+import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -25,7 +26,7 @@ async function recommend() {
     }
     result.value = res.data
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
