@@ -33,7 +33,16 @@ function onFileChange(e: Event) {
   input.value = ''
 }
 
+const { poll, stop: stopPolling } = useTaskPoller({
+  progress,
+  progressText,
+  error,
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => { if (task.resultUrl) resultUrl.value = task.resultUrl }
+})
+
 async function run() {
+  if (loading.value) return
   if (!inputFile.value) { error.value = t('demo.inputRequired'); return }
   error.value = null
   resultUrl.value = ''
@@ -47,7 +56,7 @@ async function run() {
     const res = await $fetch<{ ok: boolean, taskId?: string, error?: string }>('/api/aigc/photo-restore', { method: 'POST', body: formData })
     if (!res.ok || !res.taskId) { error.value = res.error || '提交失败'; return }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/aigc/photo-restore/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
@@ -55,21 +64,9 @@ async function run() {
   }
 }
 
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any }>(`/api/aigc/photo-restore/${id}`, { method: 'GET' }).catch(() => null)
-    if (!res?.ok || !res.task) { error.value = res?.error || '任务查询失败'; return }
-    progress.value = res.task.progress || 0
-    progressText.value = res.task.message || ''
-    if (res.task.status === 'done' && res.task.resultUrl) { resultUrl.value = res.task.resultUrl; return }
-    if (res.task.status === 'error') { error.value = res.task.message || '处理失败'; return }
-    if (res.task.status === 'cancelled') { error.value = '已取消'; return }
-    await new Promise((r) => setTimeout(r, 1500))
-  }
-}
-
 async function cancel() {
   if (!taskId.value) return
+  stopPolling()
   loading.value = false
   try { await $fetch(`/api/aigc/photo-restore/${taskId.value}`, { method: 'DELETE' }) } catch { /* ignore */ }
   taskId.value = null

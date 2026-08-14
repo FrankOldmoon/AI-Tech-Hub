@@ -41,6 +41,7 @@
     "result": "Result",
     "input": "Input",
     "inputRequired": "Please fill in the input first",
+    "taskTimeout": "Task timed out. The service may have restarted — please try again.",
     "backendUnavailable": "Backend not ready: create the venv and install deps.",
     "noDemo": "No demos in this category yet.",
     "comingSoon": "Coming soon"

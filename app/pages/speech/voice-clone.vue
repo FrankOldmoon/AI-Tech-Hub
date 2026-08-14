@@ -85,7 +85,19 @@ function stopRecording() {
   }
 }
 
+const { poll, stop: stopPolling } = useTaskPoller({
+  progress,
+  progressText,
+  error,
+  errorMessage: '合成失败',
+  cancelledMessage: '已取消',
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => { if (task.audioUrl) resultUrl.value = task.audioUrl },
+  onError: task => task.message || task.error
+})
+
 async function synthesize() {
+  if (loading.value) return
   if (!refFile.value) {
     error.value = t('voiceClone.uploadRef')
     return
@@ -114,7 +126,7 @@ async function synthesize() {
       return
     }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/speech/voice-clone/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
@@ -122,36 +134,9 @@ async function synthesize() {
   }
 }
 
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/speech/voice-clone/${id}`, {
-      method: 'GET'
-    }).catch(() => null)
-    if (!res?.ok || !res.task) {
-      error.value = res?.error || '任务查询失败'
-      return
-    }
-    const task = res.task
-    progress.value = task.progress || 0
-    progressText.value = task.message || ''
-    if (task.status === 'done' && task.audioUrl) {
-      resultUrl.value = task.audioUrl
-      return
-    }
-    if (task.status === 'error') {
-      error.value = task.message || task.error || '合成失败'
-      return
-    }
-    if (task.status === 'cancelled') {
-      error.value = task.message || '已取消'
-      return
-    }
-    await new Promise((r) => setTimeout(r, 1500))
-  }
-}
-
 async function cancel() {
   if (!taskId.value) return
+  stopPolling()
   loading.value = false
   try {
     await $fetch(`/api/speech/voice-clone/${taskId.value}`, { method: 'DELETE' })

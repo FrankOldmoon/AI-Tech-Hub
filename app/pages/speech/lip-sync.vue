@@ -35,7 +35,19 @@ function onAudio(e: Event) {
   }
 }
 
+const { poll } = useTaskPoller({
+  interval: 2000,
+  progress,
+  progressText,
+  error,
+  failMessage: t('demo.backendUnavailable'),
+  cancelledMessage: t('lipSync.cancelled'),
+  timeoutMessage: t('demo.taskTimeout'),
+  onDone: (task) => { resultUrl.value = task.videoUrl || '' }
+})
+
 async function run() {
+  if (loading.value) return
   if (!videoFile.value || !audioFile.value) {
     error.value = t('lipSync.upload')
     return
@@ -58,39 +70,11 @@ async function run() {
       return
     }
     taskId.value = res.taskId
-    await pollTask(res.taskId)
+    await poll(`/api/speech/lip-sync/${res.taskId}`)
   } catch (e: any) {
     error.value = e?.message || String(e)
   } finally {
     loading.value = false
-  }
-}
-
-async function pollTask(id: string) {
-  while (true) {
-    const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/speech/lip-sync/${id}`, {
-      method: 'GET'
-    }).catch(() => null)
-    if (!res?.ok || !res.task) {
-      error.value = res?.error || t('demo.backendUnavailable')
-      return
-    }
-    const task = res.task
-    progress.value = task.progress || 0
-    progressText.value = task.message || ''
-    if (task.status === 'done') {
-      resultUrl.value = task.videoUrl || ''
-      return
-    }
-    if (task.status === 'error') {
-      error.value = task.error || task.message || 'error'
-      return
-    }
-    if (task.status === 'cancelled') {
-      error.value = t('lipSync.cancelled')
-      return
-    }
-    await new Promise((r) => setTimeout(r, 2000))
   }
 }
 
