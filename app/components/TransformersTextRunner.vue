@@ -33,6 +33,13 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
+useSeoMeta({
+  title: () => props.demo.title,
+  description: () => props.demo.description || '',
+  ogTitle: () => props.demo.title,
+  ogDescription: () => props.demo.description || ''
+})
+
 // 输入控件值：以 input.key 为字段
 const inputValues = ref<Record<string, string>>({})
 // 初始化默认值

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const route = useRoute()
 
 useHead({
@@ -10,7 +10,7 @@ useHead({
     { rel: 'icon', href: '/favicon.ico' }
   ],
   htmlAttrs: {
-    lang: 'en'
+    lang: computed(() => (locale.value === 'zh' ? 'zh' : 'en'))
   }
 })
 
@@ -22,6 +22,7 @@ useSeoMeta({
   description,
   ogTitle: title,
   ogDescription: description,
+  ogImage: '/og.png',
   twitterCard: 'summary_large_image'
 })
 

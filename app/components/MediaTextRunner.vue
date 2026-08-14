@@ -26,6 +26,14 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+useSeoMeta({
+  title: () => props.demo.title,
+  description: () => props.demo.description || '',
+  ogTitle: () => props.demo.title,
+  ogDescription: () => props.demo.description || ''
+})
+
 const input = ref(t('samples.textDefault'))
 const loading = ref(false)
 const error = ref<string | null>(null)

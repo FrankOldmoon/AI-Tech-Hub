@@ -23,6 +23,13 @@ const props = defineProps<{
 const { t, locale } = useI18n()
 const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
 
+useSeoMeta({
+  title: () => props.demo.title,
+  description: () => props.demo.description || '',
+  ogTitle: () => props.demo.title,
+  ogDescription: () => props.demo.description || ''
+})
+
 const fileInput = ref<HTMLInputElement>()
 const origCanvas = ref<HTMLCanvasElement>()
 const resultCanvas = ref<HTMLCanvasElement>()

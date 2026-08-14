@@ -16,8 +16,8 @@
     }
   },
   "home": {
-    "heroTitle": "Explore AI Tech Demos",
-    "heroDescription": "Browse AI tech demos and experience speech synthesis, recognition and more.",
+    "heroTitle": "80+ AI Demos, Try Instantly",
+    "heroDescription": "Speech, vision, NLP, AIGC and ML demos. Runs in your browser — data stays on device, no sign-up. Server demos need a local Python environment.",
     "allDemos": "All Demos",
     "viewDemo": "View Demo",
     "searchPlaceholder": "Search demos (name, description, tags, category)…",
@@ -51,7 +51,14 @@
     "cancelled": "Cancelled",
     "notFound": "Demo not found",
     "loadingModel": "Loading model…",
-    "inferring": "Inferring…"
+    "inferring": "Inferring…",
+    "requiresCamera": "Camera needed",
+    "requiresMic": "Microphone needed",
+    "needsServer": "Local server needed",
+    "runtimeBrowser": "Runs in your browser · data stays on device",
+    "runtimeServer": "Processed by local server",
+    "modelSize": "Model ~{size}",
+    "viewAll": "View all"
   },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",

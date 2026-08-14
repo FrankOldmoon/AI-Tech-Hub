@@ -46,7 +46,7 @@ const otherLocales = computed(() =>
       />
       <UColorModeButton />
       <UButton
-        to="https://github.com"
+        to="https://github.com/ikeee/nuxt-ai"
         target="_blank"
         icon="i-simple-icons-github"
         aria-label="GitHub"

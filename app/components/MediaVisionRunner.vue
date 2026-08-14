@@ -32,6 +32,14 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+useSeoMeta({
+  title: () => props.demo.title,
+  description: () => props.demo.description || '',
+  ogTitle: () => props.demo.title,
+  ogDescription: () => props.demo.description || ''
+})
+
 const videoRef = ref<HTMLVideoElement>()
 const imgRef = ref<HTMLImageElement>()
 const canvasRef = ref<HTMLCanvasElement>()

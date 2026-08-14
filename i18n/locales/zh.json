@@ -16,8 +16,8 @@
     }
   },
   "home": {
-    "heroTitle": "探索各类 AI 技术演示",
-    "heroDescription": "浏览各类 AI 技术演示，体验语音合成与识别等能力。",
+    "heroTitle": "80+ AI 演示，点开即玩",
+    "heroDescription": "语音、视觉、NLP、AIGC 与机器学习全栈演示。浏览器本地运行，数据不出设备，无需注册；服务端演示需本地 Python 环境。",
     "allDemos": "全部演示",
     "viewDemo": "查看演示",
     "searchPlaceholder": "搜索 demo（名称、描述、标签、分类）……",
@@ -51,7 +51,14 @@
     "cancelled": "已取消",
     "notFound": "演示不存在",
     "loadingModel": "下载模型中…",
-    "inferring": "推理中…"
+    "inferring": "推理中…",
+    "requiresCamera": "需摄像头",
+    "requiresMic": "需麦克风",
+    "needsServer": "需本地服务",
+    "runtimeBrowser": "浏览器本地运行 · 数据不出设备",
+    "runtimeServer": "本地服务端处理",
+    "modelSize": "模型约 {size}",
+    "viewAll": "查看全部"
   },
   "errors": {
     "network": "网络请求失败，请检查网络后重试。",

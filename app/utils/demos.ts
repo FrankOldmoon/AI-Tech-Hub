@@ -16,6 +16,14 @@ export interface Category {
   icon: string
 }
 
+/** 预期管理：卡片上展示的运行前提（审计维度四-2） */
+export interface DemoRequirements {
+  camera?: boolean
+  mic?: boolean
+  modelSizeMB?: number
+  needsServer?: boolean
+}
+
 export interface Demo {
   slug: string
   category: DemoCategory
@@ -23,6 +31,12 @@ export interface Demo {
   description: Localized
   icon: string
   status: DemoStatus
+  /** 运行时类型：浏览器本地推理 / 本地服务端（Python） */
+  runtime?: 'browser' | 'server'
+  /** 运行前提（需摄像头/麦克风/模型体积/需本地服务） */
+  requirements?: DemoRequirements
+  /** 首页精选（在分类限流中优先展示） */
+  featured?: boolean
   /** 对应 python 下的模块路径，如 'speech/tts' -> python/speech/tts/main.py */
   pythonModule?: string
   tags?: string[]
@@ -97,6 +111,9 @@ export const demos: Demo[] = [
     description: { zh: '文本转语音合成。', en: 'Text to speech synthesis.' },
     icon: 'i-lucide-volume-2',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { modelSizeMB: 100 },
+    featured: true,
     pythonModule: 'speech/tts',
     tags: ['TTS', 'edge-tts']
   },
@@ -107,6 +124,9 @@ export const demos: Demo[] = [
     description: { zh: '语音识别转文字。', en: 'Speech to text recognition.' },
     icon: 'i-lucide-mic',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { mic: true, modelSizeMB: 150 },
+    featured: true,
     tags: ['ASR', 'Web Speech API', 'Whisper'],
     pythonModule: 'speech/asr',
   },
@@ -117,6 +137,8 @@ export const demos: Demo[] = [
     description: { zh: '音频事件分类识别。', en: 'Audio event classification.' },
     icon: 'i-lucide-audio-waveform',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { mic: true },
     pythonModule: 'mediapipe/audio-classifier',
     tags: ['Audio', 'MediaPipe', 'YAMNet']
   },
@@ -127,6 +149,8 @@ export const demos: Demo[] = [
     description: { zh: '分离人声与伴奏等音轨。', en: 'Separate vocals, drums, bass and other stems.' },
     icon: 'i-lucide-split',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/separation',
     tags: ['Audio', 'Demucs']
   },
@@ -137,6 +161,9 @@ export const demos: Demo[] = [
     description: { zh: '用一段参考录音克隆音色并合成任意文本。', en: 'Clone a voice from a reference recording and synthesize any text.' },
     icon: 'i-lucide-mic-vocal',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
+    featured: true,
     pythonModule: 'speech/voice-clone',
     tags: ['Voice', 'XTTS-v2', 'Zero-shot']
   },
@@ -147,6 +174,8 @@ export const demos: Demo[] = [
     description: { zh: '识别语音中的情绪（开心/生气/悲伤等）。', en: 'Recognize emotions in speech (happy, angry, sad...).' },
     icon: 'i-lucide-smile-plus',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { mic: true },
     tags: ['Emotion', 'wav2vec2', 'transformers.js'],
     pythonModule: 'speech/emotion',
   },
@@ -157,6 +186,8 @@ export const demos: Demo[] = [
     description: { zh: '用麦克风实时检测音高与音名（YIN 算法）。', en: 'Real-time pitch and note detection from mic (YIN).' },
     icon: 'i-lucide-audio-waveform',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { mic: true },
     tags: ['Pitch', 'YIN', 'Web Audio'],
     pythonModule: 'speech/pitch-detector',
   },
@@ -167,6 +198,8 @@ export const demos: Demo[] = [
     description: { zh: '用 DeepFilterNet 去除噪声、增强语音。', en: 'Remove noise and enhance speech with DeepFilterNet.' },
     icon: 'i-lucide-waves',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/denoise',
     tags: ['Denoise', 'DeepFilterNet']
   },
@@ -178,6 +211,8 @@ export const demos: Demo[] = [
     description: { zh: '用 Silero VAD 检测音频中的语音段。', en: 'Detect speech segments in audio with Silero VAD.' },
     icon: 'i-lucide-mic-vocal',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/vad',
     tags: ['VAD', 'Silero']
   },
@@ -189,6 +224,8 @@ export const demos: Demo[] = [
     description: { zh: '用文字描述生成一段音乐。', en: 'Generate music from a text description.' },
     icon: 'i-lucide-music-4',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/musicgen',
     tags: ['MusicGen', 'AIGC']
   },
@@ -211,6 +248,8 @@ export const demos: Demo[] = [
     description: { zh: '转写音频并区分说话人，生成会议纪要。', en: 'Transcribe audio, separate speakers and generate meeting notes.' },
     icon: 'i-lucide-users',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/meeting',
     tags: ['Meeting', 'Whisper', 'WeSpeaker']
   },
@@ -222,6 +261,8 @@ export const demos: Demo[] = [
     description: { zh: '把乐器音频转成可编辑的 MIDI 文件。', en: 'Convert instrument audio into an editable MIDI file.' },
     icon: 'i-lucide-piano',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/midi',
     tags: ['MIDI', 'Transcription']
   },
@@ -233,6 +274,8 @@ export const demos: Demo[] = [
     description: { zh: '语音识别并翻译为英文（Whisper translate）。', en: 'Transcribe speech and translate it to English (Whisper translate).' },
     icon: 'i-lucide-languages',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/speech-translate',
     tags: ['Translate', 'Whisper']
   },
@@ -244,6 +287,8 @@ export const demos: Demo[] = [
     description: { zh: '让视频中的人脸随音频口型同步。', en: 'Make the face in a video lip-sync to any audio.' },
     icon: 'i-lucide-clapperboard',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'speech/lip-sync',
     tags: ['Wav2Lip', 'Video']
   },
@@ -267,6 +312,9 @@ export const demos: Demo[] = [
     description: { zh: '检测图像中的人脸。', en: 'Detect human faces in images.' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
+    featured: true,
     pythonModule: 'mediapipe/face-detection',
     tags: ['MediaPipe', 'Face']
   },
@@ -277,6 +325,8 @@ export const demos: Demo[] = [
     description: { zh: '检测人脸 478 个关键点。', en: 'Detect 478 face landmarks.' },
     icon: 'i-lucide-smile',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/face-landmarker',
     tags: ['MediaPipe', 'Face Mesh']
   },
@@ -287,6 +337,8 @@ export const demos: Demo[] = [
     description: { zh: '检测手部 21 个关键点。', en: 'Detect 21 hand landmarks.' },
     icon: 'i-lucide-hand',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/hand-landmarker',
     tags: ['MediaPipe', 'Hand']
   },
@@ -297,6 +349,8 @@ export const demos: Demo[] = [
     description: { zh: '识别手部手势类别。', en: 'Recognize hand gesture categories.' },
     icon: 'i-lucide-hand-metal',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/gesture-recognizer',
     tags: ['MediaPipe', 'Gesture']
   },
@@ -307,6 +361,8 @@ export const demos: Demo[] = [
     description: { zh: '检测人体姿态关键点。', en: 'Detect body pose landmarks.' },
     icon: 'i-lucide-person-standing',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/pose-landmarker',
     tags: ['MediaPipe', 'Pose']
   },
@@ -317,6 +373,8 @@ export const demos: Demo[] = [
     description: { zh: '同时检测人脸、手部与姿态。', en: 'Detect face, hands and pose together.' },
     icon: 'i-lucide-move-3d',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/holistic-landmarker',
     tags: ['MediaPipe', 'Holistic']
   },
@@ -357,6 +415,8 @@ export const demos: Demo[] = [
     description: { zh: '分割图像前景。', en: 'Segment image foreground.' },
     icon: 'i-lucide-scissors',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/image-segmenter',
     tags: ['MediaPipe', 'Segmentation']
   },
@@ -367,6 +427,8 @@ export const demos: Demo[] = [
     description: { zh: '点击选取目标并分割。', en: 'Click to segment a target.' },
     icon: 'i-lucide-mouse-pointer-click',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'mediapipe/interactive-segmenter',
     tags: ['MediaPipe', 'Segmentation']
   },
@@ -398,6 +460,7 @@ export const demos: Demo[] = [
     description: { zh: '文本情感分类。', en: 'Text sentiment classification.' },
     icon: 'i-lucide-message-square',
     status: 'ready',
+    featured: true,
     pythonModule: 'mediapipe/text-classifier',
     tags: ['MediaPipe', 'Sentiment']
   },
@@ -458,6 +521,7 @@ export const demos: Demo[] = [
     description: { zh: '从上下文中抽取问题答案。', en: 'Extract an answer from context.' },
     icon: 'i-lucide-help-circle',
     status: 'ready',
+    featured: true,
     pythonModule: 'transformers/qa',
     tags: ['Transformers.js', 'QA']
   },
@@ -479,6 +543,9 @@ export const demos: Demo[] = [
     description: { zh: '基于 WebLLM 在浏览器中本地运行的 LLM 对话。', en: 'LLM chat running locally in-browser via WebLLM.' },
     icon: 'i-lucide-message-circle',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { modelSizeMB: 1300 },
+    featured: true,
     pythonModule: 'transformers/webllm',
     tags: ['WebLLM', 'WebGPU', 'Llama', 'Qwen']
   },
@@ -489,6 +556,9 @@ export const demos: Demo[] = [
     description: { zh: '用 Janus-Pro-1B 在浏览器本地生成图片，并支持图像理解问答。', en: 'Generate images locally in-browser with Janus-Pro-1B, plus image understanding QA.' },
     icon: 'i-lucide-image',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { modelSizeMB: 1500 },
+    featured: true,
     tags: ['Janus-Pro', 'Transformers.js', 'WebGPU', 'Multi-modal']
   },
   {
@@ -517,6 +587,8 @@ export const demos: Demo[] = [
     description: { zh: '采集摄像头样本训练自定义图像分类器。', en: 'Collect webcam samples to train a custom image classifier.' },
     icon: 'i-lucide-camera',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'ml/image-training',
     tags: ['TensorFlow.js', 'MobileNet', 'KNN']
   },
@@ -537,6 +609,8 @@ export const demos: Demo[] = [
     description: { zh: '采集身体姿态样本训练自定义动作分类器（迁移学习）。', en: 'Collect pose samples from the webcam to train a custom gesture classifier (transfer learning).' },
     icon: 'i-lucide-person-standing',
     status: 'ready',
+    runtime: 'browser',
+    requirements: { camera: true },
     pythonModule: 'ml/pose-training',
     tags: ['MediaPipe', 'Pose', 'KNN']
   },
@@ -557,6 +631,7 @@ export const demos: Demo[] = [
     description: { zh: '在 2D 数据上实时训练神经网络，观察决策边界与损失变化。', en: 'Train a neural network on 2D data in real time and watch the decision boundary and loss evolve.' },
     icon: 'i-lucide-brain-circuit',
     status: 'ready',
+    featured: true,
     pythonModule: 'ml/playground',
     tags: ['Neural Network', 'Backprop', 'Playground']
   },
@@ -567,6 +642,8 @@ export const demos: Demo[] = [
     description: { zh: '上传 CSV，自动训练多个模型并对比指标，快速上手机器学习工作流。', en: 'Upload a CSV, auto-train multiple models and compare metrics — a quick machine learning workflow.' },
     icon: 'i-lucide-file-spreadsheet',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'ml/auto-train',
     tags: ['scikit-learn', 'AutoML', 'CSV']
   },
@@ -597,6 +674,7 @@ export const demos: Demo[] = [
     description: { zh: '在浏览器中训练神经网络识别手写数字，然后亲手写一个测试它。', en: 'Train a neural network in the browser to recognize handwritten digits, then draw one to test it.' },
     icon: 'i-lucide-pen-tool',
     status: 'ready',
+    featured: true,
     pythonModule: 'ml/mnist',
     tags: ['TensorFlow.js', 'MNIST', 'CNN']
   },
@@ -617,6 +695,8 @@ export const demos: Demo[] = [
     description: { zh: '上传时间序列 CSV，用指数平滑预测未来趋势并显示置信区间。', en: 'Upload a time series CSV and forecast future trends with exponential smoothing and confidence bands.' },
     icon: 'i-lucide-chart-line',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'ml/forecast',
     tags: ['Time Series', 'Holt-Winters', 'statsmodels']
   },
@@ -627,6 +707,8 @@ export const demos: Demo[] = [
     description: { zh: '用 IsolationForest 在二维数据中自动找出异常点。', en: 'Automatically find outliers in 2D data with Isolation Forest.' },
     icon: 'i-lucide-radar',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'ml/anomaly',
     tags: ['IsolationForest', 'Outlier', 'scikit-learn']
   },
@@ -647,6 +729,8 @@ export const demos: Demo[] = [
     description: { zh: '用 PCA / t-SNE 把高维数据降到二维并聚类着色。', en: 'Project high-dimensional data to 2D with PCA / t-SNE and color by cluster.' },
     icon: 'i-lucide-scatter-chart',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'ml/dim-reduction',
     tags: ['PCA', 't-SNE', 'scikit-learn']
   },
@@ -687,6 +771,8 @@ export const demos: Demo[] = [
     description: { zh: '用 SD-Turbo 在本地服务端生成或编辑图片（CPU 友好，1-4 步）。', en: 'Generate or edit images locally with SD-Turbo (CPU-friendly, 1-4 steps).' },
     icon: 'i-lucide-image',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'aigc/sd-turbo',
     tags: ['Python', 'Text/Image-to-Image (SD-Turbo)']
   },
@@ -697,6 +783,8 @@ export const demos: Demo[] = [
     description: { zh: '用 Real-ESRGAN + CodeFormer 修复模糊老照片与人脸细节。', en: 'Restore blurry old photos and face details with Real-ESRGAN + CodeFormer.' },
     icon: 'i-lucide-images',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'aigc/photo-restore',
     tags: ['Python', 'Photo Restoration']
   },
@@ -707,6 +795,7 @@ export const demos: Demo[] = [
     description: { zh: '用 MODNet 在浏览器中一键抠出人像/主体，导出透明背景 PNG（数据不出浏览器）。', en: 'Cut out people/subjects in-browser with MODNet and export transparent PNGs (all local).' },
     icon: 'i-lucide-scissors',
     status: 'ready',
+    featured: true,
     tags: ['MODNet', 'Transformers.js', 'WebGPU']
   },
   {
@@ -891,6 +980,8 @@ export const demos: Demo[] = [
     description: { zh: '一人可上传多张照片或使用摄像头注册，之后上传照片/实时摄像头即可识别身份；支持合影选脸（insightface + 浏览器本地注册库）。', en: 'Enroll a person with multiple photos or your camera, then recognize them via photo upload or live camera; supports picking a face in group photos (insightface + local registry).' },
     icon: 'i-lucide-user-check',
     status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
     pythonModule: 'image/face-recognition',
     tags: ['InsightFace', 'Face']
   },
@@ -901,6 +992,7 @@ export const demos: Demo[] = [
     description: { zh: '文字识别（Tesseract.js）与文档扫描校正（OpenCV.js）。', en: 'Text recognition (Tesseract.js) and document scanning (OpenCV.js).' },
     icon: 'i-lucide-file-text',
     status: 'ready',
+    featured: true,
     pythonModule: 'image/ocr',
     tags: ['Tesseract.js', 'OCR']
   },

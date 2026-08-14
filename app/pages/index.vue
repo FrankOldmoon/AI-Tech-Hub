@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { LocalizedDemo } from '~/utils/demos'
+
 const { t } = useI18n()
 const { categories, byCategory, stats, demos } = useDemos()
 
@@ -13,6 +15,15 @@ const statItems = computed(() => [
 const query = ref('')
 const queryLower = computed(() => query.value.trim().toLowerCase())
 const isSearching = computed(() => queryLower.value.length > 0)
+const HOME_LIMIT = 6
+
+/** 分类首页：featured 优先 + 限流（审计维度四-2） */
+function visibleDemos(catSlug: string): LocalizedDemo[] {
+  const list = byCategory(catSlug)
+  const featured = list.filter(d => d.featured)
+  const rest = list.filter(d => !d.featured)
+  return [...featured, ...rest].slice(0, HOME_LIMIT)
+}
 
 const searchResults = computed(() => {
   if (!isSearching.value) return []
@@ -101,11 +112,22 @@ const searchResults = computed(() => {
         <CategoryHeader :category="cat" :count="byCategory(cat.slug).length" />
         <DemoGrid>
           <DemoCard
-            v-for="d in byCategory(cat.slug)"
+            v-for="d in visibleDemos(cat.slug)"
             :key="d.slug"
             :demo="d"
           />
         </DemoGrid>
+        <div v-if="byCategory(cat.slug).length > HOME_LIMIT" class="text-center pt-2">
+          <UButton
+            :to="`/${cat.slug}`"
+            color="neutral"
+            variant="soft"
+            icon="i-lucide-arrow-right"
+            trailing
+          >
+            {{ t('demo.viewAll') }} ({{ byCategory(cat.slug).length }})
+          </UButton>
+        </div>
       </div>
     </UContainer>
   </div>
