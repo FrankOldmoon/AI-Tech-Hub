@@ -46,6 +46,17 @@
     "noDemo": "No demos in this category yet.",
     "comingSoon": "Coming soon"
   },
+  "samples": {
+    "trySample": "Try a sample",
+    "face": "Portrait",
+    "group": "Group",
+    "landscape": "Landscape",
+    "document": "Document",
+    "speech": "Speech",
+    "music": "Music",
+    "noisySpeech": "Noisy speech",
+    "textDefault": "The weather is nice today. I am looking forward to the weekend."
+  },
   "pythonSource": {
     "title": "Minimal Python Implementation",
     "loading": "Loading source…",

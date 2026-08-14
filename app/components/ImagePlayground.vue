@@ -130,6 +130,24 @@ function reset() {
 
 // ===== 上传 =====
 
+const sampleImages = computed(() => [
+  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.group'), url: '/samples/images/group.jpg' },
+  { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+  { label: t('samples.document'), url: '/samples/images/document.jpg' }
+])
+
+async function useSample(url: string) {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const file = new File([blob], url.split('/').pop() || 'sample.jpg', { type: blob.type })
+    await loadFile(file)
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
+  }
+}
+
 async function loadFile(file: File) {
   if (!file.type.startsWith('image/')) {
     error.value = t('image.error') + ': ' + file.name
@@ -334,6 +352,19 @@ const modeText = computed(() => {
             <UIcon name="i-lucide-image-plus" class="size-10 text-muted mx-auto" />
             <p class="mt-3 text-sm font-medium text-highlighted">{{ t('image.upload') }}</p>
             <p class="mt-1 text-xs text-dimmed">{{ t('image.uploadHint') }}</p>
+            <div class="mt-4 flex flex-wrap justify-center items-center gap-2" @click.stop>
+              <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
+              <UButton
+                v-for="s in sampleImages"
+                :key="s.url"
+                :label="s.label"
+                icon="i-lucide-image"
+                size="xs"
+                color="neutral"
+                variant="soft"
+                @click="useSample(s.url)"
+              />
+            </div>
           </div>
           <input
             ref="fileInput"

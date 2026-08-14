@@ -46,6 +46,17 @@
     "noDemo": "该分类下暂无演示",
     "comingSoon": "敬请期待"
   },
+  "samples": {
+    "trySample": "试试示例",
+    "face": "人脸照",
+    "group": "多人照",
+    "landscape": "风景照",
+    "document": "文档照",
+    "speech": "语音",
+    "music": "音乐",
+    "noisySpeech": "带噪语音",
+    "textDefault": "今天的天气很好，我很期待周末的到来。"
+  },
   "pythonSource": {
     "title": "Python 最简实现",
     "loading": "正在加载源码……",
