@@ -122,7 +122,7 @@
 | 1 | `fix/ml-poller` ✅ | ML 4 页轮询迁移 useTaskPoller；demos.ts 6 处 ready→planned（commit `941db0a`，lint/typecheck 零新增） | ✅ 完成 |
 | 1 | `feat/sample-assets` ✅ | P0-4：素材 4 图 + 4 音频（1.89MB，无版权）；MediaVisionRunner/ImagePlayground「试试示例」；MediaTextRunner 默认输入；asr/denoise/separation/emotion/voice-clone 5 页示例按钮（commit `de84304`+`e177f62`，lint/typecheck 零新增，冒烟 5 页 200） | ✅ 完成 |
 | 2 | `fix/error-messages` ✅ | 错误映射/权限/上传 util；65 处 humanError 替换（37 文件）；8 页 mediaError；硬编码 i18n；useTaskPoller 兜底国际化；11 个服务端队列补大小限制（commit `d2423a6`+`0349984`+`db05cf5`，lint/typecheck 零新增，冒烟 7 页 200）。**前端上传校验并入批次 3 上传组件统一** | ✅ 完成 |
-| 3 | `fix/runner-ux` | Runner 进度/竞态 + 网格 + 暗色 + 上传组件 | 待开始 |
-| 4 | `feat/demo-metadata` + `fix/nav-seo` | 注册表字段 + 徽章 + 导航 + SEO | 待开始 |
-| 5 | `fix/polish` | P2 质感清单 | 待开始 |
-| 6 | `chore/quality-gates` | 测试 + a11y + 性能 | 待开始 |
+| 3 | `fix/runner-ux` ✅ | 网格降级 8 处、Runner 下载进度/三态、摄像头 starting 防竞态、ImagePlayground 守卫、暗色 SVG、前端上传校验 6 页（commit `ea15b46`，lint/typecheck 零新增，冒烟 6 页 200） | ✅ 完成 |
+| 4 | `feat/demo-metadata` + `fix/nav-seo` ✅ | 注册表 runtime/requirements/featured（39 个标注）、卡片徽章、首页限流+hero 卖点、面包屑/上下页、SEO（ogImage/meta/lang）、GitHub 真实链接（commit `5e53627`，注：直接在 main 提交） | ✅ 完成 |
+| 5 | `fix/polish` ✅ | 复制按钮、Runner 空态/权限引导、mnist UProgress、FacePhotoPicker 反馈、session-only 提示（commit `77639f7`，lint/typecheck 零新增，冒烟 5 页 200） | ✅ 完成 |
+| 6 | `chore/quality-gates` ✅ | vitest 18 用例全过（useTaskPoller/humanError/validateUpload）+ useTaskPoller 显式 import + test script（commit `4e8e1b6`，注：直接在 main 提交）。a11y/性能专项留待人工浏览器验证 | ✅ 完成 |
