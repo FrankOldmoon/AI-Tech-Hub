@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { validateUpload } from '~/utils/upload'
 import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
@@ -20,13 +21,19 @@ const resultUrl = ref('')
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    fileData.value = input.files[0]
-    error.value = null
-    segments.value = []
-    fullText.value = ''
-    resultUrl.value = ''
+  const f = input.files?.[0]
+  if (!f) return
+  const uploadErr = validateUpload(f, 'audio', t)
+  if (uploadErr) {
+    error.value = uploadErr
+    input.value = ''
+    return
   }
+  fileData.value = f
+  error.value = null
+  segments.value = []
+  fullText.value = ''
+  resultUrl.value = ''
 }
 
 const { poll } = useTaskPoller({
@@ -110,14 +117,16 @@ function exportTxt() {
         :notice="cloudUnavailable ? t('meeting.cloudUnavailable') : null"
       >
         <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('meeting.uploadHint') }}</p>
+          <p class="text-sm text-muted mb-4">
+            {{ t('meeting.uploadHint') }}
+          </p>
           <div>
             <input
               type="file"
               accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
               class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
               @change="onFileChange"
-            />
+            >
           </div>
         </template>
 
@@ -141,19 +150,34 @@ function exportTxt() {
         </template>
 
         <template #result>
-          <div v-if="loading" class="space-y-3">
+          <div
+            v-if="loading"
+            class="space-y-3"
+          >
             <div class="flex items-center justify-between text-sm text-muted">
               <span>{{ progressText }}</span>
               <span class="tabular-nums">{{ progress }}%</span>
             </div>
             <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-              <div class="h-full bg-primary transition-all" :style="{ width: progress + '%' }" />
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: progress + '%' }"
+              />
             </div>
           </div>
 
-          <div v-else-if="segments.length" class="space-y-4">
+          <div
+            v-else-if="segments.length"
+            class="space-y-4"
+          >
             <div class="flex flex-wrap gap-2">
-              <UButton icon="i-lucide-file-text" :label="t('meeting.exportTxt')" size="sm" variant="outline" @click="exportTxt" />
+              <UButton
+                icon="i-lucide-file-text"
+                :label="t('meeting.exportTxt')"
+                size="sm"
+                variant="outline"
+                @click="exportTxt"
+              />
               <UButton
                 v-if="resultUrl"
                 icon="i-lucide-download"
@@ -175,11 +199,18 @@ function exportTxt() {
                   <span class="font-mono text-primary">{{ s.speaker }}</span>
                   <span class="tabular-nums">{{ fmt(s.start) }} → {{ fmt(s.end) }}</span>
                 </div>
-                <p class="text-sm text-highlighted">{{ s.text }}</p>
+                <p class="text-sm text-highlighted">
+                  {{ s.text }}
+                </p>
               </div>
             </div>
           </div>
-          <div v-else class="text-sm text-muted">{{ t('meeting.noResult') }}</div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ t('meeting.noResult') }}
+          </div>
         </template>
       </DemoRunner>
     </div>

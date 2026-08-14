@@ -218,7 +218,7 @@ onBeforeUnmount(() => pauseTraining())
         />
       </div>
       <UCard>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p class="text-xs text-muted">{{ t('ml.cartpole.episode') }}</p>
             <p class="text-2xl font-bold tabular-nums text-highlighted">{{ episode }}</p>

@@ -101,7 +101,7 @@ async function run() {
         <div class="flex items-center gap-2">
           <UButton
             icon="i-lucide-play"
-            :label="t('demo.run')"
+            :label="loading ? t('demo.loadingModel') : t('demo.run')"
             color="primary"
             :loading="loading"
             :disabled="!input.trim()"

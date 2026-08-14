@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { validateUpload } from '~/utils/upload'
 import { humanError } from '~/utils/errors'
 import { fetchSample } from '~/utils/samples'
 
@@ -22,14 +23,20 @@ const resultUrl = ref('')
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    fileData.value = input.files[0]
-    fileName.value = input.files[0].name
-    error.value = null
-    resultUrl.value = ''
-    if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
-    originalUrl.value = URL.createObjectURL(input.files[0])
+  const f = input.files?.[0]
+  if (!f) return
+  const uploadErr = validateUpload(f, 'audio', t)
+  if (uploadErr) {
+    error.value = uploadErr
+    input.value = ''
+    return
   }
+  fileData.value = f
+  fileName.value = f.name
+  error.value = null
+  resultUrl.value = ''
+  if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
+  originalUrl.value = URL.createObjectURL(f)
 }
 
 async function useSample() {
@@ -111,14 +118,16 @@ onBeforeUnmount(() => {
       >
         <!-- 输入 -->
         <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('denoise.uploadHint') }}</p>
+          <p class="text-sm text-muted mb-4">
+            {{ t('denoise.uploadHint') }}
+          </p>
           <div>
             <input
               type="file"
               accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
               class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
               @change="onFileChange"
-            />
+            >
             <div class="mt-3">
               <UButton
                 icon="i-lucide-flask-conical"
@@ -131,7 +140,12 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
-          <audio v-if="originalUrl" :src="originalUrl" controls class="mt-4 w-full max-w-md" />
+          <audio
+            v-if="originalUrl"
+            :src="originalUrl"
+            controls
+            class="mt-4 w-full max-w-md"
+          />
         </template>
 
         <!-- 控件 -->
@@ -157,27 +171,51 @@ onBeforeUnmount(() => {
         <!-- 结果 -->
         <template #result>
           <!-- 进度 -->
-          <div v-if="loading" class="space-y-3">
+          <div
+            v-if="loading"
+            class="space-y-3"
+          >
             <div class="flex items-center justify-between text-sm text-muted">
               <span>{{ progressText }}</span>
               <span class="tabular-nums">{{ progress }}%</span>
             </div>
             <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-              <div class="h-full bg-primary transition-all" :style="{ width: progress + '%' }" />
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: progress + '%' }"
+              />
             </div>
           </div>
 
           <!-- 结果 -->
-          <div v-else-if="resultUrl" class="space-y-4">
-            <p class="text-sm font-medium text-highlighted">{{ t('denoise.result') }}</p>
+          <div
+            v-else-if="resultUrl"
+            class="space-y-4"
+          >
+            <p class="text-sm font-medium text-highlighted">
+              {{ t('denoise.result') }}
+            </p>
             <div class="grid sm:grid-cols-2 gap-4">
               <div class="space-y-2">
-                <p class="text-xs text-muted">{{ t('denoise.original') }}</p>
-                <audio v-if="originalUrl" :src="originalUrl" controls class="w-full" />
+                <p class="text-xs text-muted">
+                  {{ t('denoise.original') }}
+                </p>
+                <audio
+                  v-if="originalUrl"
+                  :src="originalUrl"
+                  controls
+                  class="w-full"
+                />
               </div>
               <div class="space-y-2">
-                <p class="text-xs text-muted">{{ t('denoise.enhanced') }}</p>
-                <audio :src="resultUrl" controls class="w-full" />
+                <p class="text-xs text-muted">
+                  {{ t('denoise.enhanced') }}
+                </p>
+                <audio
+                  :src="resultUrl"
+                  controls
+                  class="w-full"
+                />
               </div>
             </div>
             <UButton
@@ -189,7 +227,12 @@ onBeforeUnmount(() => {
               target="_blank"
             />
           </div>
-          <div v-else class="text-sm text-muted">{{ t('denoise.noResult') }}</div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ t('denoise.noResult') }}
+          </div>
         </template>
       </DemoRunner>
     </div>

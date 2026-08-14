@@ -242,6 +242,7 @@ onBeforeUnmount(() => pauseTraining())
     <div class="grid lg:grid-cols-[auto_1fr] gap-6 items-start">
       <!-- 画板 -->
       <div class="space-y-2">
+        <!-- 白底画板为有意设计：手写数字需白底黑字，与暗色主题无关 -->
         <canvas
           ref="drawRef"
           :width="DRAW_SIZE"
@@ -258,7 +259,7 @@ onBeforeUnmount(() => pauseTraining())
       <div class="space-y-4">
         <!-- 训练信息 -->
         <UCard>
-          <div class="grid grid-cols-3 gap-4">
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <p class="text-xs text-muted">{{ t('ml.mnist.epoch') }}</p>
               <p class="text-2xl font-bold tabular-nums text-highlighted">{{ epoch.toFixed(1) }}</p>

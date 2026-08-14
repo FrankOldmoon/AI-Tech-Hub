@@ -281,7 +281,7 @@ onBeforeUnmount(() => pause())
         <p class="text-xs text-muted text-center">{{ t('ml.kmeans.clickHint') }}</p>
       </div>
       <UCard>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p class="text-xs text-muted">{{ t('ml.kmeans.iteration') }}</p>
             <p class="text-2xl font-bold tabular-nums text-highlighted">{{ iteration }}</p>

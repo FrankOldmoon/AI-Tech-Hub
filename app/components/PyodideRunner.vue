@@ -252,7 +252,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Input / Output 分栏 -->
-    <div class="grid grid-cols-2 border-t border-default h-[30vh] shrink-0">
+    <div class="grid grid-cols-1 sm:grid-cols-2 border-t border-default h-[30vh] shrink-0">
       <!-- Input（可编辑 stdin） -->
       <div class="flex flex-col p-2 border-r border-default min-h-0">
         <div class="flex items-center gap-1.5 text-xs text-muted mb-1 shrink-0">

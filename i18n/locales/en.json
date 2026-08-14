@@ -49,7 +49,9 @@
     "taskQueryFailed": "Failed to query task, please try again",
     "processFailed": "Processing failed, please try again",
     "cancelled": "Cancelled",
-    "notFound": "Demo not found"
+    "notFound": "Demo not found",
+    "loadingModel": "Loading model…",
+    "inferring": "Inferring…"
   },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",

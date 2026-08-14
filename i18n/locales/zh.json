@@ -49,7 +49,9 @@
     "taskQueryFailed": "任务查询失败，请重试",
     "processFailed": "处理失败，请重试",
     "cancelled": "已取消",
-    "notFound": "演示不存在"
+    "notFound": "演示不存在",
+    "loadingModel": "下载模型中…",
+    "inferring": "推理中…"
   },
   "errors": {
     "network": "网络请求失败，请检查网络后重试。",

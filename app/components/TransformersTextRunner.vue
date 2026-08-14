@@ -51,6 +51,8 @@ watch(paramSpecs, (specs) => {
 
 const loading = ref(false) // 模型加载中
 const running = ref(false) // 推理中
+const loadProgress = ref(0)
+const loadFile = ref('')
 const error = ref<string | null>(null)
 const result = ref<any>(null)
 const inferenceTime = ref(0)
@@ -58,6 +60,13 @@ const webgpu = ref(hasWebGPU())
 
 let pipe: any = null
 let envReady = false
+
+function onProgress(x: any) {
+  if (x?.status === 'progress' && x.file) {
+    loadFile.value = String(x.file).split('/').pop() || x.file
+    loadProgress.value = x.total ? Math.round((x.loaded / x.total) * 100) : 0
+  }
+}
 
 async function ensurePipeline() {
   if (pipe) return pipe
@@ -71,7 +80,8 @@ async function ensurePipeline() {
     const { pipeline } = await import('@huggingface/transformers')
     pipe = await pipeline(props.config.task as any, props.config.model, {
       device: preferredDevice(),
-      dtype: 'q8'
+      dtype: 'q8',
+      progress_callback: onProgress
     } as any)
   } catch (e: any) {
     error.value = humanError(e, t)
@@ -168,11 +178,17 @@ onBeforeUnmount(async () => {
         <div class="flex items-center gap-2">
           <UButton
             icon="i-lucide-play"
-            :label="t('demo.run')"
+            :label="loading ? t('demo.loadingModel') : (running ? t('demo.inferring') : t('demo.run'))"
             color="primary"
             :loading="loading || running"
             @click="run"
           />
+          <div v-if="loading" class="min-w-40 flex-1 max-w-64">
+            <UProgress :model-value="loadProgress" size="sm" />
+            <p class="text-xs text-muted truncate mt-1">
+              {{ loadFile || t('demo.loadingModel') }}
+            </p>
+          </div>
           <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
         </div>
       </div>

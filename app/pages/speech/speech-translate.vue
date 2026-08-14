@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { validateUpload } from '~/utils/upload'
 import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
@@ -19,12 +20,18 @@ const language = ref('')
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    fileData.value = input.files[0]
-    error.value = null
-    translation.value = ''
-    language.value = ''
+  const f = input.files?.[0]
+  if (!f) return
+  const uploadErr = validateUpload(f, 'audio', t)
+  if (uploadErr) {
+    error.value = uploadErr
+    input.value = ''
+    return
   }
+  fileData.value = f
+  error.value = null
+  translation.value = ''
+  language.value = ''
 }
 
 const { poll } = useTaskPoller({
@@ -95,14 +102,16 @@ function copyText() {
         :notice="cloudUnavailable ? t('translate.cloudUnavailable') : null"
       >
         <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('translate.uploadHint') }}</p>
+          <p class="text-sm text-muted mb-4">
+            {{ t('translate.uploadHint') }}
+          </p>
           <div>
             <input
               type="file"
               accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
               class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
               @change="onFileChange"
-            />
+            >
           </div>
         </template>
 
@@ -126,22 +135,49 @@ function copyText() {
         </template>
 
         <template #result>
-          <div v-if="loading" class="space-y-3">
+          <div
+            v-if="loading"
+            class="space-y-3"
+          >
             <div class="flex items-center justify-between text-sm text-muted">
               <span>{{ progressText }}</span>
               <span class="tabular-nums">{{ progress }}%</span>
             </div>
             <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-              <div class="h-full bg-primary transition-all" :style="{ width: progress + '%' }" />
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: progress + '%' }"
+              />
             </div>
           </div>
 
-          <div v-else-if="translation" class="space-y-3">
-            <p v-if="language" class="text-xs text-muted">{{ t('translate.detected') }}: {{ language }}</p>
-            <p class="text-base text-highlighted whitespace-pre-wrap break-words leading-relaxed">{{ translation }}</p>
-            <UButton icon="i-lucide-copy" :label="t('translate.copy')" size="sm" variant="outline" @click="copyText" />
+          <div
+            v-else-if="translation"
+            class="space-y-3"
+          >
+            <p
+              v-if="language"
+              class="text-xs text-muted"
+            >
+              {{ t('translate.detected') }}: {{ language }}
+            </p>
+            <p class="text-base text-highlighted whitespace-pre-wrap break-words leading-relaxed">
+              {{ translation }}
+            </p>
+            <UButton
+              icon="i-lucide-copy"
+              :label="t('translate.copy')"
+              size="sm"
+              variant="outline"
+              @click="copyText"
+            />
           </div>
-          <div v-else class="text-sm text-muted">{{ t('translate.noResult') }}</div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ t('translate.noResult') }}
+          </div>
         </template>
       </DemoRunner>
     </div>

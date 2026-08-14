@@ -282,7 +282,7 @@ onBeforeUnmount(() => pause())
 
       <!-- 训练信息 -->
       <UCard>
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <p class="text-xs text-muted">{{ t('ml.playground.epoch') }}</p>
             <p class="text-2xl font-bold tabular-nums text-highlighted">{{ epoch }}</p>
