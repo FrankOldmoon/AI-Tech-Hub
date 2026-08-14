@@ -11,7 +11,7 @@ export function humanError(e: unknown, t: (key: string) => string): string {
   if (/fetch failed|failed to fetch|networkerror|load failed|timeout|aborted|enetdown/.test(m)) {
     return t('errors.network')
   }
-  if (/out of memory|oom|memory limit|allocation failed/.test(m)) {
+  if (/out of memory|(?<![a-z])oom(?![a-z])|memory limit|allocation failed/.test(m)) {
     return t('errors.oom')
   }
   if (/webgpu|navigator\.gpu/.test(m)) {

@@ -9,7 +9,8 @@
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
-    "typecheck": "nuxt typecheck"
+    "typecheck": "nuxt typecheck",
+    "test": "vitest run"
   },
   "dependencies": {
     "@huggingface/transformers": "^4.2.0",
@@ -34,6 +35,8 @@
     "eslint": "^10.8.0",
     "long": "4.0.0",
     "typescript": "^6.0.3",
+    "vitest": "^4.1.10",
+    "vue": "^3.5.41",
     "vue-tsc": "^3.3.9"
   },
   "packageManager": "pnpm@11.18.0"

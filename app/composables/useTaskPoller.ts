@@ -1,4 +1,4 @@
-import type { Ref } from 'vue'
+import { getCurrentInstance, onBeforeUnmount, type Ref } from 'vue'
 
 /** 服务端任务对象：字段因 demo 而异（audioUrl/stems/segments/…），故放开索引类型 */
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
