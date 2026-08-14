@@ -1,5 +1,4 @@
 {
-  "welcome": "Welcome",
   "site": {
     "title": "AI Tech Demos",
     "description": "A collection of AI tech demos built with Nuxt v4."
@@ -41,6 +40,7 @@
     "reset": "Reset",
     "result": "Result",
     "input": "Input",
+    "inputRequired": "Please fill in the input first",
     "backendUnavailable": "Backend not ready: create the venv and install deps.",
     "noDemo": "No demos in this category yet.",
     "comingSoon": "Coming soon"
@@ -166,10 +166,10 @@
     "recordStop": "Stop recording",
     "analyze": "Analyze emotion",
     "cancel": "Cancel",
-    "loadingModel": "Loading model (first run downloads)?",
-    "downloading": "Downloading model? {progress}%",
+    "loadingModel": "Loading model (first run downloads)…",
+    "downloading": "Downloading model… {progress}%",
     "loaded": "Model ready",
-    "analyzing": "Analyzing emotion?",
+    "analyzing": "Analyzing emotion…",
     "confidence": "Confidence",
     "noResult": "Record or upload audio and click \"Analyze\".",
     "label": {
@@ -187,7 +187,7 @@
     "start": "Start",
     "stop": "Stop",
     "clarity": "Clarity",
-    "recording": "Listening?",
+    "recording": "Listening…",
     "noResult": "Click \"Start\" and make a sound into the mic.",
     "threshold": "Detection threshold",
     "thresholdHelp": "YIN sensitivity; lower is stricter.",
