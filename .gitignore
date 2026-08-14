@@ -59,3 +59,7 @@ python/**/cache/
 *.gz
 python/aigc/photo-restore/weights/python/aigc/photo-restore/vqgan_arch.py
 python/aigc/photo-restore/codeformer_arch.py
+
+# Playwright CLI ¿ìÕÕ²úÎï
+.playwright-cli/
+tmp/chrome-headless/
