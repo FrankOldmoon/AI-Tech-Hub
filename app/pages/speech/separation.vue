@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { validateUpload } from '~/utils/upload'
 import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy } from '~/utils/remote-models'
@@ -46,12 +47,18 @@ const params = ref<Record<string, number | string | boolean>>(paramDefaults(spec
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    fileData.value = input.files[0]
-    fileName.value = input.files[0].name
-    error.value = null
-    stems.value = []
+  const f = input.files?.[0]
+  if (!f) return
+  const uploadErr = validateUpload(f, 'audio', t)
+  if (uploadErr) {
+    error.value = uploadErr
+    input.value = ''
+    return
   }
+  fileData.value = f
+  fileName.value = f.name
+  error.value = null
+  stems.value = []
 }
 
 async function useSample() {
@@ -175,8 +182,14 @@ function downloadStem(stem: Stem) {
                   variant="subtle"
                   as="span"
                 />
-                <span v-if="fileName" class="text-sm text-muted truncate">{{ fileName }}</span>
-                <span v-else class="text-sm text-muted">{{ t('separation.uploadHint') }}</span>
+                <span
+                  v-if="fileName"
+                  class="text-sm text-muted truncate"
+                >{{ fileName }}</span>
+                <span
+                  v-else
+                  class="text-sm text-muted"
+                >{{ t('separation.uploadHint') }}</span>
                 <input
                   type="file"
                   accept="audio/*"
@@ -195,7 +208,12 @@ function downloadStem(stem: Stem) {
                 @click="useSample"
               />
             </div>
-            <DemoParams v-model="params" :specs="specs" :running="loading" :title="t('params.title')" />
+            <DemoParams
+              v-model="params"
+              :specs="specs"
+              :running="loading"
+              :title="t('params.title')"
+            />
           </div>
         </template>
 
@@ -222,19 +240,33 @@ function downloadStem(stem: Stem) {
         <!-- 结果 -->
         <template #result>
           <!-- 异步任务进度 -->
-          <div v-if="loading" class="space-y-2 py-2">
+          <div
+            v-if="loading"
+            class="space-y-2 py-2"
+          >
             <UProgress :model-value="progress" />
-            <p class="text-xs text-muted">{{ progressText }}</p>
+            <p class="text-xs text-muted">
+              {{ progressText }}
+            </p>
           </div>
-          <div v-else-if="stems.length" class="space-y-4">
-            <p class="text-sm font-medium text-highlighted">{{ t('separation.stems') }}</p>
+          <div
+            v-else-if="stems.length"
+            class="space-y-4"
+          >
+            <p class="text-sm font-medium text-highlighted">
+              {{ t('separation.stems') }}
+            </p>
             <div
               v-for="stem in stems"
               :key="stem.name"
               class="flex items-center gap-3"
             >
               <span class="text-sm font-medium w-24 shrink-0">{{ stemLabel(stem.name) }}</span>
-              <audio :src="stem.url" controls class="flex-1" />
+              <audio
+                :src="stem.url"
+                controls
+                class="flex-1"
+              />
               <UButton
                 icon="i-lucide-download"
                 :label="t('separation.download')"
@@ -245,7 +277,12 @@ function downloadStem(stem: Stem) {
               />
             </div>
           </div>
-          <div v-else class="text-sm text-muted">—</div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            —
+          </div>
         </template>
       </DemoRunner>
     </div>

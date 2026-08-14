@@ -244,7 +244,7 @@ const treeNodes = computed(() => {
           :height="SIZE"
           class="rounded-xl border border-default bg-elevated/40 max-w-full"
         />
-        <div v-if="built" class="grid grid-cols-3 gap-4">
+        <div v-if="built" class="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div class="rounded-lg border border-default p-2 text-center">
             <p class="text-xs text-muted">{{ t('ml.decisionTree.depth') }}</p>
             <p class="text-xl font-bold text-highlighted tabular-nums">{{ stats.depth }}</p>
@@ -294,7 +294,7 @@ const treeNodes = computed(() => {
             <rect
               :x="tree.positions.get(n.node)!.x - 45" :y="tree.positions.get(n.node)!.y - 15"
               width="90" height="30" rx="6"
-              :fill="n.node.label !== null ? (n.node.label === 1 ? '#3B82F6' : '#F97316') : '#1E293B'"
+              :fill="n.node.label !== null ? (n.node.label === 1 ? '#3B82F6' : '#F97316') : '#64748B'"
             />
             <text
               :x="tree.positions.get(n.node)!.x" :y="tree.positions.get(n.node)!.y + 4"

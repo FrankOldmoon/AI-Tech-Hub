@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { validateUpload } from '~/utils/upload'
 import { humanError } from '~/utils/errors'
 
 const { t } = useI18n()
@@ -26,11 +27,17 @@ const instruments = [
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
-  if (input.files && input.files[0]) {
-    fileData.value = input.files[0]
-    error.value = null
-    midiUrl.value = ''
+  const f = input.files?.[0]
+  if (!f) return
+  const uploadErr = validateUpload(f, 'audio', t)
+  if (uploadErr) {
+    error.value = uploadErr
+    input.value = ''
+    return
   }
+  fileData.value = f
+  error.value = null
+  midiUrl.value = ''
 }
 
 const { poll } = useTaskPoller({
@@ -94,7 +101,9 @@ async function cancel() {
         :notice="cloudUnavailable ? t('midi.cloudUnavailable') : null"
       >
         <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('midi.uploadHint') }}</p>
+          <p class="text-sm text-muted mb-4">
+            {{ t('midi.uploadHint') }}
+          </p>
           <div class="space-y-4">
             <div>
               <input
@@ -102,11 +111,15 @@ async function cancel() {
                 accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
                 class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
                 @change="onFileChange"
-              />
+              >
             </div>
             <div>
               <label class="block text-sm font-medium text-muted mb-1">{{ t('midi.instrument') }}</label>
-              <USelect v-model="instrument" :items="instruments" class="w-full max-w-xs" />
+              <USelect
+                v-model="instrument"
+                :items="instruments"
+                class="w-full max-w-xs"
+              />
             </div>
           </div>
         </template>
@@ -131,18 +144,29 @@ async function cancel() {
         </template>
 
         <template #result>
-          <div v-if="loading" class="space-y-3">
+          <div
+            v-if="loading"
+            class="space-y-3"
+          >
             <div class="flex items-center justify-between text-sm text-muted">
               <span>{{ progressText }}</span>
               <span class="tabular-nums">{{ progress }}%</span>
             </div>
             <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-              <div class="h-full bg-primary transition-all" :style="{ width: progress + '%' }" />
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: progress + '%' }"
+              />
             </div>
           </div>
 
-          <div v-else-if="midiUrl" class="space-y-3">
-            <p class="text-sm font-medium text-highlighted">{{ t('midi.result') }}</p>
+          <div
+            v-else-if="midiUrl"
+            class="space-y-3"
+          >
+            <p class="text-sm font-medium text-highlighted">
+              {{ t('midi.result') }}
+            </p>
             <UButton
               icon="i-lucide-download"
               :label="t('midi.download')"
@@ -153,7 +177,12 @@ async function cancel() {
               download
             />
           </div>
-          <div v-else class="text-sm text-muted">{{ t('midi.noResult') }}</div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ t('midi.noResult') }}
+          </div>
         </template>
       </DemoRunner>
     </div>

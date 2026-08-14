@@ -97,6 +97,8 @@ function runLater() {
 async function run() {
   const tool = activeTool.value
   if (!tool || !original.value) return
+  // 防自动重跑与手动点击并发（审计 P2）
+  if (running.value) return
   running.value = true
   error.value = null
   try {

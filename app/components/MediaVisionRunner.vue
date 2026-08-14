@@ -39,6 +39,7 @@ const fileInput = ref<HTMLInputElement>()
 
 const mode = ref<'webcam' | 'image'>('webcam')
 const loading = ref(false)
+const starting = ref(false) // 摄像头启动中（防重复点击竞态）
 const running = ref(false)
 const error = ref<string | null>(null)
 const result = ref<any>(null)
@@ -90,8 +91,13 @@ watch(paramValues, async (vals) => {
 }, { deep: true })
 
 async function startWebcam() {
+  if (starting.value) return
+  starting.value = true
   const det = await ensureDetector()
-  if (!det) return
+  if (!det) {
+    starting.value = false
+    return
+  }
   stopLoop()
   mode.value = 'webcam'
   try {
@@ -103,6 +109,8 @@ async function startWebcam() {
     loop()
   } catch (e: any) {
     error.value = mediaError(e, t)
+  } finally {
+    starting.value = false
   }
 }
 
@@ -239,9 +247,10 @@ onBeforeUnmount(() => {
         <UButton
           v-if="!running"
           icon="i-lucide-video"
-          :label="t('mp.webcam')"
+          :label="loading ? t('demo.loadingModel') : t('mp.webcam')"
           color="primary"
-          :loading="loading"
+          :loading="starting || loading"
+          :disabled="starting"
           @click="startWebcam"
         />
         <UButton
