@@ -88,6 +88,15 @@ async function runTask(task: LipSyncTask, video: UploadedFilePart, audio: Upload
     patch(task, { status: 'error', progress: 0, message: '口型同步需要本地 Python 环境（Wav2Lip），云端部署暂不支持', error: 'venv not found' })
     return
   }
+  if (video.data.length > 100 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '视频不能超过 100MB', error: 'file too large' })
+    return
+  }
+  if (audio.data.length > 50 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '音频不能超过 50MB', error: 'file too large' })
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   mkdirSync(workDir, { recursive: true })
   const vext = extname(video.filename || '').toLowerCase() || '.mp4'

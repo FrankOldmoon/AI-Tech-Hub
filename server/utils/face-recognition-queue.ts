@@ -130,6 +130,11 @@ async function runTask(task: FaceRecTask, file: UploadedFilePart, file2: Uploade
     patch(task, { status: 'error', progress: 0, message: 'Python 环境尚未就绪，请等待后台安装完成', error: 'venv not found' })
     return
   }
+  if (file.data.length > 20 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '文件不能超过 20MB', error: 'file too large' })
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   mkdirSync(workDir, { recursive: true })
   const ext = extname(file.filename || '').toLowerCase() || '.png'
