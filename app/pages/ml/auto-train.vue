@@ -14,7 +14,6 @@ const taskId = ref('')
 const progress = ref(0)
 const message = ref('')
 const report = ref<any>(null)
-let pollTimer: ReturnType<typeof setInterval> | null = null
 
 const maxMatrixCell = computed(() => {
   const cm = report.value?.confusion_matrix
@@ -69,9 +68,19 @@ function onFileChange(e: Event) {
   reader.readAsText(file.slice(0, 65536))
 }
 
-function stopPolling() {
-  if (pollTimer) { clearInterval(pollTimer); pollTimer = null }
-}
+const { poll, stop: stopPolling } = useTaskPoller({
+  interval: 1800,
+  progress,
+  progressText: message,
+  error,
+  timeoutMessage: t('demo.taskTimeout'),
+  failMessage: t('ml.autoTrain.error'),
+  errorMessage: t('ml.autoTrain.error'),
+  onCancelled: () => t('ml.autoTrain.cancelled'),
+  onDone: async (task) => {
+    if (task.reportUrl) report.value = await $fetch(task.reportUrl)
+  }
+})
 
 async function submit() {
   const file = fileInput.value?.files?.[0]
@@ -101,48 +110,12 @@ async function submit() {
       return
     }
     taskId.value = res.taskId
-    poll()
+    await poll(`/api/ml/auto-train/${res.taskId}`)
+    submitting.value = false
   } catch (e: any) {
     error.value = e?.message || String(e)
     submitting.value = false
   }
-}
-
-function poll() {
-  stopPolling()
-  pollTimer = setInterval(async () => {
-    try {
-      const res = await $fetch<{ ok: boolean, task?: any, error?: string }>(`/api/ml/auto-train/${taskId.value}`)
-      if (!res.ok || !res.task) {
-        error.value = res.error || t('ml.autoTrain.error')
-        stopPolling()
-        submitting.value = false
-        return
-      }
-      const taskData = res.task
-      progress.value = taskData.progress
-      message.value = taskData.message
-      if (taskData.status === 'done') {
-        stopPolling()
-        submitting.value = false
-        if (taskData.reportUrl) {
-          report.value = await $fetch(taskData.reportUrl)
-        }
-      } else if (taskData.status === 'error') {
-        stopPolling()
-        submitting.value = false
-        error.value = taskData.error || taskData.message
-      } else if (taskData.status === 'cancelled') {
-        stopPolling()
-        submitting.value = false
-        error.value = t('ml.autoTrain.cancelled')
-      }
-    } catch (e: any) {
-      error.value = e?.message || String(e)
-      stopPolling()
-      submitting.value = false
-    }
-  }, 1800)
 }
 
 async function cancel() {
@@ -153,8 +126,6 @@ async function cancel() {
   stopPolling()
   submitting.value = false
 }
-
-onBeforeUnmount(() => stopPolling())
 </script>
 
 <template>
