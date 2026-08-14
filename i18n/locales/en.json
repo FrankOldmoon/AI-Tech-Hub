@@ -58,7 +58,12 @@
     "runtimeBrowser": "Runs in your browser · data stays on device",
     "runtimeServer": "Processed by local server",
     "modelSize": "Model ~{size}",
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "copy": "Copy",
+    "copied": "Copied",
+    "emptyResult": "Results will appear here after running",
+    "useUploadInstead": "Upload an image instead",
+    "sessionOnly": "Results are session-only — download them before leaving"
   },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",

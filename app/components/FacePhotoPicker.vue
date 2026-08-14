@@ -20,6 +20,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const fileInput = ref<HTMLInputElement>()
+const errorMsg = ref('')
 
 function uid(): string {
   return typeof crypto !== 'undefined' && crypto.randomUUID
@@ -50,8 +51,12 @@ function patch(photo: PickedPhoto, p: Partial<PickedPhoto>): void {
 
 async function addFiles(files: FileList | File[]) {
   if (props.disabled) return
+  const rejected: string[] = []
   for (const file of Array.from(files)) {
-    if (!file.type.startsWith('image/')) continue
+    if (!file.type.startsWith('image/')) {
+      rejected.push(file.name)
+      continue
+    }
     const photo: PickedPhoto = {
       id: uid(),
       fileName: file.name,
@@ -65,6 +70,9 @@ async function addFiles(files: FileList | File[]) {
     emit('update:photos', [...props.photos, photo])
     void analyzePhoto(photo, file)
   }
+  errorMsg.value = rejected.length
+    ? `${t('upload.typeImage')}: ${rejected.slice(0, 3).join(', ')}${rejected.length > 3 ? '…' : ''}`
+    : ''
 }
 
 async function analyzePhoto(photo: PickedPhoto, file: File) {
@@ -136,6 +144,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="space-y-3">
+    <UAlert v-if="errorMsg" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="errorMsg" />
     <div
       class="border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors hover:border-primary/60"
       :class="disabled ? 'opacity-50 pointer-events-none' : ''"

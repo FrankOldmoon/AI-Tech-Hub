@@ -216,6 +216,9 @@ onBeforeUnmount(() => {
                   controls
                   class="w-full"
                 />
+                <p class="text-xs text-muted">
+                  {{ t('demo.sessionOnly') }}
+                </p>
               </div>
             </div>
             <UButton
