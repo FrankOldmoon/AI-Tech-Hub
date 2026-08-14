@@ -188,7 +188,8 @@ async function downloadTransformersModels(): Promise<void> {
     'Xenova/distilbert-base-cased-distilled-squad',
     'Xenova/bert-base-uncased',
     'onnx-community/depth-anything-v1-small',
-    'Xenova/vit-gpt2-image-captioning'
+    'Xenova/vit-gpt2-image-captioning',
+    'Xenova/modnet'
   ]
   // 跳过 PyTorch/TF 原始权重和不需要的 ONNX 变体
   // 保留: model.onnx, model_quantized.onnx, model_int8.onnx, model_fp16.onnx

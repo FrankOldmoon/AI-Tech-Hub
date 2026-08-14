@@ -20,6 +20,14 @@
 
 ### AIGC Phase 2（Python 后端）✅ 已完成并验证
 
+### AIGC Phase 3（2026-08-13 浏览器新增 4 项 + planned 3 项）✅ 已实现并验证
+
+- ✅ **智能抠图（背景移除）**：`app/pages/vision/bg-removal.vue`，Xenova/modnet（~25MB，已加入预下载），WebGPU→WASM，阈值滑块 + 透明 PNG 导出；端到端验证（上传→抠图 1.9s→下载）。
+- ✅ **推理对话（DeepSeek-R1 蒸馏）**：`app/pages/aigc/reasoning-chat.vue`，DeepSeek-R1-Distill-Qwen-1.5B / MiniThinky-v2-1B，TextStreamer 流式输出“思考过程→回答”，可中断。
+- ✅ **代码生成与执行**：`app/pages/aigc/codegen.vue`，Qwen2.5-Coder-0.5B 补全 + Pyodide 浏览器内运行 Python（新增 `app/composables/usePyodide.ts` 共享单例）。
+- ✅ **多模态对话（SmolVLM）**：`app/pages/aigc/multimodal-chat.vue`，SmolVLM-256M 多图多轮图文对话。
+- 📌 新增 `app/pages/aigc/[slug].vue` 兜底页 + planned：tripo3d（TripoSR）/ talking-photo（SadTalker）/ video-gen（Wan2.1）。
+- 📌 /aigc 演示数：6 → 13。
 - ✅ **A2 文生图 + B1 图生图（SD-Turbo）**：`python/aigc/sd-turbo/`（diffusers `AutoPipelineForText2Image/Image2Image`，常驻 worker，1-8 步，CPU 约 3.7s/步）；`server/utils/sd-turbo-queue.ts`（支持无文件文生图 + 多图结果）+ `/api/aigc/sd-turbo`；页面 `app/pages/aigc/sd-turbo.vue`（文生图/图生图双 Tab：提示词/负提示词/步数/CFG/种子/批量/分辨率/strength）。
   - API 端到端验证：POST→taskId→done→图片；**worker 二次调用复用**（无加载等待）；UI 端到端出图 + 下载。
 - ✅ **A4 老照片修复（Real-ESRGAN x2 + CodeFormer）**：`python/aigc/photo-restore/`（常驻 worker；CodeFormer 源码克隆到 `repo/`，`facelib/` + `vqgan_arch/codeformer_arch` 由 `download_model.py` 拷贝；权重 codeformer.pth 359MB + RealESRGAN_x2plus.pth 64MB 存 `~/.cache/photo-restore`）；`server/utils/photo-restore-queue.ts` + `/api/aigc/photo-restore`；页面 `app/pages/aigc/photo-restore.vue`（fidelity 滑杆 + 放大倍数 + 前后对比 + 下载）。

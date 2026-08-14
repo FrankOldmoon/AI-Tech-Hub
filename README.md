@@ -23,6 +23,10 @@
 | 📝 自然语言 | 文本分类 / 语言检测 / 文本嵌入 | MediaPipe Tasks |
 | 📝 自然语言 | 命名实体识别 / 零样本分类 / 摘要 / 问答 / 完形填空 | Transformers.js |
 | 🤖 AI 生成 | 浏览器本地 LLM 对话 | WebLLM (Qwen2.5) |
+| 🪄 AI 生成 | 智能抠图（背景移除） | MODNet（transformers.js，浏览器本地） |
+| 🪄 AI 生成 | 推理对话（DeepSeek-R1 蒸馏，思考过程流式输出） | transformers.js + WebGPU/WASM |
+| 🪄 AI 生成 | 代码生成与执行（Qwen2.5-Coder + Pyodide） | transformers.js + Pyodide |
+| 🪄 AI 生成 | 多模态对话（SmolVLM-256M，多图多轮） | transformers.js + WebGPU |
 | 🧠 机器学习 | 图像迁移学习训练 (摄像头) | TensorFlow.js MobileNet + KNN |
 | 🧠 机器学习 | 声音迁移学习训练 (麦克风) | TensorFlow.js Speech Commands |
 | 👁 视觉 | 图像处理 Playground（15 页：查看/变换/像素/颜色/调整/滤镜/增强/形态学/边缘/物体/特征/人脸处理/OCR/AI视觉/多模态） | Canvas + OpenCV.js + MediaPipe + Tesseract.js + Transformers.js |

@@ -72,8 +72,8 @@ export const categories: Category[] = [
     slug: 'aigc',
     title: { zh: 'AI 生成', en: 'AIGC' },
     description: {
-      zh: 'LLM 对话、文生图、图像修复与 AI 内容生成演示（浏览器本地 / 本地服务端）。',
-      en: 'LLM chat, text-to-image, image inpainting and AI content generation demos (in-browser / local server).'
+      zh: 'LLM 对话与推理、文生图、图像编辑/修复、代码生成、多模态对话、音视频生成等 AI 内容生成演示（浏览器本地 / 本地服务端）。',
+      en: 'LLM chat & reasoning, text-to-image, image editing/inpainting, code generation, multimodal chat and AI content generation demos (in-browser / local server).'
     },
     icon: 'i-lucide-sparkles'
   },
@@ -699,6 +699,69 @@ export const demos: Demo[] = [
     status: 'ready',
     pythonModule: 'aigc/photo-restore',
     tags: ['Python', 'Photo Restoration']
+  },
+  {
+    slug: 'bg-removal',
+    category: 'vision',
+    title: { zh: '智能抠图（背景移除）', en: 'Background Removal' },
+    description: { zh: '用 MODNet 在浏览器中一键抠出人像/主体，导出透明背景 PNG（数据不出浏览器）。', en: 'Cut out people/subjects in-browser with MODNet and export transparent PNGs (all local).' },
+    icon: 'i-lucide-scissors',
+    status: 'ready',
+    tags: ['MODNet', 'Transformers.js', 'WebGPU']
+  },
+  {
+    slug: 'reasoning-chat',
+    category: 'aigc',
+    title: { zh: '推理对话（DeepSeek-R1 蒸馏）', en: 'Reasoning Chat (DeepSeek-R1 Distill)' },
+    description: { zh: '在浏览器运行推理 LLM：先展示思考过程，再给出答案（DeepSeek-R1 / MiniThinky）。', en: 'Run a reasoning LLM in-browser: watch it think step-by-step, then answer (DeepSeek-R1 / MiniThinky).' },
+    icon: 'i-lucide-brain',
+    status: 'ready',
+    tags: ['DeepSeek-R1', 'Transformers.js', 'WebGPU']
+  },
+  {
+    slug: 'codegen',
+    category: 'aigc',
+    title: { zh: '代码生成与执行', en: 'Code Generation & Execution' },
+    description: { zh: '用 Qwen2.5-Coder 在浏览器补全代码，并用 Pyodide 直接在浏览器运行 Python。', en: 'Complete code in-browser with Qwen2.5-Coder, then run Python right away via Pyodide.' },
+    icon: 'i-lucide-code-xml',
+    status: 'ready',
+    tags: ['Qwen2.5-Coder', 'Pyodide', 'Transformers.js']
+  },
+  {
+    slug: 'multimodal-chat',
+    category: 'aigc',
+    title: { zh: '多模态对话（SmolVLM）', en: 'Multimodal Chat (SmolVLM)' },
+    description: { zh: '上传图片与 SmolVLM-256M 多轮对话：识别图表、手写、场景与物体。', en: 'Upload images and chat multi-turn with SmolVLM-256M: charts, handwriting, scenes and objects.' },
+    icon: 'i-lucide-messages-square',
+    status: 'ready',
+    tags: ['SmolVLM', 'Vision-Language', 'Transformers.js']
+  },
+  {
+    slug: 'tripo3d',
+    category: 'aigc',
+    title: { zh: '图生 3D（TripoSR）', en: 'Image to 3D (TripoSR)' },
+    description: { zh: '单张图片生成 3D 模型并在浏览器预览（Python 后端，CPU 30-60s/个）。', en: 'Generate a 3D mesh from a single image and preview it in-browser (Python backend, CPU 30-60s).' },
+    icon: 'i-lucide-cuboid',
+    status: 'planned',
+    tags: ['TripoSR', 'Python', '3D']
+  },
+  {
+    slug: 'talking-photo',
+    category: 'aigc',
+    title: { zh: '照片说话（SadTalker）', en: 'Talking Photo (SadTalker)' },
+    description: { zh: '让静态照片跟随音频开口说话（Python 后端，非商用许可）。', en: 'Make a still photo talk along with audio (Python backend, non-commercial license).' },
+    icon: 'i-lucide-user-round',
+    status: 'planned',
+    tags: ['SadTalker', 'Python', 'Video']
+  },
+  {
+    slug: 'video-gen',
+    category: 'aigc',
+    title: { zh: '文生视频（Wan2.1）', en: 'Text-to-Video (Wan2.1)' },
+    description: { zh: '文字描述生成短视频（需 GPU，当前机器受限）。', en: 'Generate short videos from text (requires GPU, limited on this machine).' },
+    icon: 'i-lucide-video',
+    status: 'planned',
+    tags: ['Wan2.1', 'Python', 'Video']
   },
   // ===== vision 图像处理 Playground（viewer/transform/... 共 15 页）=====
   {
