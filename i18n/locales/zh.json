@@ -44,7 +44,33 @@
     "taskTimeout": "任务超时，可能服务已重启，请重试",
     "backendUnavailable": "后端未就绪：请创建虚拟环境并安装依赖。",
     "noDemo": "该分类下暂无演示",
-    "comingSoon": "敬请期待"
+    "comingSoon": "敬请期待",
+    "submitFailed": "提交失败，请重试",
+    "taskQueryFailed": "任务查询失败，请重试",
+    "processFailed": "处理失败，请重试",
+    "cancelled": "已取消",
+    "notFound": "演示不存在"
+  },
+  "errors": {
+    "network": "网络请求失败，请检查网络后重试。",
+    "oom": "内存不足，请关闭其他标签页或降低输入大小后重试。",
+    "webgpu": "当前环境不支持 WebGPU，将回退到较慢的 WASM 模式。",
+    "permission": "摄像头/麦克风权限被拒绝，请在浏览器地址栏允许后重试。",
+    "deviceNotFound": "未找到可用的摄像头/麦克风设备。",
+    "deviceBusy": "摄像头/麦克风正被其他应用占用，请关闭后重试。",
+    "unsupported": "当前浏览器不支持该功能，请使用最新版 Chrome/Edge。",
+    "unknown": "处理失败，请重试。"
+  },
+  "upload": {
+    "typeAudio": "请上传音频文件",
+    "typeImage": "请上传图片文件",
+    "typeVideo": "请上传视频文件",
+    "tooLarge": "文件过大，请上传不超过 {size} 的文件"
+  },
+  "textEmbedder": {
+    "textA": "文本 A",
+    "textB": "文本 B",
+    "cosineSimilarity": "余弦相似度"
   },
   "samples": {
     "trySample": "试试示例",

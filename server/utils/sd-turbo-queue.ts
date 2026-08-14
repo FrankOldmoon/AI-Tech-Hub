@@ -119,6 +119,11 @@ async function runTask(task: SdTurboTask, file: UploadedFilePart | null, text: s
     patch(task, { status: 'error', progress: 0, message: 'Python 环境尚未就绪，请等待后台安装完成', error: 'venv not found' })
     return
   }
+  if (file && file.data.length > 20 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '文件不能超过 20MB', error: 'file too large' })
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   const outDir = join(workDir, 'out')
   mkdirSync(workDir, { recursive: true })

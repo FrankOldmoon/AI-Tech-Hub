@@ -88,6 +88,11 @@ async function runTask(task: TranslateTask, file: UploadedFilePart): Promise<voi
     patch(task, { status: 'error', progress: 0, message: '语音翻译需要本地 Python 环境（faster-whisper），云端部署暂不支持', error: 'venv not found' })
     return
   }
+  if (file.data.length > 50 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '文件不能超过 50MB', error: 'file too large' })
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   const ext = extname(file.filename || '').toLowerCase() || '.wav'
   const inputPath = join(workDir, `input${ext}`)

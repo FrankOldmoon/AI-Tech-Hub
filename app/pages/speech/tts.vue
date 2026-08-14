@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 
 const { t } = useI18n()
@@ -73,7 +74,7 @@ async function synthesize() {
     audioFormat.value = 'mp3'
     audioSrc.value = URL.createObjectURL(blob)
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

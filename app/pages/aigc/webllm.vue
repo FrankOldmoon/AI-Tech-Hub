@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy } from '~/utils/remote-models'
 
@@ -152,7 +153,7 @@ async function loadModel() {
     })
     loadedModelId = modelId.value
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -195,7 +196,7 @@ async function send() {
       stats.value = await engine.runtimeStats()
     } catch { /* ignore */ }
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     generating.value = false
   }

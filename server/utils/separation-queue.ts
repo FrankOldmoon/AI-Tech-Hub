@@ -108,6 +108,12 @@ async function runTask(task: SeparationTask, file: UploadedFilePart): Promise<vo
     return
   }
 
+  if (file.data.length > 50 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '文件不能超过 50MB', error: 'file too large' })
+
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   const outDir = join(workDir, 'out')
   const ext = extname(file.filename || '').toLowerCase() || '.wav'

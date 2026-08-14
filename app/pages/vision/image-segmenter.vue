@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
+import { humanError, mediaError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -36,7 +37,7 @@ async function ensure() {
       outputConfidenceMasks: false
     })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -68,7 +69,7 @@ async function startWebcam() {
     running.value = true
     loop()
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = mediaError(e, t)
   }
 }
 
@@ -80,7 +81,7 @@ function loop() {
     try {
       segmenter.segmentForVideo(video, performance.now(), (result: any) => drawMask(result))
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
       stopLoop()
     }
   }
@@ -115,7 +116,7 @@ async function onFileChange(e: Event) {
     await new Promise<void>((resolve) => { img.onload = () => resolve() })
     segmenter.segmentForVideo(bitmap, performance.now(), (result: any) => drawMask(result))
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     input.value = ''

@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -80,7 +81,7 @@ async function submit() {
     await poll(`/api/ml/forecast/${res.taskId}`)
     submitting.value = false
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
     submitting.value = false
   }
 }

@@ -44,7 +44,33 @@
     "taskTimeout": "Task timed out. The service may have restarted — please try again.",
     "backendUnavailable": "Backend not ready: create the venv and install deps.",
     "noDemo": "No demos in this category yet.",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "submitFailed": "Submission failed, please try again",
+    "taskQueryFailed": "Failed to query task, please try again",
+    "processFailed": "Processing failed, please try again",
+    "cancelled": "Cancelled",
+    "notFound": "Demo not found"
+  },
+  "errors": {
+    "network": "Network request failed. Please check your connection and try again.",
+    "oom": "Out of memory. Please close other tabs or reduce the input size.",
+    "webgpu": "WebGPU is not supported here. Falling back to the slower WASM mode.",
+    "permission": "Camera/microphone permission was denied. Please allow it in the browser address bar.",
+    "deviceNotFound": "No camera or microphone device found.",
+    "deviceBusy": "The camera/microphone is being used by another app. Please close it and retry.",
+    "unsupported": "This feature is not supported by your browser. Please use the latest Chrome/Edge.",
+    "unknown": "Processing failed. Please try again."
+  },
+  "upload": {
+    "typeAudio": "Please upload an audio file",
+    "typeImage": "Please upload an image file",
+    "typeVideo": "Please upload a video file",
+    "tooLarge": "File too large. Please upload a file under {size}"
+  },
+  "textEmbedder": {
+    "textA": "Text A",
+    "textB": "Text B",
+    "cosineSimilarity": "Cosine Similarity"
   },
   "samples": {
     "trySample": "Try a sample",

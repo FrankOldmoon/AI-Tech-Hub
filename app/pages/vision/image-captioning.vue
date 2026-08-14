@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
 import { setupTransformersEnv, preferredDevice, hasWebGPU, transformersModels } from '~/utils/transformers'
@@ -56,7 +57,7 @@ async function ensurePipeline() {
       dtype: 'q8'
     } as any)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -94,7 +95,7 @@ async function run() {
     caption.value = arr[0]?.generated_text || ''
     inferenceTime.value = Math.round(performance.now() - ts)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     running.value = false
   }

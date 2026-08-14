@@ -8,6 +8,7 @@
  * 工具全部来自 ~/utils/image-tools 注册表，本组件不包含任何算法逻辑。
  */
 import type { LocalizedDemo } from '~/utils/demos'
+import { humanError } from '~/utils/errors'
 import type { ImageTool, ImageToolKind } from '~/utils/image-tools'
 import { buildParamSpecs, pickText } from '~/utils/image-tools'
 import { paramDefaults } from '~/utils/params'
@@ -111,7 +112,7 @@ async function run() {
     if (res.imageData) result.value = res.imageData
     resultInfo.value = res.info ?? []
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
     resultInfo.value = []
   } finally {
     running.value = false
@@ -144,7 +145,7 @@ async function useSample(url: string) {
     const file = new File([blob], url.split('/').pop() || 'sample.jpg', { type: blob.type })
     await loadFile(file)
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -176,7 +177,7 @@ async function loadFile(file: File) {
     error.value = null
     runLater()
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -201,7 +202,7 @@ async function loadSecondFile(file: File) {
     secondFileName.value = file.name
     runLater()
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 

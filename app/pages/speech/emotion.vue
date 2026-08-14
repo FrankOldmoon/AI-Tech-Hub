@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
+import { humanError, mediaError } from '~/utils/errors'
 import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
@@ -51,7 +52,7 @@ async function useSample() {
     result.value = []
     error.value = null
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -77,7 +78,7 @@ async function startRecording() {
     recording.value = true
     recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = mediaError(e, t)
   }
 }
 
@@ -155,7 +156,7 @@ async function analyze() {
       score: Number(r.score) || 0
     }))
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

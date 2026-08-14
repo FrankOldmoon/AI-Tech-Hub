@@ -249,6 +249,12 @@ async function runTask(task: VoiceCloneTask, refFile: UploadedFilePart, text: st
     return
   }
 
+  if (refFile.data.length > 50 * 1024 * 1024) {
+    patch(task, { status: 'error', progress: 0, message: '文件不能超过 50MB', error: 'file too large' })
+
+    return
+  }
+
   const workDir = join(WORK_ROOT, task.id)
   const outDir = join(workDir, 'out')
   mkdirSync(workDir, { recursive: true })

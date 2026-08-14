@@ -5,6 +5,7 @@
  * - 生成的 Python 可直接用 Pyodide 在浏览器运行（数据不出本机）
  */
 import type { ParamSpec } from '~/utils/params'
+import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { setupTransformersEnv, preferredDevice, hasWebGPU } from '~/utils/transformers'
 import { ensurePyodide, runPyodide } from '~/composables/usePyodide'
@@ -127,7 +128,7 @@ async function ensureModel() {
     loadedModelId = modelId.value
     modelReady.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     progressFile.value = ''
@@ -169,7 +170,7 @@ async function complete() {
       streamer
     })
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     generating.value = false
   }
@@ -190,7 +191,7 @@ async function loadPyodide() {
     pyReady.value = true
   } catch (e: any) {
     pyError.value = true
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     pyLoading.value = false
   }

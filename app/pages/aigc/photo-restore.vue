@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -38,6 +39,9 @@ const { poll, stop: stopPolling } = useTaskPoller({
   progressText,
   error,
   timeoutMessage: t('demo.taskTimeout'),
+  failMessage: t('demo.taskQueryFailed'),
+  errorMessage: t('demo.processFailed'),
+  cancelledMessage: t('demo.cancelled'),
   onDone: (task) => { if (task.resultUrl) resultUrl.value = task.resultUrl }
 })
 
@@ -54,11 +58,11 @@ async function run() {
     formData.append('fidelity', String(fidelity.value))
     formData.append('upscale', String(upscale.value))
     const res = await $fetch<{ ok: boolean, taskId?: string, error?: string }>('/api/aigc/photo-restore', { method: 'POST', body: formData })
-    if (!res.ok || !res.taskId) { error.value = res.error || '提交失败'; return }
+    if (!res.ok || !res.taskId) { error.value = res.error || t('demo.submitFailed'); return }
     taskId.value = res.taskId
     await poll(`/api/aigc/photo-restore/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -70,7 +74,7 @@ async function cancel() {
   loading.value = false
   try { await $fetch(`/api/aigc/photo-restore/${taskId.value}`, { method: 'DELETE' }) } catch { /* ignore */ }
   taskId.value = null
-  error.value = '已取消'
+  error.value = t('demo.cancelled')
 }
 
 onBeforeUnmount(() => {

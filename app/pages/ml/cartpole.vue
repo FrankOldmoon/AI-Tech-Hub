@@ -1,3 +1,4 @@
+import { humanError } from '~/utils/errors'
 <script setup lang="ts">
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -106,7 +107,7 @@ async function runEpisode() {
 function loop() {
   if (!training.value) return
   runEpisode()
-    .catch((e: any) => { error.value = e?.message || String(e); training.value = false })
+    .catch((e: any) => { error.value = humanError(e, t); training.value = false })
     .finally(() => {
       if (training.value) {
         draw()
@@ -120,7 +121,7 @@ function startTraining() {
     buildModel().then(() => {
       training.value = true
       if (!rafId) loop()
-    }).catch((e: any) => { error.value = e?.message || String(e) })
+    }).catch((e: any) => { error.value = humanError(e, t) })
     return
   }
   training.value = true

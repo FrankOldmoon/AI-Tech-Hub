@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { humanError } from '~/utils/errors'
 import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
@@ -41,7 +42,7 @@ async function useSample() {
     if (originalUrl.value) URL.revokeObjectURL(originalUrl.value)
     originalUrl.value = URL.createObjectURL(f)
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -81,7 +82,7 @@ async function denoise() {
     taskId.value = res.taskId
     await poll(`/api/speech/denoise/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }

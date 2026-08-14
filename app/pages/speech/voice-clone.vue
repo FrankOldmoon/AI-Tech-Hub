@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { fetchSample } from '~/utils/samples'
+import { humanError, mediaError } from '~/utils/errors'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -55,7 +56,7 @@ async function useSample() {
     error.value = null
     resultUrl.value = ''
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -84,7 +85,7 @@ async function startRecording() {
       recordSeconds.value++
     }, 1000)
   } catch (e: any) {
-    error.value = e?.message || '无法访问麦克风，请检查权限'
+    error.value = mediaError(e, t)
   }
 }
 
@@ -104,8 +105,9 @@ const { poll, stop: stopPolling } = useTaskPoller({
   progress,
   progressText,
   error,
-  errorMessage: '合成失败',
-  cancelledMessage: '已取消',
+  failMessage: t('demo.taskQueryFailed'),
+  errorMessage: t('demo.processFailed'),
+  cancelledMessage: t('demo.cancelled'),
   timeoutMessage: t('demo.taskTimeout'),
   onDone: (task) => { if (task.audioUrl) resultUrl.value = task.audioUrl },
   onError: task => task.message || task.error
@@ -143,7 +145,7 @@ async function synthesize() {
     taskId.value = res.taskId
     await poll(`/api/speech/voice-clone/${res.taskId}`)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
