@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError, mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
 
@@ -70,7 +71,7 @@ async function loadModels() {
     classifier = knnMod.create()
     loadProgress.value = ''
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -87,7 +88,7 @@ async function startWebcam() {
     running.value = true
     startPredicting()
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = mediaError(e, t)
   }
 }
 
@@ -136,7 +137,7 @@ async function predict() {
       .map((name, i) => ({ name, score: confidences[name] ?? confidences[i] ?? 0 }))
       .sort((a, b) => b.score - a.score)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -155,7 +156,7 @@ async function startTraining(idx: number) {
       classifier.addExample(logits, classNames.value[idx])
       sampleCounts.value[idx] = classifier.getClassExampleCount()[classNames.value[idx]] || 0
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
     }
   }
   await capture()

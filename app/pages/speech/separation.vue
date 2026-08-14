@@ -75,8 +75,9 @@ const { poll, stop: stopPolling } = useTaskPoller({
   progress,
   progressText,
   error,
-  errorMessage: '分离失败',
-  cancelledMessage: '已取消',
+  failMessage: t('demo.taskQueryFailed'),
+  errorMessage: t('demo.processFailed'),
+  cancelledMessage: t('demo.cancelled'),
   timeoutMessage: t('demo.taskTimeout'),
   onDone: (task) => { if (task.stems) stems.value = task.stems },
   onError: task => task.message || task.error

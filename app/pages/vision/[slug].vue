@@ -128,7 +128,7 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
       color="neutral"
       variant="subtle"
       icon="i-lucide-file-question"
-      title="Demo not found"
+      :title="t('demo.notFound')"
     />
   </UContainer>
 </template>

@@ -34,7 +34,7 @@ const demo = computed(() => getDemo('aigc', slug.value))
       color="neutral"
       variant="subtle"
       icon="i-lucide-file-question"
-      title="Demo not found"
+      :title="t('demo.notFound')"
     />
   </UContainer>
 </template>

@@ -76,11 +76,11 @@ async function compute() {
   <MediaDemoShell :demo="demo">
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
-        <label class="block text-sm font-medium text-muted mb-2">Text A</label>
+        <label class="block text-sm font-medium text-muted mb-2">{{ t('textEmbedder.textA') }}</label>
         <UTextarea v-model="text1" :rows="4" placeholder="Enter text A…" class="w-full" />
       </div>
       <div>
-        <label class="block text-sm font-medium text-muted mb-2">Text B</label>
+        <label class="block text-sm font-medium text-muted mb-2">{{ t('textEmbedder.textB') }}</label>
         <UTextarea v-model="text2" :rows="4" placeholder="Enter text B…" class="w-full" />
       </div>
     </div>
@@ -104,7 +104,7 @@ async function compute() {
 
     <UCard>
       <div class="flex items-center justify-between">
-        <span class="text-sm font-medium text-muted">Cosine Similarity</span>
+        <span class="text-sm font-medium text-muted">{{ t('textEmbedder.cosineSimilarity') }}</span>
         <span v-if="similarity !== null" class="text-2xl font-bold text-highlighted">
           {{ similarity.toFixed(4) }}
         </span>

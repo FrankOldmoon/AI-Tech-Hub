@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 
 const { t } = useI18n()
@@ -159,7 +160,7 @@ async function start() {
     history.value = []
     draw()
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = mediaError(e, t)
   }
 }
 

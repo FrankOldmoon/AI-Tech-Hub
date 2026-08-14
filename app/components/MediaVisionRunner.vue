@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DemoStatus } from '~/utils/demos'
+import { humanError, mediaError } from '~/utils/errors'
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { mediapipeWasm } from '~/utils/mediapipe'
@@ -70,7 +71,7 @@ async function ensureDetector() {
       await detector.setOptions(paramValues.value)
     }
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
   }
@@ -83,7 +84,7 @@ watch(paramValues, async (vals) => {
     try {
       await detector.setOptions(vals)
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
     }
   }
 }, { deep: true })
@@ -101,7 +102,7 @@ async function startWebcam() {
     running.value = true
     loop()
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = mediaError(e, t)
   }
 }
 
@@ -116,7 +117,7 @@ function loop() {
       inferenceTime.value = Math.round(performance.now() - t0)
       drawOverlay(video)
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
       stopLoop()
     }
   }
@@ -170,7 +171,7 @@ async function useSample(url: string) {
     const file = new File([blob], url.split('/').pop() || 'sample.jpg', { type: blob.type })
     await runImageFile(file)
   } catch (e) {
-    error.value = (e as Error)?.message || String(e)
+    error.value = humanError(e, t)
   }
 }
 
@@ -193,7 +194,7 @@ async function runImageFile(file: File) {
     inferenceTime.value = Math.round(performance.now() - t0)
     drawOverlay(bitmap)
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
   } finally {
     loading.value = false
     if (fileInput.value) fileInput.value.value = ''

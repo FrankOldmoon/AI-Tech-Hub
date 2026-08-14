@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import { humanError, mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
 
@@ -58,7 +59,7 @@ watch(params, async (vals) => {
         scoreThreshold: Number(vals.scoreThreshold)
       })
     } catch (e: any) {
-      error.value = e?.message || String(e)
+      error.value = humanError(e, t)
     }
   }
 }, { deep: true })
@@ -98,7 +99,7 @@ async function start() {
           }
         }
       } catch (e: any) {
-        error.value = e?.message || String(e)
+        error.value = mediaError(e, t)
         stop()
       }
     }
@@ -106,7 +107,7 @@ async function start() {
     processor.connect(audioCtx.destination)
     running.value = true
   } catch (e: any) {
-    error.value = e?.message || String(e)
+    error.value = humanError(e, t)
     stop()
   }
 }

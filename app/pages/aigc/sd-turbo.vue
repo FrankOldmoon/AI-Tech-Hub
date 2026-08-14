@@ -50,6 +50,9 @@ const { poll, stop: stopPolling } = useTaskPoller({
   progressText,
   error,
   timeoutMessage: t('demo.taskTimeout'),
+  failMessage: t('demo.taskQueryFailed'),
+  errorMessage: t('demo.processFailed'),
+  cancelledMessage: t('demo.cancelled'),
   onDone: (task) => {
     if (task.resultUrls?.length) resultUrls.value = task.resultUrls
     else if (task.resultUrl) resultUrls.value = [task.resultUrl]
@@ -77,7 +80,7 @@ async function run() {
     formData.append('strength', String(strength.value))
     if (tab.value === 'text2img') formData.append('negative', negative.value)
     const res = await $fetch<{ ok: boolean, taskId?: string, error?: string }>('/api/aigc/sd-turbo', { method: 'POST', body: formData })
-    if (!res.ok || !res.taskId) { error.value = res.error || '提交失败'; return }
+    if (!res.ok || !res.taskId) { error.value = res.error || t('demo.submitFailed'); return }
     taskId.value = res.taskId
     await poll(`/api/aigc/sd-turbo/${res.taskId}`)
   } catch (e: any) {
@@ -93,7 +96,7 @@ async function cancel() {
   loading.value = false
   try { await $fetch(`/api/aigc/sd-turbo/${taskId.value}`, { method: 'DELETE' }) } catch { /* ignore */ }
   taskId.value = null
-  error.value = '已取消'
+  error.value = t('demo.cancelled')
 }
 
 onBeforeUnmount(() => {
