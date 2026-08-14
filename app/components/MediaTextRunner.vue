@@ -25,7 +25,7 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const input = ref('')
+const input = ref(t('samples.textDefault'))
 const loading = ref(false)
 const error = ref<string | null>(null)
 const result = ref<any>(null)

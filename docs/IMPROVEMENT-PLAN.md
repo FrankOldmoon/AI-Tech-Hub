@@ -119,7 +119,8 @@
 | 批次 | 分支 | 内容 | 状态 |
 |---|---|---|---|
 | 0 | `chore/release-v0.1` | 基线 v0.11.0 + 计划 | ✅ 完成 |
-| 1 | `feat/sample-assets` + `fix/ml-poller` | P0-4 示例素材；ML 4 页轮询；demos.ts 矛盾 | ⏳ 待开始 |
+| 1 | `fix/ml-poller` ✅ | ML 4 页轮询迁移 useTaskPoller；demos.ts 6 处 ready→planned（commit `941db0a`，lint/typecheck 零新增） | ✅ 完成 |
+| 1 | `feat/sample-assets` ✅ | P0-4：素材 4 图 + 4 音频（1.89MB，无版权）；MediaVisionRunner/ImagePlayground「试试示例」；MediaTextRunner 默认输入；asr/denoise/separation/emotion/voice-clone 5 页示例按钮（commit `de84304`+`e177f62`，lint/typecheck 零新增，冒烟 5 页 200） | ✅ 完成 |
 | 2 | `fix/error-messages` | 错误 util + 权限 util + i18n 硬编码 + 上传校验 | 待开始 |
 | 3 | `fix/runner-ux` | Runner 进度/竞态 + 网格 + 暗色 + 上传组件 | 待开始 |
 | 4 | `feat/demo-metadata` + `fix/nav-seo` | 注册表字段 + 徽章 + 导航 + SEO | 待开始 |

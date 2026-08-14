@@ -156,10 +156,25 @@ function stopWebcam() {
   if (videoRef.value) videoRef.value.srcObject = null
 }
 
-async function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+const sampleImages = computed(() => [
+  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.group'), url: '/samples/images/group.jpg' },
+  { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+  { label: t('samples.document'), url: '/samples/images/document.jpg' }
+])
+
+async function useSample(url: string) {
+  try {
+    const res = await fetch(url)
+    const blob = await res.blob()
+    const file = new File([blob], url.split('/').pop() || 'sample.jpg', { type: blob.type })
+    await runImageFile(file)
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
+  }
+}
+
+async function runImageFile(file: File) {
   const det = await ensureDetector()
   if (!det) return
   stopWebcam()
@@ -181,8 +196,15 @@ async function onFileChange(e: Event) {
     error.value = e?.message || String(e)
   } finally {
     loading.value = false
-    input.value = ''
+    if (fileInput.value) fileInput.value.value = ''
   }
+}
+
+function onFileChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  void runImageFile(file)
 }
 
 onBeforeUnmount(() => {
@@ -237,6 +259,17 @@ onBeforeUnmount(() => {
           :disabled="loading"
           @click="fileInput?.click()"
         />
+        <template v-for="s in sampleImages" :key="s.url">
+          <UButton
+            :label="s.label"
+            icon="i-lucide-image"
+            size="sm"
+            color="neutral"
+            variant="soft"
+            :disabled="loading"
+            @click="useSample(s.url)"
+          />
+        </template>
         <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
         <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
       </div>

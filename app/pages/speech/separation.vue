@@ -2,6 +2,7 @@
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy } from '~/utils/remote-models'
+import { fetchSample } from '~/utils/samples'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -49,6 +50,18 @@ function onFileChange(e: Event) {
     fileName.value = input.files[0].name
     error.value = null
     stems.value = []
+  }
+}
+
+async function useSample() {
+  try {
+    const f = await fetchSample('/samples/audio/music.wav')
+    fileData.value = f
+    fileName.value = f.name
+    error.value = null
+    stems.value = []
+  } catch (e) {
+    error.value = (e as Error)?.message || String(e)
   }
 }
 
@@ -169,6 +182,16 @@ function downloadStem(stem: Stem) {
                   @change="onFileChange"
                 >
               </label>
+              <UButton
+                class="mt-3"
+                icon="i-lucide-flask-conical"
+                :label="t('samples.trySample')"
+                color="neutral"
+                variant="soft"
+                size="sm"
+                :disabled="loading"
+                @click="useSample"
+              />
             </div>
             <DemoParams v-model="params" :specs="specs" :running="loading" :title="t('params.title')" />
           </div>
