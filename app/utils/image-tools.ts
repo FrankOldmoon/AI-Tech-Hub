@@ -2287,7 +2287,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
     { labelKey: 'samples.shapes', url: '/samples/images/shapes.jpg' }
   ],
   'object': [
-    { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
+    { labelKey: 'samples.objects', url: '/samples/images/objects.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
   'features': [
