@@ -53,6 +53,57 @@ onMounted(() => {
   faces.value = getRegisteredFaces()
 })
 
+const demoBusy = ref(false)
+const { fetchSampleFile } = useVisionSamples()
+
+/** 从示例图 URL 加载为 ImageData（analyzeFace 输入） */
+async function loadSampleImageData(url: string): Promise<ImageData> {
+  const file = await fetchSampleFile(url)
+  const bitmap = await createImageBitmap(file)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('无法创建画布')
+  ctx.drawImage(bitmap, 0, 0)
+  bitmap.close?.()
+  return ctx.getImageData(0, 0, canvas.width, canvas.height)
+}
+
+/**
+ * 课堂示例演示：注册「示例·小明」（人脸照）→ 用多人照识别。
+ * 示例数据写入 localStorage（带"示例"前缀），可在注册列表删除。
+ */
+async function runDemo() {
+  if (demoBusy.value) return
+  demoBusy.value = true
+  error.value = null
+  success.value = null
+  try {
+    const regImageData = await loadSampleImageData('/samples/images/face.jpg')
+    const regAnalysis = await analyzeFace(regImageData)
+    if (!regAnalysis.embeddings.length) throw new Error(t('image.faceStudio.demoNoFace'))
+    const regEmbedding = regAnalysis.embeddings[0]
+    if (!regEmbedding) throw new Error(t('image.faceStudio.demoNoFace'))
+    const { appended, created } = addFaceSamples('示例·小明', [{ embedding: regEmbedding }])
+    faces.value = getRegisteredFaces()
+
+    const recImageData = await loadSampleImageData('/samples/images/group.jpg')
+    const recAnalysis = await analyzeFace(recImageData)
+    if (!recAnalysis.embeddings.length) throw new Error(t('image.faceStudio.demoNoFace'))
+    result.value = recognizeEmbeddings(recAnalysis.embeddings)
+    success.value = t('image.faceStudio.demoSuccess', {
+      status: t(created ? 'image.faceStudio.demoCreated' : 'image.faceStudio.demoAppended'),
+      n: appended,
+      count: recAnalysis.embeddings.length
+    })
+  } catch (e) {
+    error.value = humanError(e, t)
+  } finally {
+    demoBusy.value = false
+  }
+}
+
 // 识别照片变化后清空旧结果，避免误导
 watch(recPhotos, () => {
   result.value = null
@@ -267,6 +318,18 @@ onBeforeUnmount(() => stopLive())
       icon="i-lucide-check"
       :title="success"
     />
+
+    <div class="flex flex-wrap items-center gap-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 px-4 py-3">
+      <UButton
+        icon="i-lucide-clapperboard"
+        :label="t('image.faceStudio.demoRun')"
+        color="primary"
+        :loading="demoBusy"
+        :disabled="demoBusy || busyRegister || busyRecognize"
+        @click="runDemo"
+      />
+      <span class="text-sm text-muted">{{ t('image.faceStudio.demoRunHint') }}</span>
+    </div>
 
     <div class="grid lg:grid-cols-2 gap-4">
       <!-- ===== 注册 ===== -->

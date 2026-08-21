@@ -103,6 +103,11 @@ async function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  await loadImageFile(file)
+  input.value = ''
+}
+
+async function loadImageFile(file: File) {
   const s = await ensure()
   if (!s) return
   stopWebcam()
@@ -119,9 +124,24 @@ async function onFileChange(e: Event) {
     error.value = humanError(e, t)
   } finally {
     loading.value = false
-    input.value = ''
   }
 }
+
+async function useSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    await loadImageFile(file)
+  } catch (e) {
+    error.value = humanError(e, t)
+  }
+}
+
+const { samples, fetchSampleFile } = useVisionSamples()
+
+onMounted(() => {
+  // 课堂演示：打开页面自动加载单人示例图并分割
+  useSample('/samples/images/face.jpg')
+})
 
 onBeforeUnmount(() => stopWebcam())
 </script>
@@ -132,6 +152,10 @@ onBeforeUnmount(() => stopWebcam())
       <UButton v-if="!running" icon="i-lucide-video" :label="t('mp.webcam')" color="primary" :loading="loading" @click="startWebcam" />
       <UButton v-else icon="i-lucide-square" :label="t('mp.stop')" color="error" variant="subtle" @click="stopWebcam" />
       <UButton icon="i-lucide-upload" :label="t('mp.upload')" color="neutral" variant="subtle" :disabled="loading" @click="fileInput?.click()" />
+      <SampleImagePicker
+        :samples="samples"
+        @pick="useSample"
+      />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
     </div>
 
