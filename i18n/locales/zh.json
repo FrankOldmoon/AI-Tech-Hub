@@ -94,6 +94,8 @@
   "document": "文档照",
   "street": "街景照",
   "hand": "手势照",
+  "pose": "姿态照",
+  "holistic": "全身照",
   "speech": "语音",
     "music": "音乐",
     "noisySpeech": "带噪语音",
