@@ -2250,7 +2250,14 @@ export const imagePages: { slug: ImagePageSlug; tools: ImageTool[] }[] = [
  * 图像工坊各页专属示例图（labelKey 在 ImagePlayground 中经 i18n 解析）。
  * 未配置的页回落通用示例列表。选图原则见 docs/vision-sample-keywords.md。
  */
-export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string, url: string }[]>> = {
+export type ImagePageSample = {
+  labelKey: string
+  url: string
+  /** 可选：双图工具（needsSecondImage）的配对第二图，如特征匹配的「同一场景另一视角」 */
+  secondUrl?: string
+}
+
+export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>> = {
   'viewer': [
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
@@ -2293,6 +2300,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
   'features': [
+    { labelKey: 'samples.tajPair', url: '/samples/images/taj-a.jpg', secondUrl: '/samples/images/taj-b.jpg' },
     { labelKey: 'samples.checkerboard', url: '/samples/images/checkerboard.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
