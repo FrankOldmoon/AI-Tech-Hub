@@ -74,6 +74,7 @@ const pulseTarget = ref(1)
 const resultPulse = useSpring(pulseTarget, { damping: 0.95, stiffness: 260 })
 
 function pulseResult(scale = 0.97) {
+  if (prefersReducedMotion()) return
   pulseTarget.value = scale
   // 等弹簧先收敛到缩小值（~80ms），再弹回 1.0，产生「新结果弹入」的方向暗示
   setTimeout(() => {
@@ -208,10 +209,13 @@ function reset() {
 const resizing = ref(false)
 const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
 
-function onResizeStart(e: MouseEvent) {
+function onResizeStart(e: PointerEvent) {
   const canvas = resultCanvas.value
   if (!canvas || !result.value) return
   e.preventDefault()
+  const handle = e.currentTarget as HTMLElement
+  // Pointer Capture：拖动过程中指针移出按钮仍持续收到事件（触屏/鼠标统一）
+  handle.setPointerCapture(e.pointerId)
   resizing.value = true
   resizeStart.value = {
     x: e.clientX,
@@ -219,11 +223,12 @@ function onResizeStart(e: MouseEvent) {
     w: result.value.width,
     h: result.value.height
   }
-  window.addEventListener('mousemove', onResizeMove)
-  window.addEventListener('mouseup', onResizeEnd)
+  handle.addEventListener('pointermove', onResizeMove)
+  handle.addEventListener('pointerup', onResizeEnd)
+  handle.addEventListener('pointercancel', onResizeEnd)
 }
 
-function onResizeMove(e: MouseEvent) {
+function onResizeMove(e: PointerEvent) {
   if (!resizing.value || !result.value) return
   const canvas = resultCanvas.value
   if (!canvas) return
@@ -243,10 +248,12 @@ function onResizeMove(e: MouseEvent) {
   }
 }
 
-function onResizeEnd() {
+function onResizeEnd(e: PointerEvent) {
   resizing.value = false
-  window.removeEventListener('mousemove', onResizeMove)
-  window.removeEventListener('mouseup', onResizeEnd)
+  const handle = e.currentTarget as HTMLElement
+  handle.removeEventListener('pointermove', onResizeMove)
+  handle.removeEventListener('pointerup', onResizeEnd)
+  handle.removeEventListener('pointercancel', onResizeEnd)
   // 手柄松手：轻微「settle」确认
   pulseResult(0.99)
 }
@@ -598,10 +605,10 @@ const modeText = computed(() => {
                     <button
                       v-if="activeTool?.id === 'resize' && result"
                       type="button"
-                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors"
+                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
                       :class="{ 'ring-2 ring-primary': resizing }"
                       :aria-label="t('image.resizeDrag')"
-                      @mousedown="onResizeStart"
+                      @pointerdown="onResizeStart"
                     >
                       <UIcon
                         name="i-lucide-move-diagonal"

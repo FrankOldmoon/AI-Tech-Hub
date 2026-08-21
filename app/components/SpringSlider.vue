@@ -85,6 +85,11 @@ function onPointerUp() {
 </template>
 
 <style scoped>
+@media (prefers-reduced-motion: reduce) {
+  .spring-slider::-webkit-slider-thumb {
+    transition: none;
+  }
+}
 .spring-slider {
   -webkit-appearance: none;
   appearance: none;
