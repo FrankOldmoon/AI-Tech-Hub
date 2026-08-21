@@ -1277,8 +1277,10 @@ function hsvRangeTool(
       const hsv = new cv.Mat()
       cv.cvtColor(bgr, hsv, cv.COLOR_BGR2HSV)
       const mask = new cv.Mat()
-      const low = new cv.Scalar(Number(params.hMin), Number(params.sMin), Number(params.vMin))
-      const high = new cv.Scalar(Number(params.hMax), Number(params.sMax), Number(params.vMax))
+      // 官方坑：cv.inRange 的 lowerb/upperb 传 cv.Scalar 会报 "Cannot pass '0,60,60,0' as a Mat"，
+      // 必须用 matFromArray 建 1×3 的 CV_8UC1 Mat（见 answers.opencv.org 同报错案例）
+      const low = cv.matFromArray(1, 3, cv.CV_8UC1, [Number(params.hMin), Number(params.sMin), Number(params.vMin)])
+      const high = cv.matFromArray(1, 3, cv.CV_8UC1, [Number(params.hMax), Number(params.sMax), Number(params.vMax)])
       cv.inRange(hsv, low, high, mask)
       let out: any
       if (mode === 'mask') {
@@ -1295,7 +1297,7 @@ function hsvRangeTool(
       for (let i = 0; i < contours.size(); i++) {
         if (cv.contourArea(contours.get(i)) > 50) count++
       }
-      contours.delete(); hierarchy.delete(); hsv.delete(); mask.delete()
+      contours.delete(); hierarchy.delete(); hsv.delete(); mask.delete(); low.delete(); high.delete()
       return {
         imageData: matToImageData(cv, out),
         info: [{ label: lang === 'zh' ? '匹配物体数' : 'Objects', value: `${count}` }]
