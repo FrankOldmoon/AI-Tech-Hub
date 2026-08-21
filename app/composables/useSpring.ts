@@ -10,11 +10,18 @@ export interface SpringOptions {
   precision?: number
 }
 
+/** 用户偏好减少动效（prefers-reduced-motion）时返回 true，用于禁用弹簧动画 */
+export function prefersReducedMotion(): boolean {
+  if (typeof window === 'undefined') return false
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
+
 /**
  * 弹簧动画（Apple「Designing Fluid Interfaces」的 Web 实现）：
  * - 从「当前值」起动画，目标变化立即转向（可中断，不跳变）
  * - 半隐式欧拉积分，数值稳定
  * - 阻尼比 1.0 临界阻尼：跟手、不过冲、不振荡
+ * - prefers-reduced-motion 时退化为即时跳变（无动画）
  */
 export function useSpring(target: Ref<number>, options: SpringOptions = {}) {
   const { damping = 1, stiffness = 180, precision = 0.01 } = options
@@ -50,6 +57,11 @@ export function useSpring(target: Ref<number>, options: SpringOptions = {}) {
   }
 
   watch(target, (nv) => {
+    if (prefersReducedMotion()) {
+      value.value = nv
+      velocity = 0
+      return
+    }
     if (nv !== value.value) start()
   })
 
