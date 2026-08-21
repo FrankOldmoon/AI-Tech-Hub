@@ -324,8 +324,10 @@ function previewResize() {
   dst.height = h
   const ctx = dst.getContext('2d')
   if (!ctx) return
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
+  // 预览与最终结果保持同一插值方式（OpenCV 三档）
+  const interp = String(paramValues.value.interpolation || 'linear')
+  ctx.imageSmoothingEnabled = interp !== 'nearest'
+  ctx.imageSmoothingQuality = interp === 'high' ? 'high' : 'low'
   ctx.drawImage(src, 0, 0, w, h)
 }
 

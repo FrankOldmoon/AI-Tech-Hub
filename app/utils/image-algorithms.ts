@@ -346,14 +346,23 @@ function fromCanvas(canvas: HTMLCanvasElement): ImageData {
   return ctx.getImageData(0, 0, canvas.width, canvas.height)
 }
 
-export function resize(src: ImageData, width: number, height: number): ImageData {
+export type ResizeInterpolation = 'nearest' | 'linear' | 'high'
+
+/**
+ * 缩放（对应 OpenCV cv::resize 的插值概念）：
+ * - nearest：最近邻（imageSmoothingEnabled=false，放大呈马赛克，≈ INTER_NEAREST）
+ * - linear：双线性（默认，≈ INTER_LINEAR，浏览器最接近档）
+ * - high：高质量双三次（≈ INTER_CUBIC，放大更平滑，略慢）
+ * 缩小大图时浏览器无 INTER_AREA 直接等价，'linear'/'high' 均可（防摩尔纹效果有限）
+ */
+export function resize(src: ImageData, width: number, height: number, interpolation: ResizeInterpolation = 'linear'): ImageData {
   const canvas = document.createElement('canvas')
   canvas.width = Math.max(1, Math.round(width))
   canvas.height = Math.max(1, Math.round(height))
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('canvas 2d context unavailable')
-  ctx.imageSmoothingEnabled = true
-  ctx.imageSmoothingQuality = 'high'
+  ctx.imageSmoothingEnabled = interpolation !== 'nearest'
+  ctx.imageSmoothingQuality = interpolation === 'high' ? 'high' : 'low'
   ctx.drawImage(toCanvas(src), 0, 0, canvas.width, canvas.height)
   return fromCanvas(canvas)
 }
