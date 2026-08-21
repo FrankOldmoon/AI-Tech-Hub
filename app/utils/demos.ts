@@ -579,6 +579,20 @@ export const demos: Demo[] = [
     status: 'ready',
     tags: ['WebGPU', 'Diagnostics']
   },
+  {
+    slug: 'llm-chat',
+    category: 'aigc',
+    title: { zh: '云端 LLM 对话（Kimi / DeepSeek）', en: 'Cloud LLM Chat (Kimi / DeepSeek)' },
+    description: {
+      zh: '通过云端 API 调用 Kimi K3 / DeepSeek 等大模型对话，服务商与模型可随时切换，Kimi K3 会先展示思考过程。',
+      en: 'Chat with cloud LLMs (Kimi K3 / DeepSeek) via API — switch providers and models anytime; Kimi K3 shows its thinking first.'
+    },
+    icon: 'i-lucide-message-square-text',
+    status: 'ready',
+    runtime: 'server',
+    requirements: { needsServer: true },
+    tags: ['Kimi K3', 'DeepSeek', 'Cloud API', 'SSE Streaming']
+  },
   // ===== ml (Teachable Machine) =====
   {
     slug: 'image-training',

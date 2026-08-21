@@ -541,6 +541,28 @@
     "stop": "Stop",
     "clear": "Clear chat"
   },
+  "llmChat": {
+    "provider": "Provider",
+    "model": "Model",
+    "thinking": "Thinking",
+    "thinkingBadge": "Thinking mode",
+    "cloudBadge": "Cloud API",
+    "configNote": "This demo calls cloud LLM APIs through the local server proxy. Before first use, set MOONSHOT_API_KEY / DEEPSEEK_API_KEY in the project .env (keys stay server-side).",
+    "send": "Send",
+    "stop": "Stop",
+    "clear": "Clear chat",
+    "empty": "Pick a model and type a message to start",
+    "inputPlaceholder": "Type a message, press Enter to send…",
+    "working": "Thinking…",
+    "examples": "Try:",
+    "systemPrompt": "System prompt",
+    "temperature": "Temperature",
+    "maxTokens": "Max tokens",
+    "apiError": "Request failed: {message}",
+    "noStream": "Streaming is not supported in this environment",
+    "stats": "{model} · {elapsed}s · {chars} chars",
+    "stopped": "Stopped ({elapsed}s)"
+  },
   "mp": {
     "webcam": "Webcam",
     "stop": "Stop",

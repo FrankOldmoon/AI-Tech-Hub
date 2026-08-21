@@ -541,6 +541,28 @@
     "stop": "停止",
     "clear": "清空对话"
   },
+  "llmChat": {
+    "provider": "服务商",
+    "model": "模型",
+    "thinking": "思考过程",
+    "thinkingBadge": "思考模式",
+    "cloudBadge": "云端 API",
+    "configNote": "本演示经本机服务代理调用云端大模型 API。首次使用前请在项目 .env 配置 MOONSHOT_API_KEY / DEEPSEEK_API_KEY（密钥仅存服务端）。",
+    "send": "发送",
+    "stop": "停止",
+    "clear": "清空对话",
+    "empty": "选择模型并输入问题，开始对话",
+    "inputPlaceholder": "输入问题，回车发送…",
+    "working": "思考中…",
+    "examples": "试试：",
+    "systemPrompt": "系统提示",
+    "temperature": "温度",
+    "maxTokens": "最大生成长度",
+    "apiError": "调用失败：{message}",
+    "noStream": "当前环境不支持流式响应",
+    "stats": "{model} · {elapsed}s · {chars} 字符",
+    "stopped": "已停止（用时 {elapsed}s）"
+  },
   "mp": {
     "webcam": "摄像头",
     "stop": "停止",
