@@ -184,8 +184,9 @@ const transformTools: ImageTool[] = [
     kind: 'canvas',
     pythonModule: 'image/transform',
     params: [
-      { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'number', default: 800, min: 1, max: 4096 },
-      { key: 'height', label: { zh: '高度', en: 'Height' }, type: 'number', default: 600, min: 1, max: 4096 },
+      // width/height 用 slider 拖拽（ImagePlayground 会按原图尺寸动态调整 min/max）
+      { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'slider', default: 800, min: 1, max: 2048, step: 1 },
+      { key: 'height', label: { zh: '高度', en: 'Height' }, type: 'slider', default: 600, min: 1, max: 2048, step: 1 },
       { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: true }
     ],
     run: ({ imageData, params, lang }) => {
