@@ -2270,6 +2270,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
   ],
   'filters': [
+    { labelKey: 'samples.texture', url: '/samples/images/texture.jpg' },
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
