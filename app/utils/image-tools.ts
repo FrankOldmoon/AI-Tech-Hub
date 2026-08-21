@@ -2279,7 +2279,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
   ],
   'morphology': [
-    { labelKey: 'samples.shapes', url: '/samples/images/shapes.jpg' },
+    { labelKey: 'samples.text', url: '/samples/images/text.jpg' },
     { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
   ],
   'edge': [
