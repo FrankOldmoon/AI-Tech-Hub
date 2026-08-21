@@ -176,21 +176,29 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     draw: (ctx, result) => {
       const d = drawing(ctx)
       if (result.faceLandmarks) {
-        d.drawConnectors(result.faceLandmarks, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: '#C0C0C070', lineWidth: 1 })
-        d.drawConnectors(result.faceLandmarks, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: '#E0E0E0' })
-        d.drawConnectors(result.faceLandmarks, FaceLandmarker.FACE_LANDMARKS_LIPS, { color: '#E0E0E0' })
+        for (const lm of result.faceLandmarks) {
+          d.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_TESSELATION, { color: '#C0C0C070', lineWidth: 1 })
+          d.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_FACE_OVAL, { color: '#E0E0E0' })
+          d.drawConnectors(lm, FaceLandmarker.FACE_LANDMARKS_LIPS, { color: '#E0E0E0' })
+        }
       }
       if (result.poseLandmarks) {
-        d.drawConnectors(result.poseLandmarks, PoseLandmarker.POSE_CONNECTIONS, { color: '#FFFFFF' })
-        d.drawLandmarks(result.poseLandmarks, { color: '#FF0000', radius: 2 })
+        for (const lm of result.poseLandmarks) {
+          d.drawConnectors(lm, PoseLandmarker.POSE_CONNECTIONS, { color: '#FFFFFF' })
+          d.drawLandmarks(lm, { color: '#FF0000', radius: 2 })
+        }
       }
       if (result.leftHandLandmarks) {
-        d.drawConnectors(result.leftHandLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: '#CC0000' })
-        d.drawLandmarks(result.leftHandLandmarks, { color: '#00FF00', radius: 2 })
+        for (const lm of result.leftHandLandmarks) {
+          d.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: '#CC0000' })
+          d.drawLandmarks(lm, { color: '#00FF00', radius: 2 })
+        }
       }
       if (result.rightHandLandmarks) {
-        d.drawConnectors(result.rightHandLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: '#00CC00' })
-        d.drawLandmarks(result.rightHandLandmarks, { color: '#FF0000', radius: 2 })
+        for (const lm of result.rightHandLandmarks) {
+          d.drawConnectors(lm, HandLandmarker.HAND_CONNECTIONS, { color: '#00CC00' })
+          d.drawLandmarks(lm, { color: '#FF0000', radius: 2 })
+        }
       }
     },
     params: t => [
