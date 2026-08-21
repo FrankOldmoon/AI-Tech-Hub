@@ -18,21 +18,18 @@ const file2Input = ref<HTMLInputElement>()
 let embedder: any = null
 
 const { fetchSampleFile } = useVisionSamples()
-// 嵌入相似度演示专用样本：默认 face vs 相似人像（高相似），异类（鹦鹉）展示低相似
+// Image A 固定为 Portrait（人脸照）；Image B 提供三个对比样本：动物/人/植物
+const A_SRC = '/samples/images/face.jpg'
 const samples = computed(() => [
-  { label: t('samples.face'), url: '/samples/images/face.jpg' },
-  { label: t('samples.similarPortrait'), url: '/samples/images/similar-portrait.jpg' },
-  { label: t('samples.parrot'), url: '/samples/images/parrot.jpg' },
-  { label: t('samples.group'), url: '/samples/images/group.jpg' }
+  { label: t('samples.animal'), url: '/samples/images/parrot.jpg' },
+  { label: t('samples.person'), url: '/samples/images/similar-portrait.jpg' },
+  { label: t('samples.plant'), url: '/samples/images/plant.jpg' }
 ])
 
-// 示例对比：默认 face vs 相似人像（0.42 高相似，直观展示"语义相似=高相似"）；
-// 选其它样本则与 face.jpg 对比（人像≈高、鹦鹉/异类≈低）
-async function useSamplePair(url?: string) {
+// 选 Image B 样本 → 与固定的 Portrait(Image A) 对比，展示余弦相似度
+async function useSample(url: string) {
   try {
-    const a = url || '/samples/images/face.jpg'
-    const b = a === '/samples/images/face.jpg' ? '/samples/images/similar-portrait.jpg' : '/samples/images/face.jpg'
-    const [f1, f2] = await Promise.all([fetchSampleFile(a), fetchSampleFile(b)])
+    const [f1, f2] = await Promise.all([fetchSampleFile(A_SRC), fetchSampleFile(url)])
     img1Src.value = URL.createObjectURL(f1)
     img2Src.value = URL.createObjectURL(f2)
     await compute()
@@ -42,8 +39,8 @@ async function useSamplePair(url?: string) {
 }
 
 onMounted(() => {
-  // 课堂演示：打开页面自动加载双示例图并计算相似度
-  useSamplePair()
+  // 课堂演示：Image A = Portrait，Image B 默认「人」（高相似度），第一时间出结果
+  useSample('/samples/images/similar-portrait.jpg')
 })
 
 async function ensureEmbedder() {
@@ -95,15 +92,15 @@ async function compute() {
     <div class="grid sm:grid-cols-2 gap-4">
       <div v-for="n in 2" :key="n">
         <label class="block text-sm font-medium text-muted mb-2">
-          {{ n === 1 ? 'Image A' : 'Image B' }}
+          {{ n === 1 ? 'Image A · Portrait' : 'Image B' }}
         </label>
         <div
-          v-if="n === 1"
+          v-if="n === 2"
           class="mb-2"
         >
           <SampleImagePicker
             :samples="samples"
-            @pick="useSamplePair"
+            @pick="useSample"
           />
         </div>
         <button
