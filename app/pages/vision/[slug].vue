@@ -83,9 +83,6 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
               <span class="text-muted">{{ Math.round((g[0]?.score || 0) * 100) }}%</span>
             </div>
           </div>
-          <div v-else-if="result?.landmarks?.length" class="text-sm text-muted">
-            {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
-          </div>
           <div v-else-if="result?.faceLandmarks?.length" class="space-y-1 text-sm">
             <div class="text-muted">
               {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
@@ -102,8 +99,23 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
               </div>
             </div>
           </div>
-          <div v-else-if="result?.poseLandmarks?.length" class="text-sm text-muted">
+          <div
+            v-else-if="result?.poseLandmarks?.length"
+            class="text-sm text-muted"
+          >
             {{ result.poseLandmarks.length }} pose(s) · {{ result.poseLandmarks[0].length }} pts
+          </div>
+          <div
+            v-else-if="result?.landmarks?.length && result?.handednesses?.length"
+            class="text-sm text-muted"
+          >
+            {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
+          </div>
+          <div
+            v-else-if="result?.landmarks?.length"
+            class="text-sm text-muted"
+          >
+            {{ result.landmarks.length }} pose(s) · {{ result.landmarks[0].length }} pts
           </div>
           <div v-else class="text-sm text-muted">
             —

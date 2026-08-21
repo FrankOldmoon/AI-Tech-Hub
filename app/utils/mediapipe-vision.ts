@@ -138,7 +138,7 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
     ],
     samples: t => [
-      { label: t('samples.hand'), url: '/samples/images/hand.jpg' }
+      { label: t('samples.hand'), url: '/samples/images/gesture.jpg' }
     ]
   },
 
@@ -163,7 +163,7 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
     ],
     samples: t => [
-      { label: t('samples.group'), url: '/samples/images/group.jpg' }
+      { label: t('samples.pose'), url: '/samples/images/pose.jpg' }
     ]
   },
 
@@ -198,7 +198,7 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
     ],
     samples: t => [
-      { label: t('samples.group'), url: '/samples/images/group.jpg' }
+      { label: t('samples.holistic'), url: '/samples/images/holistic.jpg' }
     ]
   },
 

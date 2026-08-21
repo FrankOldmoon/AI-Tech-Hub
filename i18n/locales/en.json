@@ -94,6 +94,8 @@
   "document": "Document",
   "street": "Street",
   "hand": "Hand",
+  "pose": "Pose",
+  "holistic": "Full body",
   "speech": "Speech",
     "music": "Music",
     "noisySpeech": "Noisy speech",
