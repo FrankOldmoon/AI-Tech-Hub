@@ -881,6 +881,7 @@
     "colorMode": "色彩模式",
     "modeRgb": "RGB（不透明）",
     "modeRgba": "RGBA（含透明）",
+    "resizeDrag": "拖动右下角调整输出尺寸",
     "estSize": "估算大小（未压缩）",
     "processing": "处理中…",
     "run": "运行",

@@ -20,6 +20,8 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [Record<string, number | string | boolean>] }>()
 
 const { t } = useI18n()
+// 默认展开参数面板，方便课堂直接调参
+const isOpen = ref(true)
 
 function update(key: string, val: number | string | boolean) {
   emit('update:modelValue', { ...props.modelValue, [key]: val })
@@ -43,7 +45,7 @@ function sliderLabel(spec: ParamSpec): string {
 
 <template>
   <div class="border border-default rounded-lg overflow-hidden">
-    <UCollapsible>
+    <UCollapsible v-model:open="isOpen">
       <template #default="{ open }">
         <button
           type="button"

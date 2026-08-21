@@ -177,6 +177,51 @@ function reset() {
   run()
 }
 
+// ===== resize 拖拽手柄（与参数面板双向联动） =====
+const resizing = ref(false)
+const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
+
+function onResizeStart(e: MouseEvent) {
+  const canvas = resultCanvas.value
+  if (!canvas || !result.value) return
+  e.preventDefault()
+  resizing.value = true
+  resizeStart.value = {
+    x: e.clientX,
+    y: e.clientY,
+    w: result.value.width,
+    h: result.value.height
+  }
+  window.addEventListener('mousemove', onResizeMove)
+  window.addEventListener('mouseup', onResizeEnd)
+}
+
+function onResizeMove(e: MouseEvent) {
+  if (!resizing.value || !result.value) return
+  const canvas = resultCanvas.value
+  if (!canvas) return
+  const rect = canvas.getBoundingClientRect()
+  if (!rect.width || !rect.height) return
+  // 显示尺寸 → 像素尺寸换算
+  const scaleX = result.value.width / rect.width
+  const scaleY = result.value.height / rect.height
+  const newW = Math.min(4096, Math.max(1, Math.round(resizeStart.value.w + (e.clientX - resizeStart.value.x) * scaleX)))
+  const newH = Math.min(4096, Math.max(1, Math.round(resizeStart.value.h + (e.clientY - resizeStart.value.y) * scaleY)))
+  // 联动：写入参数（keep 开启时高度由 run 自动保持宽高比）
+  const keep = Boolean(paramValues.value.keep)
+  paramValues.value = {
+    ...paramValues.value,
+    width: newW,
+    ...(keep ? {} : { height: newH })
+  }
+}
+
+function onResizeEnd() {
+  resizing.value = false
+  window.removeEventListener('mousemove', onResizeMove)
+  window.removeEventListener('mouseup', onResizeEnd)
+}
+
 // ===== 上传 =====
 
 const sampleImages = computed(() => [
@@ -433,13 +478,41 @@ const modeText = computed(() => {
               <UBadge color="neutral" variant="subtle">{{ modeText }}</UBadge>
             </div>
 
-            <!-- 参数面板（置于展示框上方，调参同时看效果） -->
-            <DemoParams
-              v-if="specs.length"
-              v-model="paramValues"
-              :specs="specs"
-              :running="running"
-            />
+            <!-- 控制区：参数面板 + 操作按钮（置于展示框上方） -->
+            <div class="space-y-3">
+              <DemoParams
+                v-if="specs.length"
+                v-model="paramValues"
+                :specs="specs"
+                :running="running"
+              />
+
+              <div class="flex flex-wrap items-center gap-2">
+                <UButton icon="i-lucide-play" :loading="running" @click="runNow">
+                  {{ t('image.run') }}
+                </UButton>
+                <UButton icon="i-lucide-rotate-ccw" color="neutral" variant="soft" @click="reset">
+                  {{ t('image.reset') }}
+                </UButton>
+                <div class="ms-auto flex items-center gap-2">
+                  <USelect
+                    v-model="downloadFormat"
+                    :items="formatItems"
+                    class="w-32"
+                    :aria-label="t('image.format')"
+                  />
+                  <UButton
+                    icon="i-lucide-download"
+                    color="primary"
+                    variant="solid"
+                    :disabled="!result"
+                    @click="download"
+                  >
+                    {{ t('image.download') }}
+                  </UButton>
+                </div>
+              </div>
+            </div>
 
             <!-- 原图 / 结果 -->
             <div class="grid md:grid-cols-2 gap-4">
@@ -455,12 +528,28 @@ const modeText = computed(() => {
                     {{ t('image.processing') }}
                   </span>
                 </p>
-                <canvas
-                  ref="resultCanvas"
-                  class="max-w-full h-auto rounded-lg border border-default"
-                  :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
-                  @click="onResultClick"
-                />
+                <div class="relative">
+                  <canvas
+                    ref="resultCanvas"
+                    class="max-w-full h-auto rounded-lg border border-default"
+                    :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
+                    @click="onResultClick"
+                  />
+                  <!-- resize 拖拽手柄：拖动调整输出尺寸，与参数面板联动 -->
+                  <button
+                    v-if="activeTool?.id === 'resize' && result"
+                    type="button"
+                    class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors"
+                    :class="{ 'ring-2 ring-primary': resizing }"
+                    :aria-label="t('image.resizeDrag')"
+                    @mousedown="onResizeStart"
+                  >
+                    <UIcon
+                      name="i-lucide-move-diagonal"
+                      class="size-4"
+                    />
+                  </button>
+                </div>
                 <p v-if="activeTool?.interactive === 'click'" class="text-xs text-dimmed">
                   {{ t('image.clickHint') }}
                 </p>
@@ -518,33 +607,6 @@ const modeText = computed(() => {
               icon="i-lucide-alert-triangle"
               :title="error"
             />
-
-            <!-- 操作 -->
-            <div class="flex flex-wrap items-center gap-2">
-              <UButton icon="i-lucide-play" :loading="running" @click="runNow">
-                {{ t('image.run') }}
-              </UButton>
-              <UButton icon="i-lucide-rotate-ccw" color="neutral" variant="soft" @click="reset">
-                {{ t('image.reset') }}
-              </UButton>
-              <div class="ms-auto flex items-center gap-2">
-                <USelect
-                  v-model="downloadFormat"
-                  :items="formatItems"
-                  class="w-32"
-                  :aria-label="t('image.format')"
-                />
-                <UButton
-                  icon="i-lucide-download"
-                  color="primary"
-                  variant="solid"
-                  :disabled="!result"
-                  @click="download"
-                >
-                  {{ t('image.download') }}
-                </UButton>
-              </div>
-            </div>
           </template>
         </div>
       </div>

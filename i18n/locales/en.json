@@ -881,6 +881,7 @@
     "colorMode": "Color Mode",
     "modeRgb": "RGB (opaque)",
     "modeRgba": "RGBA (with alpha)",
+    "resizeDrag": "Drag the corner handle to resize the output",
     "estSize": "Estimated size (uncompressed)",
     "processing": "Processing…",
     "run": "Run",
