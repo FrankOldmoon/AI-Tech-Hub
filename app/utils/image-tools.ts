@@ -187,13 +187,36 @@ const transformTools: ImageTool[] = [
       // width/height 用 slider 拖拽（ImagePlayground 会按原图尺寸动态调整 min/max）
       { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'slider', default: 800, min: 1, max: 2048, step: 1 },
       { key: 'height', label: { zh: '高度', en: 'Height' }, type: 'slider', default: 600, min: 1, max: 2048, step: 1 },
-      { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: false }
+      { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: false },
+      {
+        key: 'interpolation',
+        label: { zh: '插值方式', en: 'Interpolation' },
+        type: 'select',
+        default: 'linear',
+        options: [
+          { label: { zh: '最近邻（马赛克）', en: 'Nearest (pixelated)' }, value: 'nearest' },
+          { label: { zh: '双线性（默认，同 OpenCV）', en: 'Bilinear (default, same as OpenCV)' }, value: 'linear' },
+          { label: { zh: '高质量（双三次）', en: 'High quality (bicubic)' }, value: 'high' }
+        ],
+        help: {
+          zh: 'OpenCV 经验：放大用双线性/双三次，缩小用区域平均（浏览器 canvas 无区域平均，此处提供最近邻/双线性/双三次三档）。',
+          en: 'OpenCV rule: INTER_LINEAR/CUBIC for upscale; INTER_AREA for downscale (canvas has no area-average; three tiers provided).'
+        }
+      }
     ],
     run: ({ imageData, params, lang }) => {
       const w = Math.max(1, Math.round(Number(params.width) || 800))
       let h = Math.max(1, Math.round(Number(params.height) || 600))
       if (params.keep) h = Math.max(1, Math.round(imageData.height * (w / imageData.width)))
-      return { imageData: alg.resize(imageData, w, h), info: dimsInfo(w, h, lang) }
+      const interp = String(params.interpolation || 'linear') as alg.ResizeInterpolation
+      return {
+        imageData: alg.resize(imageData, w, h, interp),
+        info: [
+          ...dimsInfo(w, h, lang),
+          { label: lang === 'zh' ? 'fx（水平缩放比）' : 'fx (horizontal scale)', value: (w / imageData.width).toFixed(2) },
+          { label: lang === 'zh' ? 'fy（垂直缩放比）' : 'fy (vertical scale)', value: (h / imageData.height).toFixed(2) }
+        ]
+      }
     }
   },
   {
