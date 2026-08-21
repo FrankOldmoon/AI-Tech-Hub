@@ -911,6 +911,7 @@
   "image": {
     "upload": "上传图片",
     "uploadHint": "点击或拖拽图片到此处（PNG / JPG / WebP，最长边自动缩放至 2048px）",
+    "sizeInvalid": "图片尺寸无效",
     "replaceHint": "拖入新图片将替换当前图片",
     "original": "原图",
     "result": "结果",

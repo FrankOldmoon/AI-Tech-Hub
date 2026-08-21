@@ -112,6 +112,9 @@ async function removeBg() {
   try {
     const { RawImage } = await import('@huggingface/transformers')
     const img = await RawImage.fromURL(imgSrc.value)
+    if (!img.width || !img.height) {
+      throw new Error(t('image.sizeInvalid'))
+    }
     const { pixel_values } = await processor(img)
     const { output } = await model({ input: pixel_values })
 

@@ -389,6 +389,10 @@ async function loadFile(file: File) {
     const canvas = document.createElement('canvas')
     canvas.width = img.naturalWidth
     canvas.height = img.naturalHeight
+    if (!img.naturalWidth || !img.naturalHeight) {
+      URL.revokeObjectURL(url)
+      throw new Error(t('image.sizeInvalid'))
+    }
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas 2d context unavailable')
     ctx.drawImage(img, 0, 0)
@@ -418,6 +422,10 @@ async function loadSecondFile(file: File) {
     const canvas = document.createElement('canvas')
     canvas.width = img.naturalWidth
     canvas.height = img.naturalHeight
+    if (!img.naturalWidth || !img.naturalHeight) {
+      URL.revokeObjectURL(url)
+      throw new Error(t('image.sizeInvalid'))
+    }
     const ctx = canvas.getContext('2d')
     if (!ctx) throw new Error('canvas 2d context unavailable')
     ctx.drawImage(img, 0, 0)
@@ -463,6 +471,7 @@ function onSecondDrop(e: DragEvent) {
 
 function drawCanvas(canvas: HTMLCanvasElement | undefined, data: ImageData | null) {
   if (!canvas || !data) return
+  if (!data.width || !data.height) return
   canvas.width = data.width
   canvas.height = data.height
   const ctx = canvas.getContext('2d')
