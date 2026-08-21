@@ -1643,11 +1643,13 @@ const featureTools: ImageTool[] = [
 
 // ===== 本地小工具 =====
 
-function toCanvasLocal(imageData: ImageData): HTMLCanvasElement {
+function toCanvasLocal(imageData: ImageData, willReadFrequently = false): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = imageData.width
   canvas.height = imageData.height
-  const ctx = canvas.getContext('2d')
+  // 重复 getImageData 读回的工具（如人脸马赛克）需在首次创建 context 时声明 willReadFrequently，
+  // 否则后续 getContext 带 options 也不会生效（context 已存在，options 被忽略）
+  const ctx = willReadFrequently ? canvas.getContext('2d', { willReadFrequently: true }) : canvas.getContext('2d')
   if (ctx) ctx.putImageData(imageData, 0, 0)
   return canvas
 }
@@ -1777,7 +1779,8 @@ const faceTools: ImageTool[] = [
       const { result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, undefined, {
         minDetectionConfidence: Number(params.confidence)
       })
-      const canvas = toCanvasLocal(imageData)
+      // 像素化循环内多次 getImageData 读回：创建 context 时声明 willReadFrequently 避免性能警告
+      const canvas = toCanvasLocal(imageData, true)
       const ctx = canvas.getContext('2d')!
       const dets = result.detections ?? []
       for (const det of dets) {
