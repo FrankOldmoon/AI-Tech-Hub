@@ -5,7 +5,7 @@ import { humanError } from '~/utils/errors'
  * - 通过 feature 路径定位 python/<feature>/main.py
  * - 默认折叠，点击 header 展开/收起
  * - 支持复制源码到剪贴板
- * - 使用 highlight.js（CDN 引入）进行语法高亮，跟随系统颜色模式切换主题
+ * - 使用 highlight.js（本地 public/vendor 自托管，避免 cdnjs 被浏览器 Tracking Prevention 拦截）进行语法高亮
  */
 const props = defineProps<{
   /** 模块路径，如 'speech/tts' -> python/speech/tts/main.py */
@@ -19,8 +19,8 @@ const { fetchSource } = usePythonSource()
 const colorMode = useColorMode()
 const hljsThemeUrl = computed(() =>
   colorMode.value === 'dark'
-    ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css'
-    : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+    ? '/vendor/highlight/styles/github-dark.min.css'
+    : '/vendor/highlight/styles/github.min.css'
 )
 useHead({
   link: [{ rel: 'stylesheet', href: hljsThemeUrl, key: 'hljs-theme' }]
@@ -36,7 +36,7 @@ async function loadHighlighter(): Promise<any> {
   if (hljsPromise) return hljsPromise
   hljsPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js'
+    script.src = '/vendor/highlight/highlight.min.js'
     script.onload = () => resolve(w.hljs)
     script.onerror = () => {
       hljsPromise = null
