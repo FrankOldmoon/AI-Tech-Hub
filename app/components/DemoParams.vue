@@ -31,16 +31,6 @@ function isDisabled(spec: ParamSpec): boolean {
   if (spec.disableWhileRunning === false) return false
   return props.running
 }
-
-// slider 标签：显示当前值
-function sliderLabel(spec: ParamSpec): string {
-  const v = props.modelValue[spec.key]
-  if (typeof v === 'number') {
-    if (spec.step && spec.step < 1) return `${v.toFixed(2)}`
-    return `${v}`
-  }
-  return String(v)
-}
 </script>
 
 <template>
@@ -65,16 +55,15 @@ function sliderLabel(spec: ParamSpec): string {
           <template v-for="spec in specs" :key="spec.key">
             <!-- slider -->
             <div v-if="spec.type === 'slider'">
-              <label class="flex items-center justify-between text-sm font-medium text-muted mb-1">
-                <span>{{ spec.label }}</span>
-                <span class="text-highlighted tabular-nums">{{ sliderLabel(spec) }}</span>
-              </label>
-              <USlider
+              <label class="block text-sm font-medium text-muted mb-1">{{ spec.label }}</label>
+              <SpringSlider
                 :model-value="Number(modelValue[spec.key])"
                 :min="spec.min"
                 :max="spec.max"
                 :step="spec.step"
                 :disabled="isDisabled(spec)"
+                :precision="spec.step && spec.step < 1 ? 2 : 0"
+                :label="spec.label"
                 @update:model-value="update(spec.key, $event ?? spec.default)"
               />
               <p v-if="spec.help" class="mt-1 text-xs text-dimmed">{{ spec.help }}</p>
