@@ -94,15 +94,6 @@ async function compute() {
         <label class="block text-sm font-medium text-muted mb-2">
           {{ n === 1 ? 'Image A · Portrait' : 'Image B' }}
         </label>
-        <div
-          v-if="n === 2"
-          class="mb-2"
-        >
-          <SampleImagePicker
-            :samples="samples"
-            @pick="useSample"
-          />
-        </div>
         <button
           type="button"
           class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default hover:border-primary transition"
@@ -111,6 +102,15 @@ async function compute() {
           <img v-show="(n === 1 ? img1Src : img2Src)" :src="n === 1 ? img1Src : img2Src" class="w-full h-full object-contain">
           <UIcon v-if="!(n === 1 ? img1Src : img2Src)" name="i-lucide-image-plus" class="size-8 text-muted" />
         </button>
+        <div
+          v-if="n === 2"
+          class="mt-2"
+        >
+          <SampleImagePicker
+            :samples="samples"
+            @pick="useSample"
+          />
+        </div>
         <input
           :ref="(el: any) => { if (el) { if (n === 1) file1Input = el; else file2Input = el } }"
           type="file"
