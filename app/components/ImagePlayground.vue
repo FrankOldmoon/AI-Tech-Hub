@@ -51,6 +51,14 @@ const activeToolId = ref('')
 const activeTool = computed<ImageTool | undefined>(() => props.tools.find(t => t.id === activeToolId.value) || props.tools[0])
 const specs = computed(() => buildParamSpecs(activeTool.value?.params, lang.value))
 const paramValues = ref<Record<string, number | string | boolean>>({})
+/**
+ * resize 工具的结果图显示比例：
+ * 默认 canvas 用 max-w-full 固定撑满容器，像素尺寸变化在显示上不可见；
+ * resize 工具改为按固定显示比例渲染（像素变大 → 显示变大），
+ * 拖动手柄才能真正"看到"图片缩放效果。
+ * 注意：必须声明在 watch(activeToolId) 之前（immediate watch 会同步访问）。
+ */
+const resultScale = ref(0)
 
 const downloadFormat = ref<'png' | 'jpeg' | 'webp'>('png')
 const quality = ref(0.92)
@@ -89,6 +97,11 @@ watch(() => props.tools, (list) => {
 watch(activeToolId, () => {
   paramValues.value = paramDefaults(specs.value)
   runLater()
+  // 切回 resize 工具时重置显示基准，按当前容器宽度重新计算
+  if (activeTool.value?.id === 'resize') {
+    resultScale.value = 0
+    nextTick(updateResultScale)
+  }
 }, { immediate: true })
 
 watch(paramValues, scheduleRun, { deep: true })
@@ -221,6 +234,22 @@ function onResizeEnd() {
   window.removeEventListener('mousemove', onResizeMove)
   window.removeEventListener('mouseup', onResizeEnd)
 }
+
+function updateResultScale() {
+  const canvas = resultCanvas.value
+  if (!canvas || !result.value) return
+  const rect = canvas.getBoundingClientRect()
+  if (rect.width && rect.height) {
+    resultScale.value = rect.width / result.value.width
+  }
+}
+
+// 首个结果出来后计算显示基准（拖动过程中不重算，保持拖拽映射线性）
+watch(result, (v) => {
+  if (activeTool.value?.id === 'resize' && v && resultScale.value === 0) {
+    nextTick(updateResultScale)
+  }
+})
 
 // ===== 上传 =====
 
@@ -528,27 +557,35 @@ const modeText = computed(() => {
                     {{ t('image.processing') }}
                   </span>
                 </p>
-                <div class="relative">
-                  <canvas
-                    ref="resultCanvas"
-                    class="max-w-full h-auto rounded-lg border border-default"
-                    :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
-                    @click="onResultClick"
-                  />
-                  <!-- resize 拖拽手柄：拖动调整输出尺寸，与参数面板联动 -->
-                  <button
-                    v-if="activeTool?.id === 'resize' && result"
-                    type="button"
-                    class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors"
-                    :class="{ 'ring-2 ring-primary': resizing }"
-                    :aria-label="t('image.resizeDrag')"
-                    @mousedown="onResizeStart"
-                  >
-                    <UIcon
-                      name="i-lucide-move-diagonal"
-                      class="size-4"
+                <div class="overflow-auto rounded-lg border border-default">
+                  <div class="relative w-fit">
+                    <canvas
+                      ref="resultCanvas"
+                      class="rounded-lg"
+                      :class="[
+                        activeTool?.id === 'resize' ? '' : 'max-w-full h-auto',
+                        activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''
+                      ]"
+                      :style="activeTool?.id === 'resize' && result && resultScale > 0
+                        ? { width: `${Math.round(result.width * resultScale)}px`, height: `${Math.round(result.height * resultScale)}px` }
+                        : undefined"
+                      @click="onResultClick"
                     />
-                  </button>
+                    <!-- resize 拖拽手柄：拖动调整输出尺寸，与参数面板联动 -->
+                    <button
+                      v-if="activeTool?.id === 'resize' && result"
+                      type="button"
+                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors"
+                      :class="{ 'ring-2 ring-primary': resizing }"
+                      :aria-label="t('image.resizeDrag')"
+                      @mousedown="onResizeStart"
+                    >
+                      <UIcon
+                        name="i-lucide-move-diagonal"
+                        class="size-4"
+                      />
+                    </button>
+                  </div>
                 </div>
                 <p v-if="activeTool?.interactive === 'click'" class="text-xs text-dimmed">
                   {{ t('image.clickHint') }}
