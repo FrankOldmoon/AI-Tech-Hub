@@ -10,10 +10,13 @@ const props = withDefaults(defineProps<{
   modelValue: Record<string, number | string | boolean>
   /** 是否处于运行态（运行时禁用标记了 disableWhileRunning 的参数） */
   running?: boolean
+  /** 附加禁用参数键（如 resize 保持宽高比时禁用 height） */
+  disabledKeys?: string[]
   /** 折叠面板标题 */
   title?: string
 }>(), {
   running: false,
+  disabledKeys: () => [],
   title: undefined
 })
 
@@ -28,6 +31,7 @@ function update(key: string, val: number | string | boolean) {
 }
 
 function isDisabled(spec: ParamSpec): boolean {
+  if (props.disabledKeys?.includes(spec.key)) return true
   if (spec.disableWhileRunning === false) return false
   return props.running
 }

@@ -49,7 +49,33 @@ const dragOver = ref(false)
 
 const activeToolId = ref('')
 const activeTool = computed<ImageTool | undefined>(() => props.tools.find(t => t.id === activeToolId.value) || props.tools[0])
-const specs = computed(() => buildParamSpecs(activeTool.value?.params, lang.value))
+/**
+ * 参数面板 specs：
+ * - resize 工具的 width/height 为 slider，范围随原图尺寸动态（1 ~ 原图 2 倍，含当前值，上限 4096）
+ * - keep（保持宽高比）开启时 height 由 run 自动按宽度等比计算，面板禁用该滑块
+ */
+const specs = computed(() => {
+  const base = buildParamSpecs(activeTool.value?.params, lang.value)
+  if (activeTool.value?.id === 'resize' && original.value) {
+    return base.map((s) => {
+      if (s.key === 'width' || s.key === 'height') {
+        const src = s.key === 'width' ? original.value!.width : original.value!.height
+        const cur = Number(paramValues.value[s.key]) || 0
+        const max = Math.min(4096, Math.max(src * 2, 512, cur))
+        const help = s.key === 'height' && paramValues.value.keep
+          ? (lang.value === 'zh' ? '保持宽高比开启时，高度按宽度自动等比计算。' : 'With aspect ratio kept, height follows width automatically.')
+          : s.help
+        return { ...s, type: 'slider' as const, min: 1, max, step: 1, help }
+      }
+      return s
+    })
+  }
+  return base
+})
+/** keep 开启时禁用 height 滑块（由 run 自动计算） */
+const disabledParamKeys = computed<string[]>(() =>
+  activeTool.value?.id === 'resize' && paramValues.value.keep ? ['height'] : []
+)
 const paramValues = ref<Record<string, number | string | boolean>>({})
 /**
  * resize 工具的结果图显示比例：
@@ -541,6 +567,7 @@ const modeText = computed(() => {
                 v-model="paramValues"
                 :specs="specs"
                 :running="running"
+                :disabled-keys="disabledParamKeys"
               />
 
               <div class="flex flex-wrap items-center gap-2">
