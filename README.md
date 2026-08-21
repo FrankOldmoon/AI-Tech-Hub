@@ -1,6 +1,6 @@
 # AI 技术演示合集 (Nuxt AI)
 
-基于 **Nuxt 4 + Nuxt UI** 构建的全栈 AI 技术演示平台。所有 AI 能力在**浏览器本地或本地服务端**运行，无需外部 API Key，支持中英文界面。
+基于 **Nuxt 4 + Nuxt UI** 构建的全栈 AI 技术演示平台。绝大多数 AI 能力在**浏览器本地或本地服务端**运行、无需外部 API Key；新增的**云端 LLM 对话**演示可选接入 Kimi K3 / DeepSeek 云端 API（密钥配置在本地 `.env`，不入库），支持中英文界面。
 
 > ⚠️ 本项目由社区模板开发而来，经过完整调试与功能补全。所有模型文件**不纳入版本控制**，首次启动会自动下载（见下文「模型管理」）。
 
@@ -23,6 +23,7 @@
 | 📝 自然语言 | 文本分类 / 语言检测 / 文本嵌入 | MediaPipe Tasks |
 | 📝 自然语言 | 命名实体识别 / 零样本分类 / 摘要 / 问答 / 完形填空 | Transformers.js |
 | 🤖 AI 生成 | 浏览器本地 LLM 对话 | WebLLM (Qwen2.5) |
+| 🤖 AI 生成 | 云端 LLM 对话（Kimi K3 / DeepSeek，可随时切换模型） | Moonshot / DeepSeek 云端 API（需在 `.env` 配置密钥） |
 | 🪄 AI 生成 | 智能抠图（背景移除） | MODNet（transformers.js，浏览器本地） |
 | 🪄 AI 生成 | 推理对话（DeepSeek-R1 蒸馏，思考过程流式输出） | transformers.js + WebGPU/WASM |
 | 🪄 AI 生成 | 代码生成与执行（Qwen2.5-Coder + Pyodide） | transformers.js + Pyodide |
