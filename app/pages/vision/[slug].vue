@@ -20,7 +20,7 @@ const cfg = ref<VisionTaskConfig | null>(null)
 // 图像工坊各页专属示例图（labelKey 解析为 i18n 文案；未配置回落通用列表）
 const pageSamples = computed(() => {
   const list = imagePageSamples[slug.value as keyof typeof imagePageSamples]
-  return list ? list.map(s => ({ label: t(s.labelKey), url: s.url })) : null
+  return list ? list.map(s => ({ label: t(s.labelKey), url: s.url, secondUrl: s.secondUrl })) : null
 })
 
 onMounted(async () => {

@@ -19,7 +19,7 @@ const props = defineProps<{
   demo: LocalizedDemo
   tools: ImageTool[]
   /** 本页专属示例图（未配置时用通用示例列表） */
-  samples?: Array<{ label: string, url: string }> | null
+  samples?: Array<{ label: string, url: string, secondUrl?: string }> | null
 }>()
 
 const { t, locale } = useI18n()
@@ -351,15 +351,26 @@ const defaultSamples = computed(() => [
 ])
 const sampleImages = computed(() => props.samples ?? defaultSamples.value)
 
-async function useSample(url: string) {
+async function useSample(s: { url: string, secondUrl?: string }) {
   try {
-    const res = await fetch(url)
+    const res = await fetch(s.url)
     const blob = await res.blob()
-    const file = new File([blob], url.split('/').pop() || 'sample.jpg', { type: blob.type })
+    const file = new File([blob], s.url.split('/').pop() || 'sample.jpg', { type: blob.type })
     await loadFile(file)
+    // 配对样本：同时加载第二图（单图工具暂存，切到双图工具如特征匹配时直接可用）
+    if (s.secondUrl) {
+      await useSecondSample(s.secondUrl)
+    }
   } catch (e) {
     error.value = humanError(e, t)
   }
+}
+
+async function useSecondSample(url: string) {
+  const res = await fetch(url)
+  const blob = await res.blob()
+  const file = new File([blob], url.split('/').pop() || 'sample2.jpg', { type: blob.type })
+  await loadSecondFile(file)
 }
 
 async function loadFile(file: File) {
@@ -576,7 +587,7 @@ const modeText = computed(() => {
                 size="xs"
                 color="neutral"
                 variant="soft"
-                @click="useSample(s.url)"
+                @click="useSample(s)"
               />
             </div>
           </div>
