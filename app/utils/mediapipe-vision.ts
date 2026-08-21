@@ -247,8 +247,9 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'scoreThreshold', label: t('params.scoreThreshold'), type: 'slider', default: 0, min: 0, max: 1, step: 0.05 }
     ],
     samples: t => [
-      { label: t('samples.landscape'), url: '/samples/images/urban-street.jpg' },
-      { label: t('samples.street'), url: '/samples/images/street.jpg' }
+      { label: t('samples.dog'), url: '/samples/images/dog.jpg' },
+      { label: t('samples.bird'), url: '/samples/images/bird.jpg' },
+      { label: t('samples.cat'), url: '/samples/images/cat.jpg' }
     ]
   }
 }
