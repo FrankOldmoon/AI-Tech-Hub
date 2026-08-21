@@ -2312,7 +2312,6 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>>
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
   'face': [
-    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
     { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
   ],
   'ocr': [
