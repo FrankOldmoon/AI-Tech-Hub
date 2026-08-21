@@ -38,6 +38,10 @@ async function fileToImageData(url: string): Promise<ImageData> {
   const canvas = document.createElement('canvas')
   canvas.width = img.naturalWidth
   canvas.height = img.naturalHeight
+  if (!img.naturalWidth || !img.naturalHeight) {
+    URL.revokeObjectURL(url)
+    throw new Error(t('image.sizeInvalid'))
+  }
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('无法创建画布')
   ctx.drawImage(img, 0, 0)

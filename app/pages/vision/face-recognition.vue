@@ -60,6 +60,10 @@ const { fetchSampleFile } = useVisionSamples()
 async function loadSampleImageData(url: string): Promise<ImageData> {
   const file = await fetchSampleFile(url)
   const bitmap = await createImageBitmap(file)
+  if (!bitmap.width || !bitmap.height) {
+    bitmap.close?.()
+    throw new Error(t('image.sizeInvalid'))
+  }
   const canvas = document.createElement('canvas')
   canvas.width = bitmap.width
   canvas.height = bitmap.height

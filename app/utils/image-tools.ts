@@ -2195,6 +2195,10 @@ const multimodalTools: ImageTool[] = [
       const url = task.resultUrl as string
       const blob = await (await fetch(url)).blob()
       const bmp = await createImageBitmap(blob)
+      if (!bmp.width || !bmp.height) {
+        bmp.close?.()
+        throw new Error('Invalid result image size')
+      }
       const canvas = document.createElement('canvas')
       canvas.width = bmp.width
       canvas.height = bmp.height

@@ -911,6 +911,7 @@
   "image": {
     "upload": "Upload Image",
     "uploadHint": "Click or drag an image here (PNG / JPG / WebP; longest side auto-resized to 2048px)",
+    "sizeInvalid": "Image has no valid dimensions",
     "replaceHint": "Dropping a new image will replace the current one",
     "original": "Original",
     "result": "Result",
