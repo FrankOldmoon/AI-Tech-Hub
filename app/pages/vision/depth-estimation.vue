@@ -18,7 +18,11 @@ const error = ref<string | null>(null)
 const inferenceTime = ref(0)
 // SSR 与客户端初始保持一致（false），挂载后再检测，避免 hydration mismatch
 const webgpu = ref(false)
-onMounted(() => { webgpu.value = hasWebGPU() })
+onMounted(() => {
+  webgpu.value = hasWebGPU()
+  // 课堂演示：打开页面自动加载街景示例图并估计深度
+  useSample('/samples/images/street.jpg')
+})
 
 // 模型选择：small 体积小、加载快；base/large 精度更高
 const modelItems = [
@@ -77,6 +81,20 @@ async function onFileChange(e: Event) {
   }
   input.value = ''
 }
+
+async function useSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    imgSrc.value = await processImageFile(file)
+    error.value = null
+    await run()
+  } catch (err: any) {
+    error.value = err?.message || String(err)
+    imgSrc.value = ''
+  }
+}
+
+const { samples, fetchSampleFile } = useVisionSamples()
 
 async function run() {
   if (!imgSrc.value) return
@@ -168,6 +186,10 @@ onBeforeUnmount(async () => {
         variant="subtle"
         :disabled="loading || running"
         @click="fileInput?.click()"
+      />
+      <SampleImagePicker
+        :samples="samples"
+        @pick="useSample"
       />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
       <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>

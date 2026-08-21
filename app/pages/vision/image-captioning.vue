@@ -18,7 +18,11 @@ const caption = ref('')
 const inferenceTime = ref(0)
 // SSR 与客户端初始保持一致（false），挂载后再检测，避免 hydration mismatch
 const webgpu = ref(false)
-onMounted(() => { webgpu.value = hasWebGPU() })
+onMounted(() => {
+  webgpu.value = hasWebGPU()
+  // 课堂演示：打开页面自动加载风景示例图并生成描述
+  useSample('/samples/images/landscape.jpg')
+})
 
 const modelItems = [
   // BLIP (Xenova/blip-image-captioning-base) 是 HuggingFace gated 仓库，匿名无法下载，已移除
@@ -80,6 +84,21 @@ async function onFileChange(e: Event) {
   input.value = ''
 }
 
+async function useSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    imgSrc.value = await processImageFile(file)
+    caption.value = ''
+    error.value = null
+    await run()
+  } catch (err: any) {
+    error.value = err?.message || String(err)
+    imgSrc.value = ''
+  }
+}
+
+const { samples, fetchSampleFile } = useVisionSamples()
+
 async function run() {
   if (!imgSrc.value) return
   const p = await ensurePipeline()
@@ -136,6 +155,10 @@ onBeforeUnmount(async () => {
         variant="subtle"
         :disabled="loading || running"
         @click="fileInput?.click()"
+      />
+      <SampleImagePicker
+        :samples="samples"
+        @pick="useSample"
       />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
       <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>

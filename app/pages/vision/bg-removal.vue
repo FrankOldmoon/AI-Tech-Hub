@@ -25,7 +25,11 @@ const webgpu = ref(false)
 const alphaThreshold = ref(128)
 const fileInput = ref<HTMLInputElement>()
 
-onMounted(() => { webgpu.value = typeof navigator !== 'undefined' && !!(navigator as any).gpu })
+onMounted(() => {
+  webgpu.value = typeof navigator !== 'undefined' && !!(navigator as any).gpu
+  // 课堂演示：打开页面自动加载多人示例图并抠图，第一时间出结果
+  useSample('/samples/images/group.jpg')
+})
 
 let model: any = null
 let processor: any = null
@@ -78,6 +82,20 @@ async function onFileChange(e: Event) {
   }
   input.value = ''
 }
+
+async function useSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    imgSrc.value = await processImageFile(file)
+    resultUrl.value = ''
+    error.value = null
+    await removeBg()
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : String(err)
+  }
+}
+
+const { samples, fetchSampleFile } = useVisionSamples()
 
 async function removeBg() {
   if (!imgSrc.value) return
@@ -188,6 +206,10 @@ onBeforeUnmount(async () => {
           variant="subtle"
           :disabled="loading || running"
           @click="fileInput?.click()"
+        />
+        <SampleImagePicker
+          :samples="samples"
+          @pick="useSample"
         />
         <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
         <UButton

@@ -41,6 +41,11 @@ async function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+  await loadImageFile(file)
+  input.value = ''
+}
+
+async function loadImageFile(file: File) {
   const s = await ensure()
   if (!s) return
   loading.value = true
@@ -56,9 +61,24 @@ async function onFileChange(e: Event) {
     error.value = humanError(e, t)
   } finally {
     loading.value = false
-    input.value = ''
   }
 }
+
+async function useSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    await loadImageFile(file)
+  } catch (e) {
+    error.value = humanError(e, t)
+  }
+}
+
+const { samples, fetchSampleFile } = useVisionSamples()
+
+onMounted(() => {
+  // 课堂演示：打开页面自动加载多人示例图，点击画面即可交互分割
+  useSample('/samples/images/group.jpg')
+})
 
 function redraw(mask?: any, point?: { x: number, y: number }) {
   const canvas = canvasRef.value
@@ -109,6 +129,10 @@ async function onCanvasClick(e: MouseEvent) {
   <MediaDemoShell :demo="demo">
     <div class="flex flex-wrap items-center gap-2">
       <UButton icon="i-lucide-upload" :label="t('mp.upload')" color="primary" :loading="loading" @click="fileInput?.click()" />
+      <SampleImagePicker
+        :samples="samples"
+        @pick="useSample"
+      />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
       <span v-if="hasImage" class="text-sm text-muted">{{ t('mp.clickHint') }}</span>
     </div>

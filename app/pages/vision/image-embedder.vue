@@ -17,6 +17,27 @@ const file2Input = ref<HTMLInputElement>()
 
 let embedder: any = null
 
+const { samples, fetchSampleFile } = useVisionSamples()
+
+// 示例对比：所选图 vs 人脸照（展示余弦相似度如何度量语义相似）
+async function useSamplePair(url?: string) {
+  try {
+    const a = url || '/samples/images/face.jpg'
+    const b = a === '/samples/images/face.jpg' ? '/samples/images/group.jpg' : '/samples/images/face.jpg'
+    const [f1, f2] = await Promise.all([fetchSampleFile(a), fetchSampleFile(b)])
+    img1Src.value = URL.createObjectURL(f1)
+    img2Src.value = URL.createObjectURL(f2)
+    await compute()
+  } catch (e) {
+    error.value = humanError(e, t)
+  }
+}
+
+onMounted(() => {
+  // 课堂演示：打开页面自动加载双示例图并计算相似度
+  useSamplePair()
+})
+
 async function ensureEmbedder() {
   if (embedder) return embedder
   const { FilesetResolver, ImageEmbedder } = await import('@mediapipe/tasks-vision')
@@ -68,6 +89,15 @@ async function compute() {
         <label class="block text-sm font-medium text-muted mb-2">
           {{ n === 1 ? 'Image A' : 'Image B' }}
         </label>
+        <div
+          v-if="n === 1"
+          class="mb-2"
+        >
+          <SampleImagePicker
+            :samples="samples"
+            @pick="useSamplePair"
+          />
+        </div>
         <button
           type="button"
           class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default hover:border-primary transition"
