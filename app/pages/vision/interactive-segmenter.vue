@@ -78,7 +78,12 @@ async function useSample(url: string) {
   }
 }
 
-const { samples, fetchSampleFile } = useVisionSamples()
+const { fetchSampleFile } = useVisionSamples()
+// 交互式分割样本：多人照（点不同人）+ 桌面多物体（点不同物体），演示"点哪抠哪"
+const samples = computed(() => [
+  { label: t('samples.group'), url: '/samples/images/group.jpg' },
+  { label: t('samples.desk'), url: '/samples/images/desk.jpg' }
+])
 
 onMounted(() => {
   // 课堂演示：打开页面自动加载多人示例图，点击画面即可交互分割
