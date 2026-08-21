@@ -136,11 +136,17 @@ async function useSample(url: string) {
   }
 }
 
-const { samples, fetchSampleFile } = useVisionSamples()
+const { fetchSampleFile } = useVisionSamples()
+// 分割演示专用样本：单人照优先（前景掩码干净），多人照作难度对照
+const samples = computed(() => [
+  { label: t('samples.personPhoto'), url: '/samples/images/person.jpg' },
+  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.group'), url: '/samples/images/group.jpg' }
+])
 
 onMounted(() => {
-  // 课堂演示：打开页面自动加载单人示例图并分割
-  useSample('/samples/images/face.jpg')
+  // 课堂演示：打开页面自动加载单人照并分割（前景掩码干净），第一时间出结果
+  useSample('/samples/images/person.jpg')
 })
 
 onBeforeUnmount(() => stopWebcam())
