@@ -21,7 +21,7 @@ const webgpu = ref(false)
 onMounted(() => {
   webgpu.value = hasWebGPU()
   // 课堂演示：打开页面自动加载风景示例图并生成描述
-  useSample('/samples/images/landscape.jpg')
+  useSample('/samples/images/urban-street.jpg')
 })
 
 const modelItems = [

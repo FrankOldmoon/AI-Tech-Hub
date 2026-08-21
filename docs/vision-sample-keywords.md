@@ -35,10 +35,10 @@
 
 | Demo | 能力要点 | 中文关键词 | English keywords | 推荐来源 | 当前/建议样本 |
 |---|---|---|---|---|---|
-| viewer 图像查看器 | 高清细节 | 高清风景大图 | high-res landscape | Unsplash | landscape.jpg |
+| viewer 图像查看器 | 高清细节 | 高清风景大图 | high-res landscape | Unsplash | urban-street.jpg |
 | transform 图像变换 | 缩放/旋转等 | 高清人物半身像 | high-res portrait | Pexels | portrait.jpg |
 | pixel 像素处理 | 色块/马赛克 | 色彩分块几何图案 | color blocks geometric | Wikimedia(PD) | portrait/landscape |
-| color 颜色处理 | 色彩变化 | 色彩鲜艳高对比 | vibrant high-contrast | Unsplash | landscape.jpg |
+| color 颜色处理 | 色彩变化 | 色彩鲜艳高对比 | vibrant high-contrast | Unsplash | urban-street.jpg |
 | adjustment 图像调整 | 明暗/色温 | 逆光明暗对比强烈照 | backlit strong contrast | Unsplash | street.jpg |
 | filters 图像滤镜 | 风格化 | 人像或风景原图 | portrait or landscape original | Pexels/Unsplash | portrait/landscape |
 | enhancement 噪声与增强 | 降噪/去模糊 | 低光噪点照片 / 轻微模糊照 | low-light noisy / slightly blurry | Pexels | noisy.jpg（生成，高斯噪点） |

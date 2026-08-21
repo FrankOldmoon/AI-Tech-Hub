@@ -2250,12 +2250,12 @@ export const imagePages: { slug: ImagePageSlug; tools: ImageTool[] }[] = [
  */
 export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string, url: string }[]>> = {
   'viewer': [
-    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
   'transform': [
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
-    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
   'pixel': [
     { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
@@ -2263,7 +2263,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
   ],
   'color': [
     { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
-    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
   'adjustment': [
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
@@ -2271,7 +2271,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
   ],
   'filters': [
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
-    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
   'enhancement': [
     { labelKey: 'samples.noisy', url: '/samples/images/noisy.jpg' },
@@ -2305,7 +2305,7 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string,
     { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
   ],
   'multimodal': [
-    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ]
 }
