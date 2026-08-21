@@ -921,9 +921,9 @@ export const demos: Demo[] = [
     slug: 'filters',
     category: 'vision',
     title: { zh: '图像滤镜', en: 'Image Filters' },
-    description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜（规划中）。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters (planned).' },
+    description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters.' },
     icon: 'i-lucide-sparkles',
-    status: 'planned',
+    status: 'ready',
     pythonModule: 'image/filters',
     tags: ['Canvas', 'Filter']
   },
