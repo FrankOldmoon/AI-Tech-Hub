@@ -17,13 +17,21 @@ const file2Input = ref<HTMLInputElement>()
 
 let embedder: any = null
 
-const { samples, fetchSampleFile } = useVisionSamples()
+const { fetchSampleFile } = useVisionSamples()
+// 嵌入相似度演示专用样本：默认 face vs 相似人像（高相似），异类（鹦鹉）展示低相似
+const samples = computed(() => [
+  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.similarPortrait'), url: '/samples/images/similar-portrait.jpg' },
+  { label: t('samples.parrot'), url: '/samples/images/parrot.jpg' },
+  { label: t('samples.group'), url: '/samples/images/group.jpg' }
+])
 
-// 示例对比：所选图 vs 人脸照（展示余弦相似度如何度量语义相似）
+// 示例对比：默认 face vs 相似人像（0.42 高相似，直观展示"语义相似=高相似"）；
+// 选其它样本则与 face.jpg 对比（人像≈高、鹦鹉/异类≈低）
 async function useSamplePair(url?: string) {
   try {
     const a = url || '/samples/images/face.jpg'
-    const b = a === '/samples/images/face.jpg' ? '/samples/images/group.jpg' : '/samples/images/face.jpg'
+    const b = a === '/samples/images/face.jpg' ? '/samples/images/similar-portrait.jpg' : '/samples/images/face.jpg'
     const [f1, f2] = await Promise.all([fetchSampleFile(a), fetchSampleFile(b)])
     img1Src.value = URL.createObjectURL(f1)
     img2Src.value = URL.createObjectURL(f2)
