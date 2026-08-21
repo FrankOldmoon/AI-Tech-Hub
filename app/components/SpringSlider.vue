@@ -47,6 +47,35 @@ const displayText = computed(() => {
   return props.precision > 0 ? v.toFixed(props.precision) : String(Math.round(v))
 })
 
+// ===== 数值徽章点击 → 数字输入（可拖拽也可精确输入） =====
+const editing = ref(false)
+const editText = ref('')
+
+function startEdit() {
+  if (props.disabled) return
+  editText.value = displayText.value
+  editing.value = true
+  nextTick(() => {
+    const el = badgeInput.value
+    el?.focus()
+    el?.select()
+  })
+}
+
+const badgeInput = ref<HTMLInputElement>()
+
+function commitEdit() {
+  const n = Number(editText.value)
+  if (!Number.isNaN(n)) {
+    emit('update:modelValue', n)
+  }
+  editing.value = false
+}
+
+function cancelEdit() {
+  editing.value = false
+}
+
 function onInput(e: Event) {
   emit('update:modelValue', Number((e.target as HTMLInputElement).value))
 }
@@ -78,9 +107,25 @@ function onPointerUp() {
       @pointercancel="onPointerUp"
     >
     <span
-      class="spring-badge tabular-nums text-xs font-semibold text-highlighted rounded-md px-1.5 py-0.5 bg-elevated/80 border border-default min-w-10 text-center shrink-0"
+      v-if="!editing"
+      class="spring-badge tabular-nums text-xs font-semibold text-highlighted rounded-md px-1.5 py-0.5 bg-elevated/80 border border-default min-w-10 text-center shrink-0 cursor-pointer hover:bg-elevated"
       :style="{ transform: `scale(${badgeScale})` }"
+      :title="label ? label : undefined"
+      @click="startEdit"
     >{{ displayText }}</span>
+    <input
+      v-else
+      ref="badgeInput"
+      v-model="editText"
+      type="number"
+      :min="min"
+      :max="max"
+      :step="step"
+      class="spring-badge-input w-16 shrink-0 text-center text-xs font-semibold text-highlighted rounded-md px-1 py-0.5 bg-elevated border border-primary outline-none"
+      @keydown.enter.prevent="commitEdit"
+      @keydown.esc.prevent="cancelEdit"
+      @blur="commitEdit"
+    >
   </div>
 </template>
 

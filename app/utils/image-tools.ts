@@ -187,7 +187,7 @@ const transformTools: ImageTool[] = [
       // width/height 用 slider 拖拽（ImagePlayground 会按原图尺寸动态调整 min/max）
       { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'slider', default: 800, min: 1, max: 2048, step: 1 },
       { key: 'height', label: { zh: '高度', en: 'Height' }, type: 'slider', default: 600, min: 1, max: 2048, step: 1 },
-      { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: true }
+      { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: false }
     ],
     run: ({ imageData, params, lang }) => {
       const w = Math.max(1, Math.round(Number(params.width) || 800))

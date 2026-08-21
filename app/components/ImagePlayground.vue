@@ -77,14 +77,30 @@ const disabledParamKeys = computed<string[]>(() =>
   activeTool.value?.id === 'resize' && paramValues.value.keep ? ['height'] : []
 )
 const paramValues = ref<Record<string, number | string | boolean>>({})
-/**
- * resize 工具的结果图显示比例：
- * 默认 canvas 用 max-w-full 固定撑满容器，像素尺寸变化在显示上不可见；
- * resize 工具改为按固定显示比例渲染（像素变大 → 显示变大），
- * 拖动手柄才能真正"看到"图片缩放效果。
- * 注意：必须声明在 watch(activeToolId) 之前（immediate watch 会同步访问）。
- */
-const resultScale = ref(0)
+
+// ===== resize：原图是被操作对象（随参数缩放显示），结果纯展示 =====
+// 原图显示基准 = 容器列宽（max-w-full 时的显示宽度），显示宽 = 基准 × (目标宽 / 原图宽)
+const origBaseWidth = ref(0)
+
+function measureOrigBase() {
+  const c = origCanvas.value
+  if (!c) return
+  const r = c.getBoundingClientRect()
+  if (r.width && r.width !== origBaseWidth.value) origBaseWidth.value = r.width
+}
+
+/** 原图显示宽度（resize 工具）：目标尺寸相对原图的比例 × 基准列宽，放大时容器滚动 */
+const origDisplayWidth = computed(() => {
+  if (!original.value || !origBaseWidth.value) return undefined
+  const w = Number(paramValues.value.width) || original.value.width
+  return Math.round(origBaseWidth.value * (w / original.value.width))
+})
+
+// original 渲染完成后测量基准（双 rAF 等 canvas 布局稳定）
+watch(original, () => {
+  if (activeTool.value?.id !== 'resize') return
+  requestAnimationFrame(() => requestAnimationFrame(measureOrigBase))
+})
 
 const downloadFormat = ref<'png' | 'jpeg' | 'webp'>('png')
 const quality = ref(0.92)
@@ -137,11 +153,8 @@ watch(() => props.tools, (list) => {
 watch(activeToolId, () => {
   paramValues.value = paramDefaults(specs.value)
   runLater()
-  // 切回 resize 工具时重置显示基准，按当前容器宽度重新计算
-  if (activeTool.value?.id === 'resize') {
-    resultScale.value = 0
-    nextTick(updateResultScale)
-  }
+  // 切回 resize 工具时重测原图显示基准
+  if (activeTool.value?.id === 'resize') nextTick(measureOrigBase)
 }, { immediate: true })
 
 watch(paramValues, scheduleRun, { deep: true })
@@ -161,13 +174,24 @@ function isImmediateTool() {
 function scheduleRun() {
   ++latestReq
   if (isImmediateTool()) {
-    // 拖动/点击即时响应：每帧至多重跑一次，参数变化立即生效
-    if (!rafId) {
-      rafId = requestAnimationFrame(() => {
-        rafId = 0
-        // run() 默认取最新 latestReq，避免帧执行前参数又变导致结果被丢弃
-        run()
-      })
+    if (activeTool.value?.id === 'resize') {
+      // resize：拖动中 GPU 直绘预览（60fps 零回读），停止 150ms 后跑完整管线
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          rafId = 0
+          previewResize()
+        })
+      }
+      if (timer) clearTimeout(timer)
+      timer = setTimeout(() => run(), 150)
+    } else {
+      // 其他 canvas 工具：每帧即时重跑（<16ms）
+      if (!rafId) {
+        rafId = requestAnimationFrame(() => {
+          rafId = 0
+          run()
+        })
+      }
     }
   } else {
     if (timer) clearTimeout(timer)
@@ -192,8 +216,10 @@ async function run(req = latestReq) {
   try {
     // 防御：参数始终与默认值合并，避免首次运行缺键导致 NaN
     const mergedParams = { ...paramDefaults(specs.value), ...paramValues.value }
+    // canvas 工具不改源图，直接传原图省一次 4MB 深拷贝（AI 工具保留防御性克隆）
+    const src = isImmediateTool() ? original.value : alg.cloneImageData(original.value)
     const res = await tool.run({
-      imageData: alg.cloneImageData(original.value),
+      imageData: src,
       original: original.value,
       secondImage: secondOriginal.value ?? undefined,
       params: mergedParams,
@@ -233,21 +259,25 @@ function reset() {
 
 // ===== resize 拖拽手柄（与参数面板双向联动） =====
 const resizing = ref(false)
-const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0 })
+const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0, rectW: 1, rectH: 1 })
 
 function onResizeStart(e: PointerEvent) {
-  const canvas = resultCanvas.value
-  if (!canvas || !result.value) return
+  const canvas = origCanvas.value
+  if (!canvas || !original.value) return
   e.preventDefault()
   const handle = e.currentTarget as HTMLElement
   // Pointer Capture：拖动过程中指针移出按钮仍持续收到事件（触屏/鼠标统一）
   handle.setPointerCapture(e.pointerId)
   resizing.value = true
+  const rect = canvas.getBoundingClientRect()
   resizeStart.value = {
     x: e.clientX,
     y: e.clientY,
-    w: result.value.width,
-    h: result.value.height
+    w: Number(paramValues.value.width) || original.value.width,
+    h: Number(paramValues.value.height) || original.value.height,
+    // 固定换算基准：拖动中原图显示会随参数变化，比例用起始 rect，避免非线性漂移
+    rectW: rect.width || 1,
+    rectH: rect.height || 1
   }
   handle.addEventListener('pointermove', onResizeMove)
   handle.addEventListener('pointerup', onResizeEnd)
@@ -255,14 +285,10 @@ function onResizeStart(e: PointerEvent) {
 }
 
 function onResizeMove(e: PointerEvent) {
-  if (!resizing.value || !result.value) return
-  const canvas = resultCanvas.value
-  if (!canvas) return
-  const rect = canvas.getBoundingClientRect()
-  if (!rect.width || !rect.height) return
-  // 显示尺寸 → 像素尺寸换算
-  const scaleX = result.value.width / rect.width
-  const scaleY = result.value.height / rect.height
+  if (!resizing.value || !original.value) return
+  // 显示尺寸 → 像素尺寸换算（原图为被操作对象）
+  const scaleX = original.value.width / resizeStart.value.rectW
+  const scaleY = original.value.height / resizeStart.value.rectH
   const newW = Math.min(4096, Math.max(1, Math.round(resizeStart.value.w + (e.clientX - resizeStart.value.x) * scaleX)))
   const newH = Math.min(4096, Math.max(1, Math.round(resizeStart.value.h + (e.clientY - resizeStart.value.y) * scaleY)))
   // 联动：写入参数（keep 开启时高度由 run 自动保持宽高比）
@@ -284,20 +310,26 @@ function onResizeEnd(e: PointerEvent) {
   pulseResult(0.99)
 }
 
-function updateResultScale() {
-  const canvas = resultCanvas.value
-  if (!canvas || !result.value) return
-  const rect = canvas.getBoundingClientRect()
-  if (rect.width && rect.height) {
-    resultScale.value = rect.width / result.value.width
-  }
+// ===== resize GPU 直绘预览（拖动中 60fps，零 ImageData 回读） =====
+function previewResize() {
+  const src = origCanvas.value
+  const dst = resultCanvas.value
+  if (!src || !dst || !original.value) return
+  const w = Math.max(1, Math.round(Number(paramValues.value.width) || original.value.width))
+  const keep = Boolean(paramValues.value.keep)
+  const h = keep
+    ? Math.max(1, Math.round(original.value.height * (w / original.value.width)))
+    : Math.max(1, Math.round(Number(paramValues.value.height) || original.value.height))
+  dst.width = w
+  dst.height = h
+  const ctx = dst.getContext('2d')
+  if (!ctx) return
+  ctx.imageSmoothingEnabled = true
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(src, 0, 0, w, h)
 }
 
-// 首个结果出来后计算显示基准（拖动过程中不重算，保持拖拽映射线性）
 watch(result, (v) => {
-  if (activeTool.value?.id === 'resize' && v && resultScale.value === 0) {
-    nextTick(updateResultScale)
-  }
   // 慢工具（AI/OpenCV 等）出结果：轻微弹入提示更新（canvas 工具每帧重绘不弹）
   if (v && !isImmediateTool() && !resizing.value) {
     pulseResult(0.985)
@@ -601,7 +633,28 @@ const modeText = computed(() => {
             <div class="grid md:grid-cols-2 gap-4">
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted uppercase tracking-wide">{{ t('image.original') }}</p>
-                <canvas ref="origCanvas" class="max-w-full h-auto rounded-lg border border-default" />
+                <div class="overflow-auto rounded-lg border border-default">
+                  <div class="relative w-fit">
+                    <canvas
+                      ref="origCanvas"
+                      class="rounded-lg max-w-full h-auto"
+                      :style="activeTool?.id === 'resize' && origDisplayWidth
+                        ? { width: `${origDisplayWidth}px`, height: 'auto' }
+                        : undefined"
+                    />
+                    <!-- resize 拖拽手柄：操作「原图」（被缩放对象），结果图纯展示 -->
+                    <button
+                      v-if="activeTool?.id === 'resize' && original"
+                      type="button"
+                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
+                      :class="{ 'ring-2 ring-primary': resizing }"
+                      :aria-label="t('image.resizeDrag')"
+                      @pointerdown="onResizeStart"
+                    >
+                      <UIcon name="i-lucide-move-diagonal" class="size-4" />
+                    </button>
+                  </div>
+                </div>
               </div>
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted uppercase tracking-wide">
@@ -618,30 +671,10 @@ const modeText = computed(() => {
                   >
                     <canvas
                       ref="resultCanvas"
-                      class="rounded-lg"
-                      :class="[
-                        activeTool?.id === 'resize' ? '' : 'max-w-full h-auto',
-                        activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''
-                      ]"
-                      :style="activeTool?.id === 'resize' && result && resultScale > 0
-                        ? { width: `${Math.round(result.width * resultScale)}px`, height: `${Math.round(result.height * resultScale)}px` }
-                        : undefined"
+                      class="rounded-lg max-w-full h-auto"
+                      :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
                       @click="onResultClick"
                     />
-                    <!-- resize 拖拽手柄：拖动调整输出尺寸，与参数面板联动 -->
-                    <button
-                      v-if="activeTool?.id === 'resize' && result"
-                      type="button"
-                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
-                      :class="{ 'ring-2 ring-primary': resizing }"
-                      :aria-label="t('image.resizeDrag')"
-                      @pointerdown="onResizeStart"
-                    >
-                      <UIcon
-                        name="i-lucide-move-diagonal"
-                        class="size-4"
-                      />
-                    </button>
                   </div>
                 </div>
                 <p v-if="activeTool?.interactive === 'click'" class="text-xs text-dimmed">
