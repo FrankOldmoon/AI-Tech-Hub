@@ -74,6 +74,9 @@ function kindLabel(kind: ImageToolKind): string {
 }
 
 let timer: ReturnType<typeof setTimeout> | null = null
+let rafId = 0
+let latestReq = 0
+let pending = false
 
 // ===== 工具切换与参数 =====
 
@@ -88,7 +91,7 @@ watch(activeToolId, () => {
   runLater()
 }, { immediate: true })
 
-watch(paramValues, runLater, { deep: true })
+watch(paramValues, scheduleRun, { deep: true })
 
 function selectTool(id: string) {
   activeToolId.value = id
@@ -96,16 +99,40 @@ function selectTool(id: string) {
 
 // ===== 运行 =====
 
-function runLater() {
-  if (timer) clearTimeout(timer)
-  timer = setTimeout(run, 200)
+/** canvas 工具即时预览（rAF 节流），慢工具（AI/OpenCV 等）保持防抖 */
+function isImmediateTool() {
+  return activeTool.value?.kind === 'canvas'
 }
 
-async function run() {
+function scheduleRun() {
+  ++latestReq
+  if (isImmediateTool()) {
+    // 拖动/点击即时响应：每帧至多重跑一次，参数变化立即生效
+    if (!rafId) {
+      rafId = requestAnimationFrame(() => {
+        rafId = 0
+        // run() 默认取最新 latestReq，避免帧执行前参数又变导致结果被丢弃
+        run()
+      })
+    }
+  } else {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => run(), 200)
+  }
+}
+
+function runLater() {
+  scheduleRun()
+}
+
+async function run(req = latestReq) {
   const tool = activeTool.value
   if (!tool || !original.value) return
-  // 防自动重跑与手动点击并发（审计 P2）
-  if (running.value) return
+  // 运行中收到新请求：标记 pending，当前完成后立即补跑最新参数（不再丢弃）
+  if (running.value) {
+    pending = true
+    return
+  }
   running.value = true
   error.value = null
   try {
@@ -118,18 +145,30 @@ async function run() {
       params: mergedParams,
       lang: lang.value
     })
-    if (res.imageData) result.value = res.imageData
-    resultInfo.value = res.info ?? []
+    if (req === latestReq) {
+      if (res.imageData) result.value = res.imageData
+      resultInfo.value = res.info ?? []
+    }
   } catch (e) {
-    error.value = humanError(e, t)
-    resultInfo.value = []
+    if (req === latestReq) {
+      error.value = humanError(e, t)
+      resultInfo.value = []
+    }
   } finally {
     running.value = false
+    if (pending) {
+      pending = false
+      run(latestReq)
+    }
   }
 }
 
 function runNow() {
   if (timer) clearTimeout(timer)
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
   run()
 }
 
@@ -141,10 +180,11 @@ function reset() {
 // ===== 上传 =====
 
 const sampleImages = computed(() => [
-  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.face'), url: '/samples/images/portrait.jpg' },
   { label: t('samples.group'), url: '/samples/images/group.jpg' },
   { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
-  { label: t('samples.document'), url: '/samples/images/document.jpg' }
+  { label: t('samples.document'), url: '/samples/images/document.jpg' },
+  { label: t('samples.street'), url: '/samples/images/street.jpg' }
 ])
 
 async function useSample(url: string) {
@@ -393,6 +433,14 @@ const modeText = computed(() => {
               <UBadge color="neutral" variant="subtle">{{ modeText }}</UBadge>
             </div>
 
+            <!-- 参数面板（置于展示框上方，调参同时看效果） -->
+            <DemoParams
+              v-if="specs.length"
+              v-model="paramValues"
+              :specs="specs"
+              :running="running"
+            />
+
             <!-- 原图 / 结果 -->
             <div class="grid md:grid-cols-2 gap-4">
               <div class="space-y-2">
@@ -469,14 +517,6 @@ const modeText = computed(() => {
               variant="subtle"
               icon="i-lucide-alert-triangle"
               :title="error"
-            />
-
-            <!-- 参数面板 -->
-            <DemoParams
-              v-if="specs.length"
-              v-model="paramValues"
-              :specs="specs"
-              :running="running"
             />
 
             <!-- 操作 -->
