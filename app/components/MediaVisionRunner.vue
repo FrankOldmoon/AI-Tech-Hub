@@ -29,6 +29,8 @@ const props = defineProps<{
   detectImage: (detector: any, image: ImageBitmap) => any
   draw?: (ctx: CanvasRenderingContext2D, result: any) => void
   paramSpecs?: ParamSpec[]
+  /** demo 专属示例图（未配置时用通用列表） */
+  samples?: Array<{ label: string, url: string }> | null
 }>()
 
 const { t } = useI18n()
@@ -173,12 +175,13 @@ function stopWebcam() {
   if (videoRef.value) videoRef.value.srcObject = null
 }
 
-const sampleImages = computed(() => [
+const defaultSamples = computed(() => [
   { label: t('samples.face'), url: '/samples/images/face.jpg' },
   { label: t('samples.group'), url: '/samples/images/group.jpg' },
   { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
   { label: t('samples.document'), url: '/samples/images/document.jpg' }
 ])
+const sampleImages = computed(() => props.samples ?? defaultSamples.value)
 
 async function useSample(url: string) {
   try {

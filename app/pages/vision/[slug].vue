@@ -29,6 +29,8 @@ const createDetector = computed(() => cfg.value?.create ?? null)
 const draw = computed(() => cfg.value?.draw)
 // 可调参数 specs（label 随 locale 变化自动重算）
 const paramSpecs = computed(() => cfg.value?.params ? cfg.value.params(t) : [])
+// demo 专属示例图（未配置时 MediaVisionRunner 回落通用列表）
+const sampleImages = computed(() => cfg.value?.samples ? cfg.value.samples(t) : null)
 const detectVideo = (det: any, video: HTMLVideoElement, ts: number) => det[cfg.value!.method](video, ts)
 const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bitmap, performance.now())
 </script>
@@ -48,6 +50,7 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
         :detect-image="detectImage"
         :draw="draw"
         :param-specs="paramSpecs"
+        :samples="sampleImages"
       >
         <template #result="{ result }">
           <div v-if="result?.detections?.length" class="space-y-1">
