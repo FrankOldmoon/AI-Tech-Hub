@@ -17,10 +17,21 @@ const navItems = computed(() => [
 const otherLocales = computed(() =>
   (locales.value as Array<{ code: string, name: string }>).filter(l => l.code !== locale.value)
 )
+
+// Apple 式层级：滚动后 header 出现微妙阴影，强化「毛玻璃悬浮」层次（毛玻璃 blur 由 Nuxt UI UHeader 主题内置）
+const scrolled = ref(false)
+onMounted(() => {
+  const onScroll = () => {
+    scrolled.value = window.scrollY > 8
+  }
+  onScroll()
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScopeDispose(() => window.removeEventListener('scroll', onScroll))
+})
 </script>
 
 <template>
-  <UHeader>
+  <UHeader :class="scrolled ? 'shadow-sm' : ''">
     <template #left>
       <NuxtLink to="/" class="flex items-center gap-2">
         <AppLogo class="h-6 w-auto" />
