@@ -27,8 +27,8 @@ const fileInput = ref<HTMLInputElement>()
 
 onMounted(() => {
   webgpu.value = typeof navigator !== 'undefined' && !!(navigator as any).gpu
-  // 课堂演示：打开页面自动加载多人示例图并抠图，第一时间出结果
-  useSample('/samples/images/group.jpg')
+  // 课堂演示：打开页面自动加载单人照并抠图（单人+高对比背景抠得最干净），第一时间出结果
+  useSample('/samples/images/portrait.jpg')
 })
 
 let model: any = null
@@ -95,7 +95,13 @@ async function useSample(url: string) {
   }
 }
 
-const { samples, fetchSampleFile } = useVisionSamples()
+const { fetchSampleFile } = useVisionSamples()
+// 抠图专属样本：单人照优先（MODNet 单人+高对比抠得最干净）；多人照作为难度对照保留
+const samples = computed(() => [
+  { label: t('samples.portrait'), url: '/samples/images/portrait.jpg' },
+  { label: t('samples.face'), url: '/samples/images/face.jpg' },
+  { label: t('samples.group'), url: '/samples/images/group.jpg' }
+])
 
 async function removeBg() {
   if (!imgSrc.value) return
