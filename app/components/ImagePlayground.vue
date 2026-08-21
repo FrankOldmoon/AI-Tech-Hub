@@ -345,7 +345,7 @@ watch(result, (v) => {
 const defaultSamples = computed(() => [
   { label: t('samples.face'), url: '/samples/images/portrait.jpg' },
   { label: t('samples.group'), url: '/samples/images/group.jpg' },
-  { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+  { label: t('samples.landscape'), url: '/samples/images/urban-street.jpg' },
   { label: t('samples.document'), url: '/samples/images/document.jpg' },
   { label: t('samples.street'), url: '/samples/images/street.jpg' }
 ])

@@ -178,7 +178,7 @@ function stopWebcam() {
 const defaultSamples = computed(() => [
   { label: t('samples.face'), url: '/samples/images/face.jpg' },
   { label: t('samples.group'), url: '/samples/images/group.jpg' },
-  { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+  { label: t('samples.landscape'), url: '/samples/images/urban-street.jpg' },
   { label: t('samples.document'), url: '/samples/images/document.jpg' }
 ])
 const sampleImages = computed(() => props.samples ?? defaultSamples.value)

@@ -230,7 +230,7 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     ],
     samples: t => [
       { label: t('samples.street'), url: '/samples/images/street.jpg' },
-      { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' }
+      { label: t('samples.landscape'), url: '/samples/images/urban-street.jpg' }
     ]
   },
 
@@ -247,7 +247,7 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'scoreThreshold', label: t('params.scoreThreshold'), type: 'slider', default: 0, min: 0, max: 1, step: 0.05 }
     ],
     samples: t => [
-      { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+      { label: t('samples.landscape'), url: '/samples/images/urban-street.jpg' },
       { label: t('samples.street'), url: '/samples/images/street.jpg' }
     ]
   }
