@@ -26,15 +26,17 @@ export default defineNuxtConfig({
     }
   },
 
-  // 首页与分类页可预渲染，单个 demo 页保持动态以支持 Python 后端调用
-  routeRules: {
-    '/': { prerender: true },
-    '/speech': { prerender: true },
-    '/vision': { prerender: true },
-    '/nlp': { prerender: true },
-    '/aigc': { prerender: true },
-    '/ml': { prerender: true }
-  },
+  // 首页与分类页生产构建时预渲染；dev 中禁用（prerender routeRules 会触发 route-rules.mjs 变化导致页面反复 full-reload）
+  routeRules: process.env.NODE_ENV === 'production'
+    ? {
+        '/': { prerender: true },
+        '/speech': { prerender: true },
+        '/vision': { prerender: true },
+        '/nlp': { prerender: true },
+        '/aigc': { prerender: true },
+        '/ml': { prerender: true }
+      }
+    : {},
 
   compatibilityDate: '2026-06-30',
 
@@ -44,7 +46,9 @@ export default defineNuxtConfig({
   vite: {
     optimizeDeps: {
       exclude: ['@huggingface/transformers', 'onnxruntime-node', 'sharp'],
-      include: ['onnxruntime-web']
+      // 显式预构建常见运行时依赖，避免 Vite 在 dev 中"发现新依赖→优化→页面 full-reload"
+      // （Nuxt/Vite 已知问题：多页面应用触发 endless reload，见 nuxt/cli#1141、nuxt/nuxt#33746）
+      include: ['onnxruntime-web', '@mediapipe/tasks-vision', 'tesseract.js', 'webllm', 'pyodide']
     },
     resolve: {
       dedupe: ['long']
