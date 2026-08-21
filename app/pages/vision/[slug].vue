@@ -6,7 +6,7 @@
  * 3. 都没有 -> 404
  */
 import type { VisionTaskConfig } from '~/utils/mediapipe-vision'
-import { imageToolsByPage } from '~/utils/image-tools'
+import { imageToolsByPage, imagePageSamples } from '~/utils/image-tools'
 
 const route = useRoute()
 const { getDemo } = useDemos()
@@ -17,6 +17,11 @@ const demo = computed(() => getDemo('vision', slug.value))
 const tools = computed(() => imageToolsByPage(slug.value))
 
 const cfg = ref<VisionTaskConfig | null>(null)
+// 图像工坊各页专属示例图（labelKey 解析为 i18n 文案；未配置回落通用列表）
+const pageSamples = computed(() => {
+  const list = imagePageSamples[slug.value as keyof typeof imagePageSamples]
+  return list ? list.map(s => ({ label: t(s.labelKey), url: s.url })) : null
+})
 
 onMounted(async () => {
   if (tools.value.length) return
@@ -39,7 +44,12 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
   <div v-if="demo">
     <ClientOnly>
       <!-- 图像工坊模式 -->
-      <ImagePlayground v-if="tools.length" :demo="demo" :tools="tools" />
+      <ImagePlayground
+        v-if="tools.length"
+        :demo="demo"
+        :tools="tools"
+        :samples="pageSamples"
+      />
 
       <!-- 传统 MediaPipe 模式 -->
       <MediaVisionRunner

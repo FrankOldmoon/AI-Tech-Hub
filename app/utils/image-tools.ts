@@ -2244,6 +2244,72 @@ export const imagePages: { slug: ImagePageSlug; tools: ImageTool[] }[] = [
   { slug: 'multimodal', tools: multimodalTools }
 ]
 
+/**
+ * 图像工坊各页专属示例图（labelKey 在 ImagePlayground 中经 i18n 解析）。
+ * 未配置的页回落通用示例列表。选图原则见 docs/vision-sample-keywords.md。
+ */
+export const imagePageSamples: Partial<Record<ImagePageSlug, { labelKey: string, url: string }[]>> = {
+  'viewer': [
+    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' },
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+  ],
+  'transform': [
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+  ],
+  'pixel': [
+    { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
+  ],
+  'color': [
+    { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+  ],
+  'adjustment': [
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
+  ],
+  'filters': [
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' }
+  ],
+  'enhancement': [
+    { labelKey: 'samples.noisy', url: '/samples/images/noisy.jpg' },
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
+  ],
+  'morphology': [
+    { labelKey: 'samples.shapes', url: '/samples/images/shapes.jpg' },
+    { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
+  ],
+  'edge': [
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
+    { labelKey: 'samples.shapes', url: '/samples/images/shapes.jpg' }
+  ],
+  'object': [
+    { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+  ],
+  'features': [
+    { labelKey: 'samples.checkerboard', url: '/samples/images/checkerboard.jpg' },
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+  ],
+  'face': [
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
+  ],
+  'ocr': [
+    { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
+  ],
+  'ai-vision': [
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
+  ],
+  'multimodal': [
+    { labelKey: 'samples.landscape', url: '/samples/images/landscape.jpg' },
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+  ]
+}
+
 export function imageToolsByPage(slug: string): ImageTool[] {
   return imageTools.filter(t => t.page === slug)
 }

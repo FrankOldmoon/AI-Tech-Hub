@@ -18,6 +18,8 @@ import * as alg from '~/utils/image-algorithms'
 const props = defineProps<{
   demo: LocalizedDemo
   tools: ImageTool[]
+  /** 本页专属示例图（未配置时用通用示例列表） */
+  samples?: Array<{ label: string, url: string }> | null
 }>()
 
 const { t, locale } = useI18n()
@@ -340,13 +342,14 @@ watch(result, (v) => {
 
 // ===== 上传 =====
 
-const sampleImages = computed(() => [
+const defaultSamples = computed(() => [
   { label: t('samples.face'), url: '/samples/images/portrait.jpg' },
   { label: t('samples.group'), url: '/samples/images/group.jpg' },
   { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
   { label: t('samples.document'), url: '/samples/images/document.jpg' },
   { label: t('samples.street'), url: '/samples/images/street.jpg' }
 ])
+const sampleImages = computed(() => props.samples ?? defaultSamples.value)
 
 async function useSample(url: string) {
   try {
