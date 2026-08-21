@@ -14,18 +14,23 @@ const hasImage = ref(false)
 
 let segmenter: any = null
 let DrawingUtilsCtor: any = null
-let BrushModeEnum: any = null
 let bitmap: ImageBitmap | null = null
+
+/**
+ * @mediapipe/tasks-vision v1.0.1 的 BrushMode 仅存在于类型声明，
+ * 运行时 bundle（vision_bundle.mjs）未导出它（官方导出清单无 BrushMode），
+ * 直接 import 会得到 undefined。此处按官方 vision.d.ts 本地定义。
+ */
+const BrushMode = { UNSPECIFIED: 0, POSITIVE: 1, NEGATIVE: 2, LASSO: 3 } as const
 
 async function ensure() {
   if (segmenter) return segmenter
   loading.value = true
   error.value = null
   try {
-    const { FilesetResolver, InteractiveSegmenter, DrawingUtils, BrushMode } = await import('@mediapipe/tasks-vision')
+    const { FilesetResolver, InteractiveSegmenter, DrawingUtils } = await import('@mediapipe/tasks-vision')
     const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
     DrawingUtilsCtor = DrawingUtils
-    BrushModeEnum = BrushMode
     segmenter = await InteractiveSegmenter.createFromOptions(vision, {
       baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate: 'GPU' }
     })
@@ -112,7 +117,7 @@ async function onCanvasClick(e: MouseEvent) {
   error.value = null
   try {
     const mask = segmenter.segment([{
-      brushMode: BrushModeEnum.POSITIVE,
+      brushMode: BrushMode.POSITIVE,
       point: [{ x: nx, y: ny }],
       isCompleted: true
     }])
