@@ -68,6 +68,19 @@ const formatItems = [
   { label: 'WebP', value: 'webp' }
 ]
 
+// ===== 结果图弹性过渡（Apple「可中断弹簧 + 方向暗示」）=====
+// 切工具 / 手柄松手 / 慢工具出结果时，结果容器轻微缩放弹入，提示「结果已更新」
+const pulseTarget = ref(1)
+const resultPulse = useSpring(pulseTarget, { damping: 0.95, stiffness: 260 })
+
+function pulseResult(scale = 0.97) {
+  pulseTarget.value = scale
+  // 等弹簧先收敛到缩小值（~80ms），再弹回 1.0，产生「新结果弹入」的方向暗示
+  setTimeout(() => {
+    pulseTarget.value = 1
+  }, 80)
+}
+
 const kindLabels: Record<ImageToolKind, string> = {
   canvas: 'Canvas',
   opencv: 'OpenCV.js',
@@ -108,6 +121,7 @@ watch(paramValues, scheduleRun, { deep: true })
 
 function selectTool(id: string) {
   activeToolId.value = id
+  pulseResult(0.97)
 }
 
 // ===== 运行 =====
@@ -233,6 +247,8 @@ function onResizeEnd() {
   resizing.value = false
   window.removeEventListener('mousemove', onResizeMove)
   window.removeEventListener('mouseup', onResizeEnd)
+  // 手柄松手：轻微「settle」确认
+  pulseResult(0.99)
 }
 
 function updateResultScale() {
@@ -248,6 +264,10 @@ function updateResultScale() {
 watch(result, (v) => {
   if (activeTool.value?.id === 'resize' && v && resultScale.value === 0) {
     nextTick(updateResultScale)
+  }
+  // 慢工具（AI/OpenCV 等）出结果：轻微弹入提示更新（canvas 工具每帧重绘不弹）
+  if (v && !isImmediateTool() && !resizing.value) {
+    pulseResult(0.985)
   }
 })
 
@@ -558,7 +578,10 @@ const modeText = computed(() => {
                   </span>
                 </p>
                 <div class="overflow-auto rounded-lg border border-default">
-                  <div class="relative w-fit">
+                  <div
+                    class="relative w-fit"
+                    :style="{ transform: `scale(${resultPulse})`, transformOrigin: 'center' }"
+                  >
                     <canvas
                       ref="resultCanvas"
                       class="rounded-lg"
