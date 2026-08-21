@@ -102,6 +102,8 @@
   "animal": "动物",
   "person": "人",
   "plant": "植物",
+  "personPhoto": "单人照",
+  "desk": "桌面多物体",
   "noisy": "噪点照",
   "checkerboard": "棋盘格",
   "shapes": "形状图",

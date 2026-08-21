@@ -102,6 +102,8 @@
   "animal": "Animal",
   "person": "Person",
   "plant": "Plant",
+  "personPhoto": "Single person",
+  "desk": "Desk objects",
   "noisy": "Noisy",
   "checkerboard": "Checkerboard",
   "shapes": "Shapes",
