@@ -23,6 +23,8 @@ export interface VisionTaskConfig {
   draw?: (ctx: CanvasRenderingContext2D, result: any) => void
   /** 可调参数（label 通过 i18n t 函数本地化）；param key 与 setOptions 选项键一一对应 */
   params?: (t: (key: string) => string) => ParamSpec[]
+  /** 该 demo 专属示例图（label 通过 i18n t 函数本地化）；未配置时用通用示例列表 */
+  samples?: (t: (key: string) => string) => Array<{ label: string, url: string }>
 }
 
 const GPU = 'GPU'
@@ -48,6 +50,10 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     params: t => [
       { key: 'minDetectionConfidence', label: t('params.minDetectionConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minSuppressionThreshold', label: t('params.minSuppressionThreshold'), type: 'slider', default: 0.3, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.face'), url: '/samples/images/face.jpg' },
+      { label: t('samples.group'), url: '/samples/images/group.jpg' }
     ]
   },
 
@@ -79,6 +85,10 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minPresenceConfidence', label: t('params.minPresenceConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'outputFaceBlendshapes', label: t('params.outputFaceBlendshapes'), type: 'switch', default: true }
+    ],
+    samples: t => [
+      { label: t('samples.face'), url: '/samples/images/face.jpg' },
+      { label: t('samples.group'), url: '/samples/images/group.jpg' }
     ]
   },
 
@@ -101,6 +111,9 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minDetectionConfidence', label: t('params.minDetectionConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minHandPresenceConfidence', label: t('params.minHandPresenceConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.hand'), url: '/samples/images/hand.jpg' }
     ]
   },
 
@@ -123,6 +136,9 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minHandDetectionConfidence', label: t('params.minHandDetectionConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minHandPresenceConfidence', label: t('params.minHandPresenceConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.hand'), url: '/samples/images/hand.jpg' }
     ]
   },
 
@@ -145,6 +161,9 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       { key: 'minDetectionConfidence', label: t('params.minDetectionConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minPosePresenceConfidence', label: t('params.minPosePresenceConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.group'), url: '/samples/images/group.jpg' }
     ]
   },
 
@@ -177,6 +196,9 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     params: t => [
       { key: 'minDetectionConfidence', label: t('params.minDetectionConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 },
       { key: 'minTrackingConfidence', label: t('params.minTrackingConfidence'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.group'), url: '/samples/images/group.jpg' }
     ]
   },
 
@@ -197,6 +219,10 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     params: t => [
       { key: 'maxResults', label: t('params.maxResults'), type: 'slider', default: 5, min: 1, max: 20, step: 1 },
       { key: 'scoreThreshold', label: t('params.scoreThreshold'), type: 'slider', default: 0.5, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.street'), url: '/samples/images/street.jpg' },
+      { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' }
     ]
   },
 
@@ -211,6 +237,10 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
     , params: t => [
       { key: 'maxResults', label: t('params.maxResults'), type: 'slider', default: 5, min: 1, max: 20, step: 1 },
       { key: 'scoreThreshold', label: t('params.scoreThreshold'), type: 'slider', default: 0, min: 0, max: 1, step: 0.05 }
+    ],
+    samples: t => [
+      { label: t('samples.landscape'), url: '/samples/images/landscape.jpg' },
+      { label: t('samples.street'), url: '/samples/images/street.jpg' }
     ]
   }
 }
