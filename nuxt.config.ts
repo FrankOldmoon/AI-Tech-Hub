@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { isWebllmIndexJs, neutralizeImportMetaUrl } from './build/webllm-neutralize'
+
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/ui', '@nuxtjs/i18n'],
 
@@ -38,6 +40,18 @@ export default defineNuxtConfig({
   // 触发 onnxruntime-node / sharp 等 Node 专属依赖解析失败
   // TensorFlow.js 需保留在预打包中以将 CJS require() 转为 ESM
   vite: {
+    plugins: [
+      {
+        // 修复 Vercel 生产构建崩溃，详见 build/webllm-neutralize.ts
+        name: 'web-llm-neutralize-import-meta-url',
+        enforce: 'pre',
+        transform(code, id) {
+          if (!isWebllmIndexJs(id)) return
+          const next = neutralizeImportMetaUrl(code)
+          return next === code ? undefined : next
+        }
+      }
+    ],
     optimizeDeps: {
       exclude: ['@huggingface/transformers', 'onnxruntime-node', 'sharp'],
       // 显式预构建常见运行时依赖，避免 Vite 在 dev 中"发现新依赖→优化→页面 full-reload"
