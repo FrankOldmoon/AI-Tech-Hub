@@ -26,17 +26,11 @@ export default defineNuxtConfig({
     }
   },
 
-  // 首页与分类页生产构建时预渲染；dev 中禁用（prerender routeRules 会触发 route-rules.mjs 变化导致页面反复 full-reload）
-  routeRules: process.env.NODE_ENV === 'production'
-    ? {
-        '/': { prerender: true },
-        '/speech': { prerender: true },
-        '/vision': { prerender: true },
-        '/nlp': { prerender: true },
-        '/aigc': { prerender: true },
-        '/ml': { prerender: true }
-      }
-    : {},
+  // 首页与分类页生产构建时预渲染；dev 中禁用。
+  // 注：Nitro 2.13.4 的 prerender 在生产构建报错（本地 createRequire('file:///_entry.js')、
+  // Vercel Maximum call stack size exceeded），且这些页面均为 ClientOnly/SPA 组件，
+  // prerender 非必需——改为运行时渲染（SSR on-demand / SPA fallback）。
+  routeRules: {},
 
   compatibilityDate: '2026-06-30',
 
