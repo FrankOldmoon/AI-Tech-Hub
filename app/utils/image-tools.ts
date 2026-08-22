@@ -2324,7 +2324,8 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>>
   ],
   'multimodal': [
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
-    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
+    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg' }
   ]
 }
 
