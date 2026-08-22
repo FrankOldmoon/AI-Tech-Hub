@@ -2318,8 +2318,9 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>>
     { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
   ],
   'ai-vision': [
-    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
-    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
+    { labelKey: 'samples.personPhoto', url: '/samples/images/person.jpg' },
+    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg', secondUrl: '/samples/images/cat.jpg' },
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
   'multimodal': [
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
