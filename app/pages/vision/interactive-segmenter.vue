@@ -11,6 +11,8 @@ const fileInput = ref<HTMLInputElement>()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const hasImage = ref(false)
+/** 实际生效的推理后端：GPU 优先，客户端不支持时自动降级 CPU */
+const delegateMode = ref<'GPU' | 'CPU'>('GPU')
 
 let segmenter: any = null
 let DrawingUtilsCtor: any = null
@@ -31,9 +33,23 @@ async function ensure() {
     const { FilesetResolver, InteractiveSegmenter, DrawingUtils } = await import('@mediapipe/tasks-vision')
     const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
     DrawingUtilsCtor = DrawingUtils
-    segmenter = await InteractiveSegmenter.createFromOptions(vision, {
-      baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate: 'GPU' }
-    })
+    // 按客户端能力判定：优先 GPU（独显/支持 WebGL2），失败自动降级 CPU
+    // （无独显笔记本 / 硬件加速关闭时 WebGL2 不可用，GPU delegate 会初始化失败）
+    for (const delegate of ['GPU', 'CPU'] as const) {
+      try {
+        segmenter = await InteractiveSegmenter.createFromOptions(vision, {
+          baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate }
+        })
+        delegateMode.value = delegate
+        break
+      } catch (e) {
+        if (delegate === 'GPU') {
+          console.warn('[interactive-segmenter] GPU delegate 不可用，自动降级 CPU:', e)
+        } else {
+          throw e
+        }
+      }
+    }
   } catch (e: any) {
     error.value = humanError(e, t)
   } finally {
@@ -145,6 +161,13 @@ async function onCanvasClick(e: MouseEvent) {
       />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
       <span v-if="hasImage" class="text-sm text-muted">{{ t('mp.clickHint') }}</span>
+      <UBadge
+        v-if="hasImage"
+        :color="delegateMode === 'GPU' ? 'primary' : 'neutral'"
+        variant="subtle"
+      >
+        {{ delegateMode === 'GPU' ? 'GPU' : 'CPU' }}
+      </UBadge>
     </div>
 
     <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
