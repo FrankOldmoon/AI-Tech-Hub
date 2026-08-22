@@ -13,7 +13,10 @@ export async function setupTransformersEnv() {
   env.remoteHost = `${window.location.origin}/api/hf`
   env.remotePathTemplate = '{model}/resolve/{revision}/'
   // WASM 后端放到 worker，避免阻塞主线程
-  env.backends.onnx.wasm.proxy = true
+  env.backends.onnx!.wasm!.proxy = true
+  // onnxruntime WASM 自托管到 public/vendor/onnx，避免默认从 jsdelivr CDN 拉取
+  // （CDN 被拦截/网络不通时 transformers 工具会卡在加载一直转圈）
+  env.backends.onnx!.wasm!.wasmPaths = '/vendor/onnx/'
   return env
 }
 
