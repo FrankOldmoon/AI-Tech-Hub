@@ -3,7 +3,7 @@ import type { ParamSpec } from '~/utils/params'
 import { humanError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
-import { setupTransformersEnv, preferredDevice, hasWebGPU, transformersModels } from '~/utils/transformers'
+import { setupTransformersEnv, hasWebGPU, transformersModels } from '~/utils/transformers'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -56,7 +56,8 @@ async function ensurePipeline() {
     }
     const { pipeline } = await import('@huggingface/transformers')
     pipe = await pipeline('depth-estimation' as any, modelId.value, {
-      device: preferredDevice(),
+      // depth-anything 在 WebGPU（onnxruntime jsep）执行报 "null function"，强制 wasm 稳定
+      device: 'wasm',
       dtype: 'fp32'
     } as any)
   } catch (e: any) {
