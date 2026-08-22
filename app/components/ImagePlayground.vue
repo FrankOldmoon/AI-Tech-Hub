@@ -553,20 +553,23 @@ const modeText = computed(() => {
               v-for="tool in tools"
               :key="tool.id"
               type="button"
-              class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-sm text-left transition-colors cursor-pointer"
+              class="w-full flex flex-col items-start gap-0.5 px-2 py-2 rounded-lg text-sm text-left transition-colors cursor-pointer"
               :class="tool.id === activeToolId
                 ? 'bg-primary/10 text-primary font-medium'
                 : 'text-muted hover:bg-elevated/60 hover:text-highlighted'"
               @click="selectTool(tool.id)"
             >
-              <span class="truncate flex-1">{{ pickText(tool.name, lang) }}</span>
-              <span
-                v-if="tool.planned"
-                class="text-[10px] px-1.5 py-0.5 rounded bg-neutral/10 text-dimmed shrink-0"
-              >
-                {{ t('image.planned') }}
+              <!-- 两行布局：第一行完整工具名（可换行不截断），第二行类型 + 状态徽章 -->
+              <span class="leading-snug w-full break-words">{{ pickText(tool.name, lang) }}</span>
+              <span class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-dimmed shrink-0">
+                <span class="font-medium">{{ kindLabel(tool.kind) }}</span>
+                <span
+                  v-if="tool.planned"
+                  class="px-1 py-px rounded bg-neutral/10 text-dimmed normal-case"
+                >
+                  {{ t('image.planned') }}
+                </span>
               </span>
-              <span class="text-[10px] uppercase tracking-wide text-dimmed shrink-0">{{ kindLabel(tool.kind) }}</span>
             </button>
           </nav>
         </UCard>
