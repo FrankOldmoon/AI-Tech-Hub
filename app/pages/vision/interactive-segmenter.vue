@@ -13,6 +13,10 @@ const error = ref<string | null>(null)
 const hasImage = ref(false)
 /** 实际生效的推理后端：GPU 优先，客户端不支持时自动降级 CPU */
 const delegateMode = ref<'GPU' | 'CPU'>('GPU')
+/** 用户选择的后端模式：auto 自动判定 / GPU / CPU（默认 auto） */
+const backendMode = ref<'auto' | 'GPU' | 'CPU'>('auto')
+/** 降级/建议提示（可关闭） */
+const notice = ref<string | null>(null)
 
 let segmenter: any = null
 let DrawingUtilsCtor: any = null
@@ -35,16 +39,15 @@ function detectWebGL2(): boolean {
   }
 }
 
-async function createSegmenter(delegate: 'GPU' | 'CPU') {
-  const { FilesetResolver, InteractiveSegmenter } = await import('@mediapipe/tasks-vision')
-  const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
-  return InteractiveSegmenter.createFromOptions(vision, {
-    baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate }
-  })
+/** 按用户选择 + 客户端能力解析目标 delegate */
+function resolveDelegate(): 'GPU' | 'CPU' {
+  if (backendMode.value === 'GPU') return 'GPU'
+  if (backendMode.value === 'CPU') return 'CPU'
+  return detectWebGL2() ? 'GPU' : 'CPU'
 }
 
-/** GPU 执行失败后重建 CPU segmenter（并恢复当前图片） */
-async function rebuildCpu() {
+/** 关闭旧的并重建指定 delegate 的 segmenter（恢复当前图片） */
+async function disposeAndRecreate(delegate: 'GPU' | 'CPU') {
   const { DrawingUtils } = await import('@mediapipe/tasks-vision')
   DrawingUtilsCtor = DrawingUtils
   if (segmenter) {
@@ -55,9 +58,31 @@ async function rebuildCpu() {
     }
     segmenter = null
   }
-  segmenter = await createSegmenter('CPU')
-  delegateMode.value = 'CPU'
-  if (bitmap) segmenter.setImage(bitmap)
+  segmenter = await createSegmenter(delegate)
+  delegateMode.value = delegate
+  if (bitmap) {
+    segmenter.setImage(bitmap)
+    redraw()
+  }
+}
+
+/** 降级提示：告知用户已切换后端 + 建议 */
+function showFallbackNotice() {
+  notice.value = t('mp.backendFallbackHint')
+}
+
+async function createSegmenter(delegate: 'GPU' | 'CPU') {
+  const { FilesetResolver, InteractiveSegmenter } = await import('@mediapipe/tasks-vision')
+  const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
+  return InteractiveSegmenter.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate }
+  })
+}
+
+/** GPU 执行失败后重建 CPU segmenter（并恢复当前图片） */
+async function rebuildCpu() {
+  await disposeAndRecreate('CPU')
+  showFallbackNotice()
 }
 
 async function ensure() {
@@ -67,9 +92,8 @@ async function ensure() {
   try {
     const { DrawingUtils } = await import('@mediapipe/tasks-vision')
     DrawingUtilsCtor = DrawingUtils
-    // 按客户端能力判定：先主动检测 WebGL2（创建 canvas 试拿上下文），
-    // 不可用直接 CPU；创建期失败也自动降级 CPU
-    const preferred: 'GPU' | 'CPU' = detectWebGL2() ? 'GPU' : 'CPU'
+    // 按用户选择 + 客户端能力判定：auto 时先主动检测 WebGL2，不可用直接 CPU
+    const preferred = resolveDelegate()
     try {
       segmenter = await createSegmenter(preferred)
       delegateMode.value = preferred
@@ -78,6 +102,7 @@ async function ensure() {
         console.warn('[interactive-segmenter] GPU delegate 创建失败，自动降级 CPU:', e)
         segmenter = await createSegmenter('CPU')
         delegateMode.value = 'CPU'
+        showFallbackNotice()
       } else {
         throw e
       }
@@ -89,6 +114,37 @@ async function ensure() {
   }
   return segmenter
 }
+
+/** 用户手动切换后端模式（由 watch backendMode 触发） */
+async function onBackendChange() {
+  if (!segmenter) return
+  loading.value = true
+  error.value = null
+  try {
+    await disposeAndRecreate(resolveDelegate())
+  } catch {
+    // 手动选 GPU 但环境不支持 → 降级 CPU 保底可用，并提示
+    try {
+      await disposeAndRecreate('CPU')
+      showFallbackNotice()
+    } catch (e2) {
+      error.value = humanError(e2, t)
+    }
+  } finally {
+    loading.value = false
+  }
+}
+
+const backendItems = computed(() => [
+  { label: t('mp.backendAuto'), value: 'auto' },
+  { label: 'GPU', value: 'GPU' },
+  { label: 'CPU', value: 'CPU' }
+])
+
+// 选择器变化即重建 segmenter（不依赖 @change 事件名，v-model 双向绑定更稳）
+watch(backendMode, () => {
+  if (segmenter) void onBackendChange()
+})
 
 async function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -203,6 +259,12 @@ async function onCanvasClick(e: MouseEvent) {
         :samples="samples"
         @pick="useSample"
       />
+      <USelect
+        v-model="backendMode"
+        :items="backendItems"
+        class="w-36"
+        :aria-label="t('mp.backendMode')"
+      />
       <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
       <span v-if="hasImage" class="text-sm text-muted">{{ t('mp.clickHint') }}</span>
       <UBadge
@@ -215,6 +277,14 @@ async function onCanvasClick(e: MouseEvent) {
     </div>
 
     <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+    <UAlert
+      v-if="notice"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="notice"
+      @close="notice = null"
+    />
 
     <div class="w-full flex justify-center">
       <canvas
