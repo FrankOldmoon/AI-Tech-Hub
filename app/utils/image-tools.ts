@@ -2117,10 +2117,11 @@ const multimodalTools: ImageTool[] = [
     kind: 'transformers',
     pythonModule: 'image/multimodal',
     run: async ({ imageData, lang }) => {
-      const { setupTransformersEnv, preferredDevice, transformersModels } = await import('~/utils/transformers')
+      const { setupTransformersEnv, transformersModels } = await import('~/utils/transformers')
       await setupTransformersEnv()
       const { pipeline } = await import('@huggingface/transformers')
-      const p = await pipeline('depth-estimation' as any, transformersModels.depthEstimation, { device: preferredDevice(), dtype: 'fp32' } as any)
+      // depth-anything 在 WebGPU（onnxruntime jsep）执行报 "null function"，强制 wasm 稳定
+      const p = await pipeline('depth-estimation' as any, transformersModels.depthEstimation, { device: 'wasm', dtype: 'fp32' } as any)
       try {
         const out = await p(toDataUrl(imageData))
         const depth = out?.depth
