@@ -25,29 +25,61 @@ let bitmap: ImageBitmap | null = null
  */
 const BrushMode = { UNSPECIFIED: 0, POSITIVE: 1, NEGATIVE: 2, LASSO: 3 } as const
 
+/** 主动检测 WebGL2 是否可用：创建 canvas 试拿上下文（硬件加速关/无独显时通常失败） */
+function detectWebGL2(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    return typeof WebGL2RenderingContext !== 'undefined' && !!(c.getContext('webgl2'))
+  } catch {
+    return false
+  }
+}
+
+async function createSegmenter(delegate: 'GPU' | 'CPU') {
+  const { FilesetResolver, InteractiveSegmenter } = await import('@mediapipe/tasks-vision')
+  const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
+  return InteractiveSegmenter.createFromOptions(vision, {
+    baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate }
+  })
+}
+
+/** GPU 执行失败后重建 CPU segmenter（并恢复当前图片） */
+async function rebuildCpu() {
+  const { DrawingUtils } = await import('@mediapipe/tasks-vision')
+  DrawingUtilsCtor = DrawingUtils
+  if (segmenter) {
+    try {
+      segmenter.close()
+    } catch {
+      /* ignore */
+    }
+    segmenter = null
+  }
+  segmenter = await createSegmenter('CPU')
+  delegateMode.value = 'CPU'
+  if (bitmap) segmenter.setImage(bitmap)
+}
+
 async function ensure() {
   if (segmenter) return segmenter
   loading.value = true
   error.value = null
   try {
-    const { FilesetResolver, InteractiveSegmenter, DrawingUtils } = await import('@mediapipe/tasks-vision')
-    const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
+    const { DrawingUtils } = await import('@mediapipe/tasks-vision')
     DrawingUtilsCtor = DrawingUtils
-    // 按客户端能力判定：优先 GPU（独显/支持 WebGL2），失败自动降级 CPU
-    // （无独显笔记本 / 硬件加速关闭时 WebGL2 不可用，GPU delegate 会初始化失败）
-    for (const delegate of ['GPU', 'CPU'] as const) {
-      try {
-        segmenter = await InteractiveSegmenter.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: mediapipeModels.magicTouch, delegate }
-        })
-        delegateMode.value = delegate
-        break
-      } catch (e) {
-        if (delegate === 'GPU') {
-          console.warn('[interactive-segmenter] GPU delegate 不可用，自动降级 CPU:', e)
-        } else {
-          throw e
-        }
+    // 按客户端能力判定：先主动检测 WebGL2（创建 canvas 试拿上下文），
+    // 不可用直接 CPU；创建期失败也自动降级 CPU
+    const preferred: 'GPU' | 'CPU' = detectWebGL2() ? 'GPU' : 'CPU'
+    try {
+      segmenter = await createSegmenter(preferred)
+      delegateMode.value = preferred
+    } catch (e) {
+      if (preferred === 'GPU') {
+        console.warn('[interactive-segmenter] GPU delegate 创建失败，自动降级 CPU:', e)
+        segmenter = await createSegmenter('CPU')
+        delegateMode.value = 'CPU'
+      } else {
+        throw e
       }
     }
   } catch (e: any) {
@@ -136,15 +168,27 @@ async function onCanvasClick(e: MouseEvent) {
   if (nx < 0 || nx > 1 || ny < 0 || ny > 1) return
   loading.value = true
   error.value = null
+  const doSegment = () => segmenter.segment([{
+    brushMode: BrushMode.POSITIVE,
+    point: [{ x: nx, y: ny }],
+    isCompleted: true
+  }])
   try {
-    const mask = segmenter.segment([{
-      brushMode: BrushMode.POSITIVE,
-      point: [{ x: nx, y: ny }],
-      isCompleted: true
-    }])
+    const mask = doSegment()
     redraw(mask, { x: nx, y: ny })
   } catch (e: any) {
-    error.value = humanError(e, t)
+    // GPU 创建成功但执行分割时才拿 WebGL2 上下文——执行失败时重建 CPU 重试一次
+    if (delegateMode.value === 'GPU') {
+      try {
+        await rebuildCpu()
+        const mask = doSegment()
+        redraw(mask, { x: nx, y: ny })
+      } catch (e2) {
+        error.value = humanError(e2, t)
+      }
+    } else {
+      error.value = humanError(e, t)
+    }
   } finally {
     loading.value = false
   }
