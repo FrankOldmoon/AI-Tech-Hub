@@ -218,6 +218,10 @@ async function run(req = latestReq) {
   try {
     // 防御：参数始终与默认值合并，避免首次运行缺键导致 NaN
     const mergedParams = { ...paramDefaults(specs.value), ...paramValues.value }
+    // 把手拖动期间忽略 keep 等比（水平/垂直把手独立控制单边，等比把手自行等比）
+    if (activeTool.value?.id === 'resize' && resizeDragKeep.value) {
+      mergedParams.keep = false
+    }
     // canvas 工具不改源图，直接传原图省一次 4MB 深拷贝（AI 工具保留防御性克隆）
     const src = isImmediateTool() ? original.value : alg.cloneImageData(original.value)
     const res = await tool.run({
@@ -263,6 +267,8 @@ function reset() {
 /** resize 把手模式：h = 水平（只改宽度）、v = 垂直（只改高度）、s = 等比（按当前宽高比同变） */
 type ResizeMode = 'h' | 'v' | 's'
 const resizing = ref(false)
+/** 把手拖动期间忽略 keep 等比：水平把手只改宽、垂直只改高（keep 仅作用于滑块操作与等比把手） */
+const resizeDragKeep = ref(false)
 const resizeStart = ref({ mode: 'h' as ResizeMode, x: 0, y: 0, w: 0, h: 0, rectW: 1, rectH: 1 })
 
 function onResizeStart(e: PointerEvent, mode: ResizeMode) {
@@ -273,13 +279,20 @@ function onResizeStart(e: PointerEvent, mode: ResizeMode) {
   // Pointer Capture：拖动过程中指针移出按钮仍持续收到事件（触屏/鼠标统一）
   handle.setPointerCapture(e.pointerId)
   resizing.value = true
+  resizeDragKeep.value = true
   const rect = canvas.getBoundingClientRect()
+  // 基准宽高 = 当前实际输出尺寸（keep 开启时高度是等比输出而非 paramValues.height，
+  // 否则水平把手会把高度"跳变"回默认值）
+  const curW = Number(paramValues.value.width) || original.value.width
+  const curH = paramValues.value.keep
+    ? Math.round(original.value.height * (curW / original.value.width))
+    : Number(paramValues.value.height) || original.value.height
   resizeStart.value = {
     mode,
     x: e.clientX,
     y: e.clientY,
-    w: Number(paramValues.value.width) || original.value.width,
-    h: Number(paramValues.value.height) || original.value.height,
+    w: curW,
+    h: curH,
     // 固定换算基准：拖动中原图显示会随参数变化，比例用起始 rect，避免非线性漂移
     rectW: rect.width || 1,
     rectH: rect.height || 1
@@ -306,19 +319,35 @@ function onResizeMove(e: PointerEvent) {
     newH = clampPx(st.h + dyPx)
   } else { // 's' 等比：按当前宽高比同变（高度 = 起始高 × 宽变化率）
     newW = clampPx(st.w + dxPx)
-    newH = clampPx(st.h * (newW / st.w))
+    // keep 开启时按原图比例（与 run 的 keep 等比一致，避免拖动/松手跳变）；
+    // 关闭时保持当前宽高比（把手自由建立的比例）
+    newH = paramValues.value.keep
+      ? clampPx(original.value.height * (newW / original.value.width))
+      : clampPx(st.h * (newW / st.w))
   }
-  // 联动：写入参数（keep 开启时高度由 run 自动保持宽高比，垂直把手拖动会被 run 覆盖）
-  const keep = Boolean(paramValues.value.keep)
+  // 联动：始终显式写入最终 width/height（水平=st.h 保持高、垂直=新高、等比=等比高；
+  // 拖动期间 run 忽略 keep，避免 keep 把高度按宽度等比覆盖）
   paramValues.value = {
     ...paramValues.value,
     width: newW,
-    ...(keep ? {} : { height: newH })
+    height: newH
   }
 }
 
 function onResizeEnd(e: PointerEvent) {
   resizing.value = false
+  // 清掉拖动中的防抖/rAF，立即以「忽略 keep」的参数补跑最终结果；
+  // 否则 150ms 防抖 run 在松手后执行时 keep 已恢复，会把高度按宽度等比覆盖
+  if (timer) {
+    clearTimeout(timer)
+    timer = null
+  }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = 0
+  }
+  run()
+  resizeDragKeep.value = false
   const handle = e.currentTarget as HTMLElement
   handle.removeEventListener('pointermove', onResizeMove)
   handle.removeEventListener('pointerup', onResizeEnd)
@@ -460,7 +489,7 @@ function previewResize() {
   const dst = resultCanvas.value
   if (!src || !dst || !original.value) return
   const w = Math.max(1, Math.round(Number(paramValues.value.width) || original.value.width))
-  const keep = Boolean(paramValues.value.keep)
+  const keep = Boolean(paramValues.value.keep) && !resizeDragKeep.value
   const h = keep
     ? Math.max(1, Math.round(original.value.height * (w / original.value.width)))
     : Math.max(1, Math.round(Number(paramValues.value.height) || original.value.height))
