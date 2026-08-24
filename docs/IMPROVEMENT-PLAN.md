@@ -126,3 +126,4 @@
 | 4 | `feat/demo-metadata` + `fix/nav-seo` ✅ | 注册表 runtime/requirements/featured（39 个标注）、卡片徽章、首页限流+hero 卖点、面包屑/上下页、SEO（ogImage/meta/lang）、GitHub 真实链接（commit `5e53627`，注：直接在 main 提交） | ✅ 完成 |
 | 5 | `fix/polish` ✅ | 复制按钮、Runner 空态/权限引导、mnist UProgress、FacePhotoPicker 反馈、session-only 提示（commit `77639f7`，lint/typecheck 零新增，冒烟 5 页 200） | ✅ 完成 |
 | 6 | `chore/quality-gates` ✅ | vitest 18 用例全过（useTaskPoller/humanError/validateUpload）+ useTaskPoller 显式 import + test script（commit `4e8e1b6`，注：直接在 main 提交）。a11y/性能专项留待人工浏览器验证 | ✅ 完成 |
+| 7 | `fix/ux-todo-reconcile` ✅ | 欠账收尾（2026-08-24）：useTaskPoller 兜底国际化；MediaTextRunner/MediaVisionRunner 三态+进度；howItWorks 机制+80 demo 文案；requiresPython 云端禁用；HowToPlay 三步/FAQ/反馈；5 个 OpenCV 页 status→ready；runtime 标注 34→72（commit `0a5e4af`，lint/typecheck 零新增，playwright 冒烟全过，Vercel success） | ✅ 完成 |
