@@ -145,10 +145,28 @@ watch(() => props.tools, (list) => {
 watch(activeToolId, () => {
   resizeDisplayMode.value = null
   paramValues.value = paramDefaults(specs.value)
+  // resize 工具：默认宽高跟随原图实际尺寸（不硬编码 800×600）
+  if (activeTool.value?.id === 'resize' && original.value) {
+    paramValues.value = {
+      ...paramValues.value,
+      width: original.value.width,
+      height: original.value.height
+    }
+  }
   runLater()
 }, { immediate: true })
 
 watch(paramValues, scheduleRun, { deep: true })
+
+// 图片变化时：resize 工具默认宽高跟随原图尺寸（用户可直接拖拽调整，而非固定 800×600）
+watch(original, () => {
+  if (activeTool.value?.id !== 'resize' || !original.value) return
+  paramValues.value = {
+    ...paramValues.value,
+    width: original.value.width,
+    height: original.value.height
+  }
+})
 
 function selectTool(id: string) {
   activeToolId.value = id
