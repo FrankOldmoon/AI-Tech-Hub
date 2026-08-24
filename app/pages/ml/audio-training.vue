@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
-import { humanError } from '~/utils/errors'
+import { humanError, mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
 
@@ -58,13 +58,18 @@ const specs = computed<ParamSpec[]>(() => [
 ])
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
-let recognizer: any = null
-let transfer: any = null
-let collecting = false // 是否在连续采集
-let collectClass = -1
+// 用 shallowRef 而非 ref：模板直接引用 recognizer/transfer（非响应式 let 会导致 UI 依赖
+// 其他 ref 变化"碰巧"重渲染才刷新，见 2026-08-24 审计）。注意不能用 ref()——ref 会对
+// 对象值做 reactive 深度代理，speech-commands 的 recognizer/transfer 是类实例，被代理后
+// 内部状态（this.backend 等）被破坏，ensureModelLoaded 报 "Cannot read properties of
+// undefined (reading 'backend')"。shallowRef 直接存原始对象，不代理，安全。
+const recognizer = shallowRef<any>(null)
+const transfer = shallowRef<any>(null)
+const collecting = ref(false) // 是否在连续采集
+const collectClass = ref(-1)
 
 async function loadModels() {
-  if (recognizer && transfer) return
+  if (recognizer.value && transfer.value) return
   loading.value = true
   error.value = null
   loadProgress.value = t('ml.loadingSpeechCommands')
@@ -76,14 +81,14 @@ async function loadModels() {
     // 相对路径会报 "Unsupported URL scheme"，因此拼成绝对 URL
     const origin = window.location.origin
     const scBase = isRemoteDeploy() ? REMOTE_TFJS.speechCommandsBase : `${origin}/model/tfjs/speech-commands`
-    recognizer = scMod.create(
+    recognizer.value = scMod.create(
       'BROWSER_FFT',
       null, // 提供自定义 modelURL 时 vocabulary 必须为 null（词汇表在 metadata.json 中）
       `${scBase}/model.json`,
       `${scBase}/metadata.json`
     )
-    await recognizer.ensureModelLoaded()
-    transfer = recognizer.createTransfer('tm-audio')
+    await recognizer.value.ensureModelLoaded()
+    transfer.value = recognizer.value.createTransfer('tm-audio')
     loadProgress.value = ''
   } catch (e: any) {
     error.value = humanError(e, t)
@@ -95,21 +100,21 @@ async function loadModels() {
 // 连续采集：循环调用 collectExample（每次约 1 秒）
 async function startTraining(idx: number) {
   await loadModels()
-  if (!transfer) return
-  collecting = true
-  collectClass = idx
+  if (!transfer.value) return
+  collecting.value = true
+  collectClass.value = idx
   recording.value = true
 
   const collectLoop = async () => {
-    if (!collecting || collectClass !== idx) return
+    if (!collecting.value || collectClass.value !== idx) return
     try {
-      await transfer.collectExample(classNames.value[idx])
-      sampleCounts.value[idx] = transfer.countExamples()?.[classNames.value[idx]] || 0
+      await transfer.value.collectExample(classNames.value[idx])
+      sampleCounts.value[idx] = transfer.value.countExamples()?.[classNames.value[idx]] || 0
     } catch (e: any) {
       error.value = humanError(e, t)
-      collecting = false
+      collecting.value = false
     }
-    if (collecting && collectClass === idx) {
+    if (collecting.value && collectClass.value === idx) {
       // 短暂间隔后继续采集
       setTimeout(collectLoop, 50)
     }
@@ -118,21 +123,21 @@ async function startTraining(idx: number) {
 }
 
 function stopTraining() {
-  collecting = false
-  collectClass = -1
+  collecting.value = false
+  collectClass.value = -1
   recording.value = false
 }
 
 function clearClass(idx: number) {
-  if (!transfer) return
+  if (!transfer.value) return
   // speech-commands transfer 模型没有 clearClass，需清空所有并重建
   // 简化处理：清除该类别样本需重建 transfer
-  const counts = transfer.countExamples() || {}
+  const counts = transfer.value.countExamples() || {}
   const name = classNames.value[idx]
   if (counts[name]) {
     // 移除该类别的所有样本
     try {
-      transfer.clearExamples(name)
+      transfer.value.clearExamples(name)
       sampleCounts.value[idx] = 0
     } catch { /* ignore */ }
   }
@@ -143,9 +148,9 @@ function clearClass(idx: number) {
 }
 
 function clearAll() {
-  if (!transfer) return
+  if (!transfer.value) return
   try {
-    transfer.clearExamples()
+    transfer.value.clearExamples()
   } catch { /* ignore */ }
   sampleCounts.value = [0, 0, 0]
   trained.value = false
@@ -155,14 +160,14 @@ function clearAll() {
 }
 
 async function trainModel() {
-  if (!transfer) return
+  if (!transfer.value) return
   const total = sampleCounts.value.reduce((a, b) => a + b, 0)
   if (total === 0) return
   training.value = true
   error.value = null
   stopPredict()
   try {
-    await transfer.train({
+    await transfer.value.train({
       epochs: Number(params.value.epochs),
       callback: {
         onEpochEnd: async (epoch: number, logs: any) => {
@@ -181,12 +186,12 @@ async function trainModel() {
 }
 
 async function startPredict() {
-  if (!transfer || !trained.value) return
+  if (!transfer.value || !trained.value) return
   predicting.value = true
   try {
-    await transfer.listen((result: any) => {
+    await transfer.value.listen((result: any) => {
       const scores = result.scores
-      const labels = transfer.wordLabels()
+      const labels = transfer.value.wordLabels()
       if (!labels || !scores) return
       predictions.value = labels.map((name: string, i: number) => ({ name, score: scores[i] ?? 0 }))
         .sort((a: any, b: any) => b.score - a.score)
@@ -199,13 +204,17 @@ async function startPredict() {
       probabilityThreshold: 0
     })
   } catch (e: any) {
-    error.value = humanError(e, t)
+    // 麦克风权限/设备错误用 mediaError 映射成人话（NotAllowedError 等），其余回落 humanError
+    error.value = mediaError(e, t)
+    predicting.value = false
   }
 }
 
 function stopPredict() {
-  if (predicting.value && transfer) {
-    try { transfer.stopListening() } catch { /* ignore */ }
+  if (predicting.value && transfer.value) {
+    // stopListening 返回 Promise，同步 try/catch 捕不到 rejection（离开页面/未在监听时
+    // 会抛 "Cannot stop because there is no ongoing streaming activity"）→ 显式吞掉
+    transfer.value.stopListening()?.catch?.(() => {})
   }
   predicting.value = false
 }
@@ -213,7 +222,7 @@ function stopPredict() {
 function renameClass(idx: number, name: string) {
   const oldName = classNames.value[idx]
   if (oldName === name) return
-  if (transfer && sampleCounts.value[idx] > 0) {
+  if (transfer.value && sampleCounts.value[idx] > 0) {
     // speech-commands 不支持重命名，需先清除旧标签
     error.value = t('ml.renameAfterSamples')
     return
@@ -225,7 +234,8 @@ function renameClass(idx: number, name: string) {
 onBeforeUnmount(() => {
   stopTraining()
   stopPredict()
-  try { if (recognizer) recognizer.stopStreaming?.() } catch { /* ignore */ }
+  // stopStreaming 同样返回 Promise，同步 catch 无效 → 显式吞 rejection
+  recognizer.value?.stopStreaming?.()?.catch?.(() => {})
 })
 </script>
 
