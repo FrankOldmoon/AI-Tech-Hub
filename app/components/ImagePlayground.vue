@@ -269,6 +269,9 @@ type ResizeMode = 'h' | 'v' | 's'
 const resizing = ref(false)
 /** 把手拖动期间忽略 keep 等比：水平把手只改宽、垂直只改高（keep 仅作用于滑块操作与等比把手） */
 const resizeDragKeep = ref(false)
+/** scale slider 拖动开始时的基准宽高（连续 input 需基于基准而非累积） */
+let scaleDragBase: { w: number, h: number } | null = null
+let scaleDragTimer: ReturnType<typeof setTimeout> | null = null
 const resizeStart = ref({ mode: 'h' as ResizeMode, x: 0, y: 0, w: 0, h: 0, rectW: 1, rectH: 1 })
 
 function onResizeStart(e: PointerEvent, mode: ResizeMode) {
@@ -319,11 +322,8 @@ function onResizeMove(e: PointerEvent) {
     newH = clampPx(st.h + dyPx)
   } else { // 's' 等比：按当前宽高比同变（高度 = 起始高 × 宽变化率）
     newW = clampPx(st.w + dxPx)
-    // keep 开启时按原图比例（与 run 的 keep 等比一致，避免拖动/松手跳变）；
-    // 关闭时保持当前宽高比（把手自由建立的比例）
-    newH = paramValues.value.keep
-      ? clampPx(original.value.height * (newW / original.value.width))
-      : clampPx(st.h * (newW / st.w))
+    // 学习垂直逻辑：基于当前值缩放，保持当前图片的宽高比（与 keep 无关）
+    newH = clampPx(st.h * (newW / st.w))
   }
   // 联动：始终显式写入最终 width/height（水平=st.h 保持高、垂直=新高、等比=等比高；
   // 拖动期间 run 忽略 keep，避免 keep 把高度按宽度等比覆盖）
@@ -375,11 +375,26 @@ function beginResizeSync() {
 watch(() => paramValues.value.scale, (v) => {
   if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
   beginResizeSync()
-  const scale = Number(v) || 100
+  // 拖动开始（或恢复）时记录基准：slider 拖动是连续 input，若基于"上次已设的 width/height"
+  // 再乘 ratio 会累积放大（1575→3354→…→clamp 4096），必须基于拖动开始时的尺寸
+  if (!scaleDragBase) {
+    const curW = Number(paramValues.value.width) || original.value.width
+    const curH = paramValues.value.keep
+      ? Math.round(original.value.height * (curW / original.value.width))
+      : Number(paramValues.value.height) || original.value.height
+    scaleDragBase = { w: curW, h: curH }
+  }
+  if (scaleDragTimer) clearTimeout(scaleDragTimer)
+  scaleDragTimer = setTimeout(() => {
+    scaleDragBase = null
+  }, 300)
+  const ratio = (Number(v) || 100) / 100
+  const { w: curW, h: curH } = scaleDragBase
+  // 等比学习垂直逻辑：基于当前图片等比缩放（保持当前宽高比），而非相对原图
   paramValues.value = {
     ...paramValues.value,
-    width: Math.max(1, Math.min(4096, Math.round(original.value.width * scale / 100))),
-    height: Math.max(1, Math.min(4096, Math.round(original.value.height * scale / 100)))
+    width: Math.max(1, Math.min(4096, Math.round(curW * ratio))),
+    height: Math.max(1, Math.min(4096, Math.round(curH * ratio)))
   }
 })
 
