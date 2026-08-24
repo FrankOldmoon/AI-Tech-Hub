@@ -266,7 +266,16 @@ function runNow() {
 }
 
 function reset() {
+  resizeDisplayMode.value = null
   paramValues.value = paramDefaults(specs.value)
+  // resize 工具：恢复为原图尺寸（与默认跟随原图一致，而非 specs 硬编码 800×600）
+  if (activeTool.value?.id === 'resize' && original.value) {
+    paramValues.value = {
+      ...paramValues.value,
+      width: original.value.width,
+      height: original.value.height
+    }
+  }
   run()
 }
 
