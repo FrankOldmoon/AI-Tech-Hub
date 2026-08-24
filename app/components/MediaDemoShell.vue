@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DemoStatus } from '~/utils/demos'
+import { isRemoteDeploy } from '~/utils/remote-models'
 
 const props = defineProps<{
   demo: {
@@ -9,6 +10,11 @@ const props = defineProps<{
     status: DemoStatus
     slug?: string
     category?: string
+    runtime?: 'browser' | 'server'
+    /** 工作原理（教学向，折叠渲染） */
+    howItWorks?: string
+    /** 运行必需本地 Python 后端；云端部署时禁用提示 */
+    requiresPython?: boolean
     /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
     pythonModule?: string
   }
@@ -26,6 +32,11 @@ const currentIndex = computed(() => siblings.value.findIndex(d => d.slug === pro
 const prevDemo = computed(() => currentIndex.value > 0 ? siblings.value[currentIndex.value - 1] : null)
 const nextDemo = computed(() => currentIndex.value >= 0 && currentIndex.value < siblings.value.length - 1 ? siblings.value[currentIndex.value + 1] : null)
 const category = computed(() => props.demo.category ? getCategory(props.demo.category) : null)
+// 云端部署时，依赖本地 Python 后端的 demo 不可用（审计批次5 requiresPython；
+// runtime='server' 的 demo 必然走本地 Python 队列，等同 requiresPython）
+const pythonUnavailable = computed(() =>
+  isRemoteDeploy() && (props.demo.requiresPython || props.demo.runtime === 'server')
+)
 
 // SEO：每个 demo 页独立 title/description（审计维度四-8）
 useSeoMeta({
@@ -65,6 +76,19 @@ useSeoMeta({
           </p>
         </div>
       </div>
+
+      <!-- 依赖本地 Python：云端不可用提示（审计批次5） -->
+      <UAlert
+        v-if="pythonUnavailable"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-server-off"
+        :title="t('demo.requiresPythonUnavailable')"
+      />
+
+      <!-- 工作原理（教学向，审计批次5） -->
+      <HowItWorksSection :text="demo.howItWorks" />
+
       <slot />
       <!-- 对应的 Python 最简实现源码 -->
       <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />

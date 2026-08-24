@@ -50,6 +50,9 @@ const searchResults = computed(() => {
     />
 
     <UContainer>
+      <!-- 怎么玩 / FAQ / 反馈（UX 审计批次5） -->
+      <HowToPlay />
+
       <!-- 统计 -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 -mt-6">
         <UCard v-for="s in statItems" :key="s.label" variant="subtle">

@@ -1,5 +1,14 @@
 import { getCurrentInstance, onBeforeUnmount, type Ref } from 'vue'
 
+/** 解析 i18n 翻译函数；vitest 等无 Nuxt i18n 插件的环境回退为 key 原样返回 */
+function resolveT(): (key: string) => string {
+  try {
+    return useI18n().t
+  } catch {
+    return (key: string) => key
+  }
+}
+
 /** 服务端任务对象：字段因 demo 而异（audioUrl/stems/segments/…），故放开索引类型 */
 /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
 export type TaskData = Record<string, any>
@@ -45,6 +54,7 @@ export interface UseTaskPollerOptions {
  *       await poll(`/api/xxx/${taskId}`)
  */
 export function useTaskPoller(options: UseTaskPollerOptions = {}) {
+  const t = resolveT()
   const {
     interval = 1500,
     timeoutMs = 10 * 60 * 1000,
@@ -75,7 +85,7 @@ export function useTaskPoller(options: UseTaskPollerOptions = {}) {
 
     while (!stopped) {
       if (Date.now() - startedAt > timeoutMs) {
-        if (error) error.value = options.timeoutMessage || '任务超时，请重试'
+        if (error) error.value = options.timeoutMessage || t('demo.taskTimeout')
         return false
       }
 
@@ -86,7 +96,7 @@ export function useTaskPoller(options: UseTaskPollerOptions = {}) {
       if (!res || res.ok !== true || !res.task) {
         fetchFailures++
         if (fetchFailures > maxFetchFailures) {
-          if (error) error.value = res?.error || options.failMessage || '任务查询失败'
+          if (error) error.value = res?.error || options.failMessage || t('demo.taskQueryFailed')
           return false
         }
         await sleep(interval)
@@ -104,12 +114,12 @@ export function useTaskPoller(options: UseTaskPollerOptions = {}) {
       }
       if (task.status === 'error') {
         const custom = options.onError?.(task)
-        if (error) error.value = custom || task.error || task.message || options.errorMessage || '处理失败'
+        if (error) error.value = custom || task.error || task.message || options.errorMessage || t('demo.processFailed')
         return false
       }
       if (task.status === 'cancelled') {
         const custom = options.onCancelled?.(task)
-        if (error) error.value = custom || task.message || options.cancelledMessage || '已取消'
+        if (error) error.value = custom || task.message || options.cancelledMessage || t('demo.cancelled')
         return false
       }
 

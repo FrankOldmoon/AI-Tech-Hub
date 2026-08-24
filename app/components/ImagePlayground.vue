@@ -530,14 +530,20 @@ const modeText = computed(() => {
           <UIcon :name="demo.icon" class="size-6" />
         </div>
         <div class="min-w-0">
-          <h1 class="text-2xl font-bold text-highlighted">
-            {{ demo.title }}
-          </h1>
+          <div class="flex items-center gap-2 flex-wrap">
+            <h1 class="text-2xl font-bold text-highlighted">
+              {{ demo.title }}
+            </h1>
+            <DemoStatusBadge :status="demo.status" />
+          </div>
           <p class="mt-1 text-muted">
             {{ demo.description }}
           </p>
         </div>
       </div>
+
+      <!-- 工作原理（教学向，审计批次5） -->
+      <HowItWorksSection :text="demo.howItWorks" />
 
       <div class="grid lg:grid-cols-[240px_minmax(0,1fr)] gap-6 items-start">
         <!-- 工具列表 -->
