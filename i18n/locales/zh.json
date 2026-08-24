@@ -611,6 +611,7 @@
     "stop": "停止",
     "upload": "上传图片",
     "clickHint": "点击图片选择要分割的目标",
+    "cropDrag": "拖动选区或四角手柄调整裁剪范围",
     "backendMode": "推理后端",
     "backendAuto": "自动",
     "backendFallbackHint": "检测到你的浏览器 GPU（WebGL2）不可用，已自动切换到 CPU 模式。可在上方手动切换后端，或开启浏览器「硬件加速」获得 GPU 性能。",
