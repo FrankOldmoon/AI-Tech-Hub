@@ -837,8 +837,8 @@ const modeText = computed(() => {
               </div>
             </div>
 
-            <!-- 原图 / 结果 -->
-            <div class="grid md:grid-cols-2 gap-4">
+            <!-- 原图 / 结果：原图列 3fr（显示约为全宽的 30%，即原来的 60%），结果列 7fr 更宽 -->
+            <div class="grid grid-cols-1 md:grid-cols-[3fr_7fr] gap-4">
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted uppercase tracking-wide">{{ t('image.original') }}</p>
                 <div class="overflow-auto rounded-lg border border-default">
