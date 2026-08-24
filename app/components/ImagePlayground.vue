@@ -51,6 +51,20 @@ const dragOver = ref(false)
 
 const activeToolId = ref('')
 const activeTool = computed<ImageTool | undefined>(() => props.tools.find(t => t.id === activeToolId.value) || props.tools[0])
+/** 结果图显示：水平把手固定「显示高度」（宽度按内在比例）、垂直把手固定「显示宽度」——
+ * 否则 canvas 内在比例变化 + max-w-full h-auto 会让显示高度跳变（如水平拖小宽后 350→600 拉长） */
+const resizeDisplayMode = ref<'h' | 'v' | null>(null)
+const resizeDisplayBase = ref({ w: 0, h: 0 })
+const resizeResultStyle = computed(() => {
+  if (activeTool.value?.id !== 'resize') return undefined
+  if (resizeDisplayMode.value === 'h' && resizeDisplayBase.value.h) {
+    return { height: `${resizeDisplayBase.value.h}px`, width: 'auto' }
+  }
+  if (resizeDisplayMode.value === 'v' && resizeDisplayBase.value.w) {
+    return { width: `${resizeDisplayBase.value.w}px`, height: 'auto' }
+  }
+  return undefined
+})
 /**
  * 参数面板 specs：
  * - resize 工具的 width/height 为 slider，范围随原图尺寸动态（1 ~ 原图 2 倍，含当前值，上限 4096）
@@ -153,6 +167,7 @@ watch(() => props.tools, (list) => {
 }, { immediate: true })
 
 watch(activeToolId, () => {
+  resizeDisplayMode.value = null
   paramValues.value = paramDefaults(specs.value)
   runLater()
   // 切回 resize 工具时重测原图显示基准
@@ -283,6 +298,13 @@ function onResizeStart(e: PointerEvent, mode: ResizeMode) {
   handle.setPointerCapture(e.pointerId)
   resizing.value = true
   resizeDragKeep.value = true
+  // 记录拖动前结果图显示尺寸，并锁定固定边（水平固定高、垂直固定宽、等比不锁）
+  const rc = resultCanvas.value
+  if (rc) {
+    const r = rc.getBoundingClientRect()
+    resizeDisplayBase.value = { w: r.width || 0, h: r.height || 0 }
+  }
+  resizeDisplayMode.value = mode === 's' ? null : mode
   const rect = canvas.getBoundingClientRect()
   // 基准宽高 = 当前实际输出尺寸（keep 开启时高度是等比输出而非 paramValues.height，
   // 否则水平把手会把高度"跳变"回默认值）
@@ -375,6 +397,7 @@ function beginResizeSync() {
 watch(() => paramValues.value.scale, (v) => {
   if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
   beginResizeSync()
+  resizeDisplayMode.value = null
   // 拖动开始（或恢复）时记录基准：slider 拖动是连续 input，若基于"上次已设的 width/height"
   // 再乘 ratio 会累积放大（1575→3354→…→clamp 4096），必须基于拖动开始时的尺寸
   if (!scaleDragBase) {
@@ -942,6 +965,7 @@ const modeText = computed(() => {
                       ref="resultCanvas"
                       class="rounded-lg max-w-full h-auto"
                       :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
+                      :style="resizeResultStyle"
                       @click="onResultClick"
                     />
                   </div>
