@@ -260,10 +260,12 @@ function reset() {
 }
 
 // ===== resize 拖拽手柄（与参数面板双向联动） =====
+/** resize 把手模式：h = 水平（只改宽度）、v = 垂直（只改高度）、s = 等比（按当前宽高比同变） */
+type ResizeMode = 'h' | 'v' | 's'
 const resizing = ref(false)
-const resizeStart = ref({ x: 0, y: 0, w: 0, h: 0, rectW: 1, rectH: 1 })
+const resizeStart = ref({ mode: 'h' as ResizeMode, x: 0, y: 0, w: 0, h: 0, rectW: 1, rectH: 1 })
 
-function onResizeStart(e: PointerEvent) {
+function onResizeStart(e: PointerEvent, mode: ResizeMode) {
   const canvas = origCanvas.value
   if (!canvas || !original.value) return
   e.preventDefault()
@@ -273,6 +275,7 @@ function onResizeStart(e: PointerEvent) {
   resizing.value = true
   const rect = canvas.getBoundingClientRect()
   resizeStart.value = {
+    mode,
     x: e.clientX,
     y: e.clientY,
     w: Number(paramValues.value.width) || original.value.width,
@@ -288,12 +291,24 @@ function onResizeStart(e: PointerEvent) {
 
 function onResizeMove(e: PointerEvent) {
   if (!resizing.value || !original.value) return
+  const st = resizeStart.value
   // 显示尺寸 → 像素尺寸换算（原图为被操作对象）
-  const scaleX = original.value.width / resizeStart.value.rectW
-  const scaleY = original.value.height / resizeStart.value.rectH
-  const newW = Math.min(4096, Math.max(1, Math.round(resizeStart.value.w + (e.clientX - resizeStart.value.x) * scaleX)))
-  const newH = Math.min(4096, Math.max(1, Math.round(resizeStart.value.h + (e.clientY - resizeStart.value.y) * scaleY)))
-  // 联动：写入参数（keep 开启时高度由 run 自动保持宽高比）
+  const scaleX = original.value.width / st.rectW
+  const scaleY = original.value.height / st.rectH
+  const clampPx = (v: number) => Math.min(4096, Math.max(1, Math.round(v)))
+  const dxPx = (e.clientX - st.x) * scaleX
+  const dyPx = (e.clientY - st.y) * scaleY
+  let newW = st.w
+  let newH = st.h
+  if (st.mode === 'h') {
+    newW = clampPx(st.w + dxPx)
+  } else if (st.mode === 'v') {
+    newH = clampPx(st.h + dyPx)
+  } else { // 's' 等比：按当前宽高比同变（高度 = 起始高 × 宽变化率）
+    newW = clampPx(st.w + dxPx)
+    newH = clampPx(st.h * (newW / st.w))
+  }
+  // 联动：写入参数（keep 开启时高度由 run 自动保持宽高比，垂直把手拖动会被 run 覆盖）
   const keep = Boolean(paramValues.value.keep)
   paramValues.value = {
     ...paramValues.value,
@@ -316,27 +331,36 @@ function onResizeEnd(e: PointerEvent) {
 // scale = 当前宽度相对原图的比例（%）；拖 scale → 按原图比例等比设 width/height；
 // 拖 width → 回写 scale（height 独立）；拖 height → 仅改高度，scale 不变（scale 绑定宽度比例）
 let syncingResize = false
+let syncReleaseTimer: ReturnType<typeof setTimeout> | null = null
+
+/** 联动期间锁住另一 watch：Vue watch 回调在微任务队列，必须用宏任务（setTimeout 0）释放，
+ * 否则 watch width → 设 scale → watch scale（微任务时标志已 false）→ 又等比覆盖 height，形成循环 */
+function beginResizeSync() {
+  syncingResize = true
+  if (syncReleaseTimer) clearTimeout(syncReleaseTimer)
+  syncReleaseTimer = setTimeout(() => {
+    syncingResize = false
+  }, 0)
+}
 
 watch(() => paramValues.value.scale, (v) => {
   if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
+  beginResizeSync()
   const scale = Number(v) || 100
-  syncingResize = true
   paramValues.value = {
     ...paramValues.value,
     width: Math.max(1, Math.min(4096, Math.round(original.value.width * scale / 100))),
     height: Math.max(1, Math.min(4096, Math.round(original.value.height * scale / 100)))
   }
-  syncingResize = false
 })
 
 watch(() => paramValues.value.width, (v) => {
   if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
-  syncingResize = true
+  beginResizeSync()
   paramValues.value = {
     ...paramValues.value,
     scale: Math.max(10, Math.min(300, Math.round((Number(v) || original.value.width) / original.value.width * 100)))
   }
-  syncingResize = false
 })
 
 // ===== crop 可拖拽选区框（与 x/y/w/h 参数双向同步）=====
@@ -794,16 +818,48 @@ const modeText = computed(() => {
                         ? { width: `${origDisplayWidth}px`, height: 'auto' }
                         : undefined"
                     />
-                    <!-- resize 拖拽手柄：操作「原图」（被缩放对象），结果图纯展示 -->
+                    <!-- resize 三把手（操作原图，结果图纯展示）：右中=水平(只改宽)、下中=垂直(只改高)、右下=等比 -->
                     <button
                       v-if="activeTool?.id === 'resize' && original"
                       type="button"
-                      class="absolute bottom-1.5 right-1.5 size-7 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
+                      class="absolute right-1 top-1/2 -translate-y-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ew-resize hover:bg-primary transition-colors touch-none"
                       :class="{ 'ring-2 ring-primary': resizing }"
-                      :aria-label="t('image.resizeDrag')"
-                      @pointerdown="onResizeStart"
+                      :aria-label="t('image.resizeDragH')"
+                      data-resize-mode="h"
+                      @pointerdown="onResizeStart($event, 'h')"
                     >
-                      <UIcon name="i-lucide-move-diagonal" class="size-4" />
+                      <UIcon
+                        name="i-lucide-move-horizontal"
+                        class="size-3.5"
+                      />
+                    </button>
+                    <button
+                      v-if="activeTool?.id === 'resize' && original"
+                      type="button"
+                      class="absolute bottom-1 left-1/2 -translate-x-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ns-resize hover:bg-primary transition-colors touch-none"
+                      :class="{ 'ring-2 ring-primary': resizing }"
+                      :aria-label="t('image.resizeDragV')"
+                      data-resize-mode="v"
+                      @pointerdown="onResizeStart($event, 'v')"
+                    >
+                      <UIcon
+                        name="i-lucide-move-vertical"
+                        class="size-3.5"
+                      />
+                    </button>
+                    <button
+                      v-if="activeTool?.id === 'resize' && original"
+                      type="button"
+                      class="absolute bottom-1 right-1 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
+                      :class="{ 'ring-2 ring-primary': resizing }"
+                      :aria-label="t('image.resizeDragS')"
+                      data-resize-mode="s"
+                      @pointerdown="onResizeStart($event, 's')"
+                    >
+                      <UIcon
+                        name="i-lucide-move-diagonal"
+                        class="size-3.5"
+                      />
                     </button>
                     <!-- crop 选区框：拖动移动 / 四角缩放，与 x/y/w/h 参数双向同步 -->
                     <div
