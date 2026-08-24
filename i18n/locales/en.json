@@ -611,6 +611,7 @@
     "stop": "Stop",
     "upload": "Upload image",
     "clickHint": "Click the image to pick a target to segment",
+    "cropDrag": "Drag the selection or corner handles to adjust the crop",
     "backendMode": "Backend",
     "backendAuto": "Auto",
     "backendFallbackHint": "WebGL2 (GPU) is unavailable on this browser, so it auto-switched to CPU mode. You can switch the backend above, or enable \"Hardware acceleration\" in browser settings for GPU speed.",

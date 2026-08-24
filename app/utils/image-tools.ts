@@ -77,8 +77,8 @@ export interface ImageTool {
   name: LocalizedText
   description?: LocalizedText
   kind: ImageToolKind
-  /** 交互模式：click = 点击结果画布触发 onPick */
-  interactive?: 'click'
+  /** 交互模式：click = 点击结果画布触发 onPick；crop = 原图上可拖拽的裁剪选区框 */
+  interactive?: 'click' | 'crop'
   /** 需要上传第二张图 */
   needsSecondImage?: boolean
   /** 规划中：仅展示说明，不执行（重型模型/依赖未就绪） */
@@ -187,6 +187,8 @@ const transformTools: ImageTool[] = [
       // width/height 用 slider 拖拽（ImagePlayground 会按原图尺寸动态调整 min/max）
       { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'slider', default: 800, min: 1, max: 2048, step: 1 },
       { key: 'height', label: { zh: '高度', en: 'Height' }, type: 'slider', default: 600, min: 1, max: 2048, step: 1 },
+      // 等比缩放（% 相对原图）：拖动时 width/height 按原图比例同时变化，与 width 双向同步
+      { key: 'scale', label: { zh: '等比缩放', en: 'Uniform scale' }, type: 'slider', default: 100, min: 10, max: 300, step: 1 },
       { key: 'keep', label: { zh: '保持宽高比（以宽度为准）', en: 'Keep aspect ratio (by width)' }, type: 'switch', default: false },
       {
         key: 'interpolation',
@@ -224,6 +226,7 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '裁剪 Crop', en: 'Crop' },
     kind: 'canvas',
+    interactive: 'crop',
     pythonModule: 'image/transform',
     params: [
       { key: 'x', label: { zh: '起点 X（%）', en: 'X (%)' }, type: 'slider', default: 0, min: 0, max: 90, step: 1 },
@@ -2271,7 +2274,8 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>>
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
   'transform': [
-    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
+    // 用户要求：transform 页示例图用 face.jpg（人脸照，便于观察缩放/裁剪效果）
+    { labelKey: 'samples.face', url: '/samples/images/face.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
   'pixel': [

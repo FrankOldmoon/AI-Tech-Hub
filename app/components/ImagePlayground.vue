@@ -312,6 +312,124 @@ function onResizeEnd(e: PointerEvent) {
   pulseResult(0.99)
 }
 
+// ===== resize 三滑块（width/height/scale）双向联动 =====
+// scale = 当前宽度相对原图的比例（%）；拖 scale → 按原图比例等比设 width/height；
+// 拖 width → 回写 scale（height 独立）；拖 height → 仅改高度，scale 不变（scale 绑定宽度比例）
+let syncingResize = false
+
+watch(() => paramValues.value.scale, (v) => {
+  if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
+  const scale = Number(v) || 100
+  syncingResize = true
+  paramValues.value = {
+    ...paramValues.value,
+    width: Math.max(1, Math.min(4096, Math.round(original.value.width * scale / 100))),
+    height: Math.max(1, Math.min(4096, Math.round(original.value.height * scale / 100)))
+  }
+  syncingResize = false
+})
+
+watch(() => paramValues.value.width, (v) => {
+  if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
+  syncingResize = true
+  paramValues.value = {
+    ...paramValues.value,
+    scale: Math.max(10, Math.min(300, Math.round((Number(v) || original.value.width) / original.value.width * 100)))
+  }
+  syncingResize = false
+})
+
+// ===== crop 可拖拽选区框（与 x/y/w/h 参数双向同步）=====
+type CropMode = 'move' | 'nw' | 'ne' | 'sw' | 'se'
+const cropWrap = ref<HTMLDivElement>()
+const cropDrag = ref<null | {
+  mode: CropMode
+  startX: number
+  startY: number
+  rect: { x: number, y: number, w: number, h: number }
+  rectW: number
+  rectH: number
+}>(null)
+
+const cropRect = computed(() => ({
+  x: Number(paramValues.value.x) || 0,
+  y: Number(paramValues.value.y) || 0,
+  w: Number(paramValues.value.w) || 80,
+  h: Number(paramValues.value.h) || 80
+}))
+
+const cropHandles: Array<{ mode: CropMode, cls: string }> = [
+  { mode: 'nw', cls: '-top-1 -left-1 cursor-nwse-resize' },
+  { mode: 'ne', cls: '-top-1 -right-1 cursor-nesw-resize' },
+  { mode: 'sw', cls: '-bottom-1 -left-1 cursor-nesw-resize' },
+  { mode: 'se', cls: '-bottom-1 -right-1 cursor-nwse-resize' }
+]
+
+function clampPercent(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v))
+}
+
+function onCropStart(e: PointerEvent) {
+  const wrap = cropWrap.value
+  if (!wrap || !original.value) return
+  e.preventDefault()
+  wrap.setPointerCapture(e.pointerId)
+  const mode = ((e.target as HTMLElement).dataset.mode ?? 'move') as CropMode
+  const r = wrap.getBoundingClientRect()
+  cropDrag.value = {
+    mode,
+    startX: e.clientX,
+    startY: e.clientY,
+    rect: { ...cropRect.value },
+    rectW: r.width || 1,
+    rectH: r.height || 1
+  }
+}
+
+function onCropMove(e: PointerEvent) {
+  const d = cropDrag.value
+  if (!d) return
+  const dx = ((e.clientX - d.startX) / d.rectW) * 100
+  const dy = ((e.clientY - d.startY) / d.rectH) * 100
+  let { x, y, w, h } = d.rect
+  if (d.mode === 'move') {
+    x = clampPercent(x + dx, 0, 100 - w)
+    y = clampPercent(y + dy, 0, 100 - h)
+  } else if (d.mode === 'se') {
+    w = clampPercent(w + dx, 10, 100 - x)
+    h = clampPercent(h + dy, 10, 100 - y)
+  } else if (d.mode === 'ne') {
+    w = clampPercent(w + dx, 10, 100 - x)
+    const ny = clampPercent(y + dy, 0, y + h - 10)
+    h = h + y - ny
+    y = ny
+  } else if (d.mode === 'sw') {
+    h = clampPercent(h + dy, 10, 100 - y)
+    const nx = clampPercent(x + dx, 0, x + w - 10)
+    w = w + x - nx
+    x = nx
+  } else { // nw
+    const nx = clampPercent(x + dx, 0, x + w - 10)
+    w = w + x - nx
+    x = nx
+    const ny = clampPercent(y + dy, 0, y + h - 10)
+    h = h + y - ny
+    y = ny
+  }
+  paramValues.value = {
+    ...paramValues.value,
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(w),
+    h: Math.round(h)
+  }
+}
+
+function onCropEnd(e: PointerEvent) {
+  cropDrag.value = null
+  cropWrap.value?.releasePointerCapture?.(e.pointerId)
+}
+
 // ===== resize GPU 直绘预览（拖动中 60fps，零 ImageData 回读） =====
 function previewResize() {
   const src = origCanvas.value
@@ -687,6 +805,32 @@ const modeText = computed(() => {
                     >
                       <UIcon name="i-lucide-move-diagonal" class="size-4" />
                     </button>
+                    <!-- crop 选区框：拖动移动 / 四角缩放，与 x/y/w/h 参数双向同步 -->
+                    <div
+                      v-if="activeTool?.id === 'crop' && original"
+                      ref="cropWrap"
+                      class="absolute z-10 cursor-move touch-none"
+                      :style="{
+                        left: `${cropRect.x}%`,
+                        top: `${cropRect.y}%`,
+                        width: `${cropRect.w}%`,
+                        height: `${cropRect.h}%`
+                      }"
+                      :aria-label="t('image.cropDrag')"
+                      @pointerdown="onCropStart"
+                      @pointermove="onCropMove"
+                      @pointerup="onCropEnd"
+                      @pointercancel="onCropEnd"
+                    >
+                      <div class="absolute inset-0 border-2 border-primary/80 bg-primary/10 pointer-events-none" />
+                      <div
+                        v-for="h in cropHandles"
+                        :key="h.mode"
+                        :data-mode="h.mode"
+                        :class="h.cls"
+                        class="absolute size-3 bg-primary border-2 border-white rounded-sm pointer-events-auto"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
