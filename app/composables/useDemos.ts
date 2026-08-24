@@ -22,7 +22,8 @@ export function useDemos() {
     demos.map(d => ({
       ...d,
       title: pick(d.title),
-      description: pick(d.description)
+      description: pick(d.description),
+      howItWorks: d.howItWorks ? pick(d.howItWorks) : undefined
     }))
   )
 

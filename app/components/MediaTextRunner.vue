@@ -14,6 +14,8 @@ interface RunnerDemo {
   description?: string
   icon: string
   status: DemoStatus
+  /** 工作原理（教学向，折叠渲染） */
+  howItWorks?: string
   /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
   pythonModule?: string
 }
@@ -35,7 +37,8 @@ useSeoMeta({
 })
 
 const input = ref(t('samples.textDefault'))
-const loading = ref(false)
+const downloading = ref(false) // 模型下载/加载中
+const running = ref(false) // 推理中
 const error = ref<string | null>(null)
 const result = ref<any>(null)
 const inferenceTime = ref(0)
@@ -58,7 +61,7 @@ async function copyResult() {
 
 async function ensureTask() {
   if (task) return task
-  loading.value = true
+  downloading.value = true
   error.value = null
   try {
     const { FilesetResolver } = await import('@mediapipe/tasks-text')
@@ -67,7 +70,7 @@ async function ensureTask() {
   } catch (e: any) {
     error.value = humanError(e, t)
   } finally {
-    loading.value = false
+    downloading.value = false
   }
   return task
 }
@@ -76,7 +79,7 @@ async function run() {
   if (!input.value.trim()) return
   const t0 = await ensureTask()
   if (!t0) return
-  loading.value = true
+  running.value = true
   error.value = null
   result.value = null
   const ts = performance.now()
@@ -86,7 +89,7 @@ async function run() {
   } catch (e: any) {
     error.value = humanError(e, t)
   } finally {
-    loading.value = false
+    running.value = false
   }
 }
 </script>
@@ -112,6 +115,9 @@ async function run() {
         </div>
       </div>
 
+      <!-- 工作原理（教学向，审计批次5） -->
+      <HowItWorksSection :text="demo.howItWorks" />
+
       <!-- 输入 -->
       <div class="space-y-2">
         <UTextarea
@@ -123,14 +129,21 @@ async function run() {
         <div class="flex items-center gap-2">
           <UButton
             icon="i-lucide-play"
-            :label="loading ? t('demo.loadingModel') : t('demo.run')"
+            :label="downloading ? t('demo.loadingModel') : running ? t('demo.inferring') : t('demo.run')"
             color="primary"
-            :loading="loading"
-            :disabled="!input.trim()"
+            :loading="downloading || running"
+            :disabled="!input.trim() || downloading || running"
             @click="run"
           />
           <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
         </div>
+        <!-- 模型下载/推理进度（MediaPipe 无百分比回调，用不确定进度条 + 三态文案） -->
+        <UProgress
+          v-if="downloading || running"
+          :value="null"
+          size="sm"
+          class="max-w-2xl"
+        />
       </div>
 
       <!-- 错误 -->

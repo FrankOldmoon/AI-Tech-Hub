@@ -28,6 +28,28 @@
       "categories": "Categories",
       "ready": "Ready",
       "planned": "Planned"
+    },
+    "howToPlay": {
+      "title": "How to play",
+      "step1": {
+        "title": "Pick a demo",
+        "desc": "Choose a capability from Speech, Vision, NLP, AIGC or ML."
+      },
+      "step2": {
+        "title": "Prepare input",
+        "desc": "Most demos ship with sample assets — load one in one click, upload your own image / audio / text, or use the camera / mic live."
+      },
+      "step3": {
+        "title": "Run and see",
+        "desc": "Hit Run to get instant results; parameters apply live, great for teaching in class."
+      },
+      "feedback": "Report issue / give feedback",
+      "faq": {
+        "title": "FAQ",
+        "data": "Where does my data go? Browser demos run fully on-device — data never leaves your machine. Server demos send data to a local Python backend only.",
+        "device": "What do I need? Any regular computer. Camera / mic demos need that hardware — otherwise use sample assets or upload instead.",
+        "cloud": "Does the cloud deployment work? Browser demos work anywhere; demos that need a local Python backend will show an unavailable notice."
+      }
     }
   },
   "demo": {
@@ -63,7 +85,9 @@
     "copied": "Copied",
     "emptyResult": "Results will appear here after running",
     "useUploadInstead": "Upload an image instead",
-    "sessionOnly": "Results are session-only — download them before leaving"
+    "sessionOnly": "Results are session-only — download them before leaving",
+    "howItWorks": "How it works",
+    "requiresPythonUnavailable": "This demo needs a local Python backend — unavailable on the cloud deployment. Run it on your own machine."
   },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",

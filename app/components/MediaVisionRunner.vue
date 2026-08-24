@@ -18,6 +18,8 @@ interface RunnerDemo {
   description?: string
   icon: string
   status: DemoStatus
+  /** 工作原理（教学向，折叠渲染） */
+  howItWorks?: string
   /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
   pythonModule?: string
 }
@@ -48,7 +50,8 @@ const canvasRef = ref<HTMLCanvasElement>()
 const fileInput = ref<HTMLInputElement>()
 
 const mode = ref<'webcam' | 'image'>('webcam')
-const loading = ref(false)
+const downloading = ref(false) // 模型下载/加载中
+const loading = ref(false) // 图片处理中
 const starting = ref(false) // 摄像头启动中（防重复点击竞态）
 const running = ref(false)
 const error = ref<string | null>(null)
@@ -71,7 +74,7 @@ let lastVideoTime = -1
 
 async function ensureDetector() {
   if (detector) return detector
-  loading.value = true
+  downloading.value = true
   error.value = null
   try {
     const { FilesetResolver } = await import('@mediapipe/tasks-vision')
@@ -84,7 +87,7 @@ async function ensureDetector() {
   } catch (e: any) {
     error.value = humanError(e, t)
   } finally {
-    loading.value = false
+    downloading.value = false
   }
   return detector
 }
@@ -253,14 +256,17 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
+      <!-- 工作原理（教学向，审计批次5） -->
+      <HowItWorksSection :text="demo.howItWorks" />
+
       <!-- 控件 -->
       <div class="flex flex-wrap items-center gap-2">
         <UButton
           v-if="!running"
           icon="i-lucide-video"
-          :label="loading ? t('demo.loadingModel') : t('mp.webcam')"
+          :label="downloading ? t('demo.loadingModel') : t('mp.webcam')"
           color="primary"
-          :loading="starting || loading"
+          :loading="starting || downloading || loading"
           :disabled="starting"
           @click="startWebcam"
         />
@@ -277,7 +283,7 @@ onBeforeUnmount(() => {
           :label="t('mp.upload')"
           color="neutral"
           variant="subtle"
-          :disabled="loading"
+          :disabled="downloading || loading"
           @click="fileInput?.click()"
         />
         <template v-for="s in sampleImages" :key="s.url">
@@ -287,7 +293,7 @@ onBeforeUnmount(() => {
             size="sm"
             color="neutral"
             variant="soft"
-            :disabled="loading"
+            :disabled="downloading || loading"
             @click="useSample(s.url)"
           />
         </template>
@@ -326,6 +332,23 @@ onBeforeUnmount(() => {
         />
         <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-black/40">
           <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-white" />
+        </div>
+        <!-- 模型下载进度（MediaPipe 无百分比回调，用不确定进度条 + 文案） -->
+        <div
+          v-if="downloading"
+          class="absolute inset-x-0 bottom-0 space-y-1 bg-black/50 px-4 py-2"
+        >
+          <UProgress
+            :value="null"
+            size="xs"
+          />
+          <p class="text-xs text-white/90 flex items-center gap-1.5">
+            <UIcon
+              name="i-lucide-download"
+              class="size-3.5"
+            />
+            {{ t('demo.loadingModel') }}
+          </p>
         </div>
       </div>
 
