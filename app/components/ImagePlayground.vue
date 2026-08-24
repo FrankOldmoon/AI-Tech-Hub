@@ -94,30 +94,6 @@ const disabledParamKeys = computed<string[]>(() =>
 )
 const paramValues = ref<Record<string, number | string | boolean>>({})
 
-// ===== resize：原图是被操作对象（随参数缩放显示），结果纯展示 =====
-// 原图显示基准 = 容器列宽（max-w-full 时的显示宽度），显示宽 = 基准 × (目标宽 / 原图宽)
-const origBaseWidth = ref(0)
-
-function measureOrigBase() {
-  const c = origCanvas.value
-  if (!c) return
-  const r = c.getBoundingClientRect()
-  if (r.width && r.width !== origBaseWidth.value) origBaseWidth.value = r.width
-}
-
-/** 原图显示宽度（resize 工具）：目标尺寸相对原图的比例 × 基准列宽，放大时容器滚动 */
-const origDisplayWidth = computed(() => {
-  if (!original.value || !origBaseWidth.value) return undefined
-  const w = Number(paramValues.value.width) || original.value.width
-  return Math.round(origBaseWidth.value * (w / original.value.width))
-})
-
-// original 渲染完成后测量基准（双 rAF 等 canvas 布局稳定）
-watch(original, () => {
-  if (activeTool.value?.id !== 'resize') return
-  requestAnimationFrame(() => requestAnimationFrame(measureOrigBase))
-})
-
 const downloadFormat = ref<'png' | 'jpeg' | 'webp'>('png')
 const quality = ref(0.92)
 const formatItems = [
@@ -170,8 +146,6 @@ watch(activeToolId, () => {
   resizeDisplayMode.value = null
   paramValues.value = paramDefaults(specs.value)
   runLater()
-  // 切回 resize 工具时重测原图显示基准
-  if (activeTool.value?.id === 'resize') nextTick(measureOrigBase)
 }, { immediate: true })
 
 watch(paramValues, scheduleRun, { deep: true })
@@ -872,11 +846,8 @@ const modeText = computed(() => {
                     <canvas
                       ref="origCanvas"
                       class="rounded-lg max-w-full h-auto"
-                      :style="activeTool?.id === 'resize' && origDisplayWidth
-                        ? { width: `${origDisplayWidth}px`, height: 'auto' }
-                        : undefined"
                     />
-                    <!-- resize 三把手（操作原图，结果图纯展示）：右中=水平(只改宽)、下中=垂直(只改高)、右下=等比 -->
+                    <!-- resize 三把手（原图固定，结果图响应）：右中=水平(只改宽)、下中=垂直(只改高)、右下=等比 -->
                     <button
                       v-if="activeTool?.id === 'resize' && original"
                       type="button"
