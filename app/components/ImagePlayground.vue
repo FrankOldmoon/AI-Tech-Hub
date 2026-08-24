@@ -356,9 +356,9 @@ function onResizeEnd(e: PointerEvent) {
   pulseResult(0.99)
 }
 
-// ===== resize 三滑块（width/height/scale）双向联动 =====
-// scale = 当前宽度相对原图的比例（%）；拖 scale → 按原图比例等比设 width/height；
-// 拖 width → 回写 scale（height 独立）；拖 height → 仅改高度，scale 不变（scale 绑定宽度比例）
+// ===== resize 三控制（width/height/scale）相互独立 =====
+// 水平（width）只改宽、垂直（height）只改高、等比（scale）只在自己被拖动时按原图比例
+// 等比设置 width/height；三者在数值上互不跟随（用户要求：拖水平时等比缩放不应变化）
 let syncingResize = false
 let syncReleaseTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -380,15 +380,6 @@ watch(() => paramValues.value.scale, (v) => {
     ...paramValues.value,
     width: Math.max(1, Math.min(4096, Math.round(original.value.width * scale / 100))),
     height: Math.max(1, Math.min(4096, Math.round(original.value.height * scale / 100)))
-  }
-})
-
-watch(() => paramValues.value.width, (v) => {
-  if (syncingResize || !original.value || activeTool.value?.id !== 'resize') return
-  beginResizeSync()
-  paramValues.value = {
-    ...paramValues.value,
-    scale: Math.max(10, Math.min(300, Math.round((Number(v) || original.value.width) / original.value.width * 100)))
   }
 })
 
