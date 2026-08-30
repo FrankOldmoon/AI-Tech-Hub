@@ -11,8 +11,21 @@
 
 export function isRemoteDeploy(): boolean {
   if (import.meta.server) return false
+  // 自托管部署（学校/内网服务器等）：构建时设 NUXT_PUBLIC_SELF_HOSTED=true
+  // 视为本地完整部署（浏览器端走本地模型文件，transformers.js 走 /api/hf 代理）
+  if (import.meta.env.NUXT_PUBLIC_SELF_HOSTED === 'true') return false
   const host = window.location.hostname
   return host !== 'localhost' && host !== '127.0.0.1'
+}
+
+/**
+ * 本地 Python 后端是否启用。
+ * 仅自托管部署（NUXT_PUBLIC_SELF_HOSTED=true）且构建时 NUXT_PUBLIC_ENABLE_PYTHON=true
+ * 时返回 true；云端（Vercel）始终为 false（没有本地 Python 后端）。
+ */
+export function pythonBackendEnabled(): boolean {
+  if (import.meta.server) return false
+  return import.meta.env.NUXT_PUBLIC_ENABLE_PYTHON === 'true' && !isRemoteDeploy()
 }
 
 export const REMOTE_MEDIAPIPE_WASM = {

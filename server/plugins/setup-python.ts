@@ -9,8 +9,9 @@
 // setupAllPythonEnvs 由 Nitro 从 server/utils/ 自动导入
 export default defineNitroPlugin(() => {
   // 云端（Vercel）无 Python 运行时：跳过 venv 创建
-  if (process.env.VERCEL) {
-    console.log('[python-setup] Vercel 环境，跳过 Python 环境初始化')
+  // 自托管 Phase 1（未启用 Python 后端）用 NUXT_SKIP_PYTHON_SETUP=1 显式跳过
+  if (process.env.VERCEL || process.env.NUXT_SKIP_PYTHON_SETUP === '1') {
+    console.log(`[python-setup] 跳过 Python 环境初始化 (${process.env.VERCEL ? 'Vercel' : 'NUXT_SKIP_PYTHON_SETUP'})`)
     return
   }
   // 后台异步执行，不阻塞服务器启动

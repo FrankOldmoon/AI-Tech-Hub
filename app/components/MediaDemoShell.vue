@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { DemoStatus } from '~/utils/demos'
-import { isRemoteDeploy } from '~/utils/remote-models'
+import { pythonBackendEnabled } from '~/utils/remote-models'
 
 const props = defineProps<{
   demo: {
@@ -32,10 +32,10 @@ const currentIndex = computed(() => siblings.value.findIndex(d => d.slug === pro
 const prevDemo = computed(() => currentIndex.value > 0 ? siblings.value[currentIndex.value - 1] : null)
 const nextDemo = computed(() => currentIndex.value >= 0 && currentIndex.value < siblings.value.length - 1 ? siblings.value[currentIndex.value + 1] : null)
 const category = computed(() => props.demo.category ? getCategory(props.demo.category) : null)
-// 云端部署时，依赖本地 Python 后端的 demo 不可用（审计批次5 requiresPython；
-// runtime='server' 的 demo 必然走本地 Python 队列，等同 requiresPython）
+// 依赖本地 Python 后端的 demo：云端部署或本地后端未启用（Phase 1）时不可用
+// （审计批次5 requiresPython；runtime='server' 的 demo 必然走本地 Python 队列，等同 requiresPython）
 const pythonUnavailable = computed(() =>
-  isRemoteDeploy() && (props.demo.requiresPython || props.demo.runtime === 'server')
+  (props.demo.requiresPython || props.demo.runtime === 'server') && !pythonBackendEnabled()
 )
 
 // SEO：每个 demo 页独立 title/description（审计维度四-8）
