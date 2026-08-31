@@ -1,42 +1,35 @@
-# AI Hub AI体验中心 - 部署与维护手册
+# AI Hub AI体验中心 - 部署与维护手册（v2，2026-08-31）
 
-> 部署日期：2026-08-28
-> 服务器：10.28.1.152（Ubuntu 26.04，hostname `aihub`，VMware 虚拟机 4vCPU/8G/1.9T）
-> 分支：`feat/self-host-deploy`（自托管部署模式）
-> 访问地址：**https://10.28.1.152**（HTTP 自动跳转 HTTPS）
+> 服务器：10.28.1.152（Ubuntu 26.04，hostname `aihub`，VM 4vCPU/8G/1.9T）
+> 访问地址：**https://10.28.1.152**（HTTP 自动跳 HTTPS，自签名证书）
+> 分支：main（含 feat/self-host-deploy + fix/deploy-runtimeconfig）
 
 ---
 
-## 一、架构
+## 一、架构（v2）
 
 ```
-学生浏览器 ──HTTPS(443)──> nginx (10.28.1.152)
-                              │ 反向代理
-                              ▼
-                   node .output/server/index.mjs (127.0.0.1:3000)
-                              │
-                              ▼
-             /www/wwwroot/aihub/.output/public/model/  (本地模型，~28GB)
+学生浏览器 ──HTTPS:443──> nginx
+   ├── / → 反代 node (.output/server/index.mjs @127.0.0.1:3000)   [Nitro + 页面/API]
+   ├── /model/     → alias public/model/     [60G 本地模型，nginx 直出，长缓存 + Range]
+   ├── /generated/ → alias public/generated/ [Python 任务产物，nginx 直出]
+   └── /api/hf/    → 反代 node（转 hf-mirror，备用）
 ```
 
-- **Nitro 独立部署**：`systemd` 服务 `aihub.service`，以 `www` 用户运行，端口 127.0.0.1:3000
-- **nginx**：443 HTTPS（自签名证书）+ 80 强制跳转 443；`/model/` 长缓存 + Range 支持
-- **全部模型本地化**（约 28GB）：transformers.js / webllm / MediaPipe / TF.js / whisper
-- **无数据库**：任务队列在内存（重启即丢），产物在 `.output/public/generated/`
+**关键变化（v2）**：
+1. **模型/产物不再走 Node**（Nitro 静态清单不含构建后加入的文件，且 60G 会让构建 OOM）
+   → nginx 直接 `alias` 源码 `public/model` 与 `public/generated`
+2. **自托管/Python 标志用 `runtimeConfig.public`**（`import.meta.env` 不内联 `NUXT_PUBLIC_*`，此前是隐藏 bug）
+   → `nuxt.config.ts` 声明 `runtimeConfig.public.selfHosted/enablePython`，构建/运行环境变量 `NUXT_PUBLIC_SELF_HOSTED=true`、`NUXT_PUBLIC_ENABLE_PYTHON=true`
+   → `app/plugins/deploy-config.ts` 启动时注入 `remote-models.ts`
+3. **Python 后端已启用**（服务端 worker 队列，非全部 demo）
 
-## 二、维护常用命令（SSH: mxadmin@10.28.1.152）
+## 二、维护常用命令
 
 ```bash
-# 服务状态 / 重启
-systemctl status aihub          # 状态
-systemctl restart aihub         # 重启
-journalctl -u aihub -n 100 -f   # 看日志
-
-# nginx
-nginx -t                        # 配置检查
-systemctl reload nginx
-
-# 站点目录
+systemctl status/restart aihub     # 服务
+journalctl -u aihub -n 100 -f      # 日志
+nginx -t && systemctl reload nginx # nginx
 cd /www/wwwroot/aihub
 ```
 
@@ -45,47 +38,39 @@ cd /www/wwwroot/aihub
 ```bash
 cd /www/wwwroot/aihub
 sudo -i
-git config --global --add safe.directory /www/wwwroot/aihub   # 一次即可
 export PATH=/usr/local/bin:$PATH
-export NUXT_PUBLIC_SELF_HOSTED=true
-cd /www/wwwroot/aihub
-git pull origin feat/self-host-deploy
-pnpm build                      # 构建（约 5-30 分钟，视改动）
-chown -R www:www .output public
+export NUXT_PUBLIC_SELF_HOSTED=true NUXT_PUBLIC_ENABLE_PYTHON=true
+# ⚠️ 60G 模型会让构建 OOM：构建前暂移模型，构建后放回（nginx 直读源码目录，无需拷进 .output）
+mv public/model /opt/aihub-model-stash
+git pull origin main
+pnpm build
+mv /opt/aihub-model-stash public/model
+chown -R www:www .output public python
 mkdir -p .output/public/generated
 systemctl restart aihub
 ```
 
-## 四、模型管理
+## 四、Python 后端状态（2026-08-31 实测）
 
-模型存两处（`public/model/` 为源，构建时拷入 `.output/public/model/`）：
-- 改动源 `public/model/` 后需重新 `pnpm build` 才会生效
-- 已上传模型：`transformers/`（NLP/视觉/whisper/全部 ASR）、`webllm/`（4 个对话模型）、`mediapipe/`、`tfjs/`、`mnist/`
+| 模块 | 状态 | 说明 |
+|---|---|---|
+| 语音克隆 voice-clone | ✅ 实测通过 | XTTS-v2 1.8G，首次加载 40-60s，之后秒级；**coqui-tts 降到 0.26.2**（0.27 硬性要求 torchcodec，pip 版为 CUDA 专属、CPU 版不兼容 FFmpeg 8），worker 显式 `torchaudio.set_audio_backend("soundfile")` |
+| 人声分离 separation | ✅ 依赖就绪 | demucs 4.1 + torch 2.13 CPU + ffmpeg；main.py 用 soundfile 直读音频，不受 torchcodec 影响；模型首次使用自动下载 |
+| 异常检测/自动训练/降维/预测 ml/* | ✅ 实测异常检测通过 | sklearn/pandas，纯 CPU 无模型 |
+| TTS | ✅ | 纯 Node 实现（edge-tts 协议），无需 Python |
+| 图像/人脸/MediaPipe 参考实现 | ✅ 依赖就绪 | opencv/insightface/mediapipe（已装 libgl1） |
+| 照片修复/文生图/音乐生成/唇形/降噪/VAD/会议/翻译 | ⚠️ 未装依赖 | torch 大模型 + HF 模型被墙，Phase 3 |
 
-**已知缺口（未上传，对应 demo 会报错）**：
-- `Xenova/paraphrase-multilingual-MiniLM-L12-v2`（text-training 多语言）
-- `Xenova/codegen-350M-mono`、`Xenova/tiny_starcoder_py`（codegen 的 2/3 选项）
-- `onnx-community/Qwen2.5-Coder-0.5B-ONNX`（codegen 的 Qwen 选项）
-- `onnx-community/DeepSeek-R1-Distill-Qwen-1.5B-ONNX`（推理对话）
-- `onnx-community/Janus-Pro-1B-ONNX`（多模态备选）
-- `onnx-community/wav2vec2-base-Speech_Emotion_Recognition-ONNX`（情绪识别）
-- `HuggingFaceTB/SmolVLM-256M-Instruct`（多模态对话）
+**启用/禁用 Python demo**：改 `NUXT_PUBLIC_ENABLE_PYTHON`（构建时）→ 重建。当前=开。
+**venv 管理**：手动（`NUXT_SKIP_PYTHON_SETUP=1` 关掉开机自动建 venv，因为其在 3.11 下会建出无 pip 的 venv 且失败安装不会重试）。各模块 venv 已按 `.python-version` 建好（3.11/3.13/3.14）。
 
-补传工具：本机 `D:\YIN-PROJE\_tools\stream_models.py`（HF→本机管道→服务器，不占本地磁盘）。
-用法：`$env:SRVPW="密码"; py -3 -X utf8 stream_models.py <repo_id>...`（只传 quantized/int8/uint8/fp16 + 元数据）。
-⚠️ HF 被学校网络墙，只有**本机**能连 huggingface.co；服务器只能通过 `/api/hf` 反代 hf-mirror，但 **hf-mirror 现在 308 重定向回 huggingface.co（被墙）**，所以服务器侧无法直接补模型，必须走本机管道。
+## 五、已知限制 / 踩坑
 
-## 五、HTTPS 与证书
-
-- 当前为**自签名证书**（/etc/nginx/ssl/aihub.crt，有效期 10 年，SAN 含 10.28.1.152）
-- 浏览器首次访问会提示"不安全"：点 **高级 → 继续前往** 即可
-- **让全校免告警**：把 `aihub.crt` 分发给学生机，装入"受信任的根证书颁发机构"（建议 IT 统一推送）
-- **更正规方案**：若学校给 `aihub.oldmoon.cn` 之类域名 + 内网 DNS，可改用 Let's Encrypt 证书（需 80 端口对外可达或 DNS-01 验证）
-
-## 六、已知限制与 Phase 2
-
-1. **Python 后端未启用**（`NUXT_SKIP_PYTHON_SETUP=1`）：人声分离/照片修复/SD/声音克隆等服务端 demo 显示"后端未启用"。启用需：装 `python3-venv` + 各模块依赖（torch 等，8G 内存需评估并发），然后把 systemd 里 `NUXT_SKIP_PYTHON_SETUP` 去掉、`pnpm build` 加 `NUXT_PUBLIC_ENABLE_PYTHON=true`
-2. **云端 LLM 对话未配 key**：`.env` 里 `MOONSHOT_API_KEY`/`DEEPSEEK_API_KEY` 为空
-3. **任务产物**存内存队列，服务重启后丢失
-4. **服务器内存 8G**：构建时峰值占用高（Vite 6G），多 demo 并发注意
-5. 服务器是 **VMware 虚拟机**（非采购单上的 2288HV6 物理配置，4vCPU/8G），硬件与采购单不符需与 IT 确认
+1. **HF 被学校网络墙**，hf-mirror 也 308 回源（被墙）。补模型只能**本机管道**：`D:\YIN-PROJE\_tools\stream_models.py`（HF→本机→服务器，不占本地磁盘）
+2. **构建 OOM**：public/model 60G 时 `pnpm build` 在 Nitro 打包阶段被 OOM kill（exit 137）。必须"暂移模型→构建→放回"（见第三节）
+3. **torchcodec 坑**：pip torchcodec 需 CUDA torch；PyTorch CPU 源的 torchcodec 需旧 FFmpeg（libavutil 56-59），服务器是 FFmpeg 8（libavutil 60）→ 均不可用。解法=coqui-tts 降到 0.26.2 + soundfile 后端
+4. **产物路径**：worker 写 `public/generated/`（源码），nginx alias 直出（勿改）
+5. **自签名证书**：学生机需装 `aihub.crt` 或点"高级→继续"；可换域名+Let's Encrypt
+6. **服务器是 VM**（4vCPU/8G），非采购单 2288HV6 实体配置，需与 IT 确认
+7. **云端 LLM 对话**：`.env` 未配 MOONSHOT/DEEPSEEK key
+8. 任务队列在内存，重启即丢
