@@ -70,3 +70,6 @@ tmp/chrome-headless/
 
 # runtime temp (port/debug leftovers)
 3001/
+
+# 杂散产物（勿提交）
+output/
