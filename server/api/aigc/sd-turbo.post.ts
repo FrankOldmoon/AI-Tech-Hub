@@ -8,6 +8,10 @@ export default defineEventHandler(async (event) => {
 
   if (!text.trim()) return { ok: false, error: '请输入提示词' }
   if (mode === 'img2img' && !filePart?.data?.length) return { ok: false, error: '图生图模式需要上传输入图片' }
+  if (filePart?.data?.length) {
+    const uploadErr = validateUploadPart(filePart, IMAGE_RULE)
+    if (uploadErr) return { ok: false, error: uploadErr }
+  }
 
   const num = (name: string, def: number): number => {
     const v = form.find((f) => f.name === name)?.data?.toString('utf8')

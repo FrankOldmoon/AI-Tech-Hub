@@ -15,6 +15,8 @@ export default defineEventHandler(async (event) => {
 
   const refPart = form.find((f) => f.name === 'ref' && f.filename)
   if (!refPart?.data?.length) return { ok: false, error: 'Missing reference audio' }
+  const uploadErr = validateUploadPart(refPart, AUDIO_RULE)
+  if (uploadErr) return { ok: false, error: uploadErr }
 
   const text = String(form.find((f) => f.name === 'text')?.data?.toString('utf8') ?? '')
   const lang = String(form.find((f) => f.name === 'lang')?.data?.toString('utf8') ?? 'zh-cn')

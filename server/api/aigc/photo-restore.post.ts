@@ -4,6 +4,8 @@ export default defineEventHandler(async (event) => {
   if (!form) return { ok: false, error: 'Invalid multipart form data' }
   const filePart = form.find((f) => f.name === 'file' && f.filename)
   if (!filePart?.data?.length) return { ok: false, error: '请上传需要修复的图片' }
+  const uploadErr = validateUploadPart(filePart, IMAGE_RULE)
+  if (uploadErr) return { ok: false, error: uploadErr }
 
   const num = (name: string, def: number): number => {
     const v = form.find((f) => f.name === name)?.data?.toString('utf8')

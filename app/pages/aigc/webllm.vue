@@ -138,9 +138,9 @@ async function loadModel() {
           : m.model,
         model_lib: typeof m.model_lib === 'string'
           ? m.model_lib.replace(
-            /^https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\/main\/web-llm-models\/[^/]+\/base\//,
-            localLibBase
-          )
+              /^https:\/\/raw\.githubusercontent\.com\/mlc-ai\/binary-mlc-llm-libs\/main\/web-llm-models\/[^/]+\/base\//,
+              localLibBase
+            )
           : m.model_lib
       }))
     }
@@ -224,10 +224,14 @@ onBeforeUnmount(() => {
 <template>
   <UContainer>
     <div class="py-8 sm:py-12 space-y-6">
+      <HeavyModelNotice :size-gb="1.5" />
       <!-- 标题区 -->
       <div class="flex items-start gap-4">
         <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <UIcon :name="demo.icon" class="size-6" />
+          <UIcon
+            :name="demo.icon"
+            class="size-6"
+          />
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
@@ -236,7 +240,10 @@ onBeforeUnmount(() => {
             </h1>
             <DemoStatusBadge :status="demo.status" />
           </div>
-          <p v-if="demo.description" class="mt-1 text-muted">
+          <p
+            v-if="demo.description"
+            class="mt-1 text-muted"
+          >
             {{ demo.description }}
           </p>
         </div>
@@ -255,7 +262,13 @@ onBeforeUnmount(() => {
         <div class="flex flex-wrap items-end gap-4">
           <div class="min-w-56 flex-1">
             <label class="block text-sm font-medium text-muted mb-1">{{ t('webllm.model') }}</label>
-            <USelect v-model="modelId" :items="modelItems" :disabled="loading || generating" class="w-full" @change="onModelChange" />
+            <USelect
+              v-model="modelId"
+              :items="modelItems"
+              :disabled="loading || generating"
+              class="w-full"
+              @change="onModelChange"
+            />
           </div>
           <UButton
             icon="i-lucide-download"
@@ -275,17 +288,32 @@ onBeforeUnmount(() => {
           />
         </div>
         <!-- 加载进度 -->
-        <div v-if="loading" class="mt-4 space-y-2">
+        <div
+          v-if="loading"
+          class="mt-4 space-y-2"
+        >
           <UProgress :model-value="loadProgress" />
-          <p class="text-xs text-muted truncate">{{ loadText }}</p>
+          <p class="text-xs text-muted truncate">
+            {{ loadText }}
+          </p>
         </div>
       </UCard>
 
       <!-- 可调参数 -->
-      <DemoParams v-model="params" :specs="specs" :running="generating" />
+      <DemoParams
+        v-model="params"
+        :specs="specs"
+        :running="generating"
+      />
 
       <!-- 错误 -->
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+      <UAlert
+        v-if="error"
+        color="error"
+        variant="subtle"
+        icon="i-lucide-alert-triangle"
+        :title="error"
+      />
 
       <!-- 对话区 -->
       <UCard>
@@ -305,7 +333,10 @@ onBeforeUnmount(() => {
               {{ m.content || (m.role === 'assistant' && generating ? '…' : '') }}
             </div>
           </div>
-          <div v-if="!messages.length" class="text-center text-muted py-12 text-sm">
+          <div
+            v-if="!messages.length"
+            class="text-center text-muted py-12 text-sm"
+          >
             {{ t('webllm.empty') }}
           </div>
         </div>
@@ -330,11 +361,19 @@ onBeforeUnmount(() => {
             @click="send"
           />
         </div>
-        <p v-if="stats" class="mt-2 text-xs text-muted">{{ stats }}</p>
+        <p
+          v-if="stats"
+          class="mt-2 text-xs text-muted"
+        >
+          {{ stats }}
+        </p>
       </UCard>
 
       <!-- 对应的 Python 最简实现源码 -->
-      <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />
+      <PythonSourceViewer
+        v-if="demo.pythonModule"
+        :feature="demo.pythonModule"
+      />
     </div>
   </UContainer>
 </template>
