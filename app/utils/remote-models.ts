@@ -9,11 +9,24 @@
  * - transformers.js -> 仍走 /api/hf 本地代理（Vercel 上转发 huggingface.co）
  */
 
+/** 自托管部署配置（由 app/plugins/deploy-config.ts 在客户端初始化） */
+interface DeployConfig {
+  selfHosted: boolean
+  enablePython: boolean
+}
+
+let deployConfig: DeployConfig = { selfHosted: false, enablePython: false }
+
+/** 应用启动时注入部署配置（读自 runtimeConfig.public） */
+export function initDeployConfig(cfg: DeployConfig): void {
+  deployConfig = cfg
+}
+
 export function isRemoteDeploy(): boolean {
   if (import.meta.server) return false
-  // 自托管部署（学校/内网服务器等）：构建时设 NUXT_PUBLIC_SELF_HOSTED=true
+  // 自托管部署（学校/内网服务器等）：runtimeConfig 注入 selfHosted=true 时
   // 视为本地完整部署（浏览器端走本地模型文件，transformers.js 走 /api/hf 代理）
-  if (import.meta.env.NUXT_PUBLIC_SELF_HOSTED === 'true') return false
+  if (deployConfig.selfHosted) return false
   const host = window.location.hostname
   return host !== 'localhost' && host !== '127.0.0.1'
 }
@@ -25,7 +38,7 @@ export function isRemoteDeploy(): boolean {
  */
 export function pythonBackendEnabled(): boolean {
   if (import.meta.server) return false
-  return import.meta.env.NUXT_PUBLIC_ENABLE_PYTHON === 'true' && !isRemoteDeploy()
+  return deployConfig.enablePython && !isRemoteDeploy()
 }
 
 export const REMOTE_MEDIAPIPE_WASM = {
