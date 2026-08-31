@@ -226,26 +226,72 @@ onBeforeUnmount(async () => {
 
 <template>
   <MediaDemoShell :demo="demo">
+    <HeavyModelNotice :size-gb="0.5" />
     <div class="flex flex-wrap items-center gap-3">
-      <UBadge v-if="webgpu" color="primary" variant="subtle">WebGPU</UBadge>
-      <UBadge v-else color="neutral" variant="subtle">WASM</UBadge>
-      <UBadge v-if="modelReady" color="success" variant="subtle">
+      <UBadge
+        v-if="webgpu"
+        color="primary"
+        variant="subtle"
+      >
+        WebGPU
+      </UBadge>
+      <UBadge
+        v-else
+        color="neutral"
+        variant="subtle"
+      >
+        WASM
+      </UBadge>
+      <UBadge
+        v-if="modelReady"
+        color="success"
+        variant="subtle"
+      >
         {{ t('codegen.loaded') }}
       </UBadge>
-      <UBadge v-if="pyReady" color="success" variant="subtle">
-        <UIcon name="i-lucide-check" class="size-3" />
+      <UBadge
+        v-if="pyReady"
+        color="success"
+        variant="subtle"
+      >
+        <UIcon
+          name="i-lucide-check"
+          class="size-3"
+        />
         Pyodide
       </UBadge>
-      <UBadge v-else-if="pyLoading" color="neutral" variant="subtle">
-        <UIcon name="i-lucide-loader-circle" class="size-3 animate-spin" />
+      <UBadge
+        v-else-if="pyLoading"
+        color="neutral"
+        variant="subtle"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-3 animate-spin"
+        />
         {{ t('codegen.loadingPy') }}
       </UBadge>
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="error" />
-    <UAlert v-if="!modelReady && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('codegen.firstDownload')" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="error"
+    />
+    <UAlert
+      v-if="!modelReady && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('codegen.firstDownload')"
+    />
 
-    <div v-if="loading" class="space-y-1">
+    <div
+      v-if="loading"
+      class="space-y-1"
+    >
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted truncate">{{ progressFile || t('codegen.loadingModel') }}</span>
         <span class="text-muted">{{ progressPct }}%</span>
@@ -257,7 +303,13 @@ onBeforeUnmount(async () => {
       <div class="flex flex-wrap items-end gap-4">
         <div class="min-w-56 flex-1">
           <label class="block text-sm font-medium text-muted mb-1">{{ t('codegen.model') }}</label>
-          <USelect v-model="modelId" :items="modelItems" :disabled="loading || generating" class="w-full" @change="onModelChange" />
+          <USelect
+            v-model="modelId"
+            :items="modelItems"
+            :disabled="loading || generating"
+            class="w-full"
+            @change="onModelChange"
+          />
         </div>
         <UButton
           icon="i-lucide-download"
@@ -270,14 +322,21 @@ onBeforeUnmount(async () => {
       </div>
     </UCard>
 
-    <DemoParams v-model="params" :specs="specs" :running="generating" />
+    <DemoParams
+      v-model="params"
+      :specs="specs"
+      :running="generating"
+    />
 
     <div class="grid lg:grid-cols-2 gap-4">
       <!-- 编辑器 -->
       <UCard>
         <template #header>
           <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-code-xml" class="size-4" />
+            <UIcon
+              name="i-lucide-code-xml"
+              class="size-4"
+            />
             {{ t('codegen.editor') }}
           </div>
         </template>
@@ -320,7 +379,10 @@ onBeforeUnmount(async () => {
       <UCard>
         <template #header>
           <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-sparkles" class="size-4" />
+            <UIcon
+              name="i-lucide-sparkles"
+              class="size-4"
+            />
             {{ t('codegen.output') }}
           </div>
         </template>
@@ -359,7 +421,10 @@ onBeforeUnmount(async () => {
     <UCard>
       <template #header>
         <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-          <UIcon name="i-lucide-terminal" class="size-4" />
+          <UIcon
+            name="i-lucide-terminal"
+            class="size-4"
+          />
           {{ t('codegen.runOutput') }}
         </div>
       </template>

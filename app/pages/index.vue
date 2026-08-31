@@ -2,7 +2,7 @@
 import type { LocalizedDemo } from '~/utils/demos'
 
 const { t } = useI18n()
-const { categories, byCategory, stats, demos } = useDemos()
+const { categories, byCategory, stats, demos, classroomDemos } = useDemos()
 
 const statItems = computed(() => [
   { value: stats.value.total, label: t('home.stats.demos'), icon: 'i-lucide-flask-conical' },
@@ -55,9 +55,16 @@ const searchResults = computed(() => {
 
       <!-- 统计 -->
       <div class="grid grid-cols-2 md:grid-cols-4 gap-4 -mt-6">
-        <UCard v-for="s in statItems" :key="s.label" variant="subtle">
+        <UCard
+          v-for="s in statItems"
+          :key="s.label"
+          variant="subtle"
+        >
           <div class="flex items-center gap-3">
-            <UIcon :name="s.icon" class="size-6 text-primary shrink-0" />
+            <UIcon
+              :name="s.icon"
+              class="size-6 text-primary shrink-0"
+            />
             <div>
               <div class="text-2xl font-bold text-highlighted leading-none">
                 {{ s.value }}
@@ -79,7 +86,10 @@ const searchResults = computed(() => {
           :placeholder="t('home.searchPlaceholder')"
           :ui="{ root: 'w-full' }"
         >
-          <template v-if="query" #trailing>
+          <template
+            v-if="query"
+            #trailing
+          >
             <UButton
               icon="i-lucide-x"
               color="neutral"
@@ -92,9 +102,15 @@ const searchResults = computed(() => {
       </div>
 
       <!-- 搜索结果 -->
-      <div v-if="isSearching" class="pb-12 space-y-5">
+      <div
+        v-if="isSearching"
+        class="pb-12 space-y-5"
+      >
         <div class="flex items-center gap-2 text-sm text-muted">
-          <UIcon name="i-lucide-search" class="size-4" />
+          <UIcon
+            name="i-lucide-search"
+            class="size-4"
+          />
           <span>{{ t('home.searchResults', { count: searchResults.length }) }}</span>
         </div>
         <DemoGrid v-if="searchResults.length">
@@ -104,15 +120,57 @@ const searchResults = computed(() => {
             :demo="d"
           />
         </DemoGrid>
-        <div v-else class="py-16 text-center text-muted">
-          <UIcon name="i-lucide-search-x" class="size-8 mb-2 opacity-50" />
+        <div
+          v-else
+          class="py-16 text-center text-muted"
+        >
+          <UIcon
+            name="i-lucide-search-x"
+            class="size-8 mb-2 opacity-50"
+          />
           <p>{{ t('home.searchEmpty') }}</p>
         </div>
       </div>
 
+      <!-- 课堂演示推荐（老师视角，审计 P1-5） -->
+      <div
+        v-if="!isSearching && classroomDemos.length"
+        class="py-10 space-y-5"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h2 class="text-xl font-bold text-highlighted flex items-center gap-2">
+              <UIcon
+                name="i-lucide-presentation"
+                class="size-5 text-primary"
+              />
+              {{ t('home.classroomTitle') }}
+            </h2>
+            <p class="mt-1 text-sm text-muted">
+              {{ t('home.classroomDesc') }}
+            </p>
+          </div>
+        </div>
+        <DemoGrid>
+          <DemoCard
+            v-for="d in classroomDemos"
+            :key="d.slug"
+            :demo="d"
+          />
+        </DemoGrid>
+      </div>
+
       <!-- 各分类演示 -->
-      <div v-if="!isSearching" v-for="cat in categories" :key="cat.slug" class="py-10 space-y-5">
-        <CategoryHeader :category="cat" :count="byCategory(cat.slug).length" />
+      <div
+        v-for="cat in categories"
+        v-if="!isSearching"
+        :key="cat.slug"
+        class="py-10 space-y-5"
+      >
+        <CategoryHeader
+          :category="cat"
+          :count="byCategory(cat.slug).length"
+        />
         <DemoGrid>
           <DemoCard
             v-for="d in visibleDemos(cat.slug)"
@@ -120,7 +178,10 @@ const searchResults = computed(() => {
             :demo="d"
           />
         </DemoGrid>
-        <div v-if="byCategory(cat.slug).length > HOME_LIMIT" class="text-center pt-2">
+        <div
+          v-if="byCategory(cat.slug).length > HOME_LIMIT"
+          class="text-center pt-2"
+        >
           <UButton
             :to="`/${cat.slug}`"
             color="neutral"

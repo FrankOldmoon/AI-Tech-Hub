@@ -15,5 +15,11 @@ export default defineEventHandler(async (event) => {
   const mode = String(form.find((f) => f.name === 'mode')?.data?.toString('utf8') ?? 'recognition')
   if (!filePart?.data?.length) return { ok: false, error: 'Missing image' }
   if (!['recognition', 'verification'].includes(mode)) return { ok: false, error: 'Invalid mode' }
+  const uploadErr = filePart ? validateUploadPart(filePart, IMAGE_RULE) : null
+  if (uploadErr) return { ok: false, error: uploadErr }
+  if (file2Part?.data?.length) {
+    const uploadErr2 = validateUploadPart(file2Part, IMAGE_RULE)
+    if (uploadErr2) return { ok: false, error: uploadErr2 }
+  }
   return enqueueFaceRec(filePart, file2Part, mode)
 })

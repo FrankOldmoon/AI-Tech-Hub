@@ -37,10 +37,14 @@ export interface Demo {
   requirements?: DemoRequirements
   /** 首页精选（在分类限流中优先展示） */
   featured?: boolean
+  /** 课堂演示推荐（老师视角：可靠、快、适合全班演示，审计 P1-5） */
+  classroomSafe?: boolean
   /** 工作原理（教学向，Shell 折叠渲染；缺省不展示） */
   howItWorks?: Localized
   /** 运行必需本地 Python 后端；云端部署（Vercel）时禁用并提示 */
   requiresPython?: boolean
+  /** 本地 Python 后端是否已就绪（服务器端依赖/模型已装好）。false 时前端显示"后端未就绪"而非报错 */
+  backendReady?: boolean
   /** 对应 python 下的模块路径，如 'speech/tts' -> python/speech/tts/main.py */
   pythonModule?: string
   tags?: string[]
@@ -111,6 +115,7 @@ export const demos: Demo[] = [
   // ===== speech =====
   {
     slug: 'tts',
+    classroomSafe: true,
     category: 'speech',
     title: { zh: '文本转语音 (TTS)', en: 'Text to Speech (TTS)' },
     description: { zh: '文本转语音合成。', en: 'Text to speech synthesis.' },
@@ -125,6 +130,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'asr',
+    classroomSafe: true,
     category: 'speech',
     title: { zh: '语音识别 (ASR)', en: 'Speech Recognition (ASR)' },
     description: { zh: '语音识别转文字。', en: 'Speech to text recognition.' },
@@ -135,10 +141,11 @@ export const demos: Demo[] = [
     requirements: { mic: true, modelSizeMB: 150 },
     featured: true,
     tags: ['ASR', 'Web Speech API', 'Whisper'],
-    pythonModule: 'speech/asr',
+    pythonModule: 'speech/asr'
   },
   {
     slug: 'audio-classifier',
+    classroomSafe: true,
     category: 'speech',
     title: { zh: '音频分类', en: 'Audio Classifier' },
     description: { zh: '音频事件分类识别。', en: 'Audio event classification.' },
@@ -165,6 +172,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'voice-clone',
+    classroomSafe: true,
     category: 'speech',
     title: { zh: '语音克隆', en: 'Voice Cloning' },
     description: { zh: '用一段参考录音克隆音色并合成任意文本。', en: 'Clone a voice from a reference recording and synthesize any text.' },
@@ -188,7 +196,7 @@ export const demos: Demo[] = [
     runtime: 'browser',
     requirements: { mic: true },
     tags: ['Emotion', 'wav2vec2', 'transformers.js'],
-    pythonModule: 'speech/emotion',
+    pythonModule: 'speech/emotion'
   },
   {
     slug: 'pitch-detector',
@@ -201,7 +209,7 @@ export const demos: Demo[] = [
     runtime: 'browser',
     requirements: { mic: true },
     tags: ['Pitch', 'YIN', 'Web Audio'],
-    pythonModule: 'speech/pitch-detector',
+    pythonModule: 'speech/pitch-detector'
   },
   {
     slug: 'denoise',
@@ -213,6 +221,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/denoise',
     tags: ['Denoise', 'DeepFilterNet']
   },
@@ -227,6 +236,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/vad',
     tags: ['VAD', 'Silero']
   },
@@ -241,6 +251,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/musicgen',
     tags: ['MusicGen', 'AIGC']
   },
@@ -268,6 +279,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/meeting',
     tags: ['Meeting', 'Whisper', 'WeSpeaker']
   },
@@ -282,6 +294,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/midi',
     tags: ['MIDI', 'Transcription']
   },
@@ -296,6 +309,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/speech-translate',
     tags: ['Translate', 'Whisper']
   },
@@ -310,6 +324,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'speech/lip-sync',
     tags: ['Wav2Lip', 'Video']
   },
@@ -330,6 +345,7 @@ export const demos: Demo[] = [
   // ===== vision (MediaPipe) =====
   {
     slug: 'face-detection',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '人脸检测', en: 'Face Detector' },
     description: { zh: '检测图像中的人脸。', en: 'Detect human faces in images.' },
@@ -357,6 +373,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'hand-landmarker',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '手势关键点', en: 'Hand Landmarker' },
     description: { zh: '检测手部 21 个关键点。', en: 'Detect 21 hand landmarks.' },
@@ -370,6 +387,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'gesture-recognizer',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '手势识别', en: 'Gesture Recognizer' },
     description: { zh: '识别手部手势类别。', en: 'Recognize hand gesture categories.' },
@@ -383,6 +401,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'pose-landmarker',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '姿态估计', en: 'Pose Landmarker' },
     description: { zh: '检测人体姿态关键点。', en: 'Detect body pose landmarks.' },
@@ -409,6 +428,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'object-detector',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '目标检测', en: 'Object Detector' },
     description: { zh: '检测图像中的目标并分类。', en: 'Detect and classify objects in images.' },
@@ -421,6 +441,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'image-classifier',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '图像分类', en: 'Image Classifier' },
     description: { zh: '对图像内容进行分类。', en: 'Classify image content.' },
@@ -471,6 +492,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'depth-estimation',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '深度估计', en: 'Depth Estimation' },
     description: { zh: '估计图像中每个像素的深度。', en: 'Estimate per-pixel depth of an image.' },
@@ -533,6 +555,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ner',
+    classroomSafe: true,
     category: 'nlp',
     title: { zh: '命名实体识别', en: 'Named Entity Recognition' },
     description: { zh: '识别文本中的人名、地名、机构等实体。', en: 'Recognize persons, locations, organizations in text.' },
@@ -545,6 +568,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'zero-shot',
+    classroomSafe: true,
     category: 'nlp',
     title: { zh: '零样本文本分类', en: 'Zero-shot Classification' },
     description: { zh: '用自定义候选标签对文本分类。', en: 'Classify text with custom candidate labels.' },
@@ -557,6 +581,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'summarization',
+    classroomSafe: true,
     category: 'nlp',
     title: { zh: '文本摘要', en: 'Summarization' },
     description: { zh: '生成文本的摘要。', en: 'Generate a summary of the text.' },
@@ -569,6 +594,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'qa',
+    classroomSafe: true,
     category: 'nlp',
     title: { zh: '问答抽取', en: 'Question Answering' },
     description: { zh: '从上下文中抽取问题答案。', en: 'Extract an answer from context.' },
@@ -758,6 +784,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'mnist',
+    classroomSafe: true,
     category: 'ml',
     title: { zh: 'MNIST 手写数字', en: 'MNIST Handwritten Digits' },
     description: { zh: '在浏览器中训练神经网络识别手写数字，然后亲手写一个测试它。', en: 'Train a neural network in the browser to recognize handwritten digits, then draw one to test it.' },
@@ -796,6 +823,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'anomaly',
+    classroomSafe: true,
     category: 'ml',
     title: { zh: '异常检测', en: 'Anomaly Detection' },
     description: { zh: '用 IsolationForest 在二维数据中自动找出异常点。', en: 'Automatically find outliers in 2D data with Isolation Forest.' },
@@ -846,6 +874,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'decision-tree',
+    classroomSafe: true,
     category: 'ml',
     title: { zh: '决策树', en: 'Decision Tree' },
     description: { zh: '交互式构建 CART 决策树，观察特征分裂与决策边界。', en: 'Build a CART decision tree interactively and watch feature splits and the decision boundary.' },
@@ -878,6 +907,7 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'aigc/sd-turbo',
     tags: ['Python', 'Text/Image-to-Image (SD-Turbo)']
   },
@@ -891,11 +921,13 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'server',
     requirements: { needsServer: true },
+    backendReady: false,
     pythonModule: 'aigc/photo-restore',
     tags: ['Python', 'Photo Restoration']
   },
   {
     slug: 'bg-removal',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '智能抠图（背景移除）', en: 'Background Removal' },
     description: { zh: '用 MODNet 在浏览器中一键抠出人像/主体，导出透明背景 PNG（数据不出浏览器）。', en: 'Cut out people/subjects in-browser with MODNet and export transparent PNGs (all local).' },
@@ -1114,6 +1146,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face-recognition',
+    classroomSafe: true,
     category: 'vision',
     title: { zh: '人脸注册与识别', en: 'Face Registration & Recognition' },
     description: { zh: '一人可上传多张照片或使用摄像头注册，之后上传照片/实时摄像头即可识别身份；支持合影选脸（insightface + 浏览器本地注册库）。', en: 'Enroll a person with multiple photos or your camera, then recognize them via photo upload or live camera; supports picking a face in group photos (insightface + local registry).' },
@@ -1161,7 +1194,7 @@ export const demos: Demo[] = [
     runtime: 'browser',
     pythonModule: 'image/multimodal',
     tags: ['Transformers.js', 'Multimodal']
-  },
+  }
 ]
 
 // ===== 纯函数辅助（不依赖 Nuxt 上下文，可在任意处使用）=====

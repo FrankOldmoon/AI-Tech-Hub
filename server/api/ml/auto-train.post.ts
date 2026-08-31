@@ -12,6 +12,8 @@ export default defineEventHandler(async (event) => {
   if (!filePart?.data?.length) {
     return { ok: false, error: 'Missing CSV file' }
   }
+  const uploadErr = validateUploadPart(filePart, CSV_RULE)
+  if (uploadErr) return { ok: false, error: uploadErr }
   const target = String(form.find((f) => f.name === 'target')?.data?.toString('utf8') ?? '').trim()
   const task = String(form.find((f) => f.name === 'task')?.data?.toString('utf8') ?? 'auto').trim()
   return enqueueAutoTrain(filePart, target, task)

@@ -145,12 +145,12 @@ async function send() {
   let tps = 0
   try {
     const { TextStreamer, load_image } = await import('@huggingface/transformers')
-    const chatMessages = messages.value.slice(0, -1).map(m => {
+    const chatMessages = messages.value.slice(0, -1).map((m) => {
       if (m.role === 'user' && m.images?.length) {
         return {
           role: 'user',
           content: [
-            ...m.images.map((img) => ({ type: 'image', image: img })),
+            ...m.images.map(img => ({ type: 'image', image: img })),
             { type: 'text', text: m.content }
           ]
         }
@@ -222,10 +222,27 @@ onBeforeUnmount(async () => {
 
 <template>
   <MediaDemoShell :demo="demo">
+    <HeavyModelNotice :size-gb="0.5" />
     <div class="flex flex-wrap items-center gap-3">
-      <UBadge v-if="webgpu" color="primary" variant="subtle">WebGPU</UBadge>
-      <UBadge v-else color="neutral" variant="subtle">WASM（较慢）</UBadge>
-      <UBadge v-if="modelReady" color="success" variant="subtle">
+      <UBadge
+        v-if="webgpu"
+        color="primary"
+        variant="subtle"
+      >
+        WebGPU
+      </UBadge>
+      <UBadge
+        v-else
+        color="neutral"
+        variant="subtle"
+      >
+        WASM（较慢）
+      </UBadge>
+      <UBadge
+        v-if="modelReady"
+        color="success"
+        variant="subtle"
+      >
         {{ t('multimodalChat.loaded') }}
       </UBadge>
       <UButton
@@ -249,11 +266,32 @@ onBeforeUnmount(async () => {
       <span class="text-sm text-muted">{{ t('multimodalChat.modelHelp') }}</span>
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="error" />
-    <UAlert v-if="!webgpu && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('multimodalChat.noWebgpu')" />
-    <UAlert v-if="!modelReady && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('multimodalChat.firstDownload')" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="error"
+    />
+    <UAlert
+      v-if="!webgpu && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('multimodalChat.noWebgpu')"
+    />
+    <UAlert
+      v-if="!modelReady && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('multimodalChat.firstDownload')"
+    />
 
-    <div v-if="loading" class="space-y-1">
+    <div
+      v-if="loading"
+      class="space-y-1"
+    >
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted truncate">{{ progressFile || t('multimodalChat.loadingModel') }}</span>
         <span class="text-muted">{{ progressPct }}%</span>
@@ -261,13 +299,20 @@ onBeforeUnmount(async () => {
       <UProgress :model-value="progressPct" />
     </div>
 
-    <DemoParams v-model="params" :specs="specs" :running="generating" />
+    <DemoParams
+      v-model="params"
+      :specs="specs"
+      :running="generating"
+    />
 
     <!-- 图片区 -->
     <UCard v-if="images.length || !messages.length">
       <template #header>
         <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-          <UIcon name="i-lucide-image" class="size-4" />
+          <UIcon
+            name="i-lucide-image"
+            class="size-4"
+          />
           {{ t('multimodalChat.images') }}
         </div>
       </template>
@@ -277,13 +322,19 @@ onBeforeUnmount(async () => {
           :key="i"
           class="relative size-24 rounded-lg overflow-hidden border border-default group"
         >
-          <img :src="img" class="w-full h-full object-cover">
+          <img
+            :src="img"
+            class="w-full h-full object-cover"
+          >
           <button
             class="absolute top-1 right-1 size-6 rounded-full bg-black/60 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
             :disabled="generating"
             @click="removeImage(i)"
           >
-            <UIcon name="i-lucide-x" class="size-3.5" />
+            <UIcon
+              name="i-lucide-x"
+              class="size-3.5"
+            />
           </button>
         </div>
         <UButton
@@ -294,7 +345,14 @@ onBeforeUnmount(async () => {
           :disabled="loading || generating || images.length >= 4"
           @click="fileInput?.click()"
         />
-        <input ref="fileInput" type="file" accept="image/*" multiple class="hidden" @change="onFileChange">
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          multiple
+          class="hidden"
+          @change="onFileChange"
+        >
       </div>
     </UCard>
 
@@ -311,7 +369,10 @@ onBeforeUnmount(async () => {
             class="max-w-[85%] rounded-xl px-4 py-2 text-sm break-words"
             :class="m.role === 'user' ? 'bg-primary text-inverted' : 'bg-elevated text-highlighted'"
           >
-            <div v-if="m.images?.length" class="flex flex-wrap gap-1.5 mb-2">
+            <div
+              v-if="m.images?.length"
+              class="flex flex-wrap gap-1.5 mb-2"
+            >
               <img
                 v-for="(img, j) in m.images"
                 :key="j"
@@ -320,10 +381,15 @@ onBeforeUnmount(async () => {
                 alt=""
               >
             </div>
-            <p class="whitespace-pre-wrap">{{ m.content || (m.role === 'assistant' && generating ? '…' : '') }}</p>
+            <p class="whitespace-pre-wrap">
+              {{ m.content || (m.role === 'assistant' && generating ? '…' : '') }}
+            </p>
           </div>
         </div>
-        <div v-if="!messages.length" class="text-center text-muted py-12 text-sm">
+        <div
+          v-if="!messages.length"
+          class="text-center text-muted py-12 text-sm"
+        >
           {{ t('multimodalChat.empty') }}
         </div>
       </div>
@@ -356,7 +422,12 @@ onBeforeUnmount(async () => {
           @click="send"
         />
       </div>
-      <p v-if="stats" class="mt-2 text-xs text-muted">{{ stats }}</p>
+      <p
+        v-if="stats"
+        class="mt-2 text-xs text-muted"
+      >
+        {{ stats }}
+      </p>
     </UCard>
   </MediaDemoShell>
 </template>

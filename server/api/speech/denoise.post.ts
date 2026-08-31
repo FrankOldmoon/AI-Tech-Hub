@@ -19,5 +19,7 @@ export default defineEventHandler(async (event) => {
   if (!filePart?.data?.length) {
     return { ok: false, error: 'Missing audio file' }
   }
+  const uploadErr = validateUploadPart(filePart, AUDIO_RULE)
+  if (uploadErr) return { ok: false, error: uploadErr }
   return enqueueDenoise(filePart)
 })

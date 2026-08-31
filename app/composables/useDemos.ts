@@ -43,12 +43,18 @@ export function useDemos() {
     planned: localizedDemos.value.filter(d => d.status === 'planned').length
   }))
 
+  /** 课堂演示推荐（老师视角，审计 P1-5）：classroomSafe 且 ready 的 demo */
+  const classroomDemos = computed<LocalizedDemo[]>(() =>
+    localizedDemos.value.filter(d => d.classroomSafe && d.status === 'ready')
+  )
+
   return {
     demos: localizedDemos,
     categories: localizedCategories,
     byCategory,
     getCategory,
     getDemo,
-    stats
+    stats,
+    classroomDemos
   }
 }

@@ -27,6 +27,14 @@ const provider = computed(() => llmProviders.find(p => p.id === providerId.value
 const currentModel = computed(() => provider.value.models.find(m => m.value === modelId.value))
 /** 思考模型（如 kimi-k3）上游只允许 temperature=1，锁定该滑块 */
 const disabledKeys = computed(() => currentModel.value?.thinking ? ['temperature'] : [])
+/** 审计 P1-3：服务端未配置云 API Key 时提示"未配置"而非让用户点了才报错 */
+const llmReady = ref(true)
+onMounted(async () => {
+  try {
+    const caps = await $fetch<{ llmChat: boolean }>('/api/config/capabilities')
+    llmReady.value = caps.llmChat
+  } catch { /* 探测失败时默认可用 */ }
+})
 
 interface SseChunk {
   choices?: { delta?: { reasoning_content?: string, content?: string } }[]
@@ -217,10 +225,19 @@ const examples = computed(() => {
 <template>
   <MediaDemoShell :demo="demo">
     <div class="flex flex-wrap items-center gap-3">
-      <UBadge color="primary" variant="subtle" icon="i-lucide-cloud">
+      <UBadge
+        color="primary"
+        variant="subtle"
+        icon="i-lucide-cloud"
+      >
         {{ t('llmChat.cloudBadge') }}
       </UBadge>
-      <UBadge v-if="currentModel?.thinking" color="info" variant="subtle" icon="i-lucide-brain">
+      <UBadge
+        v-if="currentModel?.thinking"
+        color="info"
+        variant="subtle"
+        icon="i-lucide-brain"
+      >
         {{ t('llmChat.thinkingBadge') }}
       </UBadge>
       <UButton
@@ -233,8 +250,27 @@ const examples = computed(() => {
       />
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="error" />
-    <UAlert v-else color="info" variant="subtle" icon="i-lucide-info" :title="t('llmChat.configNote')" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="error"
+    />
+    <UAlert
+      v-else-if="!llmReady"
+      color="warning"
+      variant="subtle"
+      icon="i-lucide-key-round"
+      :title="t('llmChat.notConfigured')"
+    />
+    <UAlert
+      v-else
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('llmChat.configNote')"
+    />
 
     <UCard>
       <div class="flex flex-wrap items-end gap-4">
@@ -261,7 +297,12 @@ const examples = computed(() => {
       </div>
     </UCard>
 
-    <DemoParams v-model="params" :specs="specs" :running="generating" :disabled-keys="disabledKeys" />
+    <DemoParams
+      v-model="params"
+      :specs="specs"
+      :running="generating"
+      :disabled-keys="disabledKeys"
+    />
 
     <UCard>
       <div class="space-y-4 min-h-64 max-h-[60vh] overflow-auto">
@@ -275,24 +316,39 @@ const examples = computed(() => {
             class="max-w-[85%] rounded-xl px-4 py-2 text-sm break-words"
             :class="m.role === 'user' ? 'bg-primary text-inverted whitespace-pre-wrap' : 'bg-elevated text-highlighted'"
           >
-            <div v-if="m.thinking" class="mb-2">
+            <div
+              v-if="m.thinking"
+              class="mb-2"
+            >
               <div class="flex items-center gap-1.5 text-xs text-muted mb-1">
-                <UIcon name="i-lucide-brain" class="size-3.5" />
+                <UIcon
+                  name="i-lucide-brain"
+                  class="size-3.5"
+                />
                 {{ t('llmChat.thinking') }}
               </div>
               <p class="text-xs leading-relaxed text-muted whitespace-pre-wrap border-s-2 border-default ps-3">
                 {{ m.thinking }}
               </p>
             </div>
-            <p v-if="m.content" class="whitespace-pre-wrap">
+            <p
+              v-if="m.content"
+              class="whitespace-pre-wrap"
+            >
               {{ m.content }}
             </p>
-            <p v-else-if="m.role === 'assistant' && generating" class="text-muted">
+            <p
+              v-else-if="m.role === 'assistant' && generating"
+              class="text-muted"
+            >
               {{ t('llmChat.working') }}
             </p>
           </div>
         </div>
-        <div v-if="!messages.length" class="text-center text-muted py-12 text-sm">
+        <div
+          v-if="!messages.length"
+          class="text-center text-muted py-12 text-sm"
+        >
           {{ t('llmChat.empty') }}
         </div>
       </div>
@@ -340,7 +396,10 @@ const examples = computed(() => {
           @click="send"
         />
       </div>
-      <p v-if="stats" class="mt-2 text-xs text-muted">
+      <p
+        v-if="stats"
+        class="mt-2 text-xs text-muted"
+      >
         {{ stats }}
       </p>
     </UCard>

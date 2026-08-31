@@ -22,6 +22,8 @@ export default defineEventHandler(async (event) => {
   if (!filePart?.data?.length) {
     return { ok: false, error: 'Missing audio file' }
   }
+  const uploadErr = validateUploadPart(filePart, AUDIO_RULE)
+  if (uploadErr) return { ok: false, error: uploadErr }
 
   const model = String(form.find((f) => f.name === 'model')?.data?.toString('utf8') ?? 'htdemucs')
   const twoStems = String(form.find((f) => f.name === 'twoStems')?.data?.toString('utf8') ?? 'vocals')

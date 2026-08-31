@@ -253,10 +253,27 @@ onBeforeUnmount(async () => {
 
 <template>
   <MediaDemoShell :demo="demo">
+    <HeavyModelNotice :size-gb="1.7" />
     <div class="flex flex-wrap items-center gap-3">
-      <UBadge v-if="webgpu" color="primary" variant="subtle">WebGPU</UBadge>
-      <UBadge v-else color="neutral" variant="subtle">WASM（较慢）</UBadge>
-      <UBadge v-if="modelReady" color="success" variant="subtle">
+      <UBadge
+        v-if="webgpu"
+        color="primary"
+        variant="subtle"
+      >
+        WebGPU
+      </UBadge>
+      <UBadge
+        v-else
+        color="neutral"
+        variant="subtle"
+      >
+        WASM（较慢）
+      </UBadge>
+      <UBadge
+        v-if="modelReady"
+        color="success"
+        variant="subtle"
+      >
         {{ t('reasoningChat.loaded') }}
       </UBadge>
       <UButton
@@ -279,11 +296,32 @@ onBeforeUnmount(async () => {
       />
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="error" />
-    <UAlert v-if="!webgpu && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('reasoningChat.noWebgpu')" />
-    <UAlert v-if="!modelReady && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('reasoningChat.firstDownload')" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="error"
+    />
+    <UAlert
+      v-if="!webgpu && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('reasoningChat.noWebgpu')"
+    />
+    <UAlert
+      v-if="!modelReady && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('reasoningChat.firstDownload')"
+    />
 
-    <div v-if="loading" class="space-y-1">
+    <div
+      v-if="loading"
+      class="space-y-1"
+    >
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted truncate">{{ progressFile || t('reasoningChat.loadingModel') }}</span>
         <span class="text-muted">{{ progressPct }}%</span>
@@ -295,12 +333,22 @@ onBeforeUnmount(async () => {
       <div class="flex flex-wrap items-end gap-4">
         <div class="min-w-56 flex-1">
           <label class="block text-sm font-medium text-muted mb-1">{{ t('reasoningChat.model') }}</label>
-          <USelect v-model="modelId" :items="modelItems" :disabled="loading || generating" class="w-full" @change="onModelChange" />
+          <USelect
+            v-model="modelId"
+            :items="modelItems"
+            :disabled="loading || generating"
+            class="w-full"
+            @change="onModelChange"
+          />
         </div>
       </div>
     </UCard>
 
-    <DemoParams v-model="params" :specs="specs" :running="generating" />
+    <DemoParams
+      v-model="params"
+      :specs="specs"
+      :running="generating"
+    />
 
     <UCard>
       <div class="space-y-4 min-h-64 max-h-[60vh] overflow-auto">
@@ -315,9 +363,15 @@ onBeforeUnmount(async () => {
             :class="m.role === 'user' ? 'bg-primary text-inverted whitespace-pre-wrap' : 'bg-elevated text-highlighted'"
           >
             <!-- 思考过程 -->
-            <div v-if="m.thinking" class="mb-2">
+            <div
+              v-if="m.thinking"
+              class="mb-2"
+            >
               <div class="flex items-center gap-1.5 text-xs text-muted mb-1">
-                <UIcon name="i-lucide-brain" class="size-3.5" />
+                <UIcon
+                  name="i-lucide-brain"
+                  class="size-3.5"
+                />
                 {{ t('reasoningChat.thinking') }}
               </div>
               <p class="text-xs leading-relaxed text-muted whitespace-pre-wrap border-s-2 border-default ps-3">
@@ -325,13 +379,24 @@ onBeforeUnmount(async () => {
               </p>
             </div>
             <!-- 回答 -->
-            <p v-if="m.content" class="whitespace-pre-wrap">{{ m.content }}</p>
-            <p v-else-if="m.role === 'assistant' && generating" class="text-muted">
+            <p
+              v-if="m.content"
+              class="whitespace-pre-wrap"
+            >
+              {{ m.content }}
+            </p>
+            <p
+              v-else-if="m.role === 'assistant' && generating"
+              class="text-muted"
+            >
               {{ t('reasoningChat.working') }}
             </p>
           </div>
         </div>
-        <div v-if="!messages.length" class="text-center text-muted py-12 text-sm">
+        <div
+          v-if="!messages.length"
+          class="text-center text-muted py-12 text-sm"
+        >
           {{ t('reasoningChat.empty') }}
         </div>
       </div>
@@ -379,7 +444,12 @@ onBeforeUnmount(async () => {
           @click="send"
         />
       </div>
-      <p v-if="stats" class="mt-2 text-xs text-muted">{{ stats }}</p>
+      <p
+        v-if="stats"
+        class="mt-2 text-xs text-muted"
+      >
+        {{ stats }}
+      </p>
     </UCard>
   </MediaDemoShell>
 </template>

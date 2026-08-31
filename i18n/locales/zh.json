@@ -23,6 +23,8 @@
     "searchPlaceholder": "搜索 demo（名称、描述、标签、分类）……",
     "searchResults": "找到 {count} 个结果",
     "searchEmpty": "没有找到匹配的 demo",
+    "classroomTitle": "课堂演示推荐",
+    "classroomDesc": "经筛选的可靠 demo：加载快、效果好，适合在课堂上给全班演示（老师视角）",
     "stats": {
       "demos": "演示数量",
       "categories": "技术分类",
@@ -87,7 +89,12 @@
     "useUploadInstead": "改用上传图片",
     "sessionOnly": "结果仅本次会话有效，请及时下载",
     "howItWorks": "工作原理",
-    "requiresPythonUnavailable": "此演示依赖本地 Python 后端，当前为云端部署暂不可用，请在本机运行。"
+      "requiresPythonUnavailable": "此演示依赖本地 Python 后端，当前为云端部署暂不可用，请在本机运行。",
+      "backendNotReady": "此功能的后端环境尚未配置，暂不可用（正在准备中）。",
+      "heavyModelNotice": "此演示需在浏览器加载大模型，首次使用可能要等一会儿",
+      "heavyModelSize": "模型体积约 {size} GB，加载时请耐心等待",
+      "webgpuYes": "✓ 你的浏览器支持 WebGPU，推理会更快",
+      "webgpuNo": "✗ 你的浏览器不支持 WebGPU，将用 CPU 推理，速度较慢"
   },
   "errors": {
     "network": "网络请求失败，请检查网络后重试。",
@@ -590,7 +597,8 @@
     "thinking": "思考过程",
     "thinkingBadge": "思考模式",
     "cloudBadge": "云端 API",
-    "configNote": "本演示经本机服务代理调用云端大模型 API。首次使用前请在项目 .env 配置 MOONSHOT_API_KEY / DEEPSEEK_API_KEY（密钥仅存服务端）。",
+      "configNote": "本演示经本机服务代理调用云端大模型 API。首次使用前请在项目 .env 配置 MOONSHOT_API_KEY / DEEPSEEK_API_KEY（密钥仅存服务端）。",
+      "notConfigured": "云端 LLM 对话未配置：管理员需在服务器 .env 设置 MOONSHOT_API_KEY 或 DEEPSEEK_API_KEY",
     "send": "发送",
     "stop": "停止",
     "clear": "清空对话",

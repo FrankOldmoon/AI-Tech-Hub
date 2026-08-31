@@ -23,6 +23,8 @@
     "searchPlaceholder": "Search demos (name, description, tags, category)…",
     "searchResults": "{count} result(s) found",
     "searchEmpty": "No matching demos found",
+    "classroomTitle": "Classroom Picks",
+    "classroomDesc": "Curated reliable demos: fast to load, great results — ideal for whole-class demos (teacher view)",
     "stats": {
       "demos": "Demos",
       "categories": "Categories",
@@ -87,7 +89,12 @@
     "useUploadInstead": "Upload an image instead",
     "sessionOnly": "Results are session-only — download them before leaving",
     "howItWorks": "How it works",
-    "requiresPythonUnavailable": "This demo needs a local Python backend — unavailable on the cloud deployment. Run it on your own machine."
+      "requiresPythonUnavailable": "This demo needs a local Python backend — unavailable on the cloud deployment. Run it on your own machine.",
+      "backendNotReady": "This feature's backend is not set up yet — coming soon.",
+      "heavyModelNotice": "This demo loads a large model in your browser — the first run may take a while",
+      "heavyModelSize": "Model size ~{size} GB, please be patient while it loads",
+      "webgpuYes": "Your browser supports WebGPU — inference will be faster",
+      "webgpuNo": "WebGPU not available — falling back to CPU (slower)"
   },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",
@@ -590,7 +597,8 @@
     "thinking": "Thinking",
     "thinkingBadge": "Thinking mode",
     "cloudBadge": "Cloud API",
-    "configNote": "This demo calls cloud LLM APIs through the local server proxy. Before first use, set MOONSHOT_API_KEY / DEEPSEEK_API_KEY in the project .env (keys stay server-side).",
+      "configNote": "This demo calls cloud LLM APIs through the local server proxy. Before first use, set MOONSHOT_API_KEY / DEEPSEEK_API_KEY in the project .env (keys stay server-side).",
+      "notConfigured": "Cloud LLM chat is not configured: an admin must set MOONSHOT_API_KEY or DEEPSEEK_API_KEY in .env",
     "send": "Send",
     "stop": "Stop",
     "clear": "Clear chat",
