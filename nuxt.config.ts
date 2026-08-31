@@ -4,6 +4,8 @@ import { isWebllmIndexJs, neutralizeImportMetaUrl } from './build/webllm-neutral
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/ui', '@nuxtjs/i18n'],
 
+  // 自托管部署配置：NUXT_PUBLIC_SELF_HOSTED / NUXT_PUBLIC_ENABLE_PYTHON
+  // 在构建/运行环境设 true 时烘焙进 runtimeConfig.public（Nuxt 自动做布尔转换）
   devtools: {
     enabled: true
   },
@@ -13,18 +15,10 @@ export default defineNuxtConfig({
   ui: {
     fonts: false
   },
-
-  i18n: {
-    defaultLocale: 'en',
-    strategy: 'no_prefix',
-    locales: [
-      { code: 'zh', name: '中文', file: 'zh.json' },
-      { code: 'en', name: 'English', file: 'en.json' }
-    ],
-    detectBrowserLanguage: {
-      useCookie: true,
-      cookieKey: 'i18n_locale',
-      redirectOn: 'root'
+  runtimeConfig: {
+    public: {
+      selfHosted: false,
+      enablePython: false
     }
   },
 
@@ -74,5 +68,18 @@ export default defineNuxtConfig({
         braceStyle: '1tbs'
       }
     }
-  }
-})
+  },
+
+  i18n: {
+    defaultLocale: 'en',
+    strategy: 'no_prefix',
+    locales: [
+      { code: 'zh', name: '中文', file: 'zh.json' },
+      { code: 'en', name: 'English', file: 'en.json' }
+    ],
+    detectBrowserLanguage: {
+      useCookie: true,
+      cookieKey: 'i18n_locale',
+      redirectOn: 'root'
+    }
+  } })
