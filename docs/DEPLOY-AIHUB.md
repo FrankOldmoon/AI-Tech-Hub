@@ -82,3 +82,32 @@ systemctl restart aihub
 - **ReBot Arm B601-RS 机械臂仿真器**（`robot/rebot-arm`）：浏览器本地 Three.js 仿真，可选连实体机械臂（rosbridge）或舵机（motorbridge）；LLM 对话未部署（text-agent 未起）
 - 目录约定与接入流程见 **`docs/APP-INTEGRATION-GUIDE.md`**：应用前端放 `public/apps/<slug>/`，API 前缀 `/api/apps/<slug>/`，模型放 `server/assets/apps/<slug>/`（gitignore，部署时上传），路径适配用 `scripts/adapt-app-paths.py`
 - 原 3002 独立服务（`rebot-arm-web.service`）已下线；模型 68.5MB 在 `server/assets/apps/rebot-arm/`，从本地 `D:\YIN-PROJE\nuxt_AI\server\assets\apps\rebot-arm` 上传（`_tools\upload_rebot_models.py`）
+
+## 七、定时自动部署（2026-09-01 起）
+
+**模式**：本地 push → GitHub(main) → 152 定时从仓库拉取并部署（systemd timer 轮询，非 webhook）。
+
+### 部署脚本（服务器 /opt/aihub-deploy/）
+- `sudo /opt/aihub-deploy/deploy.sh`          # 有变更才部署（无变更 SKIP）
+- `sudo /opt/aihub-deploy/deploy.sh --force`  # 忽略变更检测，强制部署
+- `/opt/aihub-deploy/status.sh`               # 查看状态/日志/定时器（任意用户可跑）
+
+### 定时器
+- `aihub-deploy.timer`：每天 03:00 强制 + 每 6h 轮询（`systemctl list-timers aihub-deploy.timer`）
+- 触发 `aihub-deploy.service`（Type=oneshot，root 执行 deploy.sh）
+
+### 流程与自愈
+1. fetch origin/main，与 `deploy-state.json` 的 `last_success_commit` 比较，无变更则跳过
+2. 暂移 `public/model`（60G，防构建 OOM）→ 备份旧 `.output` → `pnpm build`（4 个 env）→ 放回模型
+3. 重启 aihub → curl 冒烟（首页 / rebot urdf / 模型文件）
+4. 成功：写 state（success）；失败：恢复 `.output.bak` + git 回退到 last_success + 重启（rolled_back）
+5. **连续失败 3 次 → `degraded=true` 自动停表**，待人工介入
+
+### 状态与日志
+- `/www/wwwroot/aihub/deploy-state.json`：last_success_commit / last_result / consecutive_failures / history(20)
+- `/www/wwwroot/aihub/logs/deploy.log`：滚动日志
+
+### 注意
+- deploy.sh 需 root 运行（非 root 会提示用 sudo）；手动入口用 `sudo`
+- `server/assets/apps/` 已并入 git（rebot 模型随部署自动到位，不再单独上传）；60G `public/model` 仍为服务器持久资产（不入库、部署不动、构建时暂移）
+- 更新本地代码后只需 push 到 github main，定时器会在下个周期自动部署
