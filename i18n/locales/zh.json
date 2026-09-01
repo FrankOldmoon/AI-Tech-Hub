@@ -13,11 +13,15 @@
     "speech": {
       "title": "语音",
       "description": "语音合成、语音识别等语音相关 AI 演示。"
+    },
+    "robot": {
+      "title": "机械人",
+      "description": "机器人相关 AI 演示（敬请期待）。"
     }
   },
   "home": {
     "heroTitle": "80+ AI 演示，点开即玩",
-    "heroDescription": "语音、视觉、NLP、AIGC 与机器学习全栈演示。浏览器本地运行，数据不出设备，无需注册；服务端演示需本地 Python 环境。",
+    "heroDescription": "语音、视觉、NLP、AIGC、机器学习与机械人全栈演示。浏览器本地运行，数据不出设备，无需注册；服务端演示需本地 Python 环境。",
     "allDemos": "全部演示",
     "viewDemo": "查看演示",
     "searchPlaceholder": "搜索 demo（名称、描述、标签、分类）……",

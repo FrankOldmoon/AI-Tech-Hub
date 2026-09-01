@@ -1,7 +1,7 @@
 // AI 演示注册表：所有 demo 的元数据集中在此，前端/分类页面统一消费
 // 标题/描述以 { zh, en } 形式存储，便于按当前 locale 取值
 
-export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml'
+export type DemoCategory = 'speech' | 'vision' | 'nlp' | 'aigc' | 'ml' | 'robot'
 export type DemoStatus = 'ready' | 'planned'
 
 export interface Localized {
@@ -108,6 +108,15 @@ export const categories: Category[] = [
       en: 'Collect samples and train custom image/audio classifiers in-browser (transfer learning).'
     },
     icon: 'i-lucide-graduation-cap'
+  },
+  {
+    slug: 'robot',
+    title: { zh: '机械人', en: 'Robotics' },
+    description: {
+      zh: '机器人相关 AI 演示（敬请期待）——机械臂控制、视觉导航、语音交互等。',
+      en: 'Robotics AI demos (coming soon) — robot arm control, vision navigation, voice interaction and more.'
+    },
+    icon: 'i-lucide-bot'
   }
 ]
 
