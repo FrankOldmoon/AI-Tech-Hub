@@ -73,3 +73,6 @@ tmp/chrome-headless/
 
 # 杂散产物（勿提交）
 output/
+
+# 独立应用模型/大数据（不入库，部署时上传）
+server/assets/apps/

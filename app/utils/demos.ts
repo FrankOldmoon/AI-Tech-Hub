@@ -1203,6 +1203,23 @@ export const demos: Demo[] = [
     runtime: 'browser',
     pythonModule: 'image/multimodal',
     tags: ['Transformers.js', 'Multimodal']
+  },
+  {
+    slug: 'rebot-arm',
+    category: 'robot',
+    title: { zh: 'ReBot Arm 机械臂仿真器', en: 'ReBot Arm Simulator' },
+    description: {
+      zh: 'ROS2 ReBot Arm B601-RS 机械臂仿真器：浏览器本地 Three.js 渲染、关节/夹爪手动控制，可连真实机械臂（需 rosbridge）。',
+      en: 'ROS2 ReBot Arm B601-RS simulator: in-browser Three.js rendering with manual joint/gripper control; connect a real arm via rosbridge.'
+    },
+    howItWorks: {
+      zh: '纯前端机械臂仿真：加载 URDF/STL 模型，浏览器本地解算关节运动；连实体机械臂需 rosbridge（ws://机械臂IP:9090）。',
+      en: 'Pure front-end arm simulation: loads URDF/STL and solves joint motion in-browser; connecting a real arm requires rosbridge (ws://ARM_IP:9090).'
+    },
+    icon: 'i-lucide-robot',
+    status: 'ready',
+    runtime: 'browser',
+    tags: ['Robotics', 'ROS2', 'Three.js']
   }
 ]
 
