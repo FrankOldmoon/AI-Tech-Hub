@@ -1,0 +1,10 @@
+{
+  "slug": "microduck",
+  "name": "MicroDuck 微鸭仿真器",
+  "external": {
+    "nostr-ghosts": {
+      "required": false,
+      "hint": "多人幽灵需公网 Nostr relay（内网不可用，自动静默禁用，不影响单机仿真）"
+    }
+  }
+}

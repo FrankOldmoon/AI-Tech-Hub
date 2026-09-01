@@ -61,6 +61,8 @@ python/**/cache/
 *.npy
 *.npz
 *.gz
+# microduck 仿真器 RL 策略（pollen-robotics 官方 ONNX 导出，需随应用分发到内网，不能忽略）
+!public/apps/microduck/policies/*.onnx
 python/aigc/photo-restore/weights/python/aigc/photo-restore/vqgan_arch.py
 python/aigc/photo-restore/codeformer_arch.py
 

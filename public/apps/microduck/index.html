@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Microduck</title>
+    <style>
+      /* Anton 字体本地化（原为 Google Fonts，内网离线不可达） */
+      @font-face {
+        font-family: "Anton";
+        font-style: normal;
+        font-weight: 400;
+        font-display: swap;
+        src: url(./assets/fonts/anton-latin.woff2) format("woff2");
+      }
+      :root {
+        --ink: #08080c;
+      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      html, body { height: 100%; }
+      body { background: var(--ink); overflow: hidden; }
+      #root { height: 100%; }
+    </style>
+    <script type="module" crossorigin src="/apps/microduck/bundle/index-BqrWVoab.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>

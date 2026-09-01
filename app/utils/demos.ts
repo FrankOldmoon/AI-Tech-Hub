@@ -1220,6 +1220,23 @@ export const demos: Demo[] = [
     status: 'ready',
     runtime: 'browser',
     tags: ['Robotics', 'ROS2', 'Three.js']
+  },
+  {
+    slug: 'microduck',
+    category: 'robot',
+    title: { zh: 'MicroDuck 微鸭仿真器', en: 'MicroDuck Simulator' },
+    description: {
+      zh: 'Hugging Face / Pollen Robotics 开源双足机器鸭的浏览器仿真：MuJoCo 物理 + 真实 RL 策略（ONNX）全本地运行，可走/坐/翻滚/踢球，双腿与轮滑两种形态。',
+      en: 'In-browser simulation of the Hugging Face / Pollen Robotics open-source bipedal duck: MuJoCo physics + real RL policies (ONNX) run fully locally; walk/sit/roll/kick, legs & rollers variants.'
+    },
+    howItWorks: {
+      zh: 'MuJoCo 编译为 WebAssembly 跑物理，onnxruntime-web 以 50Hz 运行导出自 microduck_rl 的真实强化学习策略；全部离线本地化，无后端。',
+      en: 'MuJoCo compiled to WebAssembly steps the physics while onnxruntime-web runs the real RL policies exported from microduck_rl at 50 Hz; fully offline and local, no backend.'
+    },
+    icon: 'i-lucide-bird',
+    status: 'ready',
+    runtime: 'browser',
+    tags: ['Robotics', 'MuJoCo', 'ONNX', 'RL', 'Three.js']
   }
 ]
 

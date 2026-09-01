@@ -1047,5 +1047,10 @@
     "externalNote": "Local simulation needs nothing extra; to connect a real arm, run rosbridge and enter its address (ws://ARM_IP:9090); LLM chat is not deployed yet.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
+  },
+  "microduck": {
+    "externalNote": "Fully local in-browser simulation (MuJoCo physics + real RL policies), no extra environment needed; multiplayer ghosts need public Nostr and are auto-disabled on the intranet. Click the canvas, then use arrows/WASD to move, M to switch legs/rollers, G to ground-pick.",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   }
 }

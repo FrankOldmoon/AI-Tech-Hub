@@ -65,3 +65,7 @@ scripts/adapt-app-paths.py               路径适配脚本（把应用内绝对
 | 应用 | 分类 | slug | 说明 |
 |---|---|---|---|
 | ROS2 ReBot Arm B601-RS 机械臂仿真器 | robot | rebot-arm | 浏览器本地 Three.js 仿真；可选连实体机械臂（rosbridge）/舵机（motorbridge） |
+| MicroDuck 微鸭仿真器 | robot | microduck | Hugging Face/Pollen Robotics 双足机器鸭；MuJoCo(WASM)+ONNX RL 策略全本地，无后端 |
+
+> microduck 是"纯静态无 API"示例：构建产物整体放 `public/apps/<slug>/`（含本地化的 MuJoCo/onnxruntime wasm 于 `vendor/`），
+> 无需 server API；原应用的多玩家 ghosts（Trystero/Nostr）依赖公网，内网自动静默禁用，见 `app-manifest.json`。
