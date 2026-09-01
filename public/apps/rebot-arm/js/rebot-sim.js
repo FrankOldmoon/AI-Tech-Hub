@@ -68,14 +68,6 @@
   let hardwareFeedbackDriven = false;
   let gripperGroup;
   let ghostGripperGroup;
-  // ===== 扩展：虚拟摄像头 + 抓取放置 demo =====
-  let armCamera = null;
-  let armCamRT = null;
-  let armCamCtx = null;
-  let armCamCanvas = null;
-  let armCamPos = null;
-  let armCamLook = null;
-  let demoRunning = false;
   let mujocoSceneGroup;
   let envelopeGroup;
   let workspacePlanarReach = NOMINAL_REACH;
@@ -2009,7 +2001,6 @@
     }
     if (controls) controls.update();
     renderer.render(scene, camera);
-    renderArmCamera();
   }
 
   function updateAxisLabelVisibility(now) {
@@ -2366,130 +2357,5 @@
         cam.lookAt(target);
       }
     };
-  }
-  // ============================================================
-  // 扩展功能：虚拟摄像头影像 + 一键抓取/放置 demo
-  // ============================================================
-
-  /** 懒初始化虚拟摄像头（gripperGroup/renderer 就绪后自动创建） */
-  function ensureArmCamera() {
-    if (armCamera || !gripperGroup || !renderer || !scene) return;
-    armCamera = new THREE.PerspectiveCamera(60, 320 / 240, 0.01, 5);
-    armCamRT = new THREE.WebGLRenderTarget(320, 240);
-    armCamPos = new THREE.Vector3(0, 0.09, -0.03);
-    armCamLook = new THREE.Vector3(0, -0.35, -0.45);
-    armCamCanvas = document.getElementById('arm-cam-canvas');
-    if (armCamCanvas) armCamCtx = armCamCanvas.getContext('2d');
-  }
-
-  /** 每帧渲染虚拟摄像头（装在夹爪上方，跟随机械臂）到小窗口 */
-  function renderArmCamera() {
-    ensureArmCamera();
-    if (!armCamera || !armCamRT || !gripperGroup) return;
-    gripperGroup.updateMatrixWorld(true);
-    const pos = armCamPos.clone();
-    const look = armCamLook.clone();
-    gripperGroup.localToWorld(pos);
-    gripperGroup.localToWorld(look);
-    armCamera.position.copy(pos);
-    armCamera.lookAt(look);
-    renderer.setRenderTarget(armCamRT);
-    renderer.render(scene, armCamera);
-    renderer.setRenderTarget(null);
-    if (armCamCtx && armCamCanvas) {
-      armCamCtx.drawImage(armCamRT.texture, 0, 0, armCamCanvas.width, armCamCanvas.height);
-    }
-  }
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  function setDemoStatus(msg) {
-    const el = document.getElementById('demo-status');
-    if (el) el.textContent = msg || '';
-  }
-
-  /** 解算到目标世界坐标并平滑移动机械臂 */
-  function moveToWorldTarget(target, duration) {
-    const solved = solveIKTarget(target, 60, 500);
-    if (!solved || !solved.angles) return false;
-    moveToAngles({ ...currentAngles, ...solved.angles }, duration || 1200);
-    return true;
-  }
-
-  /** 一键抓取/放置 demo：红块 -> 放置到桌面空位 -> 归位 */
-  async function playPickPlaceDemo() {
-    if (demoRunning) return;
-    demoRunning = true;
-    setDemoStatus('demo 开始');
-    try {
-      const obj = taskObjects.get('red');
-      if (!obj) {
-        setDemoStatus('没有可抓取的物体');
-        return;
-      }
-      const base = obj.position.clone();
-
-      // 1. 归位
-      moveToAngles(Object.fromEntries(jointDefs.map((j) => [j.name, j.home])), 800);
-      await sleep(1200);
-
-      // 2. 移到红色方块上方
-      const above = base.clone(); above.y += 0.10;
-      moveToWorldTarget(above, 1400);
-      await sleep(1800);
-
-      // 3. 下移罩住物体
-      const grab = base.clone(); grab.y += 0.03;
-      moveToWorldTarget(grab, 1400);
-      await sleep(1800);
-
-      // 4. 抓取
-      attachObject('red');
-      setDemoStatus('已抓取红色方块');
-      await sleep(600);
-
-      // 5. 抬起
-      const lift = base.clone(); lift.y += 0.15;
-      moveToWorldTarget(lift, 1200);
-      await sleep(1600);
-
-      // 6. 移到放置点上方（桌面左前空位）
-      const place = new THREE.Vector3(0.20, 0.20, -0.15);
-      moveToWorldTarget(place, 1400);
-      await sleep(1800);
-
-      // 7. 下移放物
-      const placeDown = new THREE.Vector3(0.20, 0.128, -0.15);
-      moveToWorldTarget(placeDown, 1200);
-      await sleep(1600);
-
-      // 8. 释放
-      releaseObject({ settleOnTable: true });
-      setDemoStatus('已放置');
-      await sleep(600);
-
-      // 9. 归位
-      moveToAngles(Object.fromEntries(jointDefs.map((j) => [j.name, j.home])), 1000);
-      setDemoStatus('demo 完成');
-      await sleep(1400);
-      setDemoStatus('');
-    } finally {
-      demoRunning = false;
-    }
-  }
-
-  // 绑定"播放 demo"按钮
-  const playDemoBtn = document.getElementById('play-demo');
-  if (playDemoBtn) playDemoBtn.addEventListener('click', playPickPlaceDemo);
-
-  // 摄像头窗口开/关
-  const camToggle = document.getElementById('arm-cam-toggle');
-  if (camToggle) {
-    camToggle.addEventListener('click', () => {
-      const win = document.getElementById('arm-cam-window');
-      if (win) win.classList.toggle('collapsed');
-    });
   }
 })();

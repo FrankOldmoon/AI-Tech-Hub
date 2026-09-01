@@ -18,13 +18,6 @@
   <main class="app-shell">
     <section class="viewport" id="viewport">
       <div id="scene-host" class="scene-host"></div>
-      <div id="arm-cam-window" class="arm-cam-window">
-        <div class="arm-cam-bar">
-          <span data-i18n="cam.title">机械臂摄像头</span>
-          <button type="button" id="arm-cam-toggle" class="arm-cam-toggle" title="开/关摄像头" aria-label="开关摄像头">×</button>
-        </div>
-        <canvas id="arm-cam-canvas" width="320" height="240"></canvas>
-      </div>
       <div id="drag-marker" data-i18n-title="app.dragTcp" class="drag-marker" title="拖拽 TCP"></div>
 
       <header class="hud top-hud">
@@ -428,14 +421,6 @@ export REBOTARM_LLM_MODEL='qwen-plus'
       <div class="section">
         <h3 data-i18n="preset.title">姿态预设</h3>
         <div class="button-grid" id="preset-buttons"></div>
-      </div>
-
-      <div class="section">
-        <h3 data-i18n="demo.title">演示</h3>
-        <div class="button-grid">
-          <button type="button" id="play-demo" class="preset-btn demo-btn" data-i18n="demo.play">播放抓取/放置 demo</button>
-        </div>
-        <p id="demo-status" class="demo-status"></p>
       </div>
 
       <div class="section">
