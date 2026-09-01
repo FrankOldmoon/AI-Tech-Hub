@@ -53,11 +53,13 @@ onMounted(() => {
     </div>
     <div
       ref="containerRef"
-      class="rounded-lg overflow-hidden ring ring-default flex flex-col bg-default"
+      class="rounded-lg overflow-hidden ring ring-default bg-default"
+      :class="{ 'flex flex-col': isFullscreen }"
     >
       <iframe
         src="/apps/rebot-arm/index.html"
-        class="w-full border-0 flex-1"
+        class="w-full border-0"
+        :class="{ 'flex-1': isFullscreen }"
         :style="{ height: isFullscreen ? '100%' : '85vh' }"
         :title="demo.title"
         allow="microphone; camera"
