@@ -13,11 +13,15 @@
     "speech": {
       "title": "Speech",
       "description": "Speech synthesis and recognition AI demos."
+    },
+    "robot": {
+      "title": "Robotics",
+      "description": "Robotics AI demos (coming soon)."
     }
   },
   "home": {
     "heroTitle": "80+ AI Demos, Try Instantly",
-    "heroDescription": "Speech, vision, NLP, AIGC and ML demos. Runs in your browser — data stays on device, no sign-up. Server demos need a local Python environment.",
+    "heroDescription": "Speech, vision, NLP, AIGC, ML and Robotics demos. Runs in your browser — data stays on device, no sign-up. Server demos need a local Python environment.",
     "allDemos": "All Demos",
     "viewDemo": "View Demo",
     "searchPlaceholder": "Search demos (name, description, tags, category)…",

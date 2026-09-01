@@ -4,6 +4,9 @@ import type { LocalizedDemo } from '~/utils/demos'
 const { t } = useI18n()
 const { categories, byCategory, stats, demos, classroomDemos } = useDemos()
 
+/** 首页只展示有 demo 的分类（机械人等空分类在导航可见、页面显示"敬请期待"，但不在首页占位） */
+const homeCategories = computed(() => categories.value.filter(c => byCategory(c.slug).length > 0))
+
 const statItems = computed(() => [
   { value: stats.value.total, label: t('home.stats.demos'), icon: 'i-lucide-flask-conical' },
   { value: stats.value.categories, label: t('home.stats.categories'), icon: 'i-lucide-layout-grid' },
@@ -162,7 +165,7 @@ const searchResults = computed(() => {
 
       <!-- 各分类演示 -->
       <div
-        v-for="cat in categories"
+        v-for="cat in homeCategories"
         v-if="!isSearching"
         :key="cat.slug"
         class="py-10 space-y-5"
