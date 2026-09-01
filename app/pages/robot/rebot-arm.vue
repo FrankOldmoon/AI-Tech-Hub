@@ -8,6 +8,28 @@
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('robot', 'rebot-arm')!)
+
+/** 全屏控制（测试：验证定时自动部署链路） */
+const containerRef = ref<HTMLElement | null>(null)
+const isFullscreen = ref(false)
+
+function toggleFullscreen() {
+  if (document.fullscreenElement) {
+    document.exitFullscreen?.()
+  } else {
+    containerRef.value?.requestFullscreen?.()
+  }
+}
+
+onMounted(() => {
+  const onFsChange = () => {
+    isFullscreen.value = !!document.fullscreenElement
+  }
+  document.addEventListener('fullscreenchange', onFsChange)
+  onBeforeUnmount(() => {
+    document.removeEventListener('fullscreenchange', onFsChange)
+  })
+})
 </script>
 
 <template>
@@ -19,11 +41,24 @@ const demo = computed(() => getDemo('robot', 'rebot-arm')!)
       :title="t('robotArm.externalNote')"
       class="mb-3"
     />
-    <div class="rounded-lg overflow-hidden ring ring-default">
+    <div class="flex justify-end mb-2">
+      <UButton
+        :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+        :label="isFullscreen ? t('robotArm.exitFullscreen') : t('robotArm.fullscreen')"
+        color="neutral"
+        variant="soft"
+        size="sm"
+        @click="toggleFullscreen"
+      />
+    </div>
+    <div
+      ref="containerRef"
+      class="rounded-lg overflow-hidden ring ring-default flex flex-col bg-default"
+    >
       <iframe
         src="/apps/rebot-arm/index.html"
-        class="w-full border-0"
-        style="height: 85vh;"
+        class="w-full border-0 flex-1"
+        :style="{ height: isFullscreen ? '100%' : '85vh' }"
         :title="demo.title"
         allow="microphone; camera"
         loading="lazy"

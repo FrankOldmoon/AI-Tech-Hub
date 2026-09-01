@@ -1044,6 +1044,8 @@
     "builtWith": "Built with Nuxt UI"
   },
   "robotArm": {
-    "externalNote": "Local simulation needs nothing extra; to connect a real arm, run rosbridge and enter its address (ws://ARM_IP:9090); LLM chat is not deployed yet."
+    "externalNote": "Local simulation needs nothing extra; to connect a real arm, run rosbridge and enter its address (ws://ARM_IP:9090); LLM chat is not deployed yet.",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   }
 }

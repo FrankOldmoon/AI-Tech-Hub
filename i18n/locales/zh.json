@@ -1044,6 +1044,8 @@
     "builtWith": "基于 Nuxt UI 构建"
   },
   "robotArm": {
-    "externalNote": "浏览器本地仿真无需额外环境；连实体机械臂需启动 rosbridge 并输入地址（ws://机械臂IP:9090）；LLM 对话暂未部署。"
+    "externalNote": "浏览器本地仿真无需额外环境；连实体机械臂需启动 rosbridge 并输入地址（ws://机械臂IP:9090）；LLM 对话暂未部署。",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
   }
 }
