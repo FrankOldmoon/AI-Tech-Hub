@@ -13,6 +13,8 @@
    ├── / → 反代 node (.output/server/index.mjs @127.0.0.1:3000)   [Nitro + 页面/API]
    ├── /model/     → alias public/model/     [60G 本地模型，nginx 直出，长缓存 + Range]
    ├── /generated/ → alias public/generated/ [Python 任务产物，nginx 直出]
+   ├── /apps/rebot-arm/   → Nitro 静态（public/apps/rebot-arm/）[独立应用前端，iframe 嵌入]
+   ├── /api/apps/rebot-arm/ → Nitro API（URDF/STL/配置；模型在 server/assets/apps/rebot-arm/）
    └── /api/hf/    → 反代 node（转 hf-mirror，备用）
 ```
 
@@ -74,3 +76,9 @@ systemctl restart aihub
 6. **服务器是 VM**（4vCPU/8G），非采购单 2288HV6 实体配置，需与 IT 确认
 7. **云端 LLM 对话**：`.env` 未配 MOONSHOT/DEEPSEEK key
 8. 任务队列在内存，重启即丢
+
+## 六、独立应用集成（机械人分类示例）
+
+- **ReBot Arm B601-RS 机械臂仿真器**（`robot/rebot-arm`）：浏览器本地 Three.js 仿真，可选连实体机械臂（rosbridge）或舵机（motorbridge）；LLM 对话未部署（text-agent 未起）
+- 目录约定与接入流程见 **`docs/APP-INTEGRATION-GUIDE.md`**：应用前端放 `public/apps/<slug>/`，API 前缀 `/api/apps/<slug>/`，模型放 `server/assets/apps/<slug>/`（gitignore，部署时上传），路径适配用 `scripts/adapt-app-paths.py`
+- 原 3002 独立服务（`rebot-arm-web.service`）已下线；模型 68.5MB 在 `server/assets/apps/rebot-arm/`，从本地 `D:\YIN-PROJE\nuxt_AI\server\assets\apps\rebot-arm` 上传（`_tools\upload_rebot_models.py`）
