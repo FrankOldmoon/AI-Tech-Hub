@@ -1,7 +1,7 @@
 # AI Hub AI体验中心 - 部署与维护手册（v2，2026-08-31）
 
 > 服务器：10.28.1.152（Ubuntu 26.04，hostname `aihub`，VM 4vCPU/8G/1.9T）
-> 访问地址：**https://10.28.1.152**（HTTP 自动跳 HTTPS，自签名证书）
+> 访问地址：**http://10.28.1.152**（2026-09-01 起暂停 SSL，恢复 HTTP 80 直连；证书保留可随时恢复 HTTPS）
 > 分支：main（含 feat/self-host-deploy + fix/deploy-runtimeconfig）
 
 ---
@@ -9,7 +9,7 @@
 ## 一、架构（v2）
 
 ```
-学生浏览器 ──HTTPS:443──> nginx
+学生浏览器 ──HTTP:80──> nginx（2026-09-01 起暂停 SSL/443，证书保留在 /etc/nginx/ssl/，可随时恢复）
    ├── / → 反代 node (.output/server/index.mjs @127.0.0.1:3000)   [Nitro + 页面/API]
    ├── /model/     → alias public/model/     [60G 本地模型，nginx 直出，长缓存 + Range]
    ├── /generated/ → alias public/generated/ [Python 任务产物，nginx 直出]
@@ -70,7 +70,7 @@ systemctl restart aihub
 2. **构建 OOM**：public/model 60G 时 `pnpm build` 在 Nitro 打包阶段被 OOM kill（exit 137）。必须"暂移模型→构建→放回"（见第三节）
 3. **torchcodec 坑**：pip torchcodec 需 CUDA torch；PyTorch CPU 源的 torchcodec 需旧 FFmpeg（libavutil 56-59），服务器是 FFmpeg 8（libavutil 60）→ 均不可用。解法=coqui-tts 降到 0.26.2 + soundfile 后端
 4. **产物路径**：worker 写 `public/generated/`（源码），nginx alias 直出（勿改）
-5. **自签名证书**：学生机需装 `aihub.crt` 或点"高级→继续"；可换域名+Let's Encrypt
+5. **HTTP 80 模式（2026-09-01 起）**：已暂停 SSL/443，证书保留可随时恢复；⚠️ 浏览器只在 HTTPS/localhost 允许麦克风/摄像头，停 SSL 后依赖摄像头/麦克风的 demo（人脸/手势/姿态、图像/声音训练、语音识别录音）在学生会浏览器被禁止，其余 demo 不受影响；如需恢复 HTTPS 或换域名+Let's Encrypt 另说
 6. **服务器是 VM**（4vCPU/8G），非采购单 2288HV6 实体配置，需与 IT 确认
 7. **云端 LLM 对话**：`.env` 未配 MOONSHOT/DEEPSEEK key
 8. 任务队列在内存，重启即丢
