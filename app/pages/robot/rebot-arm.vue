@@ -5,6 +5,7 @@
  * - API：/api/apps/rebot-arm/...（URDF/STL/配置）
  * - 外部依赖：ROS2 rosbridge / motorbridge 可选；LLM 未部署
  */
+const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('robot', 'rebot-arm')!)
 </script>
