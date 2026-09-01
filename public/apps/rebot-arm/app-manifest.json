@@ -1,0 +1,9 @@
+{
+  "slug": "rebot-arm",
+  "name": "ROS2 ReBot Arm B601-RS 机械臂仿真器",
+  "external": {
+    "rosbridge":   { "required": false, "hint": "连实体机械臂需 rosbridge（ws://机械臂IP:9090）" },
+    "motorbridge": { "required": false, "hint": "连实体舵机需 motorbridge（ws://IP:9002）" },
+    "llm":         { "required": false, "hint": "LLM 对话需 text-agent 服务（当前未部署）" }
+  }
+}
