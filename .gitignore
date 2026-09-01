@@ -75,4 +75,3 @@ tmp/chrome-headless/
 output/
 
 # 独立应用模型/大数据（不入库，部署时上传）
-server/assets/apps/
