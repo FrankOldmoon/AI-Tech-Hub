@@ -28,7 +28,10 @@ export function useDemos() {
   )
 
   const byCategory = (slug: DemoCategory | string) =>
-    localizedDemos.value.filter(d => d.category === slug)
+    localizedDemos.value
+      .filter(d => d.category === slug)
+      .slice()
+      .sort((a, b) => a.title.localeCompare(b.title, lang.value))
 
   const getCategory = (slug: DemoCategory | string) =>
     localizedCategories.value.find(c => c.slug === slug)

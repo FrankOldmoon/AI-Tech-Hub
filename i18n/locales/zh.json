@@ -1,6 +1,6 @@
 {
   "site": {
-    "title": "AI 技术演示",
+    "title": "AI 技术中心",
     "description": "用 Nuxt v4 构建的 AI 技术演示集合。"
   },
   "nav": {
@@ -980,15 +980,20 @@
       "analyzing": "正在分析…",
       "noFace": "未检测到人脸",
       "modelReady": "模型就绪",
+      "dragHint": "或将图片拖到此处",
+      "faceSummary": "第 {photo} 张照片 · 第 {face} 张脸 · 置信度 {score}%",
       "demoRun": "示例演示",
-      "demoRunHint": "一键注册示例学生「小明」并用多人照识别（示例数据可删除）",
+      "demoRunHint": "一键注册示例人像，并自动用其另一角度照片识别（示例数据可删除）",
       "demoCreated": "新建",
       "demoAppended": "追加",
-      "demoSuccess": "示例演示完成：已注册「示例·小明」（{status} {n} 个样张），从多人照识别出 {count} 张人脸。示例数据可随时删除。",
+      "demoSuccess": "示例演示完成：已注册「示例·小明」，另一角度照片识别相似度 {sim}%。示例数据可随时删除。",
       "demoNoFace": "示例图未检测到人脸",
       "analyzeError": "分析失败",
       "faces": "张脸",
       "selectFace": "选择人脸",
+      "photo": "照片",
+      "regAll": "注册全部 {n} 张",
+      "regAllSuccess": "完成：新建 {created} 位、追加 {appended} 位（共 {n} 张照片）；同一人若有多张将合并为多样张",
       "faceSelectHint": "点击缩略图选择使用的人脸",
       "removePhoto": "移除照片",
       "name": "姓名",

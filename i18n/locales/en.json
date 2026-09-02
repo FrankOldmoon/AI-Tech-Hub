@@ -1,6 +1,6 @@
 {
   "site": {
-    "title": "AI Tech Demos",
+    "title": "AI Tech Hub",
     "description": "A collection of AI tech demos built with Nuxt v4."
   },
   "nav": {
@@ -980,11 +980,13 @@
       "analyzing": "Analyzing…",
       "noFace": "No face detected",
       "modelReady": "Model ready",
+      "dragHint": "or drop an image here",
+      "faceSummary": "Photo {photo} · face {face} · confidence {score}%",
       "demoRun": "Run demo",
-      "demoRunHint": "Register sample student \"Xiao Ming\" and recognize from the group photo in one click (sample data is deletable)",
+      "demoRunHint": "Register a sample face in one click, then auto-recognize it from another angle (sample data deletable)",
       "demoCreated": "created",
       "demoAppended": "appended",
-      "demoSuccess": "Demo done: registered \"Xiao Ming\" ({status} {n} sample(s)), recognized {count} face(s) from the group photo. Sample data can be deleted anytime.",
+      "demoSuccess": "Demo done: enrolled \"Sample · Xiao Ming\"; another-angle photo matched at {sim}% similarity. Sample data can be deleted anytime.",
       "demoNoFace": "No face detected in the sample image",
       "analyzeError": "Analysis failed",
       "faces": "face(s)",
