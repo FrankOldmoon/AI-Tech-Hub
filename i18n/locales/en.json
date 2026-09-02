@@ -1049,7 +1049,12 @@
     "exitFullscreen": "Exit Fullscreen"
   },
   "g1Cartpole": {
-    "externalNote": "Fully local in-browser simulation (MuJoCo + ONNX policies, mjswan), no extra environment needed. Two scenes: G1 humanoid (click the canvas, then drive with WASD/arrows) and Cartpole balance (trained from scratch; Reset to re-balance).",
+    "externalNote": "Fully local in-browser simulation (MuJoCo + ONNX policies, mjswan), no extra environment needed. Three scenes (switch via the Scene dropdown): G1 humanoid (drive with WASD/arrows), G1 HUSKY skateboarding (drag Push Speed/Heading), and Cartpole balance (trained from scratch; Reset to re-balance).",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
+  },
+  "g1MotionTracking": {
+    "externalNote": "Fully local in-browser simulation (MuJoCo + ONNX tracking policy), no extra environment needed. G1 automatically follows reference motions (change Current motion for walk/run/jump/dance etc.); turn on Compliance and raise the threshold, then drag the robot to see compliant following.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
   }

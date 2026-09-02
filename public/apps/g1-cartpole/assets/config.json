@@ -134,6 +134,35 @@
               "config": "cartpole/balance.json"
             }
           ]
+        },
+        {
+          "name": "G1 \u6ed1\u677f\uff08HUSKY \u5b98\u65b9\u7b56\u7565\uff09",
+          "path": "g1_husky/scene.mjz",
+          "camera": {
+            "lookat": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "distance": 4.0,
+            "elevation": -10.0,
+            "azimuth": 210.0,
+            "originType": "ASSET_BODY",
+            "enableReflections": true,
+            "enableShadows": true,
+            "height": 240,
+            "width": 320,
+            "entityName": "robot",
+            "bodyName": "torso_link"
+          },
+          "controlDt": 0.02,
+          "policies": [
+            {
+              "name": "HUSKY Skater",
+              "config": "g1_husky/husky_skater.json",
+              "default": true
+            }
+          ]
         }
       ]
     }

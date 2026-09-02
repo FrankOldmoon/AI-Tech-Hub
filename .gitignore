@@ -54,6 +54,8 @@ tmp/
 !public/apps/microduck/policies/*.onnx
 # g1-cartpole（mjswan G1 人形 + Cartpole 平衡）策略 ONNX，需随应用分发到内网
 !public/apps/g1-cartpole/oursim/assets/**/*.onnx
+# g1-motion-tracking（humanoid-policy-viewer）G1 追踪策略 ONNX
+!public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
