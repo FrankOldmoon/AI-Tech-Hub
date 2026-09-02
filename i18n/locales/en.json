@@ -118,6 +118,11 @@
     "typeVideo": "Please upload a video file",
     "tooLarge": "File too large. Please upload a file under {size}"
   },
+  "mediaInput": {
+    "upload": "Click or drag a file here",
+    "uploadHint": "Common formats supported, auto-resized",
+    "tooLarge": "File too large. Please upload a file under {max} MB"
+  },
   "textEmbedder": {
     "textA": "Text A",
     "textB": "Text B",

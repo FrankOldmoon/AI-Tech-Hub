@@ -169,7 +169,7 @@ function stop() {
   if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
   if (processor) { processor.disconnect(); processor = null }
   if (audioCtx) { audioCtx.close(); audioCtx = null }
-  stream?.getTracks().forEach((t) => t.stop())
+  stream?.getTracks().forEach(t => t.stop())
   stream = null
   freq.value = 0
   note.value = '--'
@@ -181,61 +181,79 @@ onBeforeUnmount(stop)
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12">
-      <DemoRunner :demo="demo" :error="error">
-        <!-- 输入 -->
-        <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('pitch.hint') }}</p>
-          <DemoParams v-model="params" :specs="specs" :running="running" :title="t('params.title')" />
-        </template>
+  <MediaDemoShell :demo="demo">
+    <DemoRunner :error="error">
+      <!-- 输入 -->
+      <template #input>
+        <p class="text-sm text-muted mb-4">
+          {{ t('pitch.hint') }}
+        </p>
+        <DemoParams
+          v-model="params"
+          :specs="specs"
+          :running="running"
+          :title="t('params.title')"
+        />
+      </template>
 
-        <!-- 控件 -->
-        <template #controls>
-          <UButton
-            v-if="!running"
-            icon="i-lucide-mic"
-            :label="t('pitch.start')"
-            color="primary"
-            @click="start"
-          />
-          <UButton
-            v-else
-            icon="i-lucide-square"
-            :label="t('pitch.stop')"
-            color="error"
-            variant="subtle"
-            @click="stop"
-          />
-        </template>
+      <!-- 控件 -->
+      <template #controls>
+        <UButton
+          v-if="!running"
+          icon="i-lucide-mic"
+          :label="t('pitch.start')"
+          color="primary"
+          @click="start"
+        />
+        <UButton
+          v-else
+          icon="i-lucide-square"
+          :label="t('pitch.stop')"
+          color="error"
+          variant="subtle"
+          @click="stop"
+        />
+      </template>
 
-        <!-- 结果 -->
-        <template #result>
-          <div v-if="running" class="space-y-4">
-            <div class="flex items-end gap-4">
-              <div class="text-6xl font-bold tabular-nums text-highlighted">{{ note }}</div>
-              <div class="pb-1 text-sm text-muted">
-                {{ freq > 0 ? `${freq} Hz` : '...' }}
-                <span v-if="cents !== 0" :class="cents > 0 ? 'text-amber-500' : 'text-sky-500'">
-                  ({{ cents > 0 ? '+' : '' }}{{ cents }} ¢)
-                </span>
-              </div>
+      <!-- 结果 -->
+      <template #result>
+        <div
+          v-if="running"
+          class="space-y-4"
+        >
+          <div class="flex items-end gap-4">
+            <div class="text-6xl font-bold tabular-nums text-highlighted">
+              {{ note }}
             </div>
-            <div class="flex items-center gap-2 text-sm text-muted">
-              <span>{{ t('pitch.clarity') }}: {{ clarity }}%</span>
-              <span class="text-dimmed">·</span>
-              <span>{{ t('pitch.recording') }}</span>
+            <div class="pb-1 text-sm text-muted">
+              {{ freq > 0 ? `${freq} Hz` : '...' }}
+              <span
+                v-if="cents !== 0"
+                :class="cents > 0 ? 'text-amber-500' : 'text-sky-500'"
+              >
+                ({{ cents > 0 ? '+' : '' }}{{ cents }} ¢)
+              </span>
             </div>
-            <canvas
-              ref="canvasRef"
-              width="640"
-              height="160"
-              class="w-full h-40 rounded-lg border border-default bg-elevated/30"
-            />
           </div>
-          <div v-else class="text-sm text-muted">{{ t('pitch.noResult') }}</div>
-        </template>
-      </DemoRunner>
-    </div>
-  </UContainer>
+          <div class="flex items-center gap-2 text-sm text-muted">
+            <span>{{ t('pitch.clarity') }}: {{ clarity }}%</span>
+            <span class="text-dimmed">·</span>
+            <span>{{ t('pitch.recording') }}</span>
+          </div>
+          <canvas
+            ref="canvasRef"
+            width="640"
+            height="160"
+            class="w-full h-40 rounded-lg border border-default bg-elevated/30"
+          />
+        </div>
+        <div
+          v-else
+          class="text-sm text-muted"
+        >
+          {{ t('pitch.noResult') }}
+        </div>
+      </template>
+    </DemoRunner>
+  </MediaDemoShell>
 </template>

@@ -118,7 +118,7 @@ const whisperProgress = ref(0)
 const whisperStatus = ref('')
 const whisperError = ref<string | null>(null)
 const resultText = ref('')
-const resultChunks = ref<Array<{ start: number; end: number; text: string }>>([])
+const resultChunks = ref<Array<{ start: number, end: number, text: string }>>([])
 let cancelled = false
 
 const modelItems = [
@@ -316,199 +316,256 @@ const runnerNotice = computed(() =>
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12">
-      <DemoRunner
-        :demo="demo"
-        :error="runnerError"
-        :notice="runnerNotice"
-      >
-        <!-- 输入 -->
-        <template #input>
-          <!-- 模式切换 -->
-          <div class="flex items-center gap-2 mb-4">
-            <UButton
-              icon="i-lucide-mic"
-              :label="t('asr.whisper.modeLive')"
-              :variant="mode === 'live' ? 'solid' : 'soft'"
-              size="sm"
-              @click="mode = 'live'"
-            />
-            <UButton
-              icon="i-lucide-file-audio"
-              :label="t('asr.whisper.modeFile')"
-              :variant="mode === 'file' ? 'solid' : 'soft'"
-              size="sm"
-              @click="mode = 'file'"
-            />
+  <MediaDemoShell :demo="demo">
+    <DemoRunner
+      :error="runnerError"
+      :notice="runnerNotice"
+    >
+      <!-- 输入 -->
+      <template #input>
+        <!-- 模式切换 -->
+        <div class="flex items-center gap-2 mb-4">
+          <UButton
+            icon="i-lucide-mic"
+            :label="t('asr.whisper.modeLive')"
+            :variant="mode === 'live' ? 'solid' : 'soft'"
+            size="sm"
+            @click="mode = 'live'"
+          />
+          <UButton
+            icon="i-lucide-file-audio"
+            :label="t('asr.whisper.modeFile')"
+            :variant="mode === 'file' ? 'solid' : 'soft'"
+            size="sm"
+            @click="mode = 'file'"
+          />
+        </div>
+
+        <!-- 实时模式 -->
+        <template v-if="mode === 'live'">
+          <p class="text-sm text-muted mb-4">
+            {{ t('asr.hint') }}
+          </p>
+          <DemoParams
+            v-model="params"
+            :specs="specs"
+            :running="listening"
+            :title="t('params.title')"
+          />
+        </template>
+
+        <!-- 文件模式（Whisper 离线） -->
+        <template v-else>
+          <p class="text-sm text-muted mb-4">
+            {{ t('asr.whisper.hint') }}
+          </p>
+          <div class="space-y-4">
+            <div>
+              <input
+                ref="fileInput"
+                type="file"
+                accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
+                class="hidden"
+                @change="onFileChange"
+              >
+              <UButton
+                icon="i-lucide-upload"
+                :label="audioFile ? audioFile.name : t('asr.whisper.upload')"
+                variant="outline"
+                :disabled="transcribing"
+                @click="pickFile"
+              />
+              <UButton
+                icon="i-lucide-flask-conical"
+                :label="t('samples.trySample')"
+                variant="soft"
+                :disabled="transcribing"
+                @click="useSample"
+              />
+            </div>
+            <div class="grid sm:grid-cols-2 gap-x-6 gap-y-4">
+              <div>
+                <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.model') }}</label>
+                <USelect
+                  v-model="fileModel"
+                  :items="modelItems"
+                  class="w-full"
+                  :disabled="transcribing"
+                />
+                <p class="mt-1 text-xs text-dimmed">
+                  {{ t('asr.whisper.modelHelp') }}
+                </p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.lang') }}</label>
+                <USelect
+                  v-model="fileLang"
+                  :items="fileLangItems"
+                  class="w-full"
+                  :disabled="transcribing"
+                />
+                <p class="mt-1 text-xs text-dimmed">
+                  {{ t('asr.whisper.langHelp') }}
+                </p>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.task') }}</label>
+                <USelect
+                  v-model="fileTask"
+                  :items="taskItems"
+                  class="w-full"
+                  :disabled="transcribing"
+                />
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.dtype') }}</label>
+                <USelect
+                  v-model="fileDtype"
+                  :items="dtypeItems"
+                  class="w-full"
+                  :disabled="transcribing"
+                />
+              </div>
+            </div>
+            <p class="text-xs text-dimmed">
+              {{ t('asr.whisper.device') }}: {{ device }} · {{ t('asr.whisper.privacy') }}
+            </p>
+          </div>
+        </template>
+      </template>
+
+      <!-- 控件 -->
+      <template #controls>
+        <template v-if="mode === 'live'">
+          <UButton
+            v-if="!listening"
+            icon="i-lucide-mic"
+            :label="t('asr.start')"
+            color="primary"
+            :disabled="!supported"
+            @click="start"
+          />
+          <UButton
+            v-else
+            icon="i-lucide-square"
+            :label="t('asr.stop')"
+            color="error"
+            variant="subtle"
+            @click="stop"
+          />
+          <UButton
+            icon="i-lucide-eraser"
+            :label="t('demo.reset')"
+            color="neutral"
+            variant="subtle"
+            :disabled="!finalText && !interim"
+            @click="clearResult"
+          />
+        </template>
+        <template v-else>
+          <UButton
+            icon="i-lucide-wand-sparkles"
+            :label="t('asr.whisper.transcribe')"
+            color="primary"
+            :loading="transcribing"
+            :disabled="!audioFile"
+            @click="transcribe"
+          />
+          <UButton
+            v-if="transcribing"
+            icon="i-lucide-x"
+            :label="t('asr.whisper.cancel')"
+            color="neutral"
+            variant="subtle"
+            @click="cancelTranscribe"
+          />
+        </template>
+      </template>
+
+      <!-- 结果 -->
+      <template #result>
+        <template v-if="mode === 'live'">
+          <div
+            v-if="listening || finalText || interim"
+            class="space-y-2"
+          >
+            <div
+              v-if="listening"
+              class="flex items-center gap-2 text-sm text-primary"
+            >
+              <UIcon
+                name="i-lucide-mic"
+                class="size-4 animate-pulse"
+              />
+              {{ t('asr.listening') }}…
+            </div>
+            <p class="text-base text-highlighted whitespace-pre-wrap break-words">
+              <span>{{ finalText }}</span><span class="text-muted">{{ interim }}</span>
+            </p>
+          </div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            …
+          </div>
+        </template>
+
+        <template v-else>
+          <!-- 加载/转写进度 -->
+          <div
+            v-if="whisperLoading || transcribing"
+            class="space-y-3"
+          >
+            <div class="flex items-center justify-between text-sm text-muted">
+              <span>{{ whisperStatus }}</span>
+              <span class="tabular-nums">{{ whisperProgress }}%</span>
+            </div>
+            <div class="h-2 w-full bg-default rounded-full overflow-hidden">
+              <div
+                class="h-full bg-primary transition-all"
+                :style="{ width: whisperProgress + '%' }"
+              />
+            </div>
           </div>
 
-          <!-- 实时模式 -->
-          <template v-if="mode === 'live'">
-            <p class="text-sm text-muted mb-4">{{ t('asr.hint') }}</p>
-            <DemoParams v-model="params" :specs="specs" :running="listening" :title="t('params.title')" />
-          </template>
-
-          <!-- 文件模式（Whisper 离线） -->
-          <template v-else>
-            <p class="text-sm text-muted mb-4">{{ t('asr.whisper.hint') }}</p>
-            <div class="space-y-4">
-              <div>
-                <input
-                  ref="fileInput"
-                  type="file"
-                  accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-                  class="hidden"
-                  @change="onFileChange"
-                />
-                <UButton
-                  icon="i-lucide-upload"
-                  :label="audioFile ? audioFile.name : t('asr.whisper.upload')"
-                  variant="outline"
-                  :disabled="transcribing"
-                  @click="pickFile"
-                />
-                <UButton
-                  icon="i-lucide-flask-conical"
-                  :label="t('samples.trySample')"
-                  variant="soft"
-                  :disabled="transcribing"
-                  @click="useSample"
-                />
-              </div>
-              <div class="grid sm:grid-cols-2 gap-x-6 gap-y-4">
-                <div>
-                  <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.model') }}</label>
-                  <USelect v-model="fileModel" :items="modelItems" class="w-full" :disabled="transcribing" />
-                  <p class="mt-1 text-xs text-dimmed">{{ t('asr.whisper.modelHelp') }}</p>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.lang') }}</label>
-                  <USelect v-model="fileLang" :items="fileLangItems" class="w-full" :disabled="transcribing" />
-                  <p class="mt-1 text-xs text-dimmed">{{ t('asr.whisper.langHelp') }}</p>
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.task') }}</label>
-                  <USelect v-model="fileTask" :items="taskItems" class="w-full" :disabled="transcribing" />
-                </div>
-                <div>
-                  <label class="block text-sm font-medium text-muted mb-1">{{ t('asr.whisper.dtype') }}</label>
-                  <USelect v-model="fileDtype" :items="dtypeItems" class="w-full" :disabled="transcribing" />
-                </div>
-              </div>
-              <p class="text-xs text-dimmed">
-                {{ t('asr.whisper.device') }}: {{ device }} · {{ t('asr.whisper.privacy') }}
-              </p>
+          <!-- 结果 -->
+          <div
+            v-else-if="resultText"
+            class="space-y-4"
+          >
+            <div class="flex flex-wrap items-center gap-2">
+              <UButton
+                icon="i-lucide-file-text"
+                :label="t('asr.whisper.exportTxt')"
+                size="sm"
+                variant="outline"
+                @click="exportTxt"
+              />
+              <UButton
+                icon="i-lucide-captions"
+                :label="t('asr.whisper.exportSrt')"
+                size="sm"
+                variant="outline"
+                :disabled="!resultChunks.length"
+                @click="exportSrt"
+              />
             </div>
-          </template>
+            <p class="text-xs text-dimmed">
+              {{ t('asr.whisper.traditionalNote') }}
+            </p>
+            <p class="text-base text-highlighted whitespace-pre-wrap break-words leading-relaxed">
+              {{ resultText }}
+            </p>
+          </div>
+          <div
+            v-else
+            class="text-sm text-muted"
+          >
+            {{ t('asr.whisper.noResult') }}
+          </div>
         </template>
-
-        <!-- 控件 -->
-        <template #controls>
-          <template v-if="mode === 'live'">
-            <UButton
-              v-if="!listening"
-              icon="i-lucide-mic"
-              :label="t('asr.start')"
-              color="primary"
-              :disabled="!supported"
-              @click="start"
-            />
-            <UButton
-              v-else
-              icon="i-lucide-square"
-              :label="t('asr.stop')"
-              color="error"
-              variant="subtle"
-              @click="stop"
-            />
-            <UButton
-              icon="i-lucide-eraser"
-              :label="t('demo.reset')"
-              color="neutral"
-              variant="subtle"
-              :disabled="!finalText && !interim"
-              @click="clearResult"
-            />
-          </template>
-          <template v-else>
-            <UButton
-              icon="i-lucide-wand-sparkles"
-              :label="t('asr.whisper.transcribe')"
-              color="primary"
-              :loading="transcribing"
-              :disabled="!audioFile"
-              @click="transcribe"
-            />
-            <UButton
-              v-if="transcribing"
-              icon="i-lucide-x"
-              :label="t('asr.whisper.cancel')"
-              color="neutral"
-              variant="subtle"
-              @click="cancelTranscribe"
-            />
-          </template>
-        </template>
-
-        <!-- 结果 -->
-        <template #result>
-          <template v-if="mode === 'live'">
-            <div v-if="listening || finalText || interim" class="space-y-2">
-              <div v-if="listening" class="flex items-center gap-2 text-sm text-primary">
-                <UIcon name="i-lucide-mic" class="size-4 animate-pulse" />
-                {{ t('asr.listening') }}…
-              </div>
-              <p class="text-base text-highlighted whitespace-pre-wrap break-words">
-                <span>{{ finalText }}</span><span class="text-muted">{{ interim }}</span>
-              </p>
-            </div>
-            <div v-else class="text-sm text-muted">…</div>
-          </template>
-
-          <template v-else>
-            <!-- 加载/转写进度 -->
-            <div v-if="whisperLoading || transcribing" class="space-y-3">
-              <div class="flex items-center justify-between text-sm text-muted">
-                <span>{{ whisperStatus }}</span>
-                <span class="tabular-nums">{{ whisperProgress }}%</span>
-              </div>
-              <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-                <div
-                  class="h-full bg-primary transition-all"
-                  :style="{ width: whisperProgress + '%' }"
-                />
-              </div>
-            </div>
-
-            <!-- 结果 -->
-            <div v-else-if="resultText" class="space-y-4">
-              <div class="flex flex-wrap items-center gap-2">
-                <UButton
-                  icon="i-lucide-file-text"
-                  :label="t('asr.whisper.exportTxt')"
-                  size="sm"
-                  variant="outline"
-                  @click="exportTxt"
-                />
-                <UButton
-                  icon="i-lucide-captions"
-                  :label="t('asr.whisper.exportSrt')"
-                  size="sm"
-                  variant="outline"
-                  :disabled="!resultChunks.length"
-                  @click="exportSrt"
-                />
-              </div>
-              <p class="text-xs text-dimmed">{{ t('asr.whisper.traditionalNote') }}</p>
-              <p class="text-base text-highlighted whitespace-pre-wrap break-words leading-relaxed">
-                {{ resultText }}
-              </p>
-            </div>
-            <div v-else class="text-sm text-muted">{{ t('asr.whisper.noResult') }}</div>
-          </template>
-        </template>
-      </DemoRunner>
-    </div>
-  </UContainer>
+      </template>
+    </DemoRunner>
+  </MediaDemoShell>
 </template>

@@ -118,6 +118,11 @@
     "typeVideo": "请上传视频文件",
     "tooLarge": "文件过大，请上传不超过 {size} 的文件"
   },
+  "mediaInput": {
+    "upload": "点击或拖拽文件到此处",
+    "uploadHint": "支持图片等常见格式，自动缩放处理",
+    "tooLarge": "文件过大，请上传不超过 {max} MB 的文件"
+  },
   "textEmbedder": {
     "textA": "文本 A",
     "textB": "文本 B",
