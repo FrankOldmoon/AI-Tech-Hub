@@ -857,6 +857,22 @@ export const demos: Demo[] = [
     icon: 'i-lucide-bird',
     status: 'ready',
     tags: ['Robotics', 'MuJoCo', 'ONNX', 'RL', 'Three.js']
+  },
+  {
+    slug: 'g1-cartpole',
+    category: 'robot',
+    title: { zh: 'G1 人形机器人 + Cartpole 平衡', en: 'G1 Humanoid + Cartpole Balance' },
+    description: {
+      zh: 'mjswan RL 机器人仿真：宇树 G1 人形机器人官方走路策略（Locomotion/Balance）+ 本机 PPO 从零训练的 Cartpole 倒立摆平衡，浏览器 MuJoCo 实时运行。',
+      en: 'mjswan RL robot simulation: Unitree G1 humanoid with official locomotion policies + a Cartpole pole-balance policy trained from scratch with PPO locally; real-time MuJoCo in the browser.'
+    },
+    howItWorks: {
+      zh: 'MuJoCo 编译为 WebAssembly 在浏览器跑物理，onnxruntime-web 运行导出的 RL 策略（G1 为官方 checkpoint，Cartpole 为本机 PPO 训练导出）；纯静态无后端。',
+      en: 'MuJoCo compiled to WebAssembly steps the physics in-browser while onnxruntime-web runs the exported RL policies (G1 = official checkpoints, Cartpole = locally PPO-trained); fully static, no backend.'
+    },
+    icon: 'i-lucide-person-standing',
+    status: 'ready',
+    tags: ['Robotics', 'MuJoCo', 'ONNX', 'RL', 'Unitree']
   }
 ]
 

@@ -1047,5 +1047,10 @@
     "externalNote": "Fully local in-browser simulation (MuJoCo physics + real RL policies), no extra environment needed; multiplayer ghosts need public Nostr and are auto-disabled on the intranet. Click the canvas, then use arrows/WASD to move, M to switch legs/rollers, G to ground-pick.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
+  },
+  "g1Cartpole": {
+    "externalNote": "Fully local in-browser simulation (MuJoCo + ONNX policies, mjswan), no extra environment needed. Two scenes: G1 humanoid (click the canvas, then drive with WASD/arrows) and Cartpole balance (trained from scratch; Reset to re-balance).",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   }
 }
