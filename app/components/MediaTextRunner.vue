@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { humanError } from '~/utils/errors'
 import { mediapipeWasm } from '~/utils/mediapipe'
+import type { TextClassifier, LanguageDetector } from '@mediapipe/tasks-text'
 
-/**
- * 通用 MediaPipe 文本演示运行器
- * - 单文本输入，同步推理
- * - 仅负责交互面；页面外壳（标题/HowItWorks/面包屑/SEO/上下篇）由 MediaDemoShell 提供。
- * - 通过 props 注入 createTask / method
- * - 结果通过 #result scoped slot 暴露
- */
+type TextTask = TextClassifier | LanguageDetector
+/** WasmFileset 类型（库内声明未导出，经 createFromOptions 参数推导） */
+type WasmFileset = Parameters<typeof TextClassifier.createFromOptions>[0]
+
+/** MediaPipe 文本任务结果（classify/detect 两种形态，供 #result slot 使用） */
+export interface MediaTextResult {
+  classifications?: Array<{ categories?: Array<{ categoryName?: string, score: number }> }>
+  languages?: Array<{ languageCode: string, probability: number }>
+}
 
 const props = defineProps<{
-  createTask: (text: any) => Promise<any>
+  createTask: (resolver: WasmFileset) => Promise<TextTask>
   method: 'classify' | 'detect'
   placeholder?: string
 }>()
@@ -22,11 +25,11 @@ const input = ref(t('samples.textDefault'))
 const downloading = ref(false) // 模型下载/加载中
 const running = ref(false) // 推理中
 const error = ref<string | null>(null)
-const result = ref<any>(null)
+const result = ref<MediaTextResult | null>(null)
 const inferenceTime = ref(0)
 const copied = ref(false)
 
-let task: any = null
+let task: TextTask | null = null
 
 async function copyResult() {
   try {
@@ -49,7 +52,7 @@ async function ensureTask() {
     const { FilesetResolver } = await import('@mediapipe/tasks-text')
     const text = await FilesetResolver.forTextTasks(mediapipeWasm.text)
     task = await props.createTask(text)
-  } catch (e: any) {
+  } catch (e: unknown) {
     error.value = humanError(e, t)
   } finally {
     downloading.value = false
@@ -66,9 +69,11 @@ async function run() {
   result.value = null
   const ts = performance.now()
   try {
-    result.value = t0[props.method](input.value)
+    const taskImpl = t0 as TextTask & { classify?: (text: string) => MediaTextResult, detect?: (text: string) => MediaTextResult }
+    const fn = props.method === 'classify' ? taskImpl.classify : taskImpl.detect
+    result.value = (fn as (text: string) => MediaTextResult)?.(input.value) ?? null
     inferenceTime.value = Math.round(performance.now() - ts)
-  } catch (e: any) {
+  } catch (e: unknown) {
     error.value = humanError(e, t)
   } finally {
     running.value = false
@@ -97,7 +102,7 @@ async function run() {
         />
         <span
           v-if="inferenceTime"
-          class="text-sm text-muted ms-2"
+          class="text-sm text-muted ms-2 tabular-nums"
         >{{ inferenceTime }} ms</span>
       </div>
       <!-- 模型下载/推理进度（MediaPipe 无百分比回调，用不确定进度条 + 三态文案） -->

@@ -45,12 +45,12 @@ const running = ref(false) // 推理中
 const loadProgress = ref(0)
 const loadFile = ref('')
 const error = ref<string | null>(null)
-const result = ref<any>(null)
+const result = ref<unknown>(null)
 const inferenceTime = ref(0)
 const copied = ref(false)
 const webgpu = ref(hasWebGPU())
 
-let pipe: any = null
+let pipe: ((...args: unknown[]) => Promise<unknown>) & { dispose?: () => Promise<void> } | null = null
 let envReady = false
 
 async function copyResult() {
@@ -66,10 +66,10 @@ async function copyResult() {
   } catch { /* clipboard 不可用时静默 */ }
 }
 
-function onProgress(x: any) {
+function onProgress(x: { status?: string, file?: string, loaded?: number, total?: number }) {
   if (x?.status === 'progress' && x.file) {
     loadFile.value = String(x.file).split('/').pop() || x.file
-    loadProgress.value = x.total ? Math.round((x.loaded / x.total) * 100) : 0
+    loadProgress.value = x.total ? Math.round(((x.loaded ?? 0) / x.total) * 100) : 0
   }
 }
 
@@ -83,12 +83,16 @@ async function ensurePipeline() {
       envReady = true
     }
     const { pipeline } = await import('@huggingface/transformers')
-    pipe = await pipeline(props.config.task as any, props.config.model, {
+    const task = props.config.task
+    const opts = {
       device: preferredDevice(),
-      dtype: 'q8',
+      dtype: 'q8' as const,
       progress_callback: onProgress
-    } as any)
-  } catch (e: any) {
+    }
+    pipe = await (pipeline as unknown as (
+      task: string, model?: string, opts?: Record<string, unknown>
+    ) => Promise<(...args: unknown[]) => Promise<unknown>>)(task, props.config.model, opts)
+  } catch (e: unknown) {
     error.value = humanError(e, t)
   } finally {
     loading.value = false
@@ -125,7 +129,7 @@ async function run() {
       : {}
     result.value = await p(...args, opts)
     inferenceTime.value = Math.round(performance.now() - ts)
-  } catch (e: any) {
+  } catch (e: unknown) {
     error.value = humanError(e, t)
   } finally {
     running.value = false
@@ -134,7 +138,7 @@ async function run() {
 
 onBeforeUnmount(async () => {
   try {
-    if (pipe) await pipe.dispose()
+    if (pipe) await pipe.dispose?.()
   } catch { /* ignore */ }
 })
 </script>
@@ -204,7 +208,7 @@ onBeforeUnmount(async () => {
         </div>
         <span
           v-if="inferenceTime"
-          class="text-sm text-muted ms-2"
+          class="text-sm text-muted ms-2 tabular-nums"
         >{{ inferenceTime }} ms</span>
       </div>
     </div>
