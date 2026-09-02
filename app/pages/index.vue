@@ -2,17 +2,10 @@
 import type { LocalizedDemo } from '~/utils/demos'
 
 const { t } = useI18n()
-const { categories, byCategory, stats, demos, classroomDemos } = useDemos()
+const { categories, byCategory, demos, classroomDemos } = useDemos()
 
 /** 首页只展示有 demo 的分类（机械人等空分类在导航可见、页面显示"敬请期待"，但不在首页占位） */
 const homeCategories = computed(() => categories.value.filter(c => byCategory(c.slug).length > 0))
-
-const statItems = computed(() => [
-  { value: stats.value.total, label: t('home.stats.demos'), icon: 'i-lucide-flask-conical' },
-  { value: stats.value.categories, label: t('home.stats.categories'), icon: 'i-lucide-layout-grid' },
-  { value: stats.value.ready, label: t('home.stats.ready'), icon: 'i-lucide-check-circle-2' },
-  { value: stats.value.planned, label: t('home.stats.planned'), icon: 'i-lucide-clock' }
-])
 
 // 搜索
 const query = ref('')
@@ -47,41 +40,18 @@ const searchResults = computed(() => {
 
 <template>
   <div>
-    <UPageHero
-      :title="t('home.heroTitle')"
-      :description="t('home.heroDescription')"
-    />
+    <!-- 科技感首屏 Hero（含统计条 + 分类快速入口） -->
+    <HomeHero />
 
     <UContainer>
-      <!-- 怎么玩 / FAQ / 反馈（UX 审计批次5） -->
-      <HowToPlay />
-
-      <!-- 统计 -->
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4 -mt-6">
-        <UCard
-          v-for="s in statItems"
-          :key="s.label"
-          variant="subtle"
-        >
-          <div class="flex items-center gap-3">
-            <UIcon
-              :name="s.icon"
-              class="size-6 text-primary shrink-0"
-            />
-            <div>
-              <div class="text-2xl font-bold text-highlighted leading-none">
-                {{ s.value }}
-              </div>
-              <div class="text-sm text-muted mt-1">
-                {{ s.label }}
-              </div>
-            </div>
-          </div>
-        </UCard>
-      </div>
+      <!-- 主内容锚点 -->
+      <div
+        id="demos"
+        class="scroll-mt-24 -mt-6"
+      />
 
       <!-- 搜索框 -->
-      <div class="py-8">
+      <div class="pt-10 pb-2">
         <UInput
           v-model="query"
           icon="i-lucide-search"
@@ -135,67 +105,71 @@ const searchResults = computed(() => {
         </div>
       </div>
 
-      <!-- 课堂演示推荐（老师视角，审计 P1-5） -->
-      <div
-        v-if="!isSearching && classroomDemos.length"
-        class="py-10 space-y-5"
-      >
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <h2 class="text-xl font-bold text-highlighted flex items-center gap-2">
-              <UIcon
-                name="i-lucide-presentation"
-                class="size-5 text-primary"
-              />
+      <template v-else>
+        <!-- 课堂演示推荐（老师视角，审计 P1-5） -->
+        <div
+          v-if="classroomDemos.length"
+          id="classroom"
+          class="py-10 space-y-5 scroll-mt-24"
+        >
+          <div class="flex items-center gap-2">
+            <UIcon
+              name="i-lucide-presentation"
+              class="size-5 text-primary"
+            />
+            <h2 class="text-xl font-bold text-highlighted">
               {{ t('home.classroomTitle') }}
             </h2>
-            <p class="mt-1 text-sm text-muted">
-              {{ t('home.classroomDesc') }}
-            </p>
+          </div>
+          <p class="mt-1 text-sm text-muted -mt-3">
+            {{ t('home.classroomDesc') }}
+          </p>
+          <DemoGrid>
+            <DemoCard
+              v-for="d in classroomDemos"
+              :key="d.slug"
+              :demo="d"
+            />
+          </DemoGrid>
+        </div>
+
+        <!-- 各分类演示 -->
+        <div
+          v-for="cat in homeCategories"
+          :id="`cat-${cat.slug}`"
+          :key="cat.slug"
+          class="py-10 space-y-5 scroll-mt-24"
+        >
+          <CategoryHeader
+            :category="cat"
+            :count="byCategory(cat.slug).length"
+          />
+          <DemoGrid>
+            <DemoCard
+              v-for="d in visibleDemos(cat.slug)"
+              :key="d.slug"
+              :demo="d"
+            />
+          </DemoGrid>
+          <div
+            v-if="byCategory(cat.slug).length > HOME_LIMIT"
+            class="text-center pt-2"
+          >
+            <UButton
+              :to="`/${cat.slug}`"
+              color="neutral"
+              variant="soft"
+              icon="i-lucide-arrow-right"
+              trailing
+            >
+              {{ t('demo.viewAll') }} ({{ byCategory(cat.slug).length }})
+            </UButton>
           </div>
         </div>
-        <DemoGrid>
-          <DemoCard
-            v-for="d in classroomDemos"
-            :key="d.slug"
-            :demo="d"
-          />
-        </DemoGrid>
-      </div>
 
-      <!-- 各分类演示 -->
-      <div
-        v-for="cat in homeCategories"
-        v-if="!isSearching"
-        :key="cat.slug"
-        class="py-10 space-y-5"
-      >
-        <CategoryHeader
-          :category="cat"
-          :count="byCategory(cat.slug).length"
-        />
-        <DemoGrid>
-          <DemoCard
-            v-for="d in visibleDemos(cat.slug)"
-            :key="d.slug"
-            :demo="d"
-          />
-        </DemoGrid>
-        <div
-          v-if="byCategory(cat.slug).length > HOME_LIMIT"
-          class="text-center pt-2"
-        >
-          <UButton
-            :to="`/${cat.slug}`"
-            color="neutral"
-            variant="soft"
-            icon="i-lucide-arrow-right"
-            trailing
-          >
-            {{ t('demo.viewAll') }} ({{ byCategory(cat.slug).length }})
-          </UButton>
-        </div>
-      </div>
+        <!-- 怎么玩（下沉：避免首屏太满，靠后折叠呈现） -->
+        <HowToPlay />
+      </template>
     </UContainer>
   </div>
 </template>

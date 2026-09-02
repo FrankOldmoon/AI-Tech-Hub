@@ -20,8 +20,12 @@
     }
   },
   "home": {
-    "heroTitle": "80+ AI Demos, Try Instantly",
-    "heroDescription": "Speech, vision, NLP, AIGC, ML and Robotics demos. Runs in your browser — data stays on device, no sign-up. Server demos need a local Python environment.",
+    "heroBadge": "Try instantly · no-barrier AI demos",
+    "heroTitle": "AI at your fingertips",
+    "heroDescription": "Speech, vision, NLP, AIGC, ML and Robotics demos. Most run in your browser — data stays on device, no sign-up. Cloud chat and online TTS work out of the box.",
+    "heroPrivacy": "Data stays on your device by default",
+    "browseByCategory": "Browse by category",
+    "getStarted": "Get started",
     "allDemos": "All Demos",
     "viewDemo": "View Demo",
     "searchPlaceholder": "Search demos (name, description, tags, category)…",
@@ -52,9 +56,9 @@
       "feedback": "Report issue / give feedback",
       "faq": {
         "title": "FAQ",
-        "data": "Where does my data go? Browser demos run fully on-device — data never leaves your machine. Server demos send data to a local Python backend only.",
+        "data": "Where does my data go? Most demos run fully on-device — data never leaves your machine. Cloud chat and online TTS send data to those providers.",
         "device": "What do I need? Any regular computer. Camera / mic demos need that hardware — otherwise use sample assets or upload instead.",
-        "cloud": "Does the cloud deployment work? Browser demos work anywhere; demos that need a local Python backend will show an unavailable notice."
+        "cloud": "What needs the cloud? Cloud LLM chat and online TTS require a connection; all other browser demos work offline."
       }
     }
   },

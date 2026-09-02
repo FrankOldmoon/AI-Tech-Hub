@@ -887,3 +887,17 @@ export function statusColor(status: DemoStatus): 'success' | 'neutral' {
 export function statusI18nKey(status: DemoStatus): string {
   return status === 'ready' ? 'demo.status.ready' : 'demo.status.planned'
 }
+
+/** 分类对应的主题色渐变（图标/按钮的科技感配色），与 DemoCard / HomeHero 共用 */
+export const categoryAccent: Record<string, string> = {
+  speech: 'from-sky-400 to-blue-500',
+  vision: 'from-violet-400 to-purple-500',
+  nlp: 'from-emerald-400 to-green-500',
+  aigc: 'from-amber-400 to-orange-500',
+  ml: 'from-rose-400 to-pink-500',
+  robot: 'from-indigo-400 to-blue-600'
+}
+
+export function accentForCategory(slug: DemoCategory | string): string {
+  return categoryAccent[slug] ?? 'from-primary to-primary-600'
+}
