@@ -121,8 +121,7 @@ const kindLabels: Record<ImageToolKind, string> = {
   opencv: 'OpenCV.js',
   mediapipe: 'MediaPipe',
   transformers: 'Transformers.js',
-  tesseract: 'Tesseract',
-  python: 'Python'
+  tesseract: 'Tesseract'
 }
 
 function kindLabel(kind: ImageToolKind): string {
@@ -1028,9 +1027,6 @@ const modeText = computed(() => {
           </template>
         </div>
       </div>
-
-      <!-- Python 参考实现 -->
-      <PythonSourceViewer v-if="activeTool" :feature="activeTool.pythonModule" />
     </div>
   </UContainer>
 </template>

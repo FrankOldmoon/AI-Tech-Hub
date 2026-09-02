@@ -8,10 +8,6 @@
  *   - mediapipe   : MediaPipe Tasks（12/14 页）
  *   - transformers: Transformers.js（14/15 页）
  *   - tesseract   : Tesseract.js（13 页）
- *   - python      : Python 后端异步队列（12/15 页重型能力）
- *
- * 每个工具都有对应的 Python 参考实现 python/image/<page>/main.py（子命令式），
- * 通过 PythonSourceViewer 的 feature = pythonModule 展示。
  */
 
 import type { ParamSpec } from '~/utils/params'
@@ -37,7 +33,7 @@ export type ImagePageSlug =
   | 'ai-vision'
   | 'multimodal'
 
-export type ImageToolKind = 'canvas' | 'opencv' | 'mediapipe' | 'transformers' | 'tesseract' | 'python'
+export type ImageToolKind = 'canvas' | 'opencv' | 'mediapipe' | 'transformers' | 'tesseract'
 
 export interface LocalizedText {
   zh: string
@@ -84,8 +80,6 @@ export interface ImageTool {
   /** 规划中：仅展示说明，不执行（重型模型/依赖未就绪） */
   planned?: boolean
   params?: LocalizedParamSpec[]
-  /** Python 参考实现模块路径（feature=... -> python/<path>/main.py） */
-  pythonModule: string
   run: (ctx: ImageToolContext) => ImageToolResult | Promise<ImageToolResult>
   onPick?: (ctx: ImageToolContext, x: number, y: number) => { label: string; value: string }[]
 }
@@ -142,7 +136,6 @@ const viewerTools: ImageTool[] = [
     name: { zh: '图片信息', en: 'Image Info' },
     description: { zh: '显示尺寸、色彩模式与估算大小。', en: 'Show size, color mode and estimated file size.' },
     kind: 'canvas',
-    pythonModule: 'image/viewer',
     run: ({ imageData, lang }) => {
       const L = lang === 'zh'
       return {
@@ -168,7 +161,6 @@ const viewerTools: ImageTool[] = [
     description: { zh: '点击结果画布查看任意像素的 RGB/HSV/HSL/Lab 值。', en: 'Click the result canvas to inspect RGB/HSV/HSL/Lab values of any pixel.' },
     kind: 'canvas',
     interactive: 'click',
-    pythonModule: 'image/viewer',
     run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
     onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
   }
@@ -182,7 +174,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '缩放 Resize', en: 'Resize' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       // width/height 用 slider 拖拽（ImagePlayground 会按原图尺寸动态调整 min/max）
       { key: 'width', label: { zh: '宽度', en: 'Width' }, type: 'slider', default: 800, min: 1, max: 2048, step: 1 },
@@ -227,7 +218,6 @@ const transformTools: ImageTool[] = [
     name: { zh: '裁剪 Crop', en: 'Crop' },
     kind: 'canvas',
     interactive: 'crop',
-    pythonModule: 'image/transform',
     params: [
       { key: 'x', label: { zh: '起点 X（%）', en: 'X (%)' }, type: 'slider', default: 0, min: 0, max: 90, step: 1 },
       { key: 'y', label: { zh: '起点 Y（%）', en: 'Y (%)' }, type: 'slider', default: 0, min: 0, max: 90, step: 1 },
@@ -247,7 +237,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '旋转 Rotate', en: 'Rotate' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       { key: 'angle', label: { zh: '角度（度）', en: 'Angle (deg)' }, type: 'slider', default: 90, min: -180, max: 180, step: 1 },
       {
@@ -272,7 +261,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '翻转 Flip', en: 'Flip' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       {
         key: 'dir',
@@ -293,7 +281,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '比例缩放 Scale', en: 'Scale' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       { key: 'factor', label: { zh: '缩放倍数', en: 'Factor' }, type: 'slider', default: 1, min: 0.1, max: 4, step: 0.05 }
     ],
@@ -310,7 +297,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '边距 Padding', en: 'Padding' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       { key: 'top', label: { zh: '上', en: 'Top' }, type: 'number', default: 20, min: 0, max: 500 },
       { key: 'right', label: { zh: '右', en: 'Right' }, type: 'number', default: 20, min: 0, max: 500 },
@@ -345,7 +331,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '透视变换 Perspective', en: 'Perspective' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       { key: 'topInset', label: { zh: '上边内缩', en: 'Top inset' }, type: 'slider', default: 0, min: 0, max: 0.45, step: 0.01 },
       { key: 'bottomInset', label: { zh: '下边内缩', en: 'Bottom inset' }, type: 'slider', default: 0, min: 0, max: 0.45, step: 0.01 },
@@ -374,7 +359,6 @@ const transformTools: ImageTool[] = [
     page: 'transform',
     name: { zh: '仿射变换 Affine', en: 'Affine' },
     kind: 'canvas',
-    pythonModule: 'image/transform',
     params: [
       { key: 'rotateDeg', label: { zh: '旋转（度）', en: 'Rotate (deg)' }, type: 'slider', default: 0, min: -180, max: 180, step: 1 },
       { key: 'scaleX', label: { zh: '水平缩放', en: 'Scale X' }, type: 'slider', default: 1, min: 0.1, max: 3, step: 0.05 },
@@ -408,7 +392,6 @@ const pixelTools: ImageTool[] = [
     description: { zh: '点击画布读取像素的 RGB(A) 值。', en: 'Click the canvas to read pixel RGBA values.' },
     kind: 'canvas',
     interactive: 'click',
-    pythonModule: 'image/pixel',
     run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
     onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
   },
@@ -418,7 +401,6 @@ const pixelTools: ImageTool[] = [
     name: { zh: '像素网格 Pixel Grid', en: 'Pixel Grid' },
     description: { zh: '把中心区域放大为像素格子，观察单个像素。', en: 'Magnify the center region into a pixel grid.' },
     kind: 'canvas',
-    pythonModule: 'image/pixel',
     params: [
       { key: 'zoom', label: { zh: '放大倍数', en: 'Zoom' }, type: 'slider', default: 8, min: 2, max: 24, step: 1 },
       { key: 'cx', label: { zh: '中心 X', en: 'Center X' }, type: 'slider', default: 0.5, min: 0, max: 1, step: 0.01 },
@@ -441,7 +423,6 @@ const pixelTools: ImageTool[] = [
     name: { zh: '像素运算 Pixel Math', en: 'Pixel Math' },
     description: { zh: '对每个像素做加减乘除运算（含归一化/钳制）。', en: 'Add, subtract, multiply or divide every pixel (clamped).' },
     kind: 'canvas',
-    pythonModule: 'image/pixel',
     params: [
       {
         key: 'op',
@@ -507,7 +488,6 @@ const colorTools: ImageTool[] = [
     page: 'color',
     name: { zh: '灰度化 Grayscale', en: 'Grayscale' },
     kind: 'canvas',
-    pythonModule: 'image/color',
     params: [
       {
         key: 'method',
@@ -528,7 +508,6 @@ const colorTools: ImageTool[] = [
     page: 'color',
     name: { zh: '通道提取 Channel Extract', en: 'Channel Extract' },
     kind: 'canvas',
-    pythonModule: 'image/color',
     params: [
       { key: 'channel', label: { zh: '通道', en: 'Channel' }, type: 'select', default: 'r', options: channelOptions }
     ],
@@ -540,7 +519,6 @@ const colorTools: ImageTool[] = [
     name: { zh: '通道合并 Channel Merge', en: 'Channel Merge' },
     description: { zh: '把不同来源通道重排为新的 RGB 图像。', en: 'Rearrange channels from different sources into a new RGB image.' },
     kind: 'canvas',
-    pythonModule: 'image/color',
     params: [
       { key: 'rSrc', label: { zh: 'R 来源', en: 'R source' }, type: 'select', default: 'r', options: channelOptions },
       { key: 'gSrc', label: { zh: 'G 来源', en: 'G source' }, type: 'select', default: 'g', options: channelOptions },
@@ -555,7 +533,6 @@ const colorTools: ImageTool[] = [
     page: 'color',
     name: { zh: '颜色替换 Color Replace', en: 'Color Replace' },
     kind: 'canvas',
-    pythonModule: 'image/color',
     params: [
       { key: 'target', label: { zh: '目标颜色（#RRGGBB）', en: 'Target color (#RRGGBB)' }, type: 'text', default: '#ff0000' },
       { key: 'tolerance', label: { zh: '容差', en: 'Tolerance' }, type: 'slider', default: 60, min: 0, max: 255, step: 1 },
@@ -571,7 +548,6 @@ const colorTools: ImageTool[] = [
     name: { zh: '颜色量化 Quantize', en: 'Color Quantize' },
     description: { zh: '用 K-Means 把图像压缩为 k 种主色。', en: 'Compress the image to k dominant colors with K-Means.' },
     kind: 'canvas',
-    pythonModule: 'image/color',
     params: [
       { key: 'k', label: { zh: '颜色数量 k', en: 'Color count k' }, type: 'slider', default: 8, min: 2, max: 16, step: 1 }
     ],
@@ -584,7 +560,6 @@ const colorTools: ImageTool[] = [
     description: { zh: '点击画布查看像素在 RGB/HSV/HSL/Lab 下的值。', en: 'Click the canvas to see pixel values in RGB/HSV/HSL/Lab.' },
     kind: 'canvas',
     interactive: 'click',
-    pythonModule: 'image/color',
     run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
     onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
   }
@@ -598,7 +573,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '亮度 Brightness', en: 'Brightness' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'delta', label: { zh: '偏移（-255 ~ 255）', en: 'Offset (-255 ~ 255)' }, type: 'slider', default: 30, min: -255, max: 255, step: 1 }
     ],
@@ -609,7 +583,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '对比度 Contrast', en: 'Contrast' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'factor', label: { zh: '系数', en: 'Factor' }, type: 'slider', default: 1.3, min: 0.1, max: 3, step: 0.05 }
     ],
@@ -620,7 +593,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '伽马 Gamma', en: 'Gamma' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'gamma', label: { zh: '伽马值（<1 变亮，>1 变暗）', en: 'Gamma (<1 brighter, >1 darker)' }, type: 'slider', default: 1.2, min: 0.1, max: 3, step: 0.05 }
     ],
@@ -631,7 +603,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '饱和度 Saturation', en: 'Saturation' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'factor', label: { zh: '系数', en: 'Factor' }, type: 'slider', default: 1.5, min: 0, max: 3, step: 0.05 }
     ],
@@ -642,7 +613,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '色相 Hue', en: 'Hue' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'shift', label: { zh: '偏移（度）', en: 'Shift (deg)' }, type: 'slider', default: 60, min: -180, max: 180, step: 1 }
     ],
@@ -653,7 +623,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '曝光 Exposure', en: 'Exposure' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'ev', label: { zh: '曝光补偿 EV', en: 'Exposure (EV)' }, type: 'slider', default: 0.5, min: -3, max: 3, step: 0.1 }
     ],
@@ -664,7 +633,6 @@ const adjustmentTools: ImageTool[] = [
     page: 'adjustment',
     name: { zh: '白平衡 White Balance', en: 'White Balance' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     params: [
       { key: 'temp', label: { zh: '色温（>0 偏暖）', en: 'Temperature (>0 warmer)' }, type: 'slider', default: 0, min: -100, max: 100, step: 1 },
       { key: 'tint', label: { zh: '色调（>0 偏洋红）', en: 'Tint (>0 magenta)' }, type: 'slider', default: 0, min: -100, max: 100, step: 1 }
@@ -677,7 +645,6 @@ const adjustmentTools: ImageTool[] = [
     name: { zh: '自动对比度 Auto Contrast', en: 'Auto Contrast' },
     description: { zh: '按亮度百分位自动拉伸对比度。', en: 'Auto-stretch contrast by luminance percentiles.' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     run: ({ imageData }) => ({ imageData: alg.autoContrast(imageData) })
   },
   {
@@ -686,7 +653,6 @@ const adjustmentTools: ImageTool[] = [
     name: { zh: '自动亮度 Auto Brightness', en: 'Auto Brightness' },
     description: { zh: '把平均亮度自动调整到中灰。', en: 'Shift the mean luminance to mid-gray automatically.' },
     kind: 'canvas',
-    pythonModule: 'image/adjust',
     run: ({ imageData }) => ({ imageData: alg.autoBrightness(imageData) })
   }
 ]
@@ -699,7 +665,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '方框模糊 Box Blur', en: 'Box Blur' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'radius', label: { zh: '半径', en: 'Radius' }, type: 'slider', default: 3, min: 1, max: 20, step: 1 }
     ],
@@ -710,7 +675,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '高斯模糊 Gaussian Blur', en: 'Gaussian Blur' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'radius', label: { zh: '半径', en: 'Radius' }, type: 'slider', default: 3, min: 1, max: 20, step: 1 },
       { key: 'sigma', label: { zh: 'Sigma', en: 'Sigma' }, type: 'slider', default: 1.5, min: 0.2, max: 5, step: 0.1 }
@@ -722,7 +686,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '中值模糊 Median Blur', en: 'Median Blur' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       {
         key: 'size',
@@ -744,7 +707,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '运动模糊 Motion Blur', en: 'Motion Blur' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'length', label: { zh: '长度', en: 'Length' }, type: 'slider', default: 10, min: 2, max: 30, step: 1 },
       { key: 'angle', label: { zh: '角度（度）', en: 'Angle (deg)' }, type: 'slider', default: 45, min: 0, max: 360, step: 5 }
@@ -756,7 +718,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '锐化 Sharpen', en: 'Sharpen' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'amount', label: { zh: '强度', en: 'Amount' }, type: 'slider', default: 1, min: 0.1, max: 5, step: 0.1 }
     ],
@@ -767,7 +728,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: 'USM 锐化 Unsharp Mask', en: 'Unsharp Mask' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'radius', label: { zh: '半径', en: 'Radius' }, type: 'slider', default: 3, min: 1, max: 10, step: 1 },
       { key: 'amount', label: { zh: '强度', en: 'Amount' }, type: 'slider', default: 1, min: 0.1, max: 3, step: 0.1 }
@@ -779,7 +739,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '浮雕 Emboss', en: 'Emboss' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     params: [
       { key: 'angle', label: { zh: '光源方向（度）', en: 'Light angle (deg)' }, type: 'slider', default: 45, min: 0, max: 315, step: 45 }
     ],
@@ -790,7 +749,6 @@ const filterTools: ImageTool[] = [
     page: 'filters',
     name: { zh: '高通滤波 High-pass', en: 'High-pass Filter' },
     kind: 'canvas',
-    pythonModule: 'image/filters',
     run: ({ imageData }) => ({ imageData: alg.highPass(imageData) })
   }
 ]
@@ -803,7 +761,6 @@ const enhancementTools: ImageTool[] = [
     page: 'enhancement',
     name: { zh: '添加噪声 Add Noise', en: 'Add Noise' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     params: [
       {
         key: 'type',
@@ -829,7 +786,6 @@ const enhancementTools: ImageTool[] = [
     page: 'enhancement',
     name: { zh: '去噪 Denoise', en: 'Denoise' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     params: [
       {
         key: 'method',
@@ -855,7 +811,6 @@ const enhancementTools: ImageTool[] = [
     name: { zh: '直方图 Histogram', en: 'Histogram' },
     description: { zh: '显示亮度直方图（条形 + 折线）。', en: 'Show the luminance histogram (bars + line).' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     run: ({ imageData }) => ({ imageData: alg.renderHistogram(alg.luminanceHistogram(imageData)) })
   },
   {
@@ -863,7 +818,6 @@ const enhancementTools: ImageTool[] = [
     page: 'enhancement',
     name: { zh: '直方图均衡 Histogram Equalization', en: 'Histogram Equalization' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     run: ({ imageData }) => ({ imageData: alg.histogramEqualization(imageData) })
   },
   {
@@ -872,7 +826,6 @@ const enhancementTools: ImageTool[] = [
     name: { zh: '图像增强 Enhance', en: 'Image Enhancement' },
     description: { zh: '自动亮度 + 自动对比度组合增强。', en: 'Auto brightness + auto contrast combined.' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     run: ({ imageData }) => ({ imageData: alg.enhance(imageData) })
   },
   {
@@ -881,7 +834,6 @@ const enhancementTools: ImageTool[] = [
     name: { zh: '超分辨率 Super Resolution', en: 'Super Resolution' },
     description: { zh: '简化版：高质量放大 + USM 锐化（完整版见 Python 参考）。', en: 'Simplified: high-quality upscale + USM (full version in Python reference).' },
     kind: 'canvas',
-    pythonModule: 'image/enhancement',
     params: [
       {
         key: 'scale',
@@ -918,7 +870,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '二值化阈值 Binary Threshold', en: 'Binary Threshold' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'thresh', label: { zh: '阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 }
     ],
@@ -929,7 +880,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '自适应阈值 Adaptive Threshold', en: 'Adaptive Threshold' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'block', label: { zh: '块大小', en: 'Block size' }, type: 'slider', default: 15, min: 3, max: 41, step: 2 },
       { key: 'c', label: { zh: '常数 C', en: 'Constant C' }, type: 'slider', default: 10, min: 0, max: 40, step: 1 },
@@ -953,7 +903,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: 'Otsu 阈值 Otsu Threshold', en: 'Otsu Threshold' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     run: ({ imageData, lang }) => {
       const { threshold, imageData: out } = alg.thresholdOtsu(imageData)
       return {
@@ -967,7 +916,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '腐蚀 Erosion', en: 'Erosion' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions },
       { key: 'iter', label: { zh: '迭代次数', en: 'Iterations' }, type: 'slider', default: 1, min: 1, max: 5, step: 1 }
@@ -983,7 +931,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '膨胀 Dilation', en: 'Dilation' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions },
       { key: 'iter', label: { zh: '迭代次数', en: 'Iterations' }, type: 'slider', default: 1, min: 1, max: 5, step: 1 }
@@ -999,7 +946,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '开运算 Opening', en: 'Opening' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions }
     ],
@@ -1010,7 +956,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '闭运算 Closing', en: 'Closing' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions }
     ],
@@ -1021,7 +966,6 @@ const morphologyTools: ImageTool[] = [
     page: 'morphology',
     name: { zh: '形态学梯度 Morphological Gradient', en: 'Morphological Gradient' },
     kind: 'canvas',
-    pythonModule: 'image/morphology',
     params: [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions }
     ],
@@ -1053,7 +997,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Sobel 边缘', en: 'Sobel' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       {
         key: 'ksize',
@@ -1084,7 +1027,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Scharr 边缘', en: 'Scharr' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     run: async ({ imageData }) => withCvMat(imageData, (cv, bgr) => {
       const gray = cvGray(cv, bgr)
       const dx = new cv.Mat()
@@ -1102,7 +1044,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Laplacian 边缘', en: 'Laplacian' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     run: async ({ imageData }) => withCvMat(imageData, (cv, bgr) => {
       const gray = cvGray(cv, bgr)
       const out = new cv.Mat()
@@ -1116,7 +1057,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Canny 边缘', en: 'Canny' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       { key: 't1', label: { zh: '低阈值', en: 'Low threshold' }, type: 'slider', default: 100, min: 0, max: 255, step: 1 },
       { key: 't2', label: { zh: '高阈值', en: 'High threshold' }, type: 'slider', default: 200, min: 0, max: 255, step: 1 }
@@ -1134,7 +1074,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Harris 角点', en: 'Harris Corners' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       { key: 'thresh', label: { zh: '阈值（×最大值）', en: 'Threshold (×max)' }, type: 'slider', default: 0.01, min: 0.001, max: 0.1, step: 0.001 }
     ],
@@ -1167,7 +1106,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Hough 直线', en: 'Hough Lines' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       { key: 'threshold', label: { zh: '累加器阈值', en: 'Accumulator threshold' }, type: 'slider', default: 80, min: 10, max: 300, step: 5 }
     ],
@@ -1194,7 +1132,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: 'Hough 圆', en: 'Hough Circles' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       { key: 'param2', label: { zh: '累加器阈值', en: 'Accumulator threshold' }, type: 'slider', default: 100, min: 20, max: 300, step: 5 }
     ],
@@ -1221,7 +1158,6 @@ const edgeTools: ImageTool[] = [
     page: 'edge',
     name: { zh: '多边形检测 Polygon', en: 'Polygon Detection' },
     kind: 'opencv',
-    pythonModule: 'image/edge',
     params: [
       { key: 'epsilon', label: { zh: '近似精度 ε（%）', en: 'Approx epsilon (%)' }, type: 'slider', default: 2, min: 0.5, max: 10, step: 0.5 }
     ],
@@ -1267,7 +1203,6 @@ function hsvRangeTool(
     name,
     description,
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'hMin', label: { zh: 'H 最小', en: 'H min' }, type: 'slider', default: 0, min: 0, max: 179, step: 1 },
       { key: 'hMax', label: { zh: 'H 最大', en: 'H max' }, type: 'slider', default: 179, min: 0, max: 179, step: 1 },
@@ -1317,7 +1252,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '轮廓检测 Contours', en: 'Contour Detection' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 }
     ],
@@ -1348,7 +1282,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '物体计数 Object Counting', en: 'Object Counting' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 },
       { key: 'minArea', label: { zh: '最小面积（px²）', en: 'Min area (px²)' }, type: 'slider', default: 100, min: 10, max: 5000, step: 10 }
@@ -1380,7 +1313,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '包围盒 Bounding Box', en: 'Bounding Box' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 },
       { key: 'minArea', label: { zh: '最小面积（px²）', en: 'Min area (px²)' }, type: 'slider', default: 100, min: 10, max: 5000, step: 10 }
@@ -1413,7 +1345,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '质心 Centroid', en: 'Centroid' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 },
       { key: 'minArea', label: { zh: '最小面积（px²）', en: 'Min area (px²)' }, type: 'slider', default: 100, min: 10, max: 5000, step: 10 }
@@ -1449,7 +1380,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '面积与周长 Area & Perimeter', en: 'Area & Perimeter' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 }
     ],
@@ -1486,7 +1416,6 @@ const objectTools: ImageTool[] = [
     page: 'object',
     name: { zh: '形状识别 Shape Recognition', en: 'Shape Recognition' },
     kind: 'opencv',
-    pythonModule: 'image/object',
     params: [
       { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 },
       { key: 'epsilon', label: { zh: '近似精度 ε（%）', en: 'Approx epsilon (%)' }, type: 'slider', default: 2, min: 0.5, max: 10, step: 0.5 }
@@ -1536,7 +1465,6 @@ const featureTools: ImageTool[] = [
     page: 'features',
     name: { zh: 'ORB 关键点', en: 'ORB Keypoints' },
     kind: 'opencv',
-    pythonModule: 'image/features',
     params: [
       { key: 'max', label: { zh: '最大数量', en: 'Max keypoints' }, type: 'slider', default: 200, min: 10, max: 1000, step: 10 }
     ],
@@ -1560,7 +1488,6 @@ const featureTools: ImageTool[] = [
     page: 'features',
     name: { zh: 'BRISK 关键点', en: 'BRISK Keypoints' },
     kind: 'opencv',
-    pythonModule: 'image/features',
     run: async ({ imageData, lang }) => withCvMat(imageData, (cv, bgr) => {
       const brisk = new cv.BRISK()
       const kp = new cv.KeyPointVector()
@@ -1583,7 +1510,6 @@ const featureTools: ImageTool[] = [
     description: { zh: '用 ORB + 暴力匹配对齐两张图的关键点。', en: 'Match keypoints between two images with ORB + brute-force.' },
     kind: 'opencv',
     needsSecondImage: true,
-    pythonModule: 'image/features',
     params: [
       { key: 'max', label: { zh: '最大关键点', en: 'Max keypoints' }, type: 'slider', default: 500, min: 50, max: 2000, step: 50 },
       { key: 'ratio', label: { zh: 'Lowe 比率', en: 'Lowe ratio' }, type: 'slider', default: 0.75, min: 0.5, max: 0.95, step: 0.01 }
@@ -1661,29 +1587,6 @@ function toDataUrl(imageData: ImageData): string {
   return toCanvasLocal(imageData).toDataURL('image/png')
 }
 
-/** 提交 multipart 任务并轮询直到完成/失败（用于 Python 后端异步任务） */
-async function submitAndPoll(
-  submitUrl: string,
-  form: FormData,
-  pollUrl: (taskId: string) => string,
-  timeoutMs = 10 * 60 * 1000
-): Promise<any> {
-  const res = await $fetch<any>(submitUrl, { method: 'POST', body: form })
-  if (!res?.ok) throw new Error(res?.error || '提交任务失败')
-  const deadline = Date.now() + timeoutMs
-  let task: any = null
-  while (Date.now() < deadline) {
-    await ai.sleep(1000)
-    const body = await $fetch<any>(pollUrl(res.taskId))
-    // GET 响应为 { ok, task }，必须解包，否则 status 恒为 undefined 导致无限轮询
-    task = body?.task ?? body
-    if (task && ['done', 'error', 'cancelled'].includes(task.status)) break
-  }
-  if (!task) throw new Error('任务超时')
-  if (task.status !== 'done') throw new Error(task.error || task.message || task.status)
-  return task
-}
-
 // ===== 12 Face Vision =====
 
 const confidenceParam: LocalizedParamSpec = {
@@ -1702,7 +1605,6 @@ const faceTools: ImageTool[] = [
     page: 'face',
     name: { zh: '人脸检测 Face Detection', en: 'Face Detection' },
     kind: 'mediapipe',
-    pythonModule: 'image/face',
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1721,7 +1623,6 @@ const faceTools: ImageTool[] = [
     page: 'face',
     name: { zh: '人脸关键点 Face Landmark', en: 'Face Landmark' },
     kind: 'mediapipe',
-    pythonModule: 'image/face',
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1740,7 +1641,6 @@ const faceTools: ImageTool[] = [
     page: 'face',
     name: { zh: '人脸模糊 Face Blur', en: 'Face Blur' },
     kind: 'mediapipe',
-    pythonModule: 'image/face',
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1774,7 +1674,6 @@ const faceTools: ImageTool[] = [
     page: 'face',
     name: { zh: '人脸马赛克 Face Pixelation', en: 'Face Pixelation' },
     kind: 'mediapipe',
-    pythonModule: 'image/face',
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1818,36 +1717,6 @@ const faceTools: ImageTool[] = [
         info: [{ label: lang === 'zh' ? '已马赛克人脸' : 'Faces pixelated', value: `${dets.length}` }]
       }
     }
-  },
-  {
-    id: 'face-verification',
-    page: 'face',
-    name: { zh: '人脸验证 Face Verification', en: 'Face Verification' },
-    description: { zh: '比较两张人脸是否为同一人（insightface，Python 后端）。', en: 'Compare whether two faces are the same person (insightface, Python backend).' },
-    kind: 'python',
-    needsSecondImage: true,
-    pythonModule: 'image/face',
-    run: async ({ imageData, secondImage, lang }) => {
-      if (!secondImage) {
-        return {
-          imageData,
-          info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '请先上传第二张图' : 'Upload a second image first' }]
-        }
-      }
-      const form = new FormData()
-      form.append('file', ai.dataUrlToBlob(toDataUrl(imageData)), 'input.png')
-      form.append('file2', ai.dataUrlToBlob(toDataUrl(secondImage)), 'input2.png')
-      form.append('mode', 'verification')
-      const task = await submitAndPoll('/api/image/face-recognition', form, id => `/api/image/face-recognition/${id}`)
-      const r = task.result || {}
-      return {
-        imageData,
-        info: [
-          { label: lang === 'zh' ? '余弦相似度' : 'Similarity', value: `${r.similarity ?? '-'}` },
-          { label: lang === 'zh' ? '结论' : 'Verdict', value: r.verdict === 'same' ? (lang === 'zh' ? '同一人' : 'Same person') : (lang === 'zh' ? '不同人' : 'Different persons') }
-        ]
-      }
-    }
   }
 ]
 
@@ -1859,7 +1728,6 @@ const ocrTools: ImageTool[] = [
     page: 'ocr',
     name: { zh: '文字识别 OCR', en: 'OCR Text Recognition' },
     kind: 'tesseract',
-    pythonModule: 'image/ocr',
     params: [
       {
         key: 'lang',
@@ -1897,7 +1765,6 @@ const ocrTools: ImageTool[] = [
     name: { zh: '文档扫描 Document Scan', en: 'Document Scan' },
     description: { zh: '自动检测文档轮廓并透视校正（OpenCV.js）。', en: 'Auto-detect the document quad and apply perspective correction (OpenCV.js).' },
     kind: 'opencv',
-    pythonModule: 'image/ocr',
     run: async ({ imageData, lang }) => withCvMat(imageData, (cv, bgr) => {
       const gray = cvGray(cv, bgr)
       const blur = new cv.Mat()
@@ -1959,7 +1826,6 @@ const aiVisionTools: ImageTool[] = [
     page: 'ai-vision',
     name: { zh: '图像分类 Image Classification', en: 'Image Classification' },
     kind: 'mediapipe',
-    pythonModule: 'image/ai-vision',
     params: [{
       key: 'max',
       label: { zh: '结果数量', en: 'Top K' },
@@ -1990,7 +1856,6 @@ const aiVisionTools: ImageTool[] = [
     page: 'ai-vision',
     name: { zh: '目标检测 Object Detection', en: 'Object Detection' },
     kind: 'mediapipe',
-    pythonModule: 'image/ai-vision',
     params: [{
       key: 'max',
       label: { zh: '最多目标', en: 'Max objects' },
@@ -2021,7 +1886,6 @@ const aiVisionTools: ImageTool[] = [
     page: 'ai-vision',
     name: { zh: '图像分割 Image Segmentation', en: 'Image Segmentation' },
     kind: 'mediapipe',
-    pythonModule: 'image/ai-vision',
     run: async ({ imageData }) => ({ imageData: await ai.segmentImage(imageData, 'overlay') })
   },
   {
@@ -2029,7 +1893,6 @@ const aiVisionTools: ImageTool[] = [
     page: 'ai-vision',
     name: { zh: '背景移除 Background Removal', en: 'Background Removal' },
     kind: 'mediapipe',
-    pythonModule: 'image/ai-vision',
     run: async ({ imageData, lang }) => ({
       imageData: await ai.segmentImage(imageData, 'background-removal'),
       info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '下载 PNG 保留透明背景' : 'Download as PNG to keep transparency' }]
@@ -2040,7 +1903,6 @@ const aiVisionTools: ImageTool[] = [
     page: 'ai-vision',
     name: { zh: '图像嵌入 Image Embedding', en: 'Image Embedding' },
     kind: 'mediapipe',
-    pythonModule: 'image/ai-vision',
     run: async ({ imageData, lang }) => {
       const vec = await ai.imageEmbedding(imageData)
       const head = Array.from(vec.slice(0, 6)).map(v => v.toFixed(3)).join(', ')
@@ -2060,7 +1922,6 @@ const aiVisionTools: ImageTool[] = [
     description: { zh: '计算两张图的余弦相似度（上传第二张图）。', en: 'Cosine similarity between two images (upload a second image).' },
     kind: 'mediapipe',
     needsSecondImage: true,
-    pythonModule: 'image/ai-vision',
     run: async ({ imageData, secondImage, lang }) => {
       if (!secondImage) {
         return {
@@ -2086,7 +1947,6 @@ const multimodalTools: ImageTool[] = [
     page: 'multimodal',
     name: { zh: '图像描述 Image Captioning', en: 'Image Captioning' },
     kind: 'transformers',
-    pythonModule: 'image/multimodal',
     params: [{
       key: 'maxTokens',
       label: { zh: '最大 Token 数', en: 'Max tokens' },
@@ -2118,7 +1978,6 @@ const multimodalTools: ImageTool[] = [
     page: 'multimodal',
     name: { zh: '深度估计 Depth Map', en: 'Depth Estimation' },
     kind: 'transformers',
-    pythonModule: 'image/multimodal',
     run: async ({ imageData, lang }) => {
       const { setupTransformersEnv, transformersModels } = await import('~/utils/transformers')
       await setupTransformersEnv()
@@ -2153,7 +2012,6 @@ const multimodalTools: ImageTool[] = [
     name: { zh: '图像问答 Image QA', en: 'Image Question Answering' },
     description: { zh: '基于 Janus-Pro 的图像理解问答（模型 ~1.2GB，首次需下载）。', en: 'Image understanding QA with Janus-Pro (~1.2GB model, first run downloads).' },
     kind: 'transformers',
-    pythonModule: 'image/multimodal',
     params: [
       { key: 'question', label: { zh: '问题', en: 'Question' }, type: 'text', default: 'What is in this picture?' },
       { key: 'maxTokens', label: { zh: '最大 Token 数', en: 'Max tokens' }, type: 'slider', default: 256, min: 32, max: 1024, step: 16 }
@@ -2173,49 +2031,10 @@ const multimodalTools: ImageTool[] = [
     description: { zh: 'Moebius 涂抹修复（交互复杂，规划中，可先体验 /aigc/inpainting）。', en: 'Moebius paint-over inpainting (planned; try /aigc/inpainting).' },
     kind: 'transformers',
     planned: true,
-    pythonModule: 'image/multimodal',
     run: ({ imageData, lang }) => ({
       imageData,
       info: [{ label: lang === 'zh' ? '状态' : 'Status', value: lang === 'zh' ? '规划中：可先体验 /aigc/inpainting' : 'Planned: try /aigc/inpainting' }]
     })
-  },
-  {
-    id: 'style-transfer',
-    page: 'multimodal',
-    name: { zh: '风格迁移 / 图生图', en: 'Style Transfer / Image-to-Image' },
-    description: { zh: '基于 SD-Turbo 的图生图（Python 后端异步任务）。', en: 'Image-to-image with SD-Turbo (Python backend).' },
-    kind: 'python',
-    pythonModule: 'image/multimodal',
-    params: [
-      { key: 'prompt', label: { zh: '提示词', en: 'Prompt' }, type: 'text', default: 'a watercolor painting, soft colors, artistic' },
-      { key: 'strength', label: { zh: '变换强度', en: 'Strength' }, type: 'slider', default: 0.75, min: 0.1, max: 1, step: 0.05 },
-      { key: 'steps', label: { zh: '步数', en: 'Steps' }, type: 'slider', default: 4, min: 1, max: 8, step: 1 }
-    ],
-    run: async ({ imageData, params, lang }) => {
-      const form = new FormData()
-      form.append('file', ai.dataUrlToBlob(toDataUrl(imageData)), 'input.png')
-      form.append('text', String(params.prompt))
-      form.append('mode', 'img2img')
-      form.append('strength', String(params.strength))
-      form.append('steps', String(params.steps))
-      const task = await submitAndPoll('/api/aigc/sd-turbo', form, id => `/api/aigc/sd-turbo/${id}`)
-      const url = task.resultUrl as string
-      const blob = await (await fetch(url)).blob()
-      const bmp = await createImageBitmap(blob)
-      if (!bmp.width || !bmp.height) {
-        bmp.close?.()
-        throw new Error('Invalid result image size')
-      }
-      const canvas = document.createElement('canvas')
-      canvas.width = bmp.width
-      canvas.height = bmp.height
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(bmp, 0, 0)
-      return {
-        imageData: ctx.getImageData(0, 0, canvas.width, canvas.height),
-        info: [{ label: lang === 'zh' ? '结果' : 'Result', value: url }]
-      }
-    }
   }
 ]
 

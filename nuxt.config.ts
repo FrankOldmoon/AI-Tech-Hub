@@ -4,7 +4,7 @@ import { isWebllmIndexJs, neutralizeImportMetaUrl } from './build/webllm-neutral
 export default defineNuxtConfig({
   modules: ['@nuxt/eslint', '@nuxt/ui', '@nuxtjs/i18n'],
 
-  // 自托管部署配置：NUXT_PUBLIC_SELF_HOSTED / NUXT_PUBLIC_ENABLE_PYTHON
+  // 自托管部署配置：NUXT_PUBLIC_SELF_HOSTED
   // 在构建/运行环境设 true 时烘焙进 runtimeConfig.public（Nuxt 自动做布尔转换）
   devtools: {
     enabled: true
@@ -17,8 +17,7 @@ export default defineNuxtConfig({
   },
   runtimeConfig: {
     public: {
-      selfHosted: false,
-      enablePython: false
+      selfHosted: false
     }
   },
 

@@ -16,8 +16,6 @@ interface RunnerDemo {
   status: DemoStatus
   /** 工作原理（教学向，折叠渲染） */
   howItWorks?: string
-  /** 对应 python 下的模块路径，用于展示最简 Python 实现 */
-  pythonModule?: string
 }
 
 const props = defineProps<{
@@ -173,9 +171,6 @@ async function run() {
         </div>
         <slot v-else name="result" :result="result" :inference-time="inferenceTime" />
       </UCard>
-
-      <!-- 对应的 Python 最简实现源码 -->
-      <PythonSourceViewer v-if="demo.pythonModule" :feature="demo.pythonModule" />
     </div>
   </UContainer>
 </template>

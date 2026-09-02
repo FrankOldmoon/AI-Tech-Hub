@@ -93,8 +93,6 @@
     "useUploadInstead": "Upload an image instead",
     "sessionOnly": "Results are session-only — download them before leaving",
     "howItWorks": "How it works",
-      "requiresPythonUnavailable": "This demo needs a local Python backend — unavailable on the cloud deployment. Run it on your own machine.",
-      "backendNotReady": "This feature's backend is not set up yet — coming soon.",
       "heavyModelNotice": "This demo loads a large model in your browser — the first run may take a while",
       "heavyModelSize": "Model size ~{size} GB, please be patient while it loads",
       "webgpuYes": "Your browser supports WebGPU — inference will be faster",
@@ -151,13 +149,6 @@
     "music": "Music",
     "noisySpeech": "Noisy speech",
     "textDefault": "The weather is nice today. I am looking forward to the weekend."
-  },
-  "pythonSource": {
-    "title": "Minimal Python Implementation",
-    "loading": "Loading source…",
-    "notFound": "No Python implementation file available.",
-    "copy": "Copy",
-    "copied": "Copied"
   },
   "pyodide": {
     "title": "Python Online Editor",

@@ -12,10 +12,9 @@
 /** 自托管部署配置（由 app/plugins/deploy-config.ts 在客户端初始化） */
 interface DeployConfig {
   selfHosted: boolean
-  enablePython: boolean
 }
 
-let deployConfig: DeployConfig = { selfHosted: false, enablePython: false }
+let deployConfig: DeployConfig = { selfHosted: false }
 
 /** 应用启动时注入部署配置（读自 runtimeConfig.public） */
 export function initDeployConfig(cfg: DeployConfig): void {
@@ -32,15 +31,8 @@ export function isRemoteDeploy(): boolean {
 }
 
 /**
- * 本地 Python 后端是否启用。
- * 仅自托管部署（NUXT_PUBLIC_SELF_HOSTED=true）且构建时 NUXT_PUBLIC_ENABLE_PYTHON=true
- * 时返回 true；云端（Vercel）始终为 false（没有本地 Python 后端）。
+ * 是否远程部署（非 localhost）——本地 Python 后端已移除，仅保留自托管判断。
  */
-export function pythonBackendEnabled(): boolean {
-  if (import.meta.server) return false
-  return deployConfig.enablePython && !isRemoteDeploy()
-}
-
 export const REMOTE_MEDIAPIPE_WASM = {
   vision: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/wasm',
   text: 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-text@1.0.1/wasm',

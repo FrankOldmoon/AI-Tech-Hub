@@ -9,14 +9,11 @@
  */
 
 const props = withDefaults(defineProps<{
-  /** 可选：从后端加载初始代码（复用 usePythonSource） */
-  feature?: string
-  /** 可选：直接传入初始代码（优先于 feature） */
+  /** 可选：直接传入初始代码 */
   initialCode?: string
 }>(), {})
 
 const { t } = useI18n()
-const { fetchSource } = usePythonSource()
 const colorMode = useColorMode()
 
 const DEFAULT_CODE = `# 在浏览器中运行 Python（Pyodide）
@@ -197,11 +194,6 @@ async function run() {
 onMounted(async () => {
   if (props.initialCode) {
     code.value = props.initialCode
-  } else if (props.feature) {
-    const res = await fetchSource(props.feature)
-    if (res.ok && res.source) {
-      code.value = res.source
-    }
   }
 
   await initMonaco()

@@ -93,8 +93,6 @@
     "useUploadInstead": "改用上传图片",
     "sessionOnly": "结果仅本次会话有效，请及时下载",
     "howItWorks": "工作原理",
-      "requiresPythonUnavailable": "此演示依赖本地 Python 后端，当前为云端部署暂不可用，请在本机运行。",
-      "backendNotReady": "此功能的后端环境尚未配置，暂不可用（正在准备中）。",
       "heavyModelNotice": "此演示需在浏览器加载大模型，首次使用可能要等一会儿",
       "heavyModelSize": "模型体积约 {size} GB，加载时请耐心等待",
       "webgpuYes": "✓ 你的浏览器支持 WebGPU，推理会更快",
@@ -151,13 +149,6 @@
     "music": "音乐",
     "noisySpeech": "带噪语音",
     "textDefault": "今天的天气很好，我很期待周末的到来。"
-  },
-  "pythonSource": {
-    "title": "Python 最简实现",
-    "loading": "正在加载源码……",
-    "notFound": "暂无对应的 Python 实现文件。",
-    "copy": "复制",
-    "copied": "已复制"
   },
   "pyodide": {
     "title": "Python 在线编辑器",
