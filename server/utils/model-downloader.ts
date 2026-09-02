@@ -303,6 +303,28 @@ async function downloadTfjsModels(): Promise<void> {
   }
 }
 
+// ============================================================
+// 6. face-api 人脸注册/识别模型（@vladmandic/face-api）
+// ============================================================
+async function downloadFaceApiModels(): Promise<void> {
+  console.log('\n=== face-api 人脸模型 ===')
+  const files = [
+    'tiny_face_detector_model-weights_manifest.json',
+    'tiny_face_detector_model.bin',
+    'face_landmark_68_model-weights_manifest.json',
+    'face_landmark_68_model.bin',
+    'face_recognition_model-weights_manifest.json',
+    'face_recognition_model.bin'
+  ]
+  const jsdelivr = 'https://cdn.jsdelivr.net/gh/vladmandic/face-api@master/model'
+  const raw = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model'
+  for (const f of files) {
+    const dest = join(BASE, 'faceapi', f)
+    const ok = await downloadFile(`${jsdelivr}/${f}`, dest)
+    if (!ok) await downloadFile(`${raw}/${f}`, dest)
+  }
+}
+
 /** 统计目录总大小（MB）。 */
 function totalSizeMb(dir: string): number {
   let total = 0
@@ -337,6 +359,7 @@ export async function downloadAllModels(): Promise<void> {
     await downloadTransformersModels()
     await downloadTfjsModels()
     await downloadWebllmModels()
+    await downloadFaceApiModels()
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
     console.log(`\n[model-downloader] 下载完成，总大小 ${totalSizeMb(BASE).toFixed(1)} MB，耗时 ${elapsed}s`)
   } catch (e: any) {

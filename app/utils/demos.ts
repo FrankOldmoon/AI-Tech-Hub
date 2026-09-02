@@ -789,11 +789,22 @@ export const demos: Demo[] = [
     slug: 'face',
     category: 'vision',
     title: { zh: '人脸视觉', en: 'Face Vision' },
-    description: { zh: '人脸检测、关键点、模糊、马赛克与双图验证（MediaPipe + insightface）。', en: 'Face detection, landmarks, blur, pixelation and two-image verification (MediaPipe + insightface).' },
+    description: { zh: '人脸检测、关键点、模糊、马赛克与双图验证（MediaPipe）。', en: 'Face detection, landmarks, blur, pixelation and two-image verification (MediaPipe).' },
     howItWorks: { zh: '人脸工坊：检测/关键点/模糊/像素化/证件照等工具对图像做处理，参数即时生效。', en: 'Face studio: detection, landmarks, blur, pixelation, ID photo and more with live parameters.' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
     tags: ['MediaPipe', 'Face']
+  },
+  {
+    slug: 'face-recognition',
+    category: 'vision',
+    title: { zh: '人脸注册与识别', en: 'Face Registration & Recognition' },
+    description: { zh: '在浏览器注册多样张人脸并在本地识别，注册库存于 localStorage，数据不出设备。', en: 'Enroll multiple face samples in-browser and recognize locally — registry stored on-device (localStorage).' },
+    howItWorks: { zh: '上传照片并在浏览器检测人脸、提取 128 维人脸嵌入（face-api/faceRecognitionNet），注册到本地。识别时与该注册库比对余弦相似度，命中即显示姓名。', en: 'Photos are analyzed in-browser (face-api) to extract a 128-dim embedding; enroll locally vs. a registry. Recognition compares cosine similarity and labels matches.' },
+    icon: 'i-lucide-user-round',
+    status: 'ready',
+    featured: true,
+    tags: ['face-api', 'TF.js', 'localStorage', 'On-device']
   },
   {
     slug: 'ocr',

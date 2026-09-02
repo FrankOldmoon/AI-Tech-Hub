@@ -57,7 +57,7 @@ onMounted(() => {
       />
       <UColorModeButton />
       <UButton
-        to="https://github.com/ikeee/nuxt-ai"
+        to="https://github.com/FrankOldmoon/AI-Tech-Hub"
         target="_blank"
         icon="i-simple-icons-github"
         aria-label="GitHub"
