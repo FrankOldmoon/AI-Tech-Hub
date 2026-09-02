@@ -1,38 +1,22 @@
 <script setup lang="ts">
-import type { DemoStatus } from '~/utils/demos'
 import { humanError } from '~/utils/errors'
 import { mediapipeWasm } from '~/utils/mediapipe'
 
 /**
  * 通用 MediaPipe 文本演示运行器
  * - 单文本输入，同步推理
+ * - 仅负责交互面；页面外壳（标题/HowItWorks/面包屑/SEO/上下篇）由 MediaDemoShell 提供。
  * - 通过 props 注入 createTask / method
  * - 结果通过 #result scoped slot 暴露
  */
-interface RunnerDemo {
-  title: string
-  description?: string
-  icon: string
-  status: DemoStatus
-  /** 工作原理（教学向，折叠渲染） */
-  howItWorks?: string
-}
 
 const props = defineProps<{
-  demo: RunnerDemo
   createTask: (text: any) => Promise<any>
   method: 'classify' | 'detect'
   placeholder?: string
 }>()
 
 const { t } = useI18n()
-
-useSeoMeta({
-  title: () => props.demo.title,
-  description: () => props.demo.description || '',
-  ogTitle: () => props.demo.title,
-  ogDescription: () => props.demo.description || ''
-})
 
 const input = ref(t('samples.textDefault'))
 const downloading = ref(false) // 模型下载/加载中
@@ -93,84 +77,81 @@ async function run() {
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12 space-y-6">
-      <!-- 标题区 -->
-      <div class="flex items-start gap-4">
-        <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <UIcon :name="demo.icon" class="size-6" />
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <h1 class="text-2xl font-bold text-highlighted">
-              {{ demo.title }}
-            </h1>
-            <DemoStatusBadge :status="demo.status" />
-          </div>
-          <p v-if="demo.description" class="mt-1 text-muted">
-            {{ demo.description }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 工作原理（教学向，审计批次5） -->
-      <HowItWorksSection :text="demo.howItWorks" />
-
-      <!-- 输入 -->
-      <div class="space-y-2">
-        <UTextarea
-          v-model="input"
-          :placeholder="placeholder || t('mp.textPlaceholder')"
-          :rows="4"
-          class="w-full"
+  <div class="space-y-6">
+    <!-- 输入 -->
+    <div class="space-y-2">
+      <UTextarea
+        v-model="input"
+        :placeholder="placeholder || t('mp.textPlaceholder')"
+        :rows="4"
+        class="w-full"
+      />
+      <div class="flex items-center gap-2">
+        <UButton
+          icon="i-lucide-play"
+          :label="downloading ? t('demo.loadingModel') : running ? t('demo.inferring') : t('demo.run')"
+          color="primary"
+          :loading="downloading || running"
+          :disabled="!input.trim() || downloading || running"
+          @click="run"
         />
-        <div class="flex items-center gap-2">
-          <UButton
-            icon="i-lucide-play"
-            :label="downloading ? t('demo.loadingModel') : running ? t('demo.inferring') : t('demo.run')"
-            color="primary"
-            :loading="downloading || running"
-            :disabled="!input.trim() || downloading || running"
-            @click="run"
-          />
-          <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
-        </div>
-        <!-- 模型下载/推理进度（MediaPipe 无百分比回调，用不确定进度条 + 三态文案） -->
-        <UProgress
-          v-if="downloading || running"
-          :value="null"
-          size="sm"
-          class="max-w-2xl"
-        />
+        <span
+          v-if="inferenceTime"
+          class="text-sm text-muted ms-2"
+        >{{ inferenceTime }} ms</span>
       </div>
-
-      <!-- 错误 -->
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
-
-      <!-- 结果 -->
-      <UCard v-if="$slots.result">
-        <template #header>
-          <div class="flex items-center justify-between gap-2">
-            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-              <UIcon name="i-lucide-terminal" class="size-4" />
-              {{ t('demo.result') }}
-            </div>
-            <UButton
-              v-if="result"
-              :label="copied ? t('demo.copied') : t('demo.copy')"
-              icon="i-lucide-copy"
-              size="xs"
-              color="neutral"
-              variant="ghost"
-              @click="copyResult"
-            />
-          </div>
-        </template>
-        <div v-if="!result" class="py-8 text-center text-sm text-muted">
-          {{ t('demo.emptyResult') }}
-        </div>
-        <slot v-else name="result" :result="result" :inference-time="inferenceTime" />
-      </UCard>
+      <!-- 模型下载/推理进度（MediaPipe 无百分比回调，用不确定进度条 + 三态文案） -->
+      <UProgress
+        v-if="downloading || running"
+        :value="null"
+        size="sm"
+        class="max-w-2xl"
+      />
     </div>
-  </UContainer>
+
+    <!-- 错误 -->
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
+
+    <!-- 结果 -->
+    <UCard v-if="$slots.result">
+      <template #header>
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+            <UIcon
+              name="i-lucide-terminal"
+              class="size-4"
+            />
+            {{ t('demo.result') }}
+          </div>
+          <UButton
+            v-if="result"
+            :label="copied ? t('demo.copied') : t('demo.copy')"
+            icon="i-lucide-copy"
+            size="xs"
+            color="neutral"
+            variant="ghost"
+            @click="copyResult"
+          />
+        </div>
+      </template>
+      <div
+        v-if="!result"
+        class="py-8 text-center text-sm text-muted"
+      >
+        {{ t('demo.emptyResult') }}
+      </div>
+      <slot
+        v-else
+        name="result"
+        :result="result"
+        :inference-time="inferenceTime"
+      />
+    </UCard>
+  </div>
 </template>
