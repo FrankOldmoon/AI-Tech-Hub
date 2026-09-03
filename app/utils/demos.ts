@@ -606,6 +606,156 @@ export const demos: Demo[] = [
     tags: ['Neuroevolution', 'Genetic Algorithm', 'Neural Network']
   },
   {
+    slug: 'neural-foragers',
+    category: 'ml',
+    title: { zh: '神经进化觅食', en: 'Neuroevolution Foraging' },
+    description: { zh: '用神经进化让觅食者学会寻找食物并躲避威胁（演化算法的趣味演示）。', en: 'Neuroevolution teaches foragers to seek food and avoid threats in an evolution playground.' },
+    howItWorks: { zh: '每一代觅食者由小神经网络控制，适应度高的个体繁殖并变异，观察种群逐步进化。', en: 'Each generation of foragers is driven by tiny neural nets; fit individuals breed and mutate as you watch evolution happen.' },
+    icon: 'i-lucide-bug',
+    status: 'ready',
+    tags: ['Neuroevolution', 'Emergence', 'Neural Network']
+  },
+  {
+    slug: 'neural-boids',
+    category: 'ml',
+    title: { zh: '鸟群涌现', en: 'Boids — Swarm Intelligence' },
+    description: { zh: '三条简单规则驱动上百只鸟的群体涌现行为。', en: 'A hundred boids move as one flock from just three simple rules.' },
+    howItWorks: { zh: '每只鸟只遵循分离/对齐/聚合三条局部规则，却自然形成优雅的群体行为（涌现）。', en: 'Each boid follows separation, alignment and cohesion locally, yet a beautiful flock emerges.' },
+    icon: 'i-lucide-bird',
+    status: 'ready',
+    tags: ['Emergence', 'Swarm', 'Algorithm']
+  },
+  {
+    slug: 'neural-diffusion',
+    category: 'ml',
+    title: { zh: '扩散模型实验室', en: 'Diffusion Lab' },
+    description: { zh: '观察 DDPM 扩散模型如何从噪声中一步步还原图像。', en: 'Watch a DDPM diffusion model denoise an image step by step from pure noise.' },
+    howItWorks: { zh: '正向加噪毁掉图像，反向过程逐步去噪复原；拖动步数滑块看生成全过程。', en: 'Forward noise corrupts an image; the reverse process restores it — scrub the step slider to see the whole denoising journey.' },
+    icon: 'i-lucide-sparkles',
+    status: 'ready',
+    tags: ['Diffusion', 'DDPM', 'Generative']
+  },
+  {
+    slug: 'neural-rl-gridworld',
+    category: 'ml',
+    title: { zh: 'Q-Learning 网格世界', en: 'RL Gridworld (Q-Learning)' },
+    description: { zh: '表格 Q-Learning 在网格世界现场学习找路（强化学习入门）。', en: 'Tabular Q-Learning learns to navigate a gridworld live — a gentle RL introduction.' },
+    howItWorks: { zh: '智能体反复试探奖励，Q 表逐步逼近最优策略；可调学习率/折扣率并看热力图。', en: 'The agent explores and updates its Q-table until the optimal policy emerges; tune learning rate and discount.' },
+    icon: 'i-lucide-grid-3x3',
+    status: 'ready',
+    tags: ['Reinforcement Learning', 'Q-Learning', 'Dynamic Programming']
+  },
+  {
+    slug: 'neural-wave-collapse',
+    category: 'ml',
+    title: { zh: '波函数坍缩', en: 'Wave Function Collapse' },
+    description: { zh: '从示例图案中合成无缝纹理的波函数坍缩算法。', en: 'Procedurally generate seamless textures with the Wave Function Collapse algorithm.' },
+    howItWorks: { zh: '从一张小样本图学习邻接约束，再逐格坍缩生成符合规则的大图。', en: 'Learn adjacency constraints from a small sample, then collapse cells to grow a rule-abiding canvas.' },
+    icon: 'i-lucide-grid-3x3',
+    status: 'ready',
+    tags: ['Procedural Generation', 'Constraint', 'Algorithm']
+  },
+  {
+    slug: 'neural-optimizers',
+    category: 'ml',
+    title: { zh: '优化器竞赛', en: 'Optimizers Arena' },
+    description: { zh: '观看 SGD/Momentum/NAG/RMSProp/Adam 在二维损失地形上赛跑。', en: 'Watch SGD, Momentum, NAG, RMSProp and Adam race across a 2D loss landscape.' },
+    howItWorks: { zh: '拖动起点、选择地形，观察不同优化器如何收敛到局部/全局最小值。', en: 'Drag the start point and pick the terrain to see how each optimizer converges.' },
+    icon: 'i-lucide-trending-down',
+    status: 'ready',
+    tags: ['Optimization', 'Gradient Descent', 'Deep Learning']
+  },
+  {
+    slug: 'neural-playground',
+    category: 'ml',
+    title: { zh: '神经网络游乐场', en: 'Neural Playground' },
+    description: { zh: '自己画数据集，看从零实现的 MLP 实时学习分类边界。', en: 'Paint your own dataset and watch a from-scratch MLP learn the decision boundary live.' },
+    howItWorks: { zh: '用画笔撒两类点，MLP 实时训练并画出决策边界，可调层数与学习率。', en: 'Scatter two classes of points; an MLP trains live and draws its decision boundary.' },
+    icon: 'i-lucide-brain',
+    status: 'ready',
+    tags: ['Neural Network', 'MLP', 'Supervised Learning']
+  },
+  {
+    slug: 'neural-reaction-diffusion',
+    category: 'ml',
+    title: { zh: '反应-扩散工作室', en: 'Reaction-Diffusion Studio' },
+    description: { zh: '用 Gray-Scott 反应-扩散模型在实时中生成图灵斑图。', en: 'Paint life into chemistry — Gray-Scott Turing patterns forming in real time.' },
+    howItWorks: { zh: '调节反应与扩散速率，观察珊瑚/有丝分裂/蠕虫等自组织图案从化学中涌现。', en: 'Tune reaction and diffusion rates to grow coral, mitosis and worm-like patterns.' },
+    icon: 'i-lucide-waves',
+    status: 'ready',
+    tags: ['Reaction-Diffusion', 'Emergence', 'Gray-Scott']
+  },
+  {
+    slug: 'neural-automata',
+    category: 'ml',
+    title: { zh: '元胞自动机实验室', en: 'Automata Lab' },
+    description: { zh: '画几个细胞、选一条规则（Life/HighLife/Maze…），看复杂性从无中生有。', en: 'Paint a few cells, pick a rule (Life, HighLife, Maze…), and watch complexity bloom.' },
+    howItWorks: { zh: '在网格上布种，按规则逐代演化；支持多种经典规则与随机撒种。', en: 'Seed a grid and evolve it generation by generation under classic cellular automata rules.' },
+    icon: 'i-lucide-grid-2x2',
+    status: 'ready',
+    tags: ['Cellular Automata', 'Emergence', 'Game of Life']
+  },
+  {
+    slug: 'neural-attractor',
+    category: 'ml',
+    title: { zh: '奇怪吸引子', en: 'Strange Attractors' },
+    description: { zh: 'Lorenz/Clifford/De Jong——看确定性混沌自己绘成发光轨迹。', en: 'Lorenz, Clifford, De Jong — watch deterministic chaos draw itself into glowing light.' },
+    howItWorks: { zh: '迭代混沌映射方程，逐点绘制吸引子轨迹，可切换不同系统与配色。', en: 'Iterate chaotic map equations and plot the attractor path; switch systems and palettes.' },
+    icon: 'i-lucide-orbit',
+    status: 'ready',
+    tags: ['Chaos', 'Fractal', 'Dynamical Systems']
+  },
+  {
+    slug: 'neural-kmeans',
+    category: 'ml',
+    title: { zh: 'K-Means 聚类实验室', en: 'K-Means Lab' },
+    description: { zh: '撒点、放质心，看簇逐步结晶——含 Voronoi 区域与 k-means++。', en: 'Scatter points, drop centroids, and watch clusters crystallize with Voronoi regions.' },
+    howItWorks: { zh: '拖动画布造簇，点选质心数量，K-Means 迭代聚类并实时显示 Voronoi 划分。', en: 'Draw clusters on a canvas, pick k, and watch K-Means iterate to convergence.' },
+    icon: 'i-lucide-layers',
+    status: 'ready',
+    tags: ['K-Means', 'Clustering', 'Unsupervised']
+  },
+  {
+    slug: 'neural-fourier',
+    category: 'ml',
+    title: { zh: '傅里叶本轮', en: 'Fourier Epicycles' },
+    description: { zh: '画任意闭合路径，看一串旋转圆把它重新描出来——DFT 可视化。', en: 'Draw any closed path and watch a chain of spinning circles redraw it (DFT).' },
+    howItWorks: { zh: '路径采样后做离散傅里叶变换，用一组旋转向量逐点复现原轨迹。', en: 'Sample a path, run a DFT, and let rotating vectors trace it back out.' },
+    icon: 'i-lucide-circle-dot',
+    status: 'ready',
+    tags: ['Fourier Transform', 'Signal', 'Visualization']
+  },
+  {
+    slug: 'neural-slime-mold',
+    category: 'ml',
+    title: { zh: '黏菌寻路', en: 'Slime Mold' },
+    description: { zh: '数千只无脑个体沿痕迹强化路径——活生生的 Physarum 网络涌现。', en: 'Thousands of mindless agents follow and reinforce trails — a Physarum network emerges.' },
+    howItWorks: { zh: '每只黏菌只感知周围信息素并转向，群体却自发连成觅食网络（stigmergy）。', en: 'Each agent follows local pheromone trails, yet a transport network self-organizes.' },
+    icon: 'i-lucide-network',
+    status: 'ready',
+    tags: ['Swarm', 'Stigmergy', 'Emergence']
+  },
+  {
+    slug: 'neural-genetic-tsp',
+    category: 'ml',
+    title: { zh: '遗传算法解旅行商', en: 'Genetic TSP' },
+    description: { zh: '用遗传算法解开旅行商路线——选择/交叉/变异/精英保留。', en: 'A genetic algorithm untangles the traveling-salesman route.' },
+    howItWorks: { zh: '种群反复选择、有序交叉与变异，路线长度逐代缩短并实时绘制。', en: 'Selection, ordered crossover and mutation shorten the tour generation by generation.' },
+    icon: 'i-lucide-route',
+    status: 'ready',
+    tags: ['Genetic Algorithm', 'Optimization', 'TSP']
+  },
+  {
+    slug: 'neural-pathfinding',
+    category: 'ml',
+    title: { zh: '寻路可视化', en: 'Pathfinding Visualizer' },
+    description: { zh: '看 A*/Dijkstra/BFS/Greedy 在网格上赛跑——画墙、生成迷宫、比较探索范围。', en: 'Watch A*, Dijkstra, BFS and Greedy race across a grid — compare what they explore.' },
+    howItWorks: { zh: '设置起点终点与障碍，选算法观察节点探索顺序与最终路径的差异。', en: 'Set start/end and walls, then watch each algorithm explore and find the path.' },
+    icon: 'i-lucide-map',
+    status: 'ready',
+    tags: ['A*', 'Dijkstra', 'Search Algorithm']
+  },
+  {
     slug: 'bg-removal',
     classroomSafe: true,
     category: 'vision',

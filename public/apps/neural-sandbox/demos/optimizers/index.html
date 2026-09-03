@@ -1,0 +1,1017 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Optimizers Arena</title>
+<style>
+  :root {
+    --bg: #0b0b14;
+    --panel: #16161f;
+    --panel-2: #1d1d29;
+    --text: #e8e8f2;
+    --muted: #9a9ab2;
+    --accent: #5eead0;
+    --accent-2: #8b7bf0;
+    --border: #2a2a38;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 22px 18px 48px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.55rem;
+    letter-spacing: -0.01em;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+  }
+
+  header .tagline {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  /* Legend overlay */
+  .legend {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(11, 11, 20, 0.72);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 10px;
+    backdrop-filter: blur(6px);
+    font-size: 0.72rem;
+    line-height: 1.6;
+    pointer-events: none;
+    min-width: 150px;
+  }
+  .legend .row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  .legend .dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    box-shadow: 0 0 6px currentColor;
+  }
+  .legend .name { flex: 1 1 auto; color: var(--text); }
+  .legend .loss { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .hint {
+    position: absolute;
+    bottom: 10px;
+    right: 12px;
+    font-size: 0.7rem;
+    color: var(--muted);
+    background: rgba(11,11,20,0.6);
+    padding: 4px 8px;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+
+  /* Controls */
+  .panel {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 22px;
+    align-items: flex-end;
+  }
+
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 120px;
+  }
+  .ctrl label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .ctrl .val {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  select {
+    appearance: none;
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+  }
+  select:focus { outline: 1px solid var(--accent-2); }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 4px;
+    background: var(--border);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 0 0 3px rgba(94,234,208,0.18);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 16px; height: 16px;
+    border: none;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+  }
+
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--accent-2); }
+  button.primary {
+    background: linear-gradient(90deg, rgba(94,234,208,0.16), rgba(139,123,240,0.16));
+    border-color: var(--accent-2);
+  }
+
+  .toggles { display: flex; flex-wrap: wrap; gap: 10px; }
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+    user-select: none;
+  }
+  .toggle input { accent-color: var(--accent); }
+
+  .notes {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .notes .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .notes h3 {
+    margin: 0 0 6px;
+    font-size: 0.85rem;
+    color: var(--accent);
+    letter-spacing: 0.02em;
+  }
+  .notes p {
+    margin: 0;
+    font-size: 0.8rem;
+    line-height: 1.55;
+    color: var(--muted);
+  }
+
+  footer {
+    margin-top: 26px;
+    font-size: 0.82rem;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 640px) {
+    .notes { grid-template-columns: 1fr; }
+    .ctrl { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Optimizers Arena</h1>
+    <p class="tagline">Watch five optimizers race across a 2D loss landscape.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="legend" id="legend"></div>
+    <div class="hint">Drag anywhere to relaunch from a new start</div>
+  </div>
+
+  <div class="panel">
+    <div class="ctrl">
+      <label for="terrain">Terrain</label>
+      <select id="terrain">
+        <option value="rosenbrock">Rosenbrock (banana valley)</option>
+        <option value="saddle">Saddle point</option>
+        <option value="himmelblau">Himmelblau (4 minima)</option>
+        <option value="rastrigin">Rastrigin (many minima)</option>
+        <option value="beale">Beale</option>
+      </select>
+    </div>
+
+    <div class="ctrl" style="flex:1 1 200px;">
+      <label for="lr">Learning rate <span class="val" id="lrVal"></span></label>
+      <input type="range" id="lr" min="-4" max="-0.3" step="0.01" />
+    </div>
+
+    <div class="ctrl">
+      <label>Playback</label>
+      <div class="btns">
+        <button id="play" class="primary">Pause</button>
+        <button id="step">Step</button>
+        <button id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="ctrl" style="flex:1 1 220px;">
+      <label>Show optimizers</label>
+      <div class="toggles" id="toggles"></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="card">
+      <h3>How it works</h3>
+      <p>Each terrain has an analytic gradient. Every frame, the five optimizers take one
+      step from a shared, draggable start, leaving fading trails. SGD follows the raw
+      gradient; Momentum and NAG accumulate velocity; RMSProp and Adam adapt the step per
+      coordinate. Watch Adam tunnel through ravines and escape saddles where plain SGD stalls.</p>
+    </div>
+    <div class="card">
+      <h3>Why it matters</h3>
+      <p>The geometry an optimizer sees &mdash; narrow valleys, flat saddles, jagged local minima &mdash;
+      decides whether training converges fast, slowly, or not at all. Adaptive methods trade
+      a little theory for huge practical robustness, which is why Adam dominates deep learning.</p>
+    </div>
+  </div>
+
+  <footer>
+    <a href="../../index.html">&larr; Gallery</a>
+  </footer>
+</div>
+
+<script>
+"use strict";
+(function () {
+  // ---------------------------------------------------------------------------
+  // Loss landscapes: each returns { f(x,y), grad(x,y)->[gx,gy], domain, minima }
+  // Domain is the world-space rectangle we render. Minima are global optima
+  // marked on the map.
+  // ---------------------------------------------------------------------------
+  const TERRAINS = {
+    rosenbrock: {
+      // f = (1-x)^2 + 100(y-x^2)^2 ; global min at (1,1)
+      f: function (x, y) {
+        const a = 1 - x, b = y - x * x;
+        return a * a + 100 * b * b;
+      },
+      grad: function (x, y) {
+        const b = y - x * x;
+        return [-2 * (1 - x) - 400 * x * b, 200 * b];
+      },
+      domain: [-2, 2, -1, 3],
+      minima: [[1, 1]],
+      logColor: true,
+    },
+    saddle: {
+      // f = x^2 - y^2 ; saddle at origin (no global min, but shows escape)
+      f: function (x, y) { return x * x - y * y; },
+      grad: function (x, y) { return [2 * x, -2 * y]; },
+      domain: [-2, 2, -2, 2],
+      minima: [],
+      saddle: [[0, 0]],
+      logColor: false,
+    },
+    himmelblau: {
+      // f = (x^2+y-11)^2 + (x+y^2-7)^2 ; four equal global minima
+      f: function (x, y) {
+        const u = x * x + y - 11, v = x + y * y - 7;
+        return u * u + v * v;
+      },
+      grad: function (x, y) {
+        const u = x * x + y - 11, v = x + y * y - 7;
+        return [4 * x * u + 2 * v, 2 * u + 4 * y * v];
+      },
+      domain: [-5, 5, -5, 5],
+      minima: [
+        [3, 2],
+        [-2.805118, 3.131312],
+        [-3.779310, -3.283186],
+        [3.584428, -1.848126],
+      ],
+      logColor: true,
+    },
+    rastrigin: {
+      // f = 20 + sum( xi^2 - 10 cos(2pi xi) ) ; global min at origin, many local
+      f: function (x, y) {
+        const t = 2 * Math.PI;
+        return 20 + (x * x - 10 * Math.cos(t * x)) + (y * y - 10 * Math.cos(t * y));
+      },
+      grad: function (x, y) {
+        const t = 2 * Math.PI;
+        return [2 * x + 10 * t * Math.sin(t * x), 2 * y + 10 * t * Math.sin(t * y)];
+      },
+      domain: [-5.12, 5.12, -5.12, 5.12],
+      minima: [[0, 0]],
+      logColor: false,
+    },
+    beale: {
+      // f = (1.5 - x + xy)^2 + (2.25 - x + xy^2)^2 + (2.625 - x + xy^3)^2
+      // global min at (3, 0.5)
+      f: function (x, y) {
+        const t1 = 1.5 - x + x * y;
+        const t2 = 2.25 - x + x * y * y;
+        const t3 = 2.625 - x + x * y * y * y;
+        return t1 * t1 + t2 * t2 + t3 * t3;
+      },
+      grad: function (x, y) {
+        const t1 = 1.5 - x + x * y;
+        const t2 = 2.25 - x + x * y * y;
+        const t3 = 2.625 - x + x * y * y * y;
+        const gx = 2 * t1 * (y - 1) + 2 * t2 * (y * y - 1) + 2 * t3 * (y * y * y - 1);
+        const gy = 2 * t1 * x + 2 * t2 * (2 * x * y) + 2 * t3 * (3 * x * y * y);
+        return [gx, gy];
+      },
+      domain: [-4.5, 4.5, -4.5, 4.5],
+      minima: [[3, 0.5]],
+      logColor: true,
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Optimizer definitions. Each has a color, a fresh-state factory, and a
+  // step(state, grad, lr) -> [dx, dy] that returns the parameter update.
+  // Standard hyper-parameters baked in.
+  // ---------------------------------------------------------------------------
+  const MOMENTUM = 0.9;
+  const B1 = 0.9, B2 = 0.999, EPS = 1e-8;
+
+  // sanitize an optimizer's internal state so a single Infinity/NaN never
+  // poisons subsequent frames (a real cross-frame NaN-propagation risk for the
+  // velocity / second-moment accumulators).
+  function sanitizeState(s) {
+    for (const k in s) {
+      if (!isFinite(s[k])) s[k] = 0;
+    }
+  }
+
+  const OPTIMIZERS = [
+    {
+      key: "sgd", name: "SGD", color: "#7fd1ff",
+      init: function () { return {}; },
+      step: function (s, g, lr) { return [-lr * g[0], -lr * g[1]]; },
+    },
+    {
+      key: "momentum", name: "Momentum", color: "#5eead0",
+      init: function () { return { vx: 0, vy: 0 }; },
+      step: function (s, g, lr) {
+        s.vx = MOMENTUM * s.vx - lr * g[0];
+        s.vy = MOMENTUM * s.vy - lr * g[1];
+        return [s.vx, s.vy];
+      },
+    },
+    {
+      key: "nag", name: "NAG", color: "#b6f36b",
+      // Nesterov: gradient is evaluated at the look-ahead point (handled in simStep).
+      needsLookahead: true,
+      init: function () { return { vx: 0, vy: 0 }; },
+      step: function (s, g, lr) {
+        s.vx = MOMENTUM * s.vx - lr * g[0];
+        s.vy = MOMENTUM * s.vy - lr * g[1];
+        return [s.vx, s.vy];
+      },
+    },
+    {
+      key: "rmsprop", name: "RMSProp", color: "#ffb454",
+      init: function () { return { sx: 0, sy: 0 }; },
+      step: function (s, g, lr) {
+        s.sx = 0.9 * s.sx + 0.1 * g[0] * g[0];
+        s.sy = 0.9 * s.sy + 0.1 * g[1] * g[1];
+        return [-lr * g[0] / (Math.sqrt(s.sx) + EPS), -lr * g[1] / (Math.sqrt(s.sy) + EPS)];
+      },
+    },
+    {
+      key: "adam", name: "Adam", color: "#8b7bf0",
+      init: function () { return { mx: 0, my: 0, vx: 0, vy: 0, t: 0 }; },
+      step: function (s, g, lr) {
+        s.t += 1;
+        s.mx = B1 * s.mx + (1 - B1) * g[0];
+        s.my = B1 * s.my + (1 - B1) * g[1];
+        s.vx = B2 * s.vx + (1 - B2) * g[0] * g[0];
+        s.vy = B2 * s.vy + (1 - B2) * g[1] * g[1];
+        const bc1 = 1 - Math.pow(B1, s.t);
+        const bc2 = 1 - Math.pow(B2, s.t);
+        const mhx = s.mx / bc1, mhy = s.my / bc1;
+        const vhx = s.vx / bc2, vhy = s.vy / bc2;
+        return [-lr * mhx / (Math.sqrt(vhx) + EPS), -lr * mhy / (Math.sqrt(vhy) + EPS)];
+      },
+    },
+  ];
+
+  // ---------------------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------------------
+  const cv = document.getElementById("cv");
+  const ctx = cv ? cv.getContext("2d") : null;
+  const legendEl = document.getElementById("legend");
+  const togglesEl = document.getElementById("toggles");
+
+  let DPR = 1;
+  let W = 0, H = 0;            // CSS pixel size of canvas
+  let terrainKey = "rosenbrock";
+  let terrain = TERRAINS[terrainKey];
+  let lr = 0.002;
+  let playing = true;
+  let start = [-1.3, 1.4];     // world-space start (set per terrain)
+  let runners = [];           // active optimizer runners
+  let enabled = {};           // key -> bool
+  let fieldCanvas = null;     // offscreen heatmap, redrawn on terrain/resize
+  let dragging = false;
+
+  OPTIMIZERS.forEach(function (o) { enabled[o.key] = true; });
+
+  const MAX_TRAIL = 220;
+  const STEP_CLAMP = 1e3;     // clamp world-space step magnitude to avoid blowups
+
+  function safeF(fn, x, y) {
+    let v = fn(x, y);
+    if (!isFinite(v)) v = 1e12;
+    return v;
+  }
+
+  // ----- coordinate transforms (world <-> screen, in CSS pixels) -------------
+  function worldToScreen(x, y) {
+    const x0 = terrain.domain[0], x1 = terrain.domain[1];
+    const y0 = terrain.domain[2], y1 = terrain.domain[3];
+    const dx = (x1 - x0) || 1, dy = (y1 - y0) || 1;
+    const sx = ((x - x0) / dx) * W;
+    const sy = (1 - (y - y0) / dy) * H; // flip y for screen
+    return [sx, sy];
+  }
+  function screenToWorld(sx, sy) {
+    const x0 = terrain.domain[0], x1 = terrain.domain[1];
+    const y0 = terrain.domain[2], y1 = terrain.domain[3];
+    const x = x0 + (sx / (W || 1)) * (x1 - x0);
+    const y = y0 + (1 - sy / (H || 1)) * (y1 - y0);
+    return [x, y];
+  }
+
+  // ----- default starts that produce interesting races -----------------------
+  const DEFAULT_START = {
+    rosenbrock: [-1.3, 1.4],
+    saddle: [0.001, 1.6],     // tiny x offset so it must escape the saddle
+    himmelblau: [0, 0],
+    rastrigin: [-3.6, 4.2],
+    beale: [-2.5, -2.5],
+  };
+
+  // sensible default LR per terrain (chosen so the race is legible)
+  const DEFAULT_LR = {
+    rosenbrock: 0.002,
+    saddle: 0.02,
+    himmelblau: 0.01,
+    rastrigin: 0.01,
+    beale: 0.01,
+  };
+
+  // ---------------------------------------------------------------------------
+  // Heatmap: render perceptual color band of loss into an offscreen canvas.
+  // Uses log scaling when configured to compress huge dynamic ranges.
+  // ---------------------------------------------------------------------------
+  function buildField() {
+    const gw = Math.max(2, Math.floor(W));
+    const gh = Math.max(2, Math.floor(H));
+    fieldCanvas = document.createElement("canvas");
+    fieldCanvas.width = gw;
+    fieldCanvas.height = gh;
+    const fctx = fieldCanvas.getContext("2d");
+    if (!fctx) return;
+    const img = fctx.createImageData(gw, gh);
+    const data = img.data;
+
+    const x0 = terrain.domain[0], x1 = terrain.domain[1];
+    const y0 = terrain.domain[2], y1 = terrain.domain[3];
+    const useLog = terrain.logColor;
+
+    // First pass: compute values + min/max for normalization.
+    const vals = new Float32Array(gw * gh);
+    let vmin = Infinity, vmax = -Infinity;
+    for (let j = 0; j < gh; j++) {
+      const wy = y0 + (1 - j / (gh - 1)) * (y1 - y0);
+      for (let i = 0; i < gw; i++) {
+        const wx = x0 + (i / (gw - 1)) * (x1 - x0);
+        let v = terrain.f(wx, wy);
+        if (!isFinite(v)) v = 1e12;
+        if (useLog) v = Math.log(1 + Math.max(0, v));
+        vals[j * gw + i] = v;
+        if (v < vmin) vmin = v;
+        if (v > vmax) vmax = v;
+      }
+    }
+    const range = (vmax - vmin) || 1;
+
+    // Second pass: map to color + subtle contour banding.
+    for (let k = 0; k < gw * gh; k++) {
+      const t = (vals[k] - vmin) / range; // 0 = low loss, 1 = high
+      const c = colormap(t);
+      // contour lines: thin darkening at regular t intervals
+      const band = (t * 14) % 1;
+      const line = band < 0.06 ? 0.78 : 1.0;
+      const idx = k * 4;
+      data[idx] = c[0] * line;
+      data[idx + 1] = c[1] * line;
+      data[idx + 2] = c[2] * line;
+      data[idx + 3] = 255;
+    }
+    fctx.putImageData(img, 0, 0);
+  }
+
+  // Perceptual-ish colormap: deep indigo (low) -> teal -> green -> amber (high).
+  // Hand-tuned anchor stops for a dark-lab aesthetic.
+  function colormap(t) {
+    t = Math.min(1, Math.max(0, t));
+    const stops = [
+      [0.0, [18, 16, 38]],     // near-black indigo (basins)
+      [0.25, [30, 60, 110]],   // blue
+      [0.45, [26, 120, 130]],  // teal
+      [0.65, [40, 150, 110]],  // green
+      [0.82, [150, 150, 70]],  // olive
+      [1.0, [200, 120, 60]],   // amber ridges
+    ];
+    for (let i = 0; i < stops.length - 1; i++) {
+      const a = stops[i][0], ca = stops[i][1];
+      const b = stops[i + 1][0], cb = stops[i + 1][1];
+      if (t >= a && t <= b) {
+        const u = (t - a) / (b - a || 1);
+        return [
+          Math.round(ca[0] + (cb[0] - ca[0]) * u),
+          Math.round(ca[1] + (cb[1] - ca[1]) * u),
+          Math.round(ca[2] + (cb[2] - ca[2]) * u),
+        ];
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+
+  // ---------------------------------------------------------------------------
+  // Runner management
+  // ---------------------------------------------------------------------------
+  function makeRunners() {
+    runners = OPTIMIZERS.map(function (o) {
+      return {
+        def: o,
+        state: o.init(),
+        x: start[0],
+        y: start[1],
+        trail: [],            // array of [x,y] world coords
+        loss: safeF(terrain.f, start[0], start[1]),
+        alive: true,
+      };
+    });
+  }
+
+  function resetRun() { makeRunners(); }
+
+  function relaunch(worldPt) {
+    start = worldPt.slice();
+    resetRun();
+  }
+
+  // One simulation step for all runners.
+  function simStep() {
+    for (let n = 0; n < runners.length; n++) {
+      const r = runners[n];
+      if (!enabled[r.def.key]) continue;
+      if (!r.alive) continue;
+
+      let gx, gy;
+      if (r.def.needsLookahead) {
+        // Nesterov: evaluate gradient at the look-ahead point x + momentum*v
+        const lax = r.x + MOMENTUM * (r.state.vx || 0);
+        const lay = r.y + MOMENTUM * (r.state.vy || 0);
+        const g = terrain.grad(lax, lay);
+        gx = g[0]; gy = g[1];
+      } else {
+        const g = terrain.grad(r.x, r.y);
+        gx = g[0]; gy = g[1];
+      }
+
+      // guard against NaN / inf gradients
+      if (!isFinite(gx)) gx = 0;
+      if (!isFinite(gy)) gy = 0;
+
+      const upd = r.def.step(r.state, [gx, gy], lr);
+      // sanitize internal accumulators so a transient blow-up cannot poison
+      // future frames with NaN/Infinity
+      sanitizeState(r.state);
+
+      let dx = upd[0], dy = upd[1];
+
+      // clamp the update magnitude so exploding gradients don't fling the ball
+      if (!isFinite(dx)) dx = 0;
+      if (!isFinite(dy)) dy = 0;
+      const mag = Math.hypot(dx, dy);
+      if (mag > STEP_CLAMP) {
+        dx = (dx / mag) * STEP_CLAMP;
+        dy = (dy / mag) * STEP_CLAMP;
+      }
+
+      r.x += dx;
+      r.y += dy;
+
+      // keep within a generous world bound so a diverging ball doesn't vanish
+      const x0 = terrain.domain[0], x1 = terrain.domain[1];
+      const y0 = terrain.domain[2], y1 = terrain.domain[3];
+      const padX = (x1 - x0) * 1.5, padY = (y1 - y0) * 1.5;
+      r.x = Math.min(x1 + padX, Math.max(x0 - padX, r.x));
+      r.y = Math.min(y1 + padY, Math.max(y0 - padY, r.y));
+      if (!isFinite(r.x)) r.x = start[0];
+      if (!isFinite(r.y)) r.y = start[1];
+
+      r.loss = safeF(terrain.f, r.x, r.y);
+
+      r.trail.push([r.x, r.y]);
+      if (r.trail.length > MAX_TRAIL) r.trail.shift();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------------------
+  function draw() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, W, H);
+    if (fieldCanvas) ctx.drawImage(fieldCanvas, 0, 0, W, H);
+
+    // mark global minima
+    for (let i = 0; i < terrain.minima.length; i++) {
+      const m = terrain.minima[i];
+      const p = worldToScreen(m[0], m[1]);
+      const sx = p[0], sy = p[1];
+      ctx.save();
+      ctx.strokeStyle = "rgba(255,255,255,0.9)";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(sx, sy, 7, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(sx - 4, sy); ctx.lineTo(sx + 4, sy);
+      ctx.moveTo(sx, sy - 4); ctx.lineTo(sx, sy + 4); ctx.stroke();
+      ctx.restore();
+    }
+    // mark saddle (if any)
+    if (terrain.saddle) {
+      for (let i = 0; i < terrain.saddle.length; i++) {
+        const m = terrain.saddle[i];
+        const p = worldToScreen(m[0], m[1]);
+        ctx.save();
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.arc(p[0], p[1], 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    // trails + balls
+    for (let n = 0; n < runners.length; n++) {
+      const r = runners[n];
+      if (!enabled[r.def.key]) continue;
+      const col = r.def.color;
+      const tl = r.trail;
+      if (tl.length > 1) {
+        for (let i = 1; i < tl.length; i++) {
+          const a = i / tl.length; // newer = more opaque
+          const p0 = worldToScreen(tl[i - 1][0], tl[i - 1][1]);
+          const p1 = worldToScreen(tl[i][0], tl[i][1]);
+          ctx.strokeStyle = hexA(col, 0.08 + 0.72 * a);
+          ctx.lineWidth = 0.6 + 2.2 * a;
+          ctx.beginPath();
+          ctx.moveTo(p0[0], p0[1]); ctx.lineTo(p1[0], p1[1]);
+          ctx.stroke();
+        }
+      }
+      // head
+      const h = worldToScreen(r.x, r.y);
+      ctx.save();
+      ctx.shadowColor = col;
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = col;
+      ctx.beginPath(); ctx.arc(h[0], h[1], 4.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    // start marker
+    const s = worldToScreen(start[0], start[1]);
+    ctx.save();
+    ctx.strokeStyle = "rgba(255,255,255,0.65)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(s[0], s[1], 9, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    updateLegend();
+  }
+
+  function hexA(hex, a) {
+    const h = hex.replace("#", "");
+    const r = parseInt(h.substring(0, 2), 16);
+    const g = parseInt(h.substring(2, 4), 16);
+    const b = parseInt(h.substring(4, 6), 16);
+    return "rgba(" + r + "," + g + "," + b + "," + a.toFixed(3) + ")";
+  }
+
+  function fmtLoss(v) {
+    if (!isFinite(v)) return "inf";
+    if (v === 0) return "0";
+    const abs = Math.abs(v);
+    if (abs >= 1000 || abs < 0.01) return v.toExponential(2);
+    return v.toFixed(3);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Legend (live loss) + toggles
+  // ---------------------------------------------------------------------------
+  function buildLegend() {
+    legendEl.innerHTML = "";
+    for (let i = 0; i < OPTIMIZERS.length; i++) {
+      const o = OPTIMIZERS[i];
+      const row = document.createElement("div");
+      row.className = "row";
+      row.dataset.key = o.key;
+      row.innerHTML =
+        '<span class="dot" style="background:' + o.color + ';color:' + o.color + '"></span>' +
+        '<span class="name">' + o.name + '</span>' +
+        '<span class="loss" id="loss-' + o.key + '">--</span>';
+      legendEl.appendChild(row);
+    }
+  }
+
+  function updateLegend() {
+    for (let n = 0; n < runners.length; n++) {
+      const r = runners[n];
+      const el = document.getElementById("loss-" + r.def.key);
+      if (!el) continue;
+      el.textContent = enabled[r.def.key] ? fmtLoss(r.loss) : "off";
+      el.parentElement.style.opacity = enabled[r.def.key] ? "1" : "0.35";
+    }
+  }
+
+  function buildToggles() {
+    togglesEl.innerHTML = "";
+    for (let i = 0; i < OPTIMIZERS.length; i++) {
+      const o = OPTIMIZERS[i];
+      const lbl = document.createElement("label");
+      lbl.className = "toggle";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = enabled[o.key];
+      cb.addEventListener("change", function () {
+        enabled[o.key] = cb.checked;
+        updateLegend();
+      });
+      const sw = document.createElement("span");
+      sw.style.color = o.color;
+      sw.textContent = o.name;
+      lbl.appendChild(cb);
+      lbl.appendChild(sw);
+      togglesEl.appendChild(lbl);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Sizing / high-DPI setup
+  // ---------------------------------------------------------------------------
+  function setup() {
+    if (!cv || !ctx) return;
+    DPR = Math.min(window.devicePixelRatio || 1, 2);
+    const parent = cv.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : { width: 640 };
+    W = Math.max(280, Math.floor(rect.width));
+    // landscape aspect ratio, capped height
+    H = Math.round(Math.min(W * 0.62, 560));
+    cv.style.height = H + "px";
+    cv.width = Math.floor(W * DPR);
+    cv.height = Math.floor(H * DPR);
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+    buildField();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main loop
+  // ---------------------------------------------------------------------------
+  const STEPS_PER_FRAME = 1;
+  function loop() {
+    if (playing) {
+      for (let i = 0; i < STEPS_PER_FRAME; i++) simStep();
+    }
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Pointer interaction: drag to set start & relaunch
+  // ---------------------------------------------------------------------------
+  function pointerPos(e) {
+    const rect = cv.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  }
+  if (cv) {
+    cv.addEventListener("pointerdown", function (e) {
+      dragging = true;
+      try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+      const p = pointerPos(e);
+      relaunch(screenToWorld(p[0], p[1]));
+    });
+    cv.addEventListener("pointermove", function (e) {
+      if (!dragging) return;
+      const p = pointerPos(e);
+      relaunch(screenToWorld(p[0], p[1]));
+    });
+    cv.addEventListener("pointerup", function () { dragging = false; });
+    cv.addEventListener("pointercancel", function () { dragging = false; });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Controls wiring
+  // ---------------------------------------------------------------------------
+  const lrSlider = document.getElementById("lr");
+  const lrVal = document.getElementById("lrVal");
+  const playBtn = document.getElementById("play");
+  const stepBtn = document.getElementById("step");
+  const resetBtn = document.getElementById("reset");
+  const terrainSel = document.getElementById("terrain");
+
+  function applyLR() {
+    let v = Math.pow(10, parseFloat(lrSlider.value));
+    if (!isFinite(v) || v <= 0) v = 0.01; // fail-safe if slider value is bad
+    lr = v;
+    lrVal.textContent = lr.toExponential(2);
+  }
+  lrSlider.addEventListener("input", applyLR);
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    playBtn.textContent = playing ? "Pause" : "Play";
+  });
+  stepBtn.addEventListener("click", function () {
+    playing = false;
+    playBtn.textContent = "Play";
+    simStep();
+    draw();
+  });
+  resetBtn.addEventListener("click", function () { resetRun(); });
+
+  function switchTerrain(key) {
+    terrainKey = key;
+    terrain = TERRAINS[key];
+    start = (DEFAULT_START[key] || [0, 0]).slice();
+    const dl = DEFAULT_LR[key] || 0.01;
+    lrSlider.value = Math.log10(dl).toFixed(2);
+    applyLR();
+    setup();
+    resetRun();
+  }
+  terrainSel.addEventListener("change", function () { switchTerrain(terrainSel.value); });
+
+  // resize (debounced)
+  let resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () { setup(); draw(); }, 120);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Boot (guarded so a stray error never white-screens the page)
+  // ---------------------------------------------------------------------------
+  function init() {
+    if (!cv || !ctx) {
+      console.error("Optimizers Arena: 2D canvas context unavailable.");
+      return;
+    }
+    buildLegend();
+    buildToggles();
+    switchTerrain("rosenbrock");
+    terrainSel.value = "rosenbrock";
+    playBtn.textContent = "Pause";
+    requestAnimationFrame(loop);
+  }
+
+  try {
+    init();
+  } catch (err) {
+    console.error("Optimizers Arena failed to start:", err);
+  }
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

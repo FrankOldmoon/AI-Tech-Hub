@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Reaction-Diffusion Studio</title>
+<style>
+  :root{
+    --bg:#0b0b14; --panel:#16161f; --panel2:#1d1d29;
+    --text:#e8e8f2; --muted:#9a9ab2;
+    --accent:#5eead0; --accent2:#8b7bf0;
+    --border:#2a2a3a; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 48px;}
+  header h1{font-size:1.5rem;margin:0 0 4px;letter-spacing:.3px;}
+  header h1 span{background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;color:transparent;}
+  header p{margin:0 0 18px;color:var(--muted);font-size:.92rem;}
+  .stage{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:10px;overflow:hidden;}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;cursor:crosshair;
+    background:#000;touch-action:none;}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px;margin-top:14px;}
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .row + .row{margin-top:12px;}
+  button{background:var(--panel2);color:var(--text);border:1px solid var(--border);
+    border-radius:10px;padding:8px 13px;font-size:.86rem;cursor:pointer;transition:.15s;}
+  button:hover{border-color:var(--accent);color:var(--accent);}
+  button.active{border-color:var(--accent2);color:var(--accent2);
+    box-shadow:0 0 0 1px var(--accent2) inset;}
+  button.primary{border-color:var(--accent);color:var(--accent);}
+  .label{color:var(--muted);font-size:.78rem;text-transform:uppercase;letter-spacing:.6px;
+    width:100%;margin-bottom:2px;}
+  .slider{display:flex;flex-direction:column;gap:4px;min-width:150px;flex:1;}
+  .slider .top{display:flex;justify-content:space-between;font-size:.8rem;}
+  .slider .top b{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums;}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:4px;
+    background:var(--border);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+    width:15px;height:15px;border-radius:50%;background:var(--accent);cursor:pointer;border:none;}
+  input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:none;}
+  .foot{margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:640px){.foot{grid-template-columns:1fr;}}
+  .foot h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.6px;color:var(--accent2);
+    margin:0 0 6px;}
+  .foot p{margin:0;color:var(--muted);font-size:.84rem;line-height:1.5;}
+  .gallery{display:inline-block;margin-top:22px;color:var(--accent);text-decoration:none;
+    font-size:.88rem;}
+  .gallery:hover{text-decoration:underline;}
+  .hint{color:var(--muted);font-size:.78rem;margin-top:8px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span>Reaction-Diffusion Studio</span></h1>
+    <p>Paint life into chemistry &mdash; watch Turing patterns bloom in real time.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+  </div>
+  <div class="hint">Tip: drag on the canvas to seed chemical V and grow patterns.</div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="label">Presets</span>
+      <button type="button" data-preset="coral">Coral Growth</button>
+      <button type="button" data-preset="mitosis">Mitosis</button>
+      <button type="button" data-preset="spots">Spots</button>
+      <button type="button" data-preset="maze">Maze / Worms</button>
+      <button type="button" data-preset="waves">Waves</button>
+    </div>
+    <div class="row">
+      <button type="button" id="seed">Random Seed</button>
+      <button type="button" id="clear">Clear</button>
+      <button type="button" id="pause" class="primary">Pause</button>
+      <button type="button" id="palette">Palette: Aurora</button>
+      <button type="button" id="export">Export PNG</button>
+    </div>
+    <div class="row">
+      <div class="slider">
+        <div class="top"><span>Feed (f)</span><b id="fVal">0.0545</b></div>
+        <input type="range" id="f" min="0.005" max="0.09" step="0.0001" value="0.0545">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Kill (k)</span><b id="kVal">0.0620</b></div>
+        <input type="range" id="k" min="0.03" max="0.075" step="0.0001" value="0.0620">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Brush size</span><b id="bVal">8</b></div>
+        <input type="range" id="brush" min="2" max="24" step="1" value="8">
+      </div>
+      <div class="slider">
+        <div class="top"><span>Speed (substeps)</span><b id="sVal">8</b></div>
+        <input type="range" id="speed" min="1" max="20" step="1" value="8">
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>
+      <h3>How it works</h3>
+      <p>Two virtual chemicals U and V diffuse and react on a grid via the
+      Gray-Scott model. Each cell updates with a 9-point Laplacian and an
+      Euler step; multiple substeps run per frame. Typed arrays plus
+      ping-pong double buffering keep it smooth at 60fps.</p>
+    </div>
+    <div>
+      <h3>Why it matters</h3>
+      <p>Alan Turing proposed in 1952 that simple diffusing chemicals could
+      explain animal coats, leaf venation and shell patterns. The same maths
+      models heart arrhythmia, ecology and crystal growth &mdash; emergence from
+      two numbers.</p>
+    </div>
+  </div>
+
+  <a class="gallery" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var canvas=document.getElementById("cv");
+  var ctx=canvas.getContext("2d",{willReadFrequently:false});
+
+  // Simulation grid (logical resolution). Kept fixed for stable physics,
+  // independent of display size, then scaled to the canvas.
+  var GW=220, GH=160;          // grid width/height
+  var N=GW*GH;
+  var Du=0.16, Dv=0.08, dt=1.0; // diffusion coefficients + time step
+  var feed=0.0545, kill=0.0620;
+  var substeps=8;
+  var brushSize=8;
+  var paused=false;
+
+  // Ping-pong double buffers for U and V concentrations.
+  var u=new Float32Array(N), v=new Float32Array(N);
+  var u2=new Float32Array(N), v2=new Float32Array(N);
+
+  // Offscreen image buffer drawn at grid resolution then up-scaled.
+  var img=ctx.createImageData(GW,GH);
+  var data=img.data;
+
+  // Offscreen canvas at grid resolution (intermediate for clean scaling).
+  var scaleCanvas=document.createElement("canvas");
+  scaleCanvas.width=GW; scaleCanvas.height=GH;
+  var sctx=scaleCanvas.getContext("2d");
+
+  // ---- Palettes: map V in [0,1] -> RGB ----
+  function lerp(a,b,t){return a+(b-a)*t;}
+  function sat(t,a,b){return Math.max(0,Math.min(1,(t-a)/(b-a)));}
+  function clamp255(x){return x<0?0:(x>255?255:x);}
+
+  var palettes=[
+    {name:"Aurora", fn:function(t){
+      var r=lerp(8,139,t)*sat(t,0.35,1);
+      var g=lerp(40,234,1-Math.abs(t-0.5)*2);
+      var b=lerp(20,208,t);
+      return [clamp255(r), clamp255(g*0.9), clamp255(b)];
+    }},
+    {name:"Inferno", fn:function(t){
+      var r=clamp255(lerp(2,255,Math.pow(t,0.6)));
+      var g=clamp255(lerp(0,200,Math.pow(t,1.6)));
+      var b=clamp255(lerp(20,60,1-t));
+      return [r,g,b];
+    }},
+    {name:"Mono", fn:function(t){
+      var c=clamp255(lerp(6,240,t));
+      return [c,c,c];
+    }},
+    {name:"Ocean", fn:function(t){
+      var r=clamp255(lerp(4,94,Math.pow(t,1.3)));
+      var g=clamp255(lerp(12,234,t));
+      var b=clamp255(lerp(40,255,Math.pow(t,0.7)));
+      return [r,g,b];
+    }}
+  ];
+  var paletteIdx=0;
+  // Precompute a lookup table (256 entries) for the active palette.
+  var lut=new Uint8ClampedArray(256*3);
+  function buildLut(){
+    var fn=palettes[paletteIdx].fn;
+    for(var i=0;i<256;i++){
+      var c=fn(i/255);
+      lut[i*3]=c[0]; lut[i*3+1]=c[1]; lut[i*3+2]=c[2];
+    }
+  }
+
+  // ---- Initialise field: U=1 everywhere, V=0, with a small seed blob. ----
+  function reset(seedCenter){
+    for(var i=0;i<N;i++){u[i]=1.0; v[i]=0.0;}
+    if(seedCenter) seedBlob(GW>>1, GH>>1, 12);
+  }
+  function seedBlob(cx,cy,r){
+    for(var y=-r;y<=r;y++){
+      for(var x=-r;x<=r;x++){
+        if(x*x+y*y>r*r) continue;
+        var gx=cx+x, gy=cy+y;
+        if(gx<0||gx>=GW||gy<0||gy>=GH) continue;
+        var idx=gy*GW+gx;
+        u[idx]=0.5; v[idx]=0.25;
+      }
+    }
+  }
+  function randomSeed(){
+    reset(false);
+    var blobs=12+((Math.random()*10)|0);
+    for(var b=0;b<blobs;b++){
+      seedBlob((Math.random()*GW)|0,(Math.random()*GH)|0,3+((Math.random()*5)|0));
+    }
+  }
+
+  // ---- One simulation substep (Gray-Scott + 9-point Laplacian, toroidal). ----
+  function step(){
+    var f=feed, kk=kill;
+    for(var y=0;y<GH;y++){
+      var ym=((y-1+GH)%GH)*GW;
+      var yp=((y+1)%GH)*GW;
+      var y0=y*GW;
+      for(var x=0;x<GW;x++){
+        var xm=(x-1+GW)%GW;
+        var xp=(x+1)%GW;
+        var c=y0+x;
+        var uu=u[c], vv=v[c];
+
+        // 9-point Laplacian weights: center -1, edges .2, corners .05
+        var lapU =
+          u[ym+xm]*0.05 + u[ym+x]*0.2 + u[ym+xp]*0.05 +
+          u[y0+xm]*0.2  + uu*-1.0     + u[y0+xp]*0.2 +
+          u[yp+xm]*0.05 + u[yp+x]*0.2 + u[yp+xp]*0.05;
+        var lapV =
+          v[ym+xm]*0.05 + v[ym+x]*0.2 + v[ym+xp]*0.05 +
+          v[y0+xm]*0.2  + vv*-1.0     + v[y0+xp]*0.2 +
+          v[yp+xm]*0.05 + v[yp+x]*0.2 + v[yp+xp]*0.05;
+
+        var uvv=uu*vv*vv;
+        var nu=uu + (Du*lapU - uvv + f*(1.0-uu))*dt;
+        var nv=vv + (Dv*lapV + uvv - (kk+f)*vv)*dt;
+
+        // Clamp + guard against NaN/blowup so we never white-screen.
+        if(nu!==nu) nu=0; if(nv!==nv) nv=0;
+        u2[c]=nu<0?0:(nu>1?1:nu);
+        v2[c]=nv<0?0:(nv>1?1:nv);
+      }
+    }
+    // swap buffers (ping-pong)
+    var tu=u; u=u2; u2=tu;
+    var tv=v; v=v2; v2=tv;
+  }
+
+  // ---- High-DPI canvas sizing ----
+  var dispW=0, dispH=0, dpr=1;
+  function setup(){
+    var parent=canvas.parentElement;
+    dpr=Math.min(window.devicePixelRatio||1, 2);
+    // Read the stage's actual horizontal padding instead of hardcoding it,
+    // so the canvas precisely fills the available container width.
+    var padX=0;
+    try{
+      var cs=window.getComputedStyle(parent);
+      padX=(parseFloat(cs.paddingLeft)||0)+(parseFloat(cs.paddingRight)||0);
+    }catch(e){ padX=20; }
+    var cssW=parent.clientWidth-padX;
+    if(!(cssW>0)||cssW<200) cssW=Math.max(200, parent.clientWidth-20);
+    var aspect=GH/GW;
+    var cssH=Math.round(cssW*aspect);
+    canvas.style.width=cssW+"px";
+    canvas.style.height=cssH+"px";
+    dispW=Math.max(1, Math.round(cssW*dpr));
+    dispH=Math.max(1, Math.round(cssH*dpr));
+    canvas.width=dispW;
+    canvas.height=dispH;
+    ctx.imageSmoothingEnabled=true;
+  }
+
+  // ---- Render V into the image buffer via the palette LUT. ----
+  function render(){
+    if(dispW<=0||dispH<=0) return; // guard: never drawImage with 0 dims
+    for(var i=0,p=0;i<N;i++,p+=4){
+      var t=v[i];
+      if(t<0)t=0; else if(t>1)t=1;
+      var li=(t*255)|0; var l3=li*3;
+      data[p]=lut[l3]; data[p+1]=lut[l3+1]; data[p+2]=lut[l3+2]; data[p+3]=255;
+    }
+    // Draw the grid-resolution image, then up-scale onto the display canvas.
+    sctx.putImageData(img,0,0);
+    ctx.imageSmoothingEnabled=true;
+    ctx.drawImage(scaleCanvas,0,0,GW,GH,0,0,dispW,dispH);
+  }
+
+  // ---- Painting V with the mouse / touch ----
+  var painting=false;
+  function canvasToGrid(clientX,clientY){
+    var r=canvas.getBoundingClientRect();
+    var gx=((clientX-r.left)/r.width*GW)|0;
+    var gy=((clientY-r.top)/r.height*GH)|0;
+    return [gx,gy];
+  }
+  function paintAt(gx,gy){
+    var rr=brushSize;
+    for(var y=-rr;y<=rr;y++){
+      for(var x=-rr;x<=rr;x++){
+        if(x*x+y*y>rr*rr) continue;
+        var px=gx+x, py=gy+y;
+        if(px<0||px>=GW||py<0||py>=GH) continue;
+        var idx=py*GW+px;
+        u[idx]=0.3; v[idx]=0.6;
+      }
+    }
+  }
+  function pointerDown(e){painting=true; pointerMove(e); e.preventDefault();}
+  function pointerMove(e){
+    if(!painting) return;
+    var t=e.touches?e.touches[0]:e;
+    if(!t) return;
+    var g=canvasToGrid(t.clientX,t.clientY);
+    paintAt(g[0],g[1]);
+    if(e.cancelable) e.preventDefault();
+  }
+  function pointerUp(){painting=false;}
+  canvas.addEventListener("mousedown",pointerDown);
+  window.addEventListener("mousemove",pointerMove);
+  window.addEventListener("mouseup",pointerUp);
+  canvas.addEventListener("touchstart",pointerDown,{passive:false});
+  canvas.addEventListener("touchmove",pointerMove,{passive:false});
+  window.addEventListener("touchend",pointerUp);
+
+  // ---- Controls ----
+  var presets={
+    coral:  {f:0.0545,k:0.0620},
+    mitosis:{f:0.0367,k:0.0649},
+    spots:  {f:0.0260,k:0.0610},
+    maze:   {f:0.0290,k:0.0570},
+    waves:  {f:0.0140,k:0.0450}
+  };
+  var fEl=document.getElementById("f"), kEl=document.getElementById("k");
+  var fVal=document.getElementById("fVal"), kVal=document.getElementById("kVal");
+  var brushEl=document.getElementById("brush"), bVal=document.getElementById("bVal");
+  var speedEl=document.getElementById("speed"), sVal=document.getElementById("sVal");
+  var presetBtns=document.querySelectorAll("[data-preset]");
+
+  function syncLabels(){
+    fVal.textContent=feed.toFixed(4);
+    kVal.textContent=kill.toFixed(4);
+    bVal.textContent=brushSize;
+    sVal.textContent=substeps;
+    fEl.value=feed; kEl.value=kill;
+  }
+  function setActive(name){
+    presetBtns.forEach(function(b){
+      b.classList.toggle("active", b.getAttribute("data-preset")===name);
+    });
+  }
+  presetBtns.forEach(function(b){
+    b.addEventListener("click",function(){
+      var p=presets[b.getAttribute("data-preset")];
+      feed=p.f; kill=p.k;
+      syncLabels(); setActive(b.getAttribute("data-preset"));
+      randomSeed();
+    });
+  });
+  fEl.addEventListener("input",function(){feed=parseFloat(fEl.value);syncLabels();setActive(null);});
+  kEl.addEventListener("input",function(){kill=parseFloat(kEl.value);syncLabels();setActive(null);});
+  brushEl.addEventListener("input",function(){brushSize=parseInt(brushEl.value,10);syncLabels();});
+  speedEl.addEventListener("input",function(){substeps=parseInt(speedEl.value,10);syncLabels();});
+
+  document.getElementById("seed").addEventListener("click",randomSeed);
+  document.getElementById("clear").addEventListener("click",function(){reset(false);});
+  var pauseBtn=document.getElementById("pause");
+  pauseBtn.addEventListener("click",function(){
+    paused=!paused;
+    pauseBtn.textContent=paused?"Play":"Pause";
+    pauseBtn.classList.toggle("active",paused);
+  });
+  var paletteBtn=document.getElementById("palette");
+  paletteBtn.addEventListener("click",function(){
+    paletteIdx=(paletteIdx+1)%palettes.length;
+    buildLut();
+    paletteBtn.textContent="Palette: "+palettes[paletteIdx].name;
+  });
+  document.getElementById("export").addEventListener("click",function(){
+    try{
+      render(); // ensure the exported frame is the current one
+      var a=document.createElement("a");
+      a.download="reaction-diffusion.png";
+      a.href=canvas.toDataURL("image/png");
+      a.click();
+    }catch(err){ /* toDataURL can fail in rare sandboxes; ignore */ }
+  });
+
+  // Debounced resize via rAF so dragging the window does not thrash setup().
+  var resizePending=false;
+  window.addEventListener("resize",function(){
+    if(resizePending) return;
+    resizePending=true;
+    requestAnimationFrame(function(){
+      resizePending=false;
+      setup();
+      render(); // repaint immediately to avoid a blank frame after resize
+    });
+  });
+
+  // ---- Main loop ----
+  function loop(){
+    try{
+      if(!paused){
+        var s=substeps;
+        for(var i=0;i<s;i++) step();
+      }
+      render();
+    }catch(err){ /* never let an error white-screen the demo */ }
+    requestAnimationFrame(loop);
+  }
+
+  // ---- Boot ----
+  buildLut();
+  setup();
+  setActive("coral");
+  reset(false);
+  randomSeed();
+  syncLabels();
+  loop();
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

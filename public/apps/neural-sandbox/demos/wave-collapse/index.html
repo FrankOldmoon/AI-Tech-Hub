@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wave Function Collapse</title>
+<style>
+  :root{
+    --bg:#0b0b14;
+    --panel:#16161f;
+    --panel2:#1c1c28;
+    --ink:#e8e8f2;
+    --mut:#9a9ab2;
+    --acc:#5eead0;
+    --acc2:#8b7bf0;
+    --line:#2a2a3a;
+    --dead:#0e0e18;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 18px 60px}
+  header h1{
+    margin:0 0 4px;
+    font-size:26px;
+    letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+    display:inline-block;
+  }
+  header .tag{color:var(--mut);font-size:14px;margin:0 0 18px}
+
+  .stage{
+    position:relative;
+    background:var(--dead);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    width:100%;
+  }
+  #grid{display:block;width:100%;height:auto;touch-action:none}
+  .hud{
+    position:absolute;top:10px;left:10px;
+    display:flex;gap:14px;flex-wrap:wrap;
+    font-size:12px;color:var(--mut);
+    background:rgba(11,11,20,.62);
+    padding:6px 10px;border:1px solid var(--line);border-radius:8px;
+    backdrop-filter:blur(3px);
+    pointer-events:none;
+  }
+  .hud b{color:var(--ink);font-weight:600}
+  .hud .ok{color:var(--acc)}
+  .hud .warn{color:#f0b85e}
+
+  .panel{
+    margin-top:16px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .row + .row{margin-top:14px}
+  button{
+    background:var(--panel2);
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 14px;
+    font-size:13px;
+    cursor:pointer;
+    transition:border-color .15s, background .15s, color .15s;
+  }
+  button:hover{border-color:var(--acc)}
+  button.primary{border-color:var(--acc);color:var(--acc)}
+  button.primary:hover{background:rgba(94,234,208,.08)}
+  button:active{transform:translateY(1px)}
+
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .seg button{border:none;border-radius:0;border-right:1px solid var(--line)}
+  .seg button:last-child{border-right:none}
+  .seg button.on{background:rgba(139,123,240,.16);color:var(--acc2)}
+
+  .ctrl{display:flex;flex-direction:column;gap:5px;min-width:170px;flex:1}
+  .ctrl label{font-size:12px;color:var(--mut);display:flex;justify-content:space-between}
+  .ctrl label b{color:var(--ink);font-weight:600}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;
+    width:100%;height:4px;border-radius:3px;
+    background:var(--line);outline:none;cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;
+    width:15px;height:15px;border-radius:50%;
+    background:var(--acc);border:2px solid var(--bg);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px;height:15px;border-radius:50%;
+    background:var(--acc);border:2px solid var(--bg);cursor:pointer;
+  }
+  .lbl{font-size:12px;color:var(--mut);margin-right:2px}
+
+  .notes{margin-top:22px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:640px){.notes{grid-template-columns:1fr}}
+  .notes h3{margin:0 0 6px;font-size:13px;color:var(--acc);letter-spacing:.3px}
+  .notes p{margin:0;font-size:12.5px;color:var(--mut);line-height:1.6}
+  .back{display:inline-block;margin-top:24px;font-size:13px;color:var(--acc2);text-decoration:none}
+  .back:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Wave Function Collapse</h1>
+    <p class="tag">Watch coherent patterns crystallize out of pure constraint.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="grid"></canvas>
+    <div class="hud">
+      <span>tiles <b id="hTiles">circuit</b></span>
+      <span>grid <b id="hGrid">32&times;32</b></span>
+      <span>collapsed <b id="hDone">0</b></span>
+      <span>entropy <b id="hEnt">&mdash;</b></span>
+      <span id="hStatus" class="ok">ready</span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="lbl">tile set</span>
+      <div class="seg" id="setSeg">
+        <button data-set="circuit" class="on">Circuit</button>
+        <button data-set="pipes">Pipes</button>
+        <button data-set="terrain">Terrain</button>
+      </div>
+      <span style="flex:1"></span>
+      <button id="btnPlay" class="primary">Play</button>
+      <button id="btnStep">Step</button>
+      <button id="btnReset">Reset</button>
+    </div>
+
+    <div class="row">
+      <div class="ctrl">
+        <label>grid size <b id="vSize">32</b></label>
+        <input type="range" id="rSize" min="8" max="56" step="2" value="32">
+      </div>
+      <div class="ctrl">
+        <label>speed <b id="vSpeed">12</b> steps/frame</label>
+        <input type="range" id="rSpeed" min="1" max="60" step="1" value="12">
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div>
+      <h3>How it works</h3>
+      <p>每个格子起初处于所有 tile 的"叠加态"。算法反复挑出可能性最少(熵最低)的格子,将它"坍缩"为一个具体 tile;随后把这个选择沿四个方向<b>传播</b>给邻居——凡是边缘无法相接的 tile 都被剔除。约束像涟漪一样扩散,剩余选项不断收窄,直到整张网格都收敛成连贯结构。若某格的选项被清空(矛盾),本次生成回退并重启。</p>
+    </div>
+    <div>
+      <h3>Why it matters</h3>
+      <p>WFC 把"生成内容"变成"求解约束":只需给出一小撮局部相接规则,全局协调的图案便自发涌现,无需手工拼装。它被广泛用于游戏关卡、地图与纹理的程序化生成,也是约束传播、SAT 与局部一致性这类经典 AI 思想的直观演示——美感正源于规则与随机性的精确平衡。</p>
+    </div>
+  </div>
+
+  <a class="back" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+"use strict";
+(function(){
+  function mk(name, n,e,s,w, draw, weight){
+    return {name, sock:[n,e,s,w], draw, weight:(weight&&weight>0)?weight:1};
+  }
+
+  function bg(ctx,px,py,S,col){ ctx.fillStyle=col; ctx.fillRect(px,py,S,S); }
+  function lineTo(ctx,px,py,S,col,wfrac,dirs){
+    const w=Math.max(2,S*wfrac), c=S/2;
+    ctx.fillStyle=col;
+    if(dirs[0]) ctx.fillRect(px+c-w/2, py,        w, c+w/2);
+    if(dirs[1]) ctx.fillRect(px+c-w/2, py+c-w/2,  c+w/2, w);
+    if(dirs[2]) ctx.fillRect(px+c-w/2, py+c-w/2,  w, c+w/2);
+    if(dirs[3]) ctx.fillRect(px,       py+c-w/2,  c+w/2, w);
+  }
+  function dot(ctx,px,py,S,col,r){
+    if(r<0.5) r=0.5;
+    ctx.fillStyle=col; ctx.beginPath();
+    ctx.arc(px+S/2,py+S/2,r,0,Math.PI*2); ctx.fill();
+  }
+
+  function circuitSet(){
+    const board="#0f1620", trace="#5eead0", node="#8b7bf0";
+    const T=[];
+    const empty=(ctx,px,py,S)=>{ bg(ctx,px,py,S,board);
+      dot(ctx,px,py,S,"#16202c", S*0.06); };
+    T.push(mk("blank",0,0,0,0,empty,2.2));
+    T.push(mk("h",0,1,0,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,1,0,1]);},1.1));
+    T.push(mk("v",1,0,1,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,0,1,0]);},1.1));
+    T.push(mk("ne",1,1,0,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,1,0,0]);dot(c,x,y,S,node,S*0.1);}));
+    T.push(mk("es",0,1,1,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,1,1,0]);dot(c,x,y,S,node,S*0.1);}));
+    T.push(mk("sw",0,0,1,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,0,1,1]);dot(c,x,y,S,node,S*0.1);}));
+    T.push(mk("wn",1,0,0,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,0,0,1]);dot(c,x,y,S,node,S*0.1);}));
+    T.push(mk("t-n",1,1,0,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,1,0,1]);dot(c,x,y,S,node,S*0.12);},.7));
+    T.push(mk("t-e",1,1,1,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,1,1,0]);dot(c,x,y,S,node,S*0.12);},.7));
+    T.push(mk("t-s",0,1,1,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,1,1,1]);dot(c,x,y,S,node,S*0.12);},.7));
+    T.push(mk("t-w",1,0,1,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,0,1,1]);dot(c,x,y,S,node,S*0.12);},.7));
+    T.push(mk("x",1,1,1,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,1,1,1]);dot(c,x,y,S,node,S*0.14);},.5));
+    T.push(mk("end-n",1,0,0,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[1,0,0,0]);dot(c,x,y,S,node,S*0.13);},.5));
+    T.push(mk("end-e",0,1,0,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,1,0,0]);dot(c,x,y,S,node,S*0.13);},.5));
+    T.push(mk("end-s",0,0,1,0,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,0,1,0]);dot(c,x,y,S,node,S*0.13);},.5));
+    T.push(mk("end-w",0,0,0,1,(c,x,y,S)=>{bg(c,x,y,S,board);lineTo(c,x,y,S,trace,.16,[0,0,0,1]);dot(c,x,y,S,node,S*0.13);},.5));
+    return T;
+  }
+
+  function pipesSet(){
+    const board="#11111c", pipe="#8b7bf0", glow="#b9aefc";
+    function pipeDraw(dirs, cross){
+      return (c,x,y,S)=>{
+        bg(c,x,y,S,board);
+        const w=Math.max(3,S*0.30), cc=S/2;
+        c.fillStyle=pipe;
+        if(dirs[0]) c.fillRect(x+cc-w/2, y,         w, cc+w/2);
+        if(dirs[1]) c.fillRect(x+cc-w/2, y+cc-w/2,  cc+w/2, w);
+        if(dirs[2]) c.fillRect(x+cc-w/2, y+cc-w/2,  w, cc+w/2);
+        if(dirs[3]) c.fillRect(x,        y+cc-w/2,  cc+w/2, w);
+        c.fillStyle=glow; const iw=Math.max(1,S*0.08);
+        c.fillRect(x+cc-iw/2, y+cc-iw/2, iw, iw);
+        if(cross){ c.fillStyle=glow; c.beginPath(); c.arc(x+cc,y+cc,Math.max(0.5,w*0.28),0,Math.PI*2); c.fill(); }
+      };
+    }
+    const T=[];
+    T.push(mk("blank",0,0,0,0,(c,x,y,S)=>bg(c,x,y,S,board),2.6));
+    T.push(mk("h",0,1,0,1,pipeDraw([0,1,0,1]),1.2));
+    T.push(mk("v",1,0,1,0,pipeDraw([1,0,1,0]),1.2));
+    T.push(mk("ne",1,1,0,0,pipeDraw([1,1,0,0])));
+    T.push(mk("es",0,1,1,0,pipeDraw([0,1,1,0])));
+    T.push(mk("sw",0,0,1,1,pipeDraw([0,0,1,1])));
+    T.push(mk("wn",1,0,0,1,pipeDraw([1,0,0,1])));
+    T.push(mk("x",1,1,1,1,pipeDraw([1,1,1,1],true),.4));
+    return T;
+  }
+
+  function terrainSet(){
+    const water="#1b3a4b", land="#3f6d4e", sand="#6e7d52";
+    const T=[];
+    T.push(mk("water",0,0,0,0,(c,x,y,S)=>{ bg(c,x,y,S,water);
+      c.fillStyle="#234657"; c.fillRect(x+S*0.2,y+S*0.55,S*0.3,Math.max(1,S*0.06)); },2.4));
+    T.push(mk("land",1,1,1,1,(c,x,y,S)=>{ bg(c,x,y,S,land);
+      c.fillStyle="#4a7d5a"; c.fillRect(x+S*0.25,y+S*0.25,Math.max(1,S*0.12),Math.max(1,S*0.12)); },2.4));
+    function coast(dirs){
+      return (c,x,y,S)=>{
+        bg(c,x,y,S,water);
+        c.fillStyle=land; const cc=S/2, w=S*0.62;
+        if(dirs[0]) c.fillRect(x+cc-w/2, y, w, cc);
+        if(dirs[1]) c.fillRect(x+cc-w/2, y+cc-w/2, cc+w/2, w);
+        if(dirs[2]) c.fillRect(x+cc-w/2, y+cc-w/2, w, cc+w/2);
+        if(dirs[3]) c.fillRect(x, y+cc-w/2, cc, w);
+        c.beginPath(); c.arc(x+cc,y+cc,Math.max(0.5,w*0.42),0,Math.PI*2); c.fill();
+        c.fillStyle=sand; c.fillRect(x+cc-1, y+cc-1, Math.max(1,S*0.1), Math.max(1,S*0.1));
+      };
+    }
+    T.push(mk("p-n",1,0,0,0,coast([1,0,0,0]),.9));
+    T.push(mk("p-e",0,1,0,0,coast([0,1,0,0]),.9));
+    T.push(mk("p-s",0,0,1,0,coast([0,0,1,0]),.9));
+    T.push(mk("p-w",0,0,0,1,coast([0,0,0,1]),.9));
+    T.push(mk("c-ne",1,1,0,0,coast([1,1,0,0])));
+    T.push(mk("c-es",0,1,1,0,coast([0,1,1,0])));
+    T.push(mk("c-sw",0,0,1,1,coast([0,0,1,1])));
+    T.push(mk("c-wn",1,0,0,1,coast([1,0,0,1])));
+    T.push(mk("s-ns",1,0,1,0,coast([1,0,1,0]),.6));
+    T.push(mk("s-ew",0,1,0,1,coast([0,1,0,1]),.6));
+    T.push(mk("b-n",0,1,1,1,coast([0,1,1,1]),.7));
+    T.push(mk("b-e",1,0,1,1,coast([1,0,1,1]),.7));
+    T.push(mk("b-s",1,1,0,1,coast([1,1,0,1]),.7));
+    T.push(mk("b-w",1,1,1,0,coast([1,1,1,0]),.7));
+    return T;
+  }
+
+  const SETS = { circuit:circuitSet, pipes:pipesSet, terrain:terrainSet };
+  const PRETTY = { circuit:"circuit", pipes:"pipes", terrain:"terrain" };
+
+  const OPP=[2,3,0,1];
+  const DX=[0,1,0,-1], DY=[-1,0,1,0];
+
+  let tiles=[];
+  let N=0;
+  let weights=[];
+  let logW=[];
+  let compat=[];
+
+  function buildCompat(){
+    N=tiles.length;
+    weights=tiles.map(t=>t.weight);
+    logW=weights.map(w=>w*Math.log(w));
+    compat=[];
+    for(let d=0; d<4; d++){
+      compat[d]=[];
+      for(let a=0; a<N; a++){
+        const allow=new Array(N).fill(false);
+        for(let b=0; b<N; b++){
+          if(tiles[a].sock[d] === tiles[b].sock[OPP[d]]) allow[b]=true;
+        }
+        compat[d][a]=allow;
+      }
+    }
+  }
+
+  let W=0,H=0,S=0;
+  let cells=[];
+  let counts=[];
+  let collapsedTile=[];
+  let collapsedCount=0;
+  let contradiction=false;
+  let restarts=0;
+  let dirty=[];
+
+  function initGrid(cols,rows){
+    W=cols; H=rows;
+    const total=W*H;
+    cells=new Array(total);
+    counts=new Array(total);
+    collapsedTile=new Array(total);
+    for(let i=0;i<total;i++){
+      const m=new Uint8Array(N); m.fill(1);
+      cells[i]=m; counts[i]=N; collapsedTile[i]=-1;
+    }
+    collapsedCount=0; contradiction=false;
+    dirty=[]; for(let i=0;i<total;i++) dirty.push(i);
+  }
+
+  function entropyAt(i){
+    const m=cells[i]; let sumW=0,sumLogW=0;
+    for(let t=0;t<N;t++){ if(m[t]){ sumW+=weights[t]; sumLogW+=logW[t]; } }
+    if(sumW<=0) return Infinity;
+    return Math.log(sumW) - sumLogW/sumW;
+  }
+
+  function findMinEntropy(){
+    let best=-1, bestE=Infinity;
+    for(let i=0;i<W*H;i++){
+      if(collapsedTile[i]!==-1) continue;
+      if(counts[i]<=0){ contradiction=true; return i; }
+      if(counts[i]===1){ return i; }
+      const e=entropyAt(i) + Math.random()*1e-4;
+      if(e<bestE){ bestE=e; best=i; }
+    }
+    return best;
+  }
+
+  function fixDetermined(i){
+    if(collapsedTile[i]!==-1) return;
+    const m=cells[i];
+    for(let t=0;t<N;t++){ if(m[t]){ collapsedTile[i]=t; break; } }
+    counts[i]=1;
+    collapsedCount++;
+    dirty.push(i);
+  }
+
+  function collapseCell(i){
+    const m=cells[i];
+    let total=0; for(let t=0;t<N;t++) if(m[t]) total+=weights[t];
+    let r=Math.random()*total, pick=-1;
+    for(let t=0;t<N;t++){ if(m[t]){ r-=weights[t]; if(r<=0){ pick=t; break; } } }
+    if(pick<0){ for(let t=0;t<N;t++) if(m[t]){ pick=t; break; } }
+    if(pick<0){ contradiction=true; return -1; }
+    for(let t=0;t<N;t++) m[t]= (t===pick)?1:0;
+    counts[i]=1; collapsedTile[i]=pick; collapsedCount++;
+    dirty.push(i);
+    return pick;
+  }
+
+  function propagate(start){
+    const stack=[start];
+    let guard=0, maxGuard=W*H*8+64;
+    while(stack.length){
+      if(++guard>maxGuard) break;
+      const i=stack.pop();
+      const cx=i%W, cy=(i/W)|0;
+      const m=cells[i];
+      for(let d=0;d<4;d++){
+        const nx=cx+DX[d], ny=cy+DY[d];
+        if(nx<0||ny<0||nx>=W||ny>=H) continue;
+        const j=ny*W+nx;
+        if(collapsedTile[j]!==-1) continue;
+        const nm=cells[j];
+        let changed=false;
+        for(let b=0;b<N;b++){
+          if(!nm[b]) continue;
+          let ok=false;
+          for(let a=0;a<N;a++){
+            if(m[a] && compat[d][a][b]){ ok=true; break; }
+          }
+          if(!ok){ nm[b]=0; counts[j]--; changed=true; }
+        }
+        if(changed){
+          if(counts[j]<=0){ contradiction=true; return; }
+          dirty.push(j);
+          if(counts[j]===1){ fixDetermined(j); }
+          stack.push(j);
+        }
+      }
+    }
+  }
+
+  function wfcStep(){
+    if(contradiction) return false;
+    if(collapsedCount>=W*H) return false;
+    const i=findMinEntropy();
+    if(contradiction) return false;
+    if(i<0) return false;
+    if(collapsedTile[i]===-1){
+      if(counts[i]===1){ fixDetermined(i); }
+      else { collapseCell(i); }
+    }
+    if(contradiction) return false;
+    propagate(i);
+    return true;
+  }
+
+  const canvas=document.getElementById("grid");
+  const ctx=canvas.getContext("2d");
+  let dpr=1, cssW=0, cssH=0;
+
+  function drawCell(i){
+    const cx=i%W, cy=(i/W)|0;
+    const px=cx*S, py=cy*S;
+    const t=collapsedTile[i];
+    if(t!==-1){
+      tiles[t].draw(ctx, px, py, S);
+    } else {
+      const denom = Math.max(1,(N-1));
+      const ratio = 1 - (counts[i]-1)/denom;
+      const g = Math.round(14 + ratio*22);
+      ctx.fillStyle = "rgb("+g+","+g+","+(g+8)+")";
+      ctx.fillRect(px,py,S,S);
+      if(counts[i]<=3 && S>=6){
+        ctx.fillStyle="rgba(94,234,208,"+(0.10+ratio*0.20)+")";
+        ctx.beginPath(); ctx.arc(px+S/2,py+S/2,Math.max(1,S*0.10),0,Math.PI*2); ctx.fill();
+      }
+      if(S>=10){ ctx.strokeStyle="rgba(42,42,58,.5)"; ctx.lineWidth=1;
+        ctx.strokeRect(px+0.5,py+0.5,S-1,S-1); }
+    }
+  }
+
+  function drawDirty(){
+    for(let k=0;k<dirty.length;k++) drawCell(dirty[k]);
+    dirty.length=0;
+  }
+
+  function fullRedraw(){
+    ctx.fillStyle="#0e0e18";
+    ctx.fillRect(0,0,cssW,cssH);
+    for(let i=0;i<W*H;i++) drawCell(i);
+    dirty.length=0;
+  }
+
+  function measureWidth(){
+    const stage=canvas.parentElement;
+    let w = stage ? stage.clientWidth : 0;
+    if(!w || w<2){ w = window.innerWidth||0; }
+    if(!w || w<2){ w = 320; }
+    return Math.max(320, w);
+  }
+
+  function layout(){
+    dpr = Math.max(1, Math.min(window.devicePixelRatio||1, 2));
+    cssW = measureWidth();
+    if(W<1) W=1;
+    if(H<1) H=1;
+    S = Math.max(4, Math.floor(cssW / W));
+    cssW = S*W;
+    cssH = S*H;
+    canvas.style.width = cssW+"px";
+    canvas.style.height= cssH+"px";
+    canvas.width  = Math.max(1, Math.round(cssW*dpr));
+    canvas.height = Math.max(1, Math.round(cssH*dpr));
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    fullRedraw();
+  }
+
+  const els={
+    play:document.getElementById("btnPlay"),
+    step:document.getElementById("btnStep"),
+    reset:document.getElementById("btnReset"),
+    setSeg:document.getElementById("setSeg"),
+    rSize:document.getElementById("rSize"),
+    rSpeed:document.getElementById("rSpeed"),
+    vSize:document.getElementById("vSize"),
+    vSpeed:document.getElementById("vSpeed"),
+    hTiles:document.getElementById("hTiles"),
+    hGrid:document.getElementById("hGrid"),
+    hDone:document.getElementById("hDone"),
+    hEnt:document.getElementById("hEnt"),
+    hStatus:document.getElementById("hStatus")
+  };
+
+  let currentSet="circuit";
+  let gridN=32;
+  let speed=12;
+  let playing=false;
+  let raf=0;
+
+  function clampInt(v,lo,hi){ v=Math.round(Number(v)); if(!isFinite(v))v=lo; return Math.max(lo,Math.min(hi,v)); }
+
+  function updateHud(){
+    els.hTiles.textContent=PRETTY[currentSet]||currentSet;
+    els.hGrid.innerHTML=W+"&times;"+H;
+    els.hDone.textContent=collapsedCount;
+    let rem=W*H-collapsedCount;
+    if(rem<=0){ els.hEnt.innerHTML="&mdash;"; }
+    else {
+      let s=0,cnt=0;
+      for(let i=0;i<W*H;i++){ if(collapsedTile[i]===-1){ s+=Math.log2(Math.max(1,counts[i])); cnt++; } }
+      els.hEnt.textContent = cnt? (s/cnt).toFixed(2) : "0.00";
+    }
+    if(contradiction){ els.hStatus.textContent="contradiction → restart"; els.hStatus.className="warn"; }
+    else if(collapsedCount>=W*H){ els.hStatus.textContent="solved"; els.hStatus.className="ok"; }
+    else if(playing){ els.hStatus.textContent="collapsing…"; els.hStatus.className="ok"; }
+    else { els.hStatus.textContent="paused"; els.hStatus.className="ok"; }
+  }
+
+  function regenerate(){
+    tiles = SETS[currentSet]();
+    buildCompat();
+    restarts=0;
+    initGrid(gridN, gridN);
+    layout();
+    updateHud();
+  }
+
+  function restartSolve(){
+    initGrid(gridN, gridN);
+    restarts++;
+    layout();
+  }
+
+  function tick(){
+    if(!playing){ raf=0; return; }
+    for(let k=0;k<speed;k++){
+      if(contradiction){
+        if(restarts<200){ restartSolve(); } else { setPlay(false); break; }
+      }
+      if(collapsedCount>=W*H){ break; }
+      wfcStep();
+      if(contradiction) break;
+    }
+    drawDirty();
+    updateHud();
+    if(collapsedCount>=W*H && !contradiction){
+      setPlay(false);
+      updateHud();
+    }
+    if(playing) raf=requestAnimationFrame(tick);
+    else raf=0;
+  }
+
+  function setPlay(on){
+    playing=on;
+    els.play.textContent = on? "Pause":"Play";
+    els.play.classList.toggle("primary", !on);
+    if(on){
+      if(collapsedCount>=W*H || contradiction) restartSolve();
+      if(!raf) raf=requestAnimationFrame(tick);
+    } else {
+      if(raf){ cancelAnimationFrame(raf); raf=0; }
+    }
+    updateHud();
+  }
+
+  els.play.addEventListener("click", ()=> setPlay(!playing));
+
+  els.step.addEventListener("click", ()=>{
+    if(playing) setPlay(false);
+    if(collapsedCount>=W*H || contradiction) restartSolve();
+    wfcStep();
+    if(contradiction){ restartSolve(); }
+    drawDirty(); updateHud();
+  });
+
+  els.reset.addEventListener("click", ()=>{
+    setPlay(false);
+    restartSolve();
+    updateHud();
+  });
+
+  els.setSeg.addEventListener("click", (e)=>{
+    const b=e.target.closest("button"); if(!b) return;
+    const s=b.getAttribute("data-set"); if(!s||!SETS[s]||s===currentSet) return;
+    currentSet=s;
+    Array.prototype.forEach.call(els.setSeg.children, function(c){ c.classList.toggle("on", c===b); });
+    setPlay(false);
+    regenerate();
+  });
+
+  els.rSize.addEventListener("input", ()=>{
+    gridN=clampInt(els.rSize.value,8,56);
+    els.vSize.textContent=gridN;
+  });
+  els.rSize.addEventListener("change", ()=>{
+    gridN=clampInt(els.rSize.value,8,56);
+    els.vSize.textContent=gridN;
+    setPlay(false);
+    regenerate();
+  });
+
+  els.rSpeed.addEventListener("input", ()=>{
+    speed=clampInt(els.rSpeed.value,1,60);
+    els.vSpeed.textContent=speed;
+  });
+  els.rSpeed.addEventListener("change", ()=>{
+    speed=clampInt(els.rSpeed.value,1,60);
+    els.vSpeed.textContent=speed;
+  });
+
+  let rzT=0;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(rzT);
+    rzT=setTimeout(()=>{ layout(); }, 120);
+  });
+
+  function boot(){
+    gridN=clampInt(els.rSize.value,8,56); els.vSize.textContent=gridN;
+    speed=clampInt(els.rSpeed.value,1,60); els.vSpeed.textContent=speed;
+    regenerate();
+    setTimeout(function(){ layout(); }, 60);
+    setTimeout(function(){ layout(); setPlay(true); }, 140);
+  }
+
+  if(document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", boot, {once:true});
+  } else {
+    boot();
+  }
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

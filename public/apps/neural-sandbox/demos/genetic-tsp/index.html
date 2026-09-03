@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Genetic TSP</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0b0b14; --panel: #16161f; --text: #e8e8f2; --muted: #9a9ab2;
+    --teal: #5eead0; --purple: #8b7bf0; --border: #2a2a38; --radius: 12px;
+  }
+  html, body { background: var(--bg); color: var(--text); }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6; -webkit-font-smoothing: antialiased; padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  header { margin-bottom: 20px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.01em; }
+  .tagline { color: var(--muted); font-size: 14px; margin-top: 4px; }
+  .stage {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 10px; position: relative;
+  }
+  canvas { display: block; width: 100%; border-radius: 8px; cursor: crosshair; }
+  .stats {
+    display: flex; flex-wrap: wrap; gap: 18px; padding: 12px 4px 4px; font-size: 13px;
+  }
+  .stat .k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .stat .v { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .stat .v.teal { color: var(--teal); }
+  .stat .v.purple { color: var(--purple); }
+  .panel {
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; margin-top: 16px;
+  }
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; }
+  button {
+    background: #1f1f2b; color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 16px; font-size: 13px; cursor: pointer;
+    font-family: inherit; transition: border-color .15s, background .15s;
+  }
+  button:hover { border-color: var(--purple); background: #25253333; }
+  button:active { transform: scale(0.98); }
+  button.primary { background: var(--teal); color: #07120f; border-color: var(--teal); font-weight: 600; }
+  button.primary:hover { background: #7ff0db; }
+  .sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; }
+  .ctrl label { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .ctrl label .val { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type=range] { width: 100%; accent-color: var(--purple); cursor: pointer; }
+  .notes { margin-top: 22px; color: var(--muted); font-size: 12.5px; }
+  .notes h3 { color: var(--text); font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .notes p { margin-bottom: 14px; }
+  .notes b { color: var(--teal); font-weight: 600; }
+  .back { display: inline-block; margin-top: 18px; color: var(--purple); text-decoration: none; font-size: 13px; }
+  .back:hover { text-decoration: underline; }
+  .hint { font-size: 11.5px; color: var(--muted); padding: 0 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Genetic TSP</h1>
+    <div class="tagline">Watch evolution untangle the traveling salesman, one generation at a time.</div>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+  </div>
+  <div class="hint">Click on the canvas to add a city. Drag the "Cities" slider, or hit "Random cities".</div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Generation</div><div class="v" id="s-gen">0</div></div>
+    <div class="stat"><div class="k">Best distance</div><div class="v teal" id="s-best">—</div></div>
+    <div class="stat"><div class="k">Cities</div><div class="v" id="s-cities">0</div></div>
+    <div class="stat"><div class="k">Population</div><div class="v purple" id="s-pop">0</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="btns">
+      <button class="primary" id="b-play">Play</button>
+      <button id="b-reset">Reset evolution</button>
+      <button id="b-random">Random cities</button>
+      <button id="b-clear">Clear</button>
+    </div>
+    <div class="sliders">
+      <div class="ctrl">
+        <label>Cities <span class="val" id="v-cities">24</span></label>
+        <input type="range" id="r-cities" min="4" max="80" step="1" value="24" />
+      </div>
+      <div class="ctrl">
+        <label>Population size <span class="val" id="v-pop">120</span></label>
+        <input type="range" id="r-pop" min="20" max="400" step="10" value="120" />
+      </div>
+      <div class="ctrl">
+        <label>Mutation rate <span class="val" id="v-mut">18%</span></label>
+        <input type="range" id="r-mut" min="0" max="60" step="1" value="18" />
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>How it works</h3>
+    <p>Each individual is a full tour — a permutation of every city. Fitness is <b>1 / total distance</b>, so shorter loops win.
+    Every generation runs <b>tournament selection</b> (pick a few, keep the best), <b>order crossover (OX)</b> to splice a slice of
+    one parent into the city order of another while keeping the permutation legal, then <b>swap / reverse mutation</b> — reversal is
+    what unties the tangled crossings. The current champion is copied forward unchanged via <b>elitism</b>, so the best score never
+    regresses. The small graph (top-right) tracks best distance over time.</p>
+    <h3>Why it matters</h3>
+    <p>TSP is NP-hard: the number of possible tours grows factorially, so brute force is hopeless past a handful of cities.
+    Genetic algorithms don't guarantee the optimum, but they reliably converge to near-optimal solutions for routing, logistics,
+    chip layout, and scheduling — a vivid demonstration of evolutionary search on combinatorial optimization.</p>
+    <a class="back" href="../../index.html">← Gallery</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("cv");
+  var ctx = canvas ? canvas.getContext("2d") : null;
+  if (!canvas || !ctx) { return; } // fail safe: never throw / white-screen
+
+  var CITY_MAX = 80, CITY_MIN = 4;
+
+  var cities = [];          // {x, y} in canvas CSS px
+  var population = [];       // array of {order:[], dist:number}
+  var generation = 0;
+  var bestTour = null;
+  var bestDist = Infinity;
+  var history = [];         // best distance per generation (for mini chart)
+  var running = false;
+  var rafId = null;
+
+  var W = 800, H = 480;     // CSS pixels, recomputed on resize
+  var dpr = 1;
+
+  // ---- params (read from sliders) ----
+  var P = { cities: 24, pop: 120, mut: 0.18 };
+
+  var els = {
+    rCities: document.getElementById("r-cities"),
+    rPop: document.getElementById("r-pop"),
+    rMut: document.getElementById("r-mut"),
+    vCities: document.getElementById("v-cities"),
+    vPop: document.getElementById("v-pop"),
+    vMut: document.getElementById("v-mut"),
+    sGen: document.getElementById("s-gen"),
+    sBest: document.getElementById("s-best"),
+    sCities: document.getElementById("s-cities"),
+    sPop: document.getElementById("s-pop"),
+    bPlay: document.getElementById("b-play"),
+    bReset: document.getElementById("b-reset"),
+    bRandom: document.getElementById("b-random"),
+    bClear: document.getElementById("b-clear")
+  };
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+  function isNum(v) { return typeof v === "number" && isFinite(v); }
+
+  // ---------- sizing ----------
+  function measureWidth() {
+    var w = canvas.parentElement ? canvas.parentElement.clientWidth : 0;
+    if (!isNum(w) || w < 2) w = window.innerWidth || 0;
+    if (!isNum(w) || w < 2) w = 320;
+    var out = w - 20; // minus stage padding
+    if (!isNum(out)) out = 320;
+    return Math.max(320, out); // 0-width fallback: never below 320, never 1px
+  }
+
+  function resize() {
+    dpr = window.devicePixelRatio || 1;
+    if (!isNum(dpr) || dpr <= 0) dpr = 1;
+    W = measureWidth();
+    H = Math.max(300, Math.round(W * 0.58));
+    canvas.style.width = W + "px";
+    canvas.style.height = H + "px";
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  // ---------- city generation ----------
+  function randomCities(n) {
+    n = clamp(Math.round(n), CITY_MIN, CITY_MAX);
+    cities = [];
+    var pad = 36;
+    for (var i = 0; i < n; i++) {
+      cities.push({
+        x: pad + Math.random() * Math.max(1, (W - 2 * pad)),
+        y: pad + Math.random() * Math.max(1, (H - 2 * pad))
+      });
+    }
+    syncCitiesControl();
+    resetEvolution();
+  }
+
+  function syncCitiesControl() {
+    var shown = clamp(cities.length, CITY_MIN, CITY_MAX);
+    els.rCities.value = shown;
+    els.vCities.textContent = cities.length; // true count in label
+    P.cities = clamp(cities.length, CITY_MIN, CITY_MAX);
+  }
+
+  // ---------- GA core ----------
+  function dist(a, b) {
+    var dx = a.x - b.x, dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  function tourLength(order) {
+    if (order.length < 2) return 0;
+    var total = 0;
+    for (var i = 0; i < order.length; i++) {
+      var a = cities[order[i]];
+      var b = cities[order[(i + 1) % order.length]];
+      total += dist(a, b);
+    }
+    return total;
+  }
+
+  function shuffledOrder(n) {
+    var arr = [];
+    for (var i = 0; i < n; i++) arr.push(i);
+    for (var j = arr.length - 1; j > 0; j--) {
+      var k = Math.floor(Math.random() * (j + 1));
+      var t = arr[j]; arr[j] = arr[k]; arr[k] = t;
+    }
+    return arr;
+  }
+
+  function makeIndividual(order) {
+    return { order: order, dist: tourLength(order) };
+  }
+
+  function initPopulation() {
+    population = [];
+    var n = cities.length;
+    var size = clamp(Math.round(P.pop), 8, 400);
+    if (n < 2) { population = []; bestTour = null; bestDist = Infinity; return; }
+    for (var i = 0; i < size; i++) {
+      population.push(makeIndividual(shuffledOrder(n)));
+    }
+    rankAndRecordBest();
+  }
+
+  function rankAndRecordBest() {
+    population.sort(function (a, b) { return a.dist - b.dist; });
+    if (population.length && population[0].dist < bestDist) {
+      bestDist = population[0].dist;
+      bestTour = population[0].order.slice();
+    }
+  }
+
+  function tournamentSelect(k) {
+    var best = null;
+    for (var i = 0; i < k; i++) {
+      var c = population[Math.floor(Math.random() * population.length)];
+      if (!best || c.dist < best.dist) best = c;
+    }
+    return best;
+  }
+
+  // Order crossover (OX): keep a slice of p1, fill rest from p2's order.
+  function orderCrossover(p1, p2) {
+    var n = p1.order.length;
+    if (n < 3) return p1.order.slice();
+    var a = Math.floor(Math.random() * n);
+    var b = Math.floor(Math.random() * n);
+    if (a > b) { var t = a; a = b; b = t; }
+    var child = new Array(n);
+    var used = {};
+    for (var i = a; i <= b; i++) { child[i] = p1.order[i]; used[p1.order[i]] = true; }
+    var idx = (b + 1) % n;
+    for (var j = 0; j < n; j++) {
+      var gene = p2.order[(b + 1 + j) % n];
+      if (!used[gene]) {
+        child[idx] = gene;
+        used[gene] = true;
+        idx = (idx + 1) % n;
+      }
+    }
+    return child;
+  }
+
+  function mutate(order) {
+    var n = order.length;
+    if (n < 2) return;
+    if (Math.random() < P.mut) {
+      // 50/50 swap vs reverse-segment
+      var i = Math.floor(Math.random() * n);
+      var j = Math.floor(Math.random() * n);
+      if (Math.random() < 0.5) {
+        var t = order[i]; order[i] = order[j]; order[j] = t;
+      } else {
+        if (i > j) { var s = i; i = j; j = s; }
+        while (i < j) { var tt = order[i]; order[i] = order[j]; order[j] = tt; i++; j--; }
+      }
+    }
+  }
+
+  function evolveStep() {
+    if (cities.length < 2 || population.length === 0) return;
+    var size = population.length;
+    var next = [];
+    // Elitism: carry top 2 forward.
+    var elite = Math.min(2, size);
+    for (var e = 0; e < elite; e++) {
+      next.push({ order: population[e].order.slice(), dist: population[e].dist });
+    }
+    var k = Math.max(2, Math.round(size * 0.05)); // tournament size ~5%
+    var guard = size * 4; // infinite-loop guard
+    while (next.length < size && guard-- > 0) {
+      var p1 = tournamentSelect(k);
+      var p2 = tournamentSelect(k);
+      if (!p1 || !p2) break;
+      var childOrder = orderCrossover(p1, p2);
+      mutate(childOrder);
+      next.push(makeIndividual(childOrder));
+    }
+    // Pad if guard ran out, keep population size constant.
+    while (next.length < size && population.length) {
+      var src = population[next.length % population.length];
+      next.push({ order: src.order.slice(), dist: src.dist });
+    }
+    population = next;
+    rankAndRecordBest();
+    generation++;
+    history.push(bestDist);
+    if (history.length > 600) history.shift();
+  }
+
+  // ---------- rendering ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#0e0e18";
+    ctx.fillRect(0, 0, W, H);
+
+    // best tour edges
+    if (bestTour && bestTour.length > 1 && cities.length === bestTour.length) {
+      ctx.beginPath();
+      for (var i = 0; i < bestTour.length; i++) {
+        var c = cities[bestTour[i]];
+        if (i === 0) ctx.moveTo(c.x, c.y); else ctx.lineTo(c.x, c.y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = "#5eead0";
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = "round";
+      ctx.stroke();
+    }
+
+    // cities
+    for (var j = 0; j < cities.length; j++) {
+      var p = cities[j];
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#8b7bf0";
+      ctx.fill();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = "#0b0b14";
+      ctx.stroke();
+    }
+
+    if (cities.length === 0) {
+      ctx.fillStyle = "#9a9ab2";
+      ctx.font = "14px -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText("Click to place cities, or press “Random cities”", W / 2, H / 2);
+      ctx.textAlign = "left";
+    }
+
+    drawMiniChart();
+  }
+
+  function drawMiniChart() {
+    if (history.length < 2) return; // guard divide-by-zero on (length-1)
+    var cw = Math.min(180, W * 0.34), ch = Math.min(90, H * 0.3);
+    var ox = W - cw - 14, oy = 14;
+    ctx.fillStyle = "rgba(22,22,31,0.85)";
+    ctx.strokeStyle = "#2a2a38";
+    ctx.lineWidth = 1;
+    roundRect(ox, oy, cw, ch, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    var pad = 10;
+    var x0 = ox + pad, y0 = oy + pad, pw = cw - 2 * pad, phh = ch - 2 * pad;
+    var maxV = -Infinity, minV = Infinity;
+    for (var i = 0; i < history.length; i++) {
+      if (history[i] > maxV) maxV = history[i];
+      if (history[i] < minV) minV = history[i];
+    }
+    var range = maxV - minV;
+    if (range < 1e-6) range = 1;
+
+    ctx.beginPath();
+    for (var k = 0; k < history.length; k++) {
+      var x = x0 + (k / (history.length - 1)) * pw;
+      var y = y0 + (1 - (history[k] - minV) / range) * phh;
+      if (k === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = "#5eead0";
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+
+    ctx.fillStyle = "#9a9ab2";
+    ctx.font = "10px -apple-system, sans-serif";
+    ctx.fillText("best distance", ox + pad, oy + ch - 3);
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  // ---------- stats UI ----------
+  function updateStats() {
+    els.sGen.textContent = generation;
+    els.sBest.textContent = (bestDist === Infinity || cities.length < 2) ? "—" : Math.round(bestDist).toLocaleString();
+    els.sCities.textContent = cities.length;
+    els.sPop.textContent = population.length;
+  }
+
+  // ---------- loop ----------
+  function loop() {
+    if (!running) return;
+    evolveStep();
+    draw();
+    updateStats();
+    rafId = requestAnimationFrame(loop);
+  }
+
+  function setRunning(on) {
+    running = on && cities.length >= 2;
+    els.bPlay.textContent = running ? "Pause" : "Play";
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (running) rafId = requestAnimationFrame(loop);
+  }
+
+  function resetEvolution() {
+    setRunning(false);
+    generation = 0;
+    bestTour = null;
+    bestDist = Infinity;
+    history = [];
+    initPopulation();
+    draw();
+    updateStats();
+  }
+
+  // ---------- events ----------
+  canvas.addEventListener("click", function (ev) {
+    if (cities.length >= CITY_MAX) return; // keep slider/state in lockstep, cap at 80
+    var rect = canvas.getBoundingClientRect();
+    var x = clamp(ev.clientX - rect.left, 0, W);
+    var y = clamp(ev.clientY - rect.top, 0, H);
+    cities.push({ x: x, y: y });
+    syncCitiesControl();
+    resetEvolution();
+  });
+
+  els.bPlay.addEventListener("click", function () { setRunning(!running); });
+  els.bReset.addEventListener("click", resetEvolution);
+  els.bRandom.addEventListener("click", function () { randomCities(P.cities); });
+  els.bClear.addEventListener("click", function () {
+    setRunning(false);
+    cities = [];
+    syncCitiesControl();
+    resetEvolution();
+  });
+
+  els.rCities.addEventListener("input", function () {
+    P.cities = clamp(Math.round(+els.rCities.value), CITY_MIN, CITY_MAX);
+    els.vCities.textContent = P.cities;
+    randomCities(P.cities);
+  });
+  els.rPop.addEventListener("input", function () {
+    P.pop = clamp(Math.round(+els.rPop.value), 20, 400);
+    els.vPop.textContent = P.pop;
+    resetEvolution();
+  });
+  els.rMut.addEventListener("input", function () {
+    var pct = clamp(Math.round(+els.rMut.value), 0, 60);
+    P.mut = pct / 100;
+    els.vMut.textContent = pct + "%"; // mutation rate hot-tunable, no reset
+  });
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    if (resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resize, 120);
+  });
+
+  // ---------- boot (single init) ----------
+  var booted = false;
+  function boot() {
+    if (booted) return;
+    booted = true;
+    resize();
+    randomCities(P.cities);
+    updateStats();
+    // one re-measure after layout settles (handles late font/flex reflow)
+    requestAnimationFrame(function () { resize(); });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>
