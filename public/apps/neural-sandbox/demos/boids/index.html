@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Boids — Swarm Intelligence</title>
+<style>
+  :root {
+    --bg: #0b0b14;
+    --panel: #16161f;
+    --panel-2: #1d1d28;
+    --text: #e8e8f2;
+    --muted: #9a9ab2;
+    --accent: #5eead0;
+    --accent-2: #8b7bf0;
+    --border: #2a2a38;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 24px 18px 48px; }
+  header { margin-bottom: 18px; }
+  h1 { font-size: 26px; font-weight: 600; letter-spacing: -0.02em; }
+  h1 .tag { color: var(--accent); }
+  .tagline { color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+  .stage {
+    position: relative;
+    width: 100%;
+    background: #07070d;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(94,234,208,0.04);
+  }
+  canvas { display: block; width: 100%; height: auto; cursor: crosshair; }
+  .hud {
+    position: absolute; top: 10px; left: 12px;
+    font-size: 12px; color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+    background: rgba(11,11,20,0.55);
+    padding: 4px 8px; border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+  .hud b { color: var(--accent); font-weight: 600; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    margin-top: 16px;
+  }
+  .row { display: flex; flex-wrap: wrap; gap: 14px 20px; align-items: flex-end; }
+
+  .ctl { display: flex; flex-direction: column; gap: 6px; min-width: 150px; flex: 1 1 150px; }
+  .ctl label { font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+  .ctl label .val { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  input[type=range] {
+    -webkit-appearance: none; appearance: none;
+    width: 100%; height: 4px; border-radius: 4px;
+    background: var(--panel-2); outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); border: 2px solid #0b0b14; cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--accent); border: 2px solid #0b0b14; cursor: pointer;
+  }
+
+  .btns { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+  button, .toggle {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+    user-select: none;
+  }
+  button:hover, .toggle:hover { border-color: var(--accent); }
+  button:active { transform: scale(0.98); }
+  .toggle.on { border-color: var(--accent); color: var(--accent); background: rgba(94,234,208,0.08); }
+  .toggle.alt.on { border-color: var(--accent-2); color: var(--accent-2); background: rgba(139,123,240,0.08); }
+
+  .notes { margin-top: 22px; display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  .notes h3 { font-size: 13px; color: var(--accent); margin-bottom: 4px; font-weight: 600; }
+  .notes p { font-size: 13px; color: var(--muted); }
+  .gallery { margin-top: 26px; }
+  .gallery a { color: var(--accent-2); text-decoration: none; font-size: 14px; }
+  .gallery a:hover { text-decoration: underline; }
+
+  @media (max-width: 620px) {
+    .notes { grid-template-columns: 1fr; }
+    h1 { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Boids <span class="tag">/ Swarm Intelligence</span></h1>
+    <p class="tagline">Three local rules. One flock. No leader.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="hud">boids <b id="hudN">200</b> &middot; fps <b id="hudFps">60</b></div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div class="ctl">
+        <label>Separation <span class="val" id="vSep">1.5</span></label>
+        <input type="range" id="sep" min="0" max="3" step="0.05" value="1.5" />
+      </div>
+      <div class="ctl">
+        <label>Alignment <span class="val" id="vAli">1.0</span></label>
+        <input type="range" id="ali" min="0" max="3" step="0.05" value="1.0" />
+      </div>
+      <div class="ctl">
+        <label>Cohesion <span class="val" id="vCoh">1.0</span></label>
+        <input type="range" id="coh" min="0" max="3" step="0.05" value="1.0" />
+      </div>
+      <div class="ctl">
+        <label>Perception <span class="val" id="vPer">60</span></label>
+        <input type="range" id="per" min="20" max="140" step="1" value="60" />
+      </div>
+      <div class="ctl">
+        <label>Max speed <span class="val" id="vSpd">3.2</span></label>
+        <input type="range" id="spd" min="1" max="7" step="0.1" value="3.2" />
+      </div>
+      <div class="ctl">
+        <label>Count <span class="val" id="vCnt">200</span></label>
+        <input type="range" id="cnt" min="20" max="500" step="10" value="200" />
+      </div>
+    </div>
+
+    <div class="btns">
+      <button id="play">Pause</button>
+      <button id="reset">Reset</button>
+      <span class="toggle on" id="tTrail">Trails</span>
+      <span class="toggle alt" id="tMouse">Mouse: off</span>
+      <span class="toggle" id="tWrap">Edges: bounce</span>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div>
+      <h3>How it works</h3>
+      <p>Each boid only sees neighbours inside its perception radius and obeys three steering rules — separation (avoid crowding), alignment (match heading), cohesion (move toward the local centre). The global flock pattern is emergent: nobody computes it.</p>
+    </div>
+    <div>
+      <h3>Why it matters</h3>
+      <p>Reynolds' 1986 model shows how decentralised agents produce coordinated collective motion. The same idea drives crowd simulation in films and games, swarm robotics, and optimisation algorithms like particle swarms.</p>
+    </div>
+  </div>
+
+  <div class="gallery">
+    <a href="../../index.html">&larr; Gallery</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("cv");
+  var ctx = canvas.getContext("2d");
+
+  // ---- Config bound to UI ----
+  var cfg = {
+    sep: 1.5, ali: 1.0, coh: 1.0,
+    perception: 60, maxSpeed: 3.2,
+    count: 200,
+    trails: true,
+    mouseMode: 0,   // 0 off, 1 predator, 2 attractor
+    wrap: false     // false = bounce, true = wrap
+  };
+
+  var MAX_FORCE = 0.08;     // steering clamp
+  var SEP_RADIUS = 28;      // fixed close-range for separation
+
+  // ---- State ----
+  var W = 0, H = 0, dpr = 1;
+  var n = 0, cap = 500;
+  var px = new Float32Array(cap), py = new Float32Array(cap);
+  var vx = new Float32Array(cap), vy = new Float32Array(cap);
+  var running = true;
+  var mouse = { x: -1e6, y: -1e6, inside: false };
+
+  // ---- Spatial hash grid ----
+  var cellSize = 60, cols = 1, rows = 1;
+  var grid = null;        // array of arrays (rebuilt each frame)
+
+  function clampInt(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  function rebuildGrid() {
+    cellSize = Math.max(20, cfg.perception);
+    cols = Math.max(1, Math.ceil(W / cellSize));
+    rows = Math.max(1, Math.ceil(H / cellSize));
+    grid = new Array(cols * rows);
+    for (var i = 0; i < grid.length; i++) grid[i] = [];
+    for (var k = 0; k < n; k++) {
+      var cx = clampInt((px[k] / cellSize) | 0, 0, cols - 1);
+      var cy = clampInt((py[k] / cellSize) | 0, 0, rows - 1);
+      grid[cy * cols + cx].push(k);
+    }
+  }
+
+  // ---- Setup / sizing ----
+  function setup() {
+    var rect = canvas.getBoundingClientRect();
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    // Fallback if layout isn't ready yet (rect.width can be 0 on first paint).
+    var cssW = rect.width;
+    if (!cssW || cssW < 1) {
+      cssW = (canvas.parentElement && canvas.parentElement.clientWidth) ||
+             window.innerWidth || 800;
+    }
+    W = Math.max(320, Math.floor(cssW));
+    H = Math.max(260, Math.round(W * 0.56)); // 16:9-ish
+    canvas.style.height = H + "px";
+    canvas.width = Math.floor(W * dpr);
+    canvas.height = Math.floor(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // Seed boids in index range [from, to) without touching existing ones.
+  function addBoids(from, to) {
+    from = clampInt(from, 0, cap);
+    to = clampInt(to, 0, cap);
+    for (var i = from; i < to; i++) {
+      px[i] = Math.random() * W;
+      py[i] = Math.random() * H;
+      var a = Math.random() * Math.PI * 2;
+      var s = 1 + Math.random() * 2;
+      vx[i] = Math.cos(a) * s;
+      vy[i] = Math.sin(a) * s;
+    }
+  }
+
+  // Full (re)spawn: replace the whole flock.
+  function spawn(num) {
+    n = clampInt(num, 1, cap);
+    addBoids(0, n);
+  }
+
+  // Resize the active flock, preserving existing boids (only seeds the new tail).
+  function setCount(num) {
+    var target = clampInt(num, 1, cap);
+    if (target > n) addBoids(n, target); // grow: seed only the new boids
+    n = target;                          // shrink: drop the tail, keep the rest
+  }
+
+  function reset() {
+    setup();
+    spawn(cfg.count);
+  }
+
+  // Steering: desired (normalised to maxSpeed) minus current velocity, clamped.
+  var _s = { x: 0, y: 0 };
+  function steerTo(dirx, diry, cvx, cvy) {
+    var mag = Math.sqrt(dirx * dirx + diry * diry);
+    if (mag < 1e-6) { _s.x = 0; _s.y = 0; return _s; }
+    var dx = dirx / mag * cfg.maxSpeed - cvx;
+    var dy = diry / mag * cfg.maxSpeed - cvy;
+    var fm = Math.sqrt(dx * dx + dy * dy);
+    if (fm > MAX_FORCE) { dx = dx / fm * MAX_FORCE; dy = dy / fm * MAX_FORCE; }
+    _s.x = dx; _s.y = dy;
+    return _s;
+  }
+
+  // ---- Core simulation step ----
+  function step() {
+    rebuildGrid();
+    var per2 = cfg.perception * cfg.perception;
+    var sep2 = SEP_RADIUS * SEP_RADIUS;
+
+    for (var i = 0; i < n; i++) {
+      var sx = 0, sy = 0;          // separation accumulator
+      var ax = 0, ay = 0;          // alignment (sum of velocities)
+      var cxs = 0, cys = 0;        // cohesion (sum of positions)
+      var nNb = 0, nSep = 0;
+
+      var gx = clampInt((px[i] / cellSize) | 0, 0, cols - 1);
+      var gy = clampInt((py[i] / cellSize) | 0, 0, rows - 1);
+
+      // scan 3x3 neighbouring cells
+      for (var oy = -1; oy <= 1; oy++) {
+        var ny = gy + oy; if (ny < 0 || ny >= rows) continue;
+        for (var ox = -1; ox <= 1; ox++) {
+          var nx = gx + ox; if (nx < 0 || nx >= cols) continue;
+          var bucket = grid[ny * cols + nx];
+          for (var b = 0; b < bucket.length; b++) {
+            var j = bucket[b];
+            if (j === i) continue;
+            var dx = px[i] - px[j];
+            var dy = py[i] - py[j];
+            var d2 = dx * dx + dy * dy;
+            if (d2 > per2 || d2 === 0) continue;
+
+            // alignment + cohesion
+            ax += vx[j]; ay += vy[j];
+            cxs += px[j]; cys += py[j];
+            nNb++;
+
+            // separation: weight by inverse-square distance (closer = stronger)
+            if (d2 < sep2) {
+              sx += dx / d2;
+              sy += dy / d2;
+              nSep++;
+            }
+          }
+        }
+      }
+
+      var fx = 0, fy = 0;
+
+      if (nNb > 0) {
+        // alignment steer
+        var aSteer = steerTo(ax / nNb, ay / nNb, vx[i], vy[i]);
+        fx += aSteer.x * cfg.ali;
+        fy += aSteer.y * cfg.ali;
+        // cohesion steer (toward centre of mass)
+        var cSteer = steerTo(cxs / nNb - px[i], cys / nNb - py[i], vx[i], vy[i]);
+        fx += cSteer.x * cfg.coh;
+        fy += cSteer.y * cfg.coh;
+      }
+      if (nSep > 0) {
+        var sSteer = steerTo(sx, sy, vx[i], vy[i]);
+        fx += sSteer.x * cfg.sep;
+        fy += sSteer.y * cfg.sep;
+      }
+
+      // mouse interaction
+      if (cfg.mouseMode !== 0 && mouse.inside) {
+        var mdx = px[i] - mouse.x, mdy = py[i] - mouse.y;
+        var md2 = mdx * mdx + mdy * mdy;
+        var R = 120;
+        if (md2 < R * R && md2 > 0.01) {
+          var mInv = 1 / Math.sqrt(md2);
+          var falloff = (R - Math.sqrt(md2)) / R;
+          if (cfg.mouseMode === 1) {
+            // predator: flee, strong
+            var pSteer = steerTo(mdx * mInv, mdy * mInv, vx[i], vy[i]);
+            fx += pSteer.x * 2.2 * (0.4 + falloff);
+            fy += pSteer.y * 2.2 * (0.4 + falloff);
+          } else {
+            // attractor: seek
+            var aS = steerTo(-mdx, -mdy, vx[i], vy[i]);
+            fx += aS.x * 1.2;
+            fy += aS.y * 1.2;
+          }
+        }
+      }
+
+      // integrate velocity
+      vx[i] += fx; vy[i] += fy;
+
+      // clamp speed (and recover from any NaN / zero)
+      var sp = Math.sqrt(vx[i] * vx[i] + vy[i] * vy[i]);
+      if (!isFinite(sp) || sp === 0) {
+        var ra = Math.random() * Math.PI * 2;
+        vx[i] = Math.cos(ra); vy[i] = Math.sin(ra); sp = 1;
+      }
+      var maxS = cfg.maxSpeed;
+      if (sp > maxS) { vx[i] = vx[i] / sp * maxS; vy[i] = vy[i] / sp * maxS; }
+      else if (sp < 0.5) { vx[i] = vx[i] / sp * 0.5; vy[i] = vy[i] / sp * 0.5; }
+
+      // move
+      px[i] += vx[i]; py[i] += vy[i];
+
+      // boundaries
+      if (cfg.wrap) {
+        if (px[i] < 0) px[i] += W; else if (px[i] >= W) px[i] -= W;
+        if (py[i] < 0) py[i] += H; else if (py[i] >= H) py[i] -= H;
+      } else {
+        var m = 8;
+        if (px[i] < m) { px[i] = m; vx[i] = Math.abs(vx[i]); }
+        else if (px[i] > W - m) { px[i] = W - m; vx[i] = -Math.abs(vx[i]); }
+        if (py[i] < m) { py[i] = m; vy[i] = Math.abs(vy[i]); }
+        else if (py[i] > H - m) { py[i] = H - m; vy[i] = -Math.abs(vy[i]); }
+      }
+
+      // guard against NaN positions
+      if (!isFinite(px[i])) px[i] = W * 0.5;
+      if (!isFinite(py[i])) py[i] = H * 0.5;
+    }
+  }
+
+  // ---- Render ----
+  function render() {
+    if (cfg.trails) {
+      ctx.fillStyle = "rgba(7,7,13,0.22)";  // fade for motion trails
+      ctx.fillRect(0, 0, W, H);
+    } else {
+      ctx.fillStyle = "#07070d";
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    var maxS = cfg.maxSpeed;
+    for (var i = 0; i < n; i++) {
+      var sp = Math.sqrt(vx[i] * vx[i] + vy[i] * vy[i]);
+      var ang = Math.atan2(vy[i], vx[i]);
+      // hue by heading, lightness lifts a touch with speed
+      var hue = ((ang + Math.PI) / (Math.PI * 2)) * 360;
+      var light = 55 + Math.min(1, sp / maxS) * 20;
+      ctx.fillStyle = "hsl(" + hue.toFixed(0) + ",75%," + light.toFixed(0) + "%)";
+
+      ctx.save();
+      ctx.translate(px[i], py[i]);
+      ctx.rotate(ang);
+      ctx.beginPath();
+      ctx.moveTo(6, 0);
+      ctx.lineTo(-4, 3);
+      ctx.lineTo(-4, -3);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // mouse indicator
+    if (cfg.mouseMode !== 0 && mouse.inside) {
+      ctx.beginPath();
+      ctx.arc(mouse.x, mouse.y, 120, 0, Math.PI * 2);
+      ctx.strokeStyle = cfg.mouseMode === 1
+        ? "rgba(139,123,240,0.35)" : "rgba(94,234,208,0.35)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
+
+  // ---- Loop ----
+  var fpsAcc = 0, fpsCount = 0, lastT = performance.now();
+  var hudN = document.getElementById("hudN");
+  var hudFps = document.getElementById("hudFps");
+
+  function frame(t) {
+    var dt = t - lastT; lastT = t;
+    if (dt > 0) { fpsAcc += 1000 / dt; fpsCount++; }
+    if (fpsCount >= 20) {
+      hudFps.textContent = Math.round(fpsAcc / fpsCount);
+      fpsAcc = 0; fpsCount = 0;
+    }
+    if (running) step();
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ---- UI wiring ----
+  function bindSlider(id, key, outId, fixed) {
+    var el = document.getElementById(id);
+    var out = document.getElementById(outId);
+    function upd() {
+      var v = parseFloat(el.value);
+      if (!isFinite(v)) return;
+      cfg[key] = v;
+      out.textContent = (fixed === 0) ? Math.round(v) : v.toFixed(fixed);
+      if (key === "count") {
+        setCount(v);              // grow keeps existing boids; shrink drops the tail
+        hudN.textContent = n;     // real-time HUD update
+      }
+    }
+    el.addEventListener("input", upd);
+    upd();
+  }
+
+  bindSlider("sep", "sep", "vSep", 2);
+  bindSlider("ali", "ali", "vAli", 2);
+  bindSlider("coh", "coh", "vCoh", 2);
+  bindSlider("per", "perception", "vPer", 0);
+  bindSlider("spd", "maxSpeed", "vSpd", 1);
+  bindSlider("cnt", "count", "vCnt", 0);
+
+  var playBtn = document.getElementById("play");
+  playBtn.addEventListener("click", function () {
+    running = !running;
+    playBtn.textContent = running ? "Pause" : "Play";
+  });
+
+  document.getElementById("reset").addEventListener("click", function () {
+    reset();
+    hudN.textContent = n;
+  });
+
+  var tTrail = document.getElementById("tTrail");
+  tTrail.addEventListener("click", function () {
+    cfg.trails = !cfg.trails;
+    tTrail.classList.toggle("on", cfg.trails);
+  });
+
+  var tMouse = document.getElementById("tMouse");
+  var mouseLabels = ["Mouse: off", "Mouse: predator", "Mouse: attractor"];
+  tMouse.addEventListener("click", function () {
+    cfg.mouseMode = (cfg.mouseMode + 1) % 3;
+    tMouse.textContent = mouseLabels[cfg.mouseMode];
+    tMouse.classList.toggle("on", cfg.mouseMode !== 0);
+  });
+
+  var tWrap = document.getElementById("tWrap");
+  tWrap.addEventListener("click", function () {
+    cfg.wrap = !cfg.wrap;
+    tWrap.textContent = cfg.wrap ? "Edges: wrap" : "Edges: bounce";
+    tWrap.classList.toggle("on", cfg.wrap);
+  });
+
+  // pointer tracking
+  function ptr(e) {
+    var rect = canvas.getBoundingClientRect();
+    var cx = (e.touches ? e.touches[0].clientX : e.clientX);
+    var cy = (e.touches ? e.touches[0].clientY : e.clientY);
+    mouse.x = cx - rect.left;
+    mouse.y = cy - rect.top;
+    mouse.inside = true;
+  }
+  canvas.addEventListener("mousemove", ptr);
+  canvas.addEventListener("mouseleave", function () { mouse.inside = false; });
+  canvas.addEventListener("touchmove", function (e) { ptr(e); e.preventDefault(); }, { passive: false });
+  canvas.addEventListener("touchstart", ptr, { passive: true });
+  canvas.addEventListener("touchend", function () { mouse.inside = false; });
+
+  // resize (debounced) — preserve flock, clamp every boid fully in-bounds
+  var rt = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      var old = n;
+      setup();
+      for (var i = 0; i < old; i++) {
+        if (!isFinite(px[i]) || px[i] < 0 || px[i] > W) px[i] = Math.random() * W;
+        if (!isFinite(py[i]) || py[i] < 0 || py[i] > H) py[i] = Math.random() * H;
+      }
+      n = old;
+    }, 120);
+  });
+
+  // ---- Boot ----
+  function boot() {
+    try {
+      reset();
+      hudN.textContent = n;
+      requestAnimationFrame(frame);
+    } catch (err) {
+      // fail soft: never white-screen
+      try {
+        ctx.fillStyle = "#07070d"; ctx.fillRect(0, 0, W || 320, H || 260);
+        ctx.fillStyle = "#9a9ab2"; ctx.font = "14px sans-serif";
+        ctx.fillText("Simulation error: " + err.message, 16, 28);
+      } catch (e2) {}
+    }
+  }
+
+  if (document.readyState === "loading") {
+    window.addEventListener("DOMContentLoaded", boot);
+  } else {
+    boot();
+  }
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

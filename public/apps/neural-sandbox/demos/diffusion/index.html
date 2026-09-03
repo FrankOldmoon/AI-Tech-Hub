@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diffusion Lab</title>
+<style>
+  :root{
+    --bg:#0b0b14; --panel:#16161f; --ink:#e8e8f2; --mut:#9a9ab2;
+    --teal:#5eead0; --violet:#8b7bf0; --line:#26263a; --line2:#1f1f2e;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:980px; margin:0 auto; padding:22px 16px 60px}
+  header h1{
+    font-size:26px; margin:0 0 4px;
+    background:linear-gradient(90deg,var(--teal),var(--violet));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+    letter-spacing:.3px;
+  }
+  header p{margin:0 0 18px; color:var(--mut); font-size:14px}
+
+  .stage{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:10px; position:relative; overflow:hidden;
+  }
+  canvas{display:block; width:100%; height:auto; border-radius:10px; background:#08080f}
+  .hud{
+    position:absolute; top:18px; left:18px; font-size:12px; color:var(--mut);
+    background:rgba(11,11,20,.55); padding:6px 10px; border-radius:8px;
+    border:1px solid var(--line2); pointer-events:none; backdrop-filter:blur(2px);
+  }
+  .hud b{color:var(--ink); font-weight:600}
+  .hud .t{color:var(--teal)}
+  .hud .v{color:var(--violet)}
+  .phase{
+    position:absolute; top:18px; right:18px; font-size:12px;
+    background:rgba(11,11,20,.55); padding:6px 10px; border-radius:8px;
+    border:1px solid var(--line2); color:var(--ink); pointer-events:none;
+  }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:14px; padding:16px; margin-top:14px;
+  }
+  .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  .row + .row{margin-top:14px}
+
+  button{
+    font:inherit; font-size:14px; color:var(--ink);
+    background:#1d1d2b; border:1px solid var(--line);
+    padding:9px 16px; border-radius:9px; cursor:pointer; transition:.15s;
+  }
+  button:hover{border-color:var(--violet); color:#fff}
+  button:active{transform:translateY(1px)}
+  button.primary{
+    background:linear-gradient(90deg,rgba(94,234,208,.18),rgba(139,123,240,.18));
+    border-color:var(--teal); color:#fff;
+  }
+  button:disabled{opacity:.4; cursor:not-allowed}
+
+  label.field{display:flex; flex-direction:column; gap:5px; font-size:12px; color:var(--mut); min-width:150px; flex:1}
+  label.field .lbl{display:flex; justify-content:space-between}
+  label.field .num{color:var(--teal); font-variant-numeric:tabular-nums}
+  select{
+    font:inherit; font-size:14px; color:var(--ink); background:#1d1d2b;
+    border:1px solid var(--line); padding:8px 10px; border-radius:9px; cursor:pointer;
+  }
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:5px;
+    background:var(--line); border-radius:4px; outline:none; margin:6px 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%;
+    background:var(--violet); cursor:pointer; border:2px solid #0b0b14;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px; height:15px; border-radius:50%; background:var(--violet);
+    cursor:pointer; border:2px solid #0b0b14;
+  }
+
+  .notes{margin-top:18px; display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  .note{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:14px 16px}
+  .note h3{margin:0 0 6px; font-size:13px; color:var(--teal); letter-spacing:.4px; text-transform:uppercase}
+  .note p{margin:0; font-size:13px; color:var(--mut)}
+  .back{display:inline-block; margin-top:22px; color:var(--mut); text-decoration:none; font-size:14px}
+  .back:hover{color:var(--teal)}
+  @media(max-width:640px){ .notes{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Diffusion Lab</h1>
+    <p>Watch a tiny neural net learn to turn noise into shape, live in your browser.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="hud" id="hud">
+      step <b class="t" id="hStep">0</b> &nbsp;&middot;&nbsp; loss <b class="v" id="hLoss">&mdash;</b>
+    </div>
+    <div class="phase" id="hPhase">idle</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <label class="field" style="max-width:200px">
+        <span class="lbl"><span>Target shape</span></span>
+        <select id="shape">
+          <option value="moons">Two moons</option>
+          <option value="spiral">Spiral</option>
+          <option value="smiley">Smiley</option>
+          <option value="ai">Letters "AI"</option>
+          <option value="ring">Ring</option>
+        </select>
+      </label>
+      <button id="btnTrain" class="primary">Train</button>
+      <button id="btnSample">Sample</button>
+      <button id="btnForward">Forward (add noise)</button>
+      <button id="btnReset">Reset</button>
+    </div>
+
+    <div class="row">
+      <label class="field">
+        <span class="lbl"><span>Diffusion steps (T)</span><span class="num" id="vT">40</span></span>
+        <input type="range" id="sT" min="10" max="120" step="5" value="40">
+      </label>
+      <label class="field">
+        <span class="lbl"><span>Learning rate</span><span class="num" id="vLR">0.0040</span></span>
+        <input type="range" id="sLR" min="1" max="120" step="1" value="40">
+      </label>
+      <label class="field">
+        <span class="lbl"><span>Sampling speed</span><span class="num" id="vSpd">1.0&times;</span></span>
+        <input type="range" id="sSpd" min="1" max="40" step="1" value="10">
+      </label>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="note">
+      <h3>How it works</h3>
+      <p>A 2&rarr;64&rarr;64&rarr;2 MLP with a sinusoidal time embedding is trained to predict the
+      Gaussian noise added to target points (DDPM &epsilon;-objective, fixed linear &beta;-schedule).
+      Sampling reverses the chain: from pure noise it iteratively subtracts predicted noise, and the
+      cloud condenses into the shape. Everything &mdash; net, autograd, training &mdash; runs in plain JS.</p>
+    </div>
+    <div class="note">
+      <h3>Why it matters</h3>
+      <p>The same denoising principle powers image, audio and molecule generators. Seeing it on a
+      2D point cloud strips away the scale so the core idea &mdash; learn to remove noise, then
+      run that removal backwards &mdash; becomes tangible and inspectable.</p>
+    </div>
+  </div>
+
+  <a class="back" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Diffusion Lab — a 2D denoising diffusion toy.
+   Pure-JS tiny MLP (2->64->64->2) with sinusoidal time embedding, trained
+   with the DDPM epsilon objective on a fixed linear beta schedule.
+   No dependencies, no CDN — everything below is self-contained.
+   ========================================================================= */
+
+/* ---------- small deterministic-ish RNG helpers ---------- */
+let _rngState = 1234567;
+function rnd(){ // uniform [0,1)
+  _rngState = (_rngState * 1103515245 + 12345) & 0x7fffffff;
+  return _rngState / 0x7fffffff;
+}
+function gauss(){ // standard normal via Box-Muller
+  let u = rnd(), v = rnd();
+  if (u < 1e-9) u = 1e-9;
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+}
+
+/* =========================================================================
+   1. TARGET SHAPES  (return array of [x,y] in roughly [-1,1])
+   ========================================================================= */
+function sampleShape(kind, n){
+  const pts = new Float32Array(n*2);
+  for (let i=0;i<n;i++){
+    let x=0,y=0;
+    if (kind==="moons"){
+      const top = rnd()<0.5;
+      const t = rnd()*Math.PI;
+      if (top){ x = Math.cos(t)-0.5; y = Math.sin(t)-0.25; }
+      else    { x = 1 - Math.cos(t)-0.5; y = -Math.sin(t)+0.25; }
+      x += gauss()*0.05; y += gauss()*0.05;
+    } else if (kind==="spiral"){
+      const t = Math.sqrt(rnd())*3.2*Math.PI;
+      const r = t/(3.2*Math.PI);
+      x = r*Math.cos(t); y = r*Math.sin(t);
+      x += gauss()*0.03; y += gauss()*0.03;
+    } else if (kind==="ring"){
+      const a = rnd()*2*Math.PI;
+      const r = 0.7 + gauss()*0.05;
+      x = r*Math.cos(a); y = r*Math.sin(a);
+    } else if (kind==="smiley"){
+      const u = rnd();
+      if (u < 0.55){ // face outline
+        const a = rnd()*2*Math.PI; const r = 0.85 + gauss()*0.03;
+        x = r*Math.cos(a); y = r*Math.sin(a);
+      } else if (u < 0.70){ // left eye
+        x = -0.32 + gauss()*0.05; y = 0.32 + gauss()*0.05;
+      } else if (u < 0.85){ // right eye
+        x = 0.32 + gauss()*0.05; y = 0.32 + gauss()*0.05;
+      } else { // smile arc
+        const a = Math.PI*0.18 + rnd()*Math.PI*0.64;
+        x = Math.cos(Math.PI+a)*0.45;
+        y = Math.sin(Math.PI+a)*0.45 - 0.05;
+        x += gauss()*0.03; y += gauss()*0.03;
+      }
+    } else if (kind==="ai"){
+      // Letter "A" on left, "I" on right, drawn as stroke segments.
+      const segsA = [
+        [[-0.85,-0.6],[-0.55,0.7]], [[-0.55,0.7],[-0.25,-0.6]], // legs
+        [[-0.72,0.0],[-0.38,0.0]]                                // bar
+      ];
+      const segsI = [
+        [[0.30,0.7],[0.70,0.7]], [[0.30,-0.6],[0.70,-0.6]],     // serifs
+        [[0.50,0.7],[0.50,-0.6]]                                 // stem
+      ];
+      const all = segsA.concat(segsI);
+      const s = all[(rnd()*all.length)|0];
+      const t = rnd();
+      x = s[0][0]+(s[1][0]-s[0][0])*t + gauss()*0.025;
+      y = s[0][1]+(s[1][1]-s[0][1])*t + gauss()*0.025;
+    }
+    pts[i*2] = x; pts[i*2+1] = y;
+  }
+  return pts;
+}
+
+/* =========================================================================
+   2. DIFFUSION SCHEDULE  (fixed linear beta)
+   ========================================================================= */
+const NTIME = 100;                 // schedule resolution
+let betas, alphas, alphaBar, sqrtAB, sqrt1mAB;
+function buildSchedule(){
+  betas    = new Float32Array(NTIME);
+  alphas   = new Float32Array(NTIME);
+  alphaBar = new Float32Array(NTIME);
+  sqrtAB   = new Float32Array(NTIME);
+  sqrt1mAB = new Float32Array(NTIME);
+  const b0=1e-4, b1=0.02;
+  let prod=1;
+  for (let t=0;t<NTIME;t++){
+    const b = b0 + (b1-b0)*t/(NTIME-1);
+    betas[t]=b; alphas[t]=1-b; prod*=(1-b);
+    alphaBar[t]=prod; sqrtAB[t]=Math.sqrt(prod); sqrt1mAB[t]=Math.sqrt(1-prod);
+  }
+}
+buildSchedule();
+
+/* =========================================================================
+   3. TIME EMBEDDING (sinusoidal, dim = TE)
+   ========================================================================= */
+const TE = 16;
+function timeEmbed(t){ // t in [0,1]
+  const e = new Float32Array(TE);
+  for (let k=0;k<TE/2;k++){
+    const freq = Math.pow(10000, -2*k/TE);
+    e[2*k]   = Math.sin(t*freq*100 + t*6.283*(k+1));
+    e[2*k+1] = Math.cos(t*freq*100 + t*6.283*(k+1));
+  }
+  return e;
+}
+
+/* =========================================================================
+   4. TINY MLP with manual forward + backprop
+   Input  = [x, y] concat timeEmbed(t)  -> dim IN = 2 + TE
+   Layers : IN -> H -> H -> 2   (tanh activations on hidden)
+   Output = predicted noise epsilon (2D)
+   ========================================================================= */
+const H = 64;
+const IN = 2 + TE;
+let W1,b1_,W2,b2_,W3,b3_;          // weights / biases
+let mW1,vW1,mW2,vW2,mW3,vW3;       // Adam moments
+let mb1,vb1,mb2,vb2,mb3,vb3;
+let adamT = 0;
+
+function randMat(rows,cols,scale){
+  const m=new Float32Array(rows*cols);
+  for (let i=0;i<m.length;i++) m[i]=gauss()*scale;
+  return m;
+}
+function initNet(){
+  W1=randMat(H,IN,Math.sqrt(2/IN));  b1_=new Float32Array(H);
+  W2=randMat(H,H ,Math.sqrt(2/H));   b2_=new Float32Array(H);
+  W3=randMat(2,H ,Math.sqrt(2/H));   b3_=new Float32Array(2);
+  mW1=new Float32Array(W1.length); vW1=new Float32Array(W1.length);
+  mW2=new Float32Array(W2.length); vW2=new Float32Array(W2.length);
+  mW3=new Float32Array(W3.length); vW3=new Float32Array(W3.length);
+  mb1=new Float32Array(H); vb1=new Float32Array(H);
+  mb2=new Float32Array(H); vb2=new Float32Array(H);
+  mb3=new Float32Array(2); vb3=new Float32Array(2);
+  adamT=0;
+}
+
+// scratch buffers reused per-sample (avoid GC churn)
+const z1=new Float32Array(H), a1=new Float32Array(H);
+const z2=new Float32Array(H), a2=new Float32Array(H);
+const out=new Float32Array(2);
+const inp=new Float32Array(IN);
+
+function forward(x,y,temb){
+  inp[0]=x; inp[1]=y;
+  for (let k=0;k<TE;k++) inp[2+k]=temb[k];
+  // layer 1
+  for (let i=0;i<H;i++){
+    let s=b1_[i]; const off=i*IN;
+    for (let j=0;j<IN;j++) s+=W1[off+j]*inp[j];
+    z1[i]=s; a1[i]=Math.tanh(s);
+  }
+  // layer 2
+  for (let i=0;i<H;i++){
+    let s=b2_[i]; const off=i*H;
+    for (let j=0;j<H;j++) s+=W2[off+j]*a1[j];
+    z2[i]=s; a2[i]=Math.tanh(s);
+  }
+  // output
+  for (let i=0;i<2;i++){
+    let s=b3_[i]; const off=i*H;
+    for (let j=0;j<H;j++) s+=W3[off+j]*a2[j];
+    out[i]=s;
+  }
+}
+
+// gradient accumulators
+let gW1,gb1,gW2,gb2,gW3,gb3;
+function zeroGrads(){
+  gW1=new Float32Array(W1.length); gb1=new Float32Array(H);
+  gW2=new Float32Array(W2.length); gb2=new Float32Array(H);
+  gW3=new Float32Array(W3.length); gb3=new Float32Array(2);
+}
+const dOut=new Float32Array(2), dA2=new Float32Array(H), dA1=new Float32Array(H);
+
+// backprop one sample; returns squared error contribution
+function backward(targetEps){
+  let loss=0;
+  for (let i=0;i<2;i++){
+    const e = out[i]-targetEps[i];
+    dOut[i]=e; loss += e*e;
+  }
+  // output layer grads + dA2
+  dA2.fill(0);
+  for (let i=0;i<2;i++){
+    const off=i*H, g=dOut[i];
+    for (let j=0;j<H;j++){ gW3[off+j]+=g*a2[j]; dA2[j]+=g*W3[off+j]; }
+    gb3[i]+=g;
+  }
+  // layer2 (tanh') grads + dA1
+  dA1.fill(0);
+  for (let i=0;i<H;i++){
+    const d = dA2[i]*(1-a2[i]*a2[i]);
+    const off=i*H;
+    for (let j=0;j<H;j++){ gW2[off+j]+=d*a1[j]; dA1[j]+=d*W2[off+j]; }
+    gb2[i]+=d;
+  }
+  // layer1 (tanh') grads
+  for (let i=0;i<H;i++){
+    const d = dA1[i]*(1-a1[i]*a1[i]);
+    const off=i*IN;
+    for (let j=0;j<IN;j++){ gW1[off+j]+=d*inp[j]; }
+    gb1[i]+=d;
+  }
+  return loss;
+}
+
+/* Adam update with grad clipping for stability */
+function adamStep(lr){
+  adamT++;
+  const b1=0.9,b2=0.999,eps=1e-8;
+  const bc1=1-Math.pow(b1,adamT), bc2=1-Math.pow(b2,adamT);
+  const CLIP=5;
+  function upd(W,g,m,v){
+    for (let i=0;i<W.length;i++){
+      let gi=g[i];
+      if (gi>CLIP) gi=CLIP; else if (gi<-CLIP) gi=-CLIP;
+      if (!isFinite(gi)) gi=0;
+      m[i]=b1*m[i]+(1-b1)*gi;
+      v[i]=b2*v[i]+(1-b2)*gi*gi;
+      const mh=m[i]/bc1, vh=v[i]/bc2;
+      W[i]-=lr*mh/(Math.sqrt(vh)+eps);
+      if (!isFinite(W[i])) W[i]=0;
+    }
+  }
+  upd(W1,gW1,mW1,vW1); upd(b1_,gb1,mb1,vb1);
+  upd(W2,gW2,mW2,vW2); upd(b2_,gb2,mb2,vb2);
+  upd(W3,gW3,mW3,vW3); upd(b3_,gb3,mb3,vb3);
+}
+
+/* =========================================================================
+   5. STATE
+   ========================================================================= */
+const NDATA = 1200;                // training pool size
+const NPART = 700;                 // particles shown when sampling/forward
+let data;                          // Float32Array target points
+let shapeKind = "moons";
+
+let learnRate = 0.004;
+let Tsteps = 40;                   // user-facing reverse steps
+let sampleSpeed = 10;
+
+let trainStep = 0;
+let emaLoss = NaN;
+
+let mode = "data";                 // data | training | sampling | forward
+let rafId = null;
+
+// particle buffers for animation
+let px = new Float32Array(NPART);
+let py = new Float32Array(NPART);
+let porigin = new Float32Array(NPART); // hue source (angle of final-ish position)
+// forward-process bookkeeping
+let fwdProgress = 0;
+let fwdInit = false;               // (fix) explicit init flag for forward seed capture
+
+/* =========================================================================
+   6. CANVAS / RENDER
+   ========================================================================= */
+const cv = document.getElementById("cv");
+const ctx = cv.getContext("2d");
+let W=600,Hpx=600,DPR=1;
+
+function setupCanvas(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  // measured CSS width — fall back to parent width minus padding, then a sane default
+  let cssW = cv.clientWidth;
+  if (!cssW || cssW < 2){
+    const parent = cv.parentElement;
+    cssW = (parent ? parent.clientWidth - 20 : 0);
+  }
+  if (!cssW || cssW < 2) cssW = 600;
+  const cssH = Math.round(Math.min(cssW, 560)); // squareish, capped
+  cv.style.height = cssH+"px";
+  W = Math.round(cssW); Hpx = Math.round(cssH);
+  cv.width = Math.round(W*DPR); cv.height = Math.round(Hpx*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+function toScreen(x,y){
+  const s = Math.min(W,Hpx)*0.40;
+  return [W/2 + x*s, Hpx/2 - y*s];
+}
+
+// color by origin angle, blended teal<->violet
+function hueColor(h, alpha){
+  // h in [0,1]
+  if (!isFinite(h)) h = 0;
+  if (h < 0) h = 0; else if (h > 1) h = 1;
+  const r = Math.round(94 + (139-94)*h);
+  const g = Math.round(234 + (123-234)*h);
+  const b = Math.round(208 + (240-208)*h);
+  return "rgba("+r+","+g+","+b+","+alpha+")";
+}
+
+function clearBG(){
+  ctx.clearRect(0,0,W,Hpx);
+  // subtle grid
+  ctx.strokeStyle="rgba(255,255,255,0.03)";
+  ctx.lineWidth=1;
+  for (let i=-2;i<=2;i++){
+    let [sx0,sy0]=toScreen(i*0.5,-1.2),[sx1,sy1]=toScreen(i*0.5,1.2);
+    ctx.beginPath(); ctx.moveTo(sx0,sy0); ctx.lineTo(sx1,sy1); ctx.stroke();
+    let [hx0,hy0]=toScreen(-1.2,i*0.5),[hx1,hy1]=toScreen(1.2,i*0.5);
+    ctx.beginPath(); ctx.moveTo(hx0,hy0); ctx.lineTo(hx1,hy1); ctx.stroke();
+  }
+}
+
+function drawPointsFromData(){
+  clearBG();
+  if (!data) return;
+  for (let i=0;i<NDATA;i++){
+    const [sx,sy]=toScreen(data[i*2],data[i*2+1]);
+    const h = (Math.atan2(data[i*2+1],data[i*2])/Math.PI+1)/2;
+    ctx.fillStyle=hueColor(h,0.7);
+    ctx.fillRect(sx-1.2,sy-1.2,2.4,2.4);
+  }
+}
+
+function drawParticles(){
+  clearBG();
+  for (let i=0;i<NPART;i++){
+    const [sx,sy]=toScreen(px[i],py[i]);
+    if (!isFinite(sx)||!isFinite(sy)) continue;
+    ctx.fillStyle=hueColor(porigin[i],0.78);
+    ctx.fillRect(sx-1.4,sy-1.4,2.8,2.8);
+  }
+}
+
+/* =========================================================================
+   7. TRAINING LOOP  (mini-batch per animation frame)
+   ========================================================================= */
+const BATCH = 48;
+function trainBatch(){
+  zeroGrads();
+  let lossSum=0;
+  for (let b=0;b<BATCH;b++){
+    const idx = (rnd()*NDATA)|0;
+    const x0 = data[idx*2], y0 = data[idx*2+1];
+    const t = (rnd()*NTIME)|0;
+    const ex = gauss(), ey = gauss();             // true noise
+    const xt = sqrtAB[t]*x0 + sqrt1mAB[t]*ex;     // forward sample
+    const yt = sqrtAB[t]*y0 + sqrt1mAB[t]*ey;
+    const temb = timeEmbed(t/(NTIME-1));
+    forward(xt,yt,temb);
+    lossSum += backward([ex,ey]);
+  }
+  // average grads
+  const inv=1/BATCH;
+  for (let i=0;i<gW1.length;i++) gW1[i]*=inv;
+  for (let i=0;i<gb1.length;i++) gb1[i]*=inv;
+  for (let i=0;i<gW2.length;i++) gW2[i]*=inv;
+  for (let i=0;i<gb2.length;i++) gb2[i]*=inv;
+  for (let i=0;i<gW3.length;i++) gW3[i]*=inv;
+  for (let i=0;i<gb3.length;i++) gb3[i]*=inv;
+  adamStep(learnRate);
+  trainStep++;
+  const L = lossSum/(BATCH*2);
+  emaLoss = isNaN(emaLoss) ? L : 0.97*emaLoss + 0.03*L;
+}
+
+/* =========================================================================
+   8. SAMPLING (reverse diffusion)   — maps user Tsteps onto schedule
+   ========================================================================= */
+let revSchedule = [];          // descending list of schedule indices to visit
+let revPtr = 0;
+
+function startSampling(){
+  if (mode==="training") return;
+  mode="sampling";
+  // init particles from N(0,I)
+  for (let i=0;i<NPART;i++){
+    px[i]=gauss(); py[i]=gauss();
+    porigin[i]= (Math.atan2(py[i],px[i])/Math.PI+1)/2;
+  }
+  // build descending visiting schedule of length ~Tsteps
+  revSchedule.length=0;
+  const k=Tsteps;
+  for (let s=0;s<k;s++){
+    const tt = Math.round((NTIME-1)*(1 - s/(k-1 || 1)));
+    revSchedule.push(Math.max(0,Math.min(NTIME-1,tt)));
+  }
+  revPtr=0;
+  setPhase("sampling");
+}
+
+// one reverse DDPM step over all particles at schedule index t (-> prev)
+function reverseStep(t){
+  const aT = alphas[t];
+  const s1 = Math.sqrt(1-alphaBar[t]);
+  const temb = timeEmbed(t/(NTIME-1));
+  const sigma = (t>0)? Math.sqrt(betas[t]) : 0;
+  for (let i=0;i<NPART;i++){
+    let xt=px[i], yt=py[i];
+    if (!isFinite(xt)) xt=0; if (!isFinite(yt)) yt=0;
+    forward(xt,yt,temb);
+    let ex=out[0], ey=out[1];
+    // predict x0 then mean (DDPM posterior, simplified)
+    const coef = (1-aT)/ (s1>1e-6? s1 : 1e-6);
+    let mx = (1/Math.sqrt(aT))*(xt - coef*ex);
+    let my = (1/Math.sqrt(aT))*(yt - coef*ey);
+    if (t>0){ mx += sigma*gauss()*0.7; my += sigma*gauss()*0.7; }
+    // clamp to keep finite / bounded
+    if (!isFinite(mx)||Math.abs(mx)>6) mx = Math.max(-6,Math.min(6, xt));
+    if (!isFinite(my)||Math.abs(my)>6) my = Math.max(-6,Math.min(6, yt));
+    px[i]=mx; py[i]=my;
+  }
+}
+
+/* =========================================================================
+   9. FORWARD VISUALIZATION (data -> noise)
+   ========================================================================= */
+function startForward(){
+  if (mode==="training") return;
+  mode="forward";
+  // seed particles from data subset, remember clean position for color
+  for (let i=0;i<NPART;i++){
+    const idx=(rnd()*NDATA)|0;
+    px[i]=data[idx*2]; py[i]=data[idx*2+1];
+    porigin[i]=(Math.atan2(py[i],px[i])/Math.PI+1)/2;
+  }
+  fwdProgress=0;
+  fwdInit=false;   // (fix) force seed capture on the first forward frame
+  setPhase("forward");
+}
+
+/* =========================================================================
+   10. RAF DRIVER
+   ========================================================================= */
+const elStep=document.getElementById("hStep");
+const elLoss=document.getElementById("hLoss");
+const elPhase=document.getElementById("hPhase");
+function setPhase(p){ elPhase.textContent=p; }
+function updateHUD(){
+  elStep.textContent = trainStep;
+  elLoss.textContent = isNaN(emaLoss)? "—" : emaLoss.toFixed(4);
+}
+
+function loop(){
+  rafId = requestAnimationFrame(loop);
+
+  if (mode==="training"){
+    // a few batches per frame for speed
+    for (let i=0;i<3;i++) trainBatch();
+    // occasionally show denoised samples as a preview
+    drawDataWithPreview();
+    updateHUD();
+  }
+  else if (mode==="sampling"){
+    // advance several schedule indices per frame based on speed
+    const perFrame = Math.max(1, Math.round(sampleSpeed/4));
+    for (let s=0;s<perFrame && revPtr<revSchedule.length;s++){
+      reverseStep(revSchedule[revPtr]); revPtr++;
+    }
+    drawParticles();
+    if (revPtr>=revSchedule.length){
+      mode="data-after";
+      setPhase("done");
+    }
+  }
+  else if (mode==="forward"){
+    // gradually push particles toward noise
+    fwdProgress += sampleSpeed*0.0012;
+    if (fwdProgress>1) fwdProgress=1;
+    // re-derive each particle as forward sample at level t(progress)
+    const t = Math.min(NTIME-1, Math.round(fwdProgress*(NTIME-1)));
+    drawForwardFrame(t);
+    if (fwdProgress>=1){ mode="forward-done"; setPhase("noise"); }
+  }
+  else if (mode==="data" || mode==="data-after" || mode==="forward-done"){
+    if (mode==="data") drawPointsFromData();
+    // for data-after / forward-done keep last particle frame (already drawn)
+  }
+}
+
+// during forward we recompute from stored clean coords (kept in arrays cx,cy)
+let cx=new Float32Array(NPART), cy=new Float32Array(NPART), seedE=null;
+let lastFwdT=NTIME-1;
+function drawForwardFrame(t){
+  lastFwdT=t;
+  // lazy init clean coords + fixed noise on the FIRST forward frame.
+  // (fix) use an explicit flag rather than a fwdProgress<0.02 threshold, which
+  // could be skipped at high sampling speed and leave cx/cy all zero.
+  if (!fwdInit || !seedE){
+    seedE=new Float32Array(NPART*2);
+    for (let i=0;i<NPART;i++){ cx[i]=px[i]; cy[i]=py[i]; seedE[i*2]=gauss(); seedE[i*2+1]=gauss(); }
+    fwdInit=true;
+  }
+  const sab=sqrtAB[t], s1=sqrt1mAB[t];
+  clearBG();
+  for (let i=0;i<NPART;i++){
+    const x = sab*cx[i] + s1*seedE[i*2];
+    const y = sab*cy[i] + s1*seedE[i*2+1];
+    const [sx,sy]=toScreen(x,y);
+    if (!isFinite(sx)||!isFinite(sy)) continue;
+    ctx.fillStyle=hueColor(porigin[i],0.78);
+    ctx.fillRect(sx-1.4,sy-1.4,2.8,2.8);
+  }
+}
+
+// during training, show data faintly + a quick denoised preview cloud
+let previewClock=0;
+function drawDataWithPreview(){
+  clearBG();
+  // faint target
+  for (let i=0;i<NDATA;i+=2){
+    const [sx,sy]=toScreen(data[i*2],data[i*2+1]);
+    ctx.fillStyle="rgba(154,154,178,0.18)";
+    ctx.fillRect(sx-1,sy-1,2,2);
+  }
+  // periodically refresh a small denoised preview
+  previewClock++;
+  if (previewClock%20===1) computePreview();
+  for (let i=0;i<PREV;i++){
+    const [sx,sy]=toScreen(prevX[i],prevY[i]);
+    if(!isFinite(sx)||!isFinite(sy)) continue;
+    const h=(Math.atan2(prevY[i],prevX[i])/Math.PI+1)/2;
+    ctx.fillStyle=hueColor(h,0.85);
+    ctx.fillRect(sx-1.4,sy-1.4,2.8,2.8);
+  }
+}
+const PREV=260;
+const prevX=new Float32Array(PREV), prevY=new Float32Array(PREV);
+function computePreview(){
+  // quick low-step reverse just for visualization
+  for (let i=0;i<PREV;i++){ prevX[i]=gauss(); prevY[i]=gauss(); }
+  const K=24;
+  for (let s=0;s<K;s++){
+    const t = Math.round((NTIME-1)*(1 - s/(K-1)));
+    const aT=alphas[t], s1=Math.sqrt(1-alphaBar[t]);
+    const temb=timeEmbed(t/(NTIME-1));
+    const sigma=(t>0)?Math.sqrt(betas[t]):0;
+    for (let i=0;i<PREV;i++){
+      let xt=prevX[i], yt=prevY[i];
+      forward(xt,yt,temb);
+      const coef=(1-aT)/(s1>1e-6?s1:1e-6);
+      let mx=(1/Math.sqrt(aT))*(xt-coef*out[0]);
+      let my=(1/Math.sqrt(aT))*(yt-coef*out[1]);
+      if (t>0){ mx+=sigma*gauss()*0.7; my+=sigma*gauss()*0.7; }
+      if(!isFinite(mx)||Math.abs(mx)>6) mx=0;
+      if(!isFinite(my)||Math.abs(my)>6) my=0;
+      prevX[i]=mx; prevY[i]=my;
+    }
+  }
+}
+
+/* =========================================================================
+   11. CONTROLS
+   ========================================================================= */
+const btnTrain=document.getElementById("btnTrain");
+const btnSample=document.getElementById("btnSample");
+const btnForward=document.getElementById("btnForward");
+const btnReset=document.getElementById("btnReset");
+const selShape=document.getElementById("shape");
+const sT=document.getElementById("sT"), vT=document.getElementById("vT");
+const sLR=document.getElementById("sLR"), vLR=document.getElementById("vLR");
+const sSpd=document.getElementById("sSpd"), vSpd=document.getElementById("vSpd");
+
+function regen(){
+  data = sampleShape(shapeKind, NDATA);
+}
+
+btnTrain.addEventListener("click", ()=>{
+  if (mode==="training"){
+    mode="data";
+    btnTrain.textContent="Train"; btnTrain.classList.add("primary");
+    setPhase("paused");
+  } else {
+    mode="training";
+    btnTrain.textContent="Pause"; btnTrain.classList.remove("primary");
+    setPhase("training");
+  }
+});
+btnSample.addEventListener("click", ()=>{
+  if (mode==="training") return;
+  startSampling();
+});
+btnForward.addEventListener("click", ()=>{
+  if (mode==="training") return;
+  startForward();
+});
+btnReset.addEventListener("click", ()=>{
+  initNet(); trainStep=0; emaLoss=NaN; previewClock=0;
+  fwdInit=false; seedE=null;
+  mode="data"; btnTrain.textContent="Train"; btnTrain.classList.add("primary");
+  setPhase("idle"); regen(); drawPointsFromData(); updateHUD();
+});
+
+selShape.addEventListener("change", ()=>{
+  shapeKind=selShape.value; regen();
+  if (mode==="data"||mode==="data-after"||mode==="forward-done") drawPointsFromData();
+});
+
+sT.addEventListener("input", ()=>{ Tsteps=parseInt(sT.value,10); vT.textContent=Tsteps; });
+sLR.addEventListener("input", ()=>{
+  // map slider 1..120 -> lr 0.0001 .. 0.012 (roughly)
+  learnRate = parseInt(sLR.value,10)*0.0001;
+  vLR.textContent = learnRate.toFixed(4);
+});
+sSpd.addEventListener("input", ()=>{
+  sampleSpeed=parseInt(sSpd.value,10);
+  vSpd.textContent=(sampleSpeed/10).toFixed(1)+"×";
+});
+
+/* =========================================================================
+   12. BOOT
+   ========================================================================= */
+// keep the last frozen frame visible after a resize: resizing the canvas
+// backing store clears it, so re-render whatever the current static mode shows.
+function redrawCurrent(){
+  if (mode==="data-after") drawParticles();
+  else if (mode==="forward-done") drawForwardFrame(lastFwdT);
+  else drawPointsFromData();
+}
+
+function boot(){
+  setupCanvas();
+  initNet();
+  regen();
+  drawPointsFromData();
+  updateHUD();
+  if (rafId===null) loop();
+}
+window.addEventListener("resize", ()=>{
+  setupCanvas();
+  if (mode==="data"||mode==="data-after"||mode==="forward-done") redrawCurrent();
+});
+boot();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

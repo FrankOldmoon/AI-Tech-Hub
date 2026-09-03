@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slime Mold</title>
+<style>
+  /* ---------- theme ---------- */
+  :root{
+    --bg:#0b0b14;
+    --panel:#16161f;
+    --panel2:#1c1c28;
+    --ink:#e8e8f2;
+    --mut:#9a9ab2;
+    --acc:#5eead0;   /* teal */
+    --acc2:#8b7bf0;  /* violet */
+    --line:#2a2a3a;
+    --dead:#06060c;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 18px 60px}
+  header h1{
+    margin:0 0 4px;
+    font-size:26px;
+    letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+    display:inline-block;
+  }
+  header .tag{color:var(--mut);font-size:14px;margin:0 0 18px}
+
+  /* ---------- canvas ---------- */
+  .stage{
+    position:relative;
+    background:var(--dead);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    width:100%;
+  }
+  #sim{display:block;width:100%;height:auto;cursor:crosshair;touch-action:none}
+  .hud{
+    position:absolute;top:10px;left:10px;
+    display:flex;gap:14px;
+    font-size:12px;color:var(--mut);
+    background:rgba(11,11,20,.55);
+    border:1px solid var(--line);
+    padding:6px 10px;border-radius:8px;
+    backdrop-filter:blur(4px);
+    pointer-events:none;
+  }
+  .hud b{color:var(--acc);font-variant-numeric:tabular-nums}
+
+  /* ---------- panel ---------- */
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px;
+    margin-top:16px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .row + .row{margin-top:14px}
+  .grp-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);width:100%;margin-bottom:-2px}
+
+  button{
+    font:inherit;font-size:13px;
+    color:var(--ink);
+    background:var(--panel2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 14px;
+    cursor:pointer;
+    transition:border-color .15s,background .15s,color .15s;
+  }
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button:active{transform:translateY(1px)}
+  button.primary{border-color:var(--acc);color:var(--acc)}
+  button.primary.on{background:linear-gradient(90deg,rgba(94,234,208,.18),rgba(139,123,240,.18));border-color:var(--acc2)}
+  button.preset{background:transparent}
+  button.preset.sel{border-color:var(--acc2);color:var(--acc2)}
+
+  .slider{display:flex;align-items:center;gap:10px;min-width:240px;flex:1}
+  .slider label{font-size:13px;color:var(--mut);min-width:96px}
+  .slider input[type=range]{
+    flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));outline:none;
+  }
+  .slider input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--ink);border:2px solid var(--acc);cursor:pointer;
+  }
+  .slider input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:var(--ink);border:2px solid var(--acc);cursor:pointer;
+  }
+  .slider .val{font-size:13px;color:var(--acc);min-width:64px;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* ---------- footer text ---------- */
+  .notes{margin-top:22px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
+  .notes .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .notes h3{margin:0 0 6px;font-size:13px;color:var(--acc);letter-spacing:.5px}
+  .notes p{margin:0;font-size:12.5px;color:var(--mut)}
+  .back{display:inline-block;margin-top:24px;color:var(--acc2);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px;border-radius:8px}
+  .back:hover{border-color:var(--acc2)}
+  @media(max-width:720px){.notes{grid-template-columns:1fr}.slider{min-width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Slime Mold</h1>
+    <p class="tag">Thousands of mindless agents grow a living, branching network.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="sim"></canvas>
+    <div class="hud">
+      <span>Agents <b id="hAgents">0</b></span>
+      <span>FPS <b id="hFps">0</b></span>
+      <span>State <b id="hState">paused</b></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="grp-label">Playback</span>
+      <button id="btnPlay" class="primary">Play</button>
+      <button id="btnReset">Reset</button>
+    </div>
+
+    <div class="row">
+      <span class="grp-label">Spawn pattern (reset)</span>
+      <button class="preset sel" data-init="random">Random</button>
+      <button class="preset" data-init="center">Center burst</button>
+      <button class="preset" data-init="ring">Ring</button>
+    </div>
+
+    <div class="row">
+      <div class="slider">
+        <label>Agents</label>
+        <input id="sCount" type="range" min="2000" max="200000" step="1000" value="60000">
+        <span class="val" id="vCount">60,000</span>
+      </div>
+      <div class="slider">
+        <label>Sensor angle</label>
+        <input id="sAngle" type="range" min="5" max="80" step="1" value="30">
+        <span class="val" id="vAngle">30&deg;</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="slider">
+        <label>Turn speed</label>
+        <input id="sTurn" type="range" min="5" max="80" step="1" value="35">
+        <span class="val" id="vTurn">35&deg;</span>
+      </div>
+      <div class="slider">
+        <label>Sensor dist</label>
+        <input id="sDist" type="range" min="3" max="30" step="1" value="9">
+        <span class="val" id="vDist">9 px</span>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="slider">
+        <label>Deposit</label>
+        <input id="sDep" type="range" min="5" max="100" step="1" value="55">
+        <span class="val" id="vDep">55</span>
+      </div>
+      <div class="slider">
+        <label>Decay</label>
+        <input id="sDecay" type="range" min="1" max="30" step="1" value="9">
+        <span class="val" id="vDecay">0.09</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="card">
+      <h3>How it works</h3>
+      <p>Each agent reads three sensors ahead &mdash; left, center, right &mdash; sampling a trail map. It steers toward the strongest scent, steps forward, and deposits trail where it lands. Every frame the trail blurs and fades. No agent sees the whole picture, yet they sculpt an efficient transport network together.</p>
+    </div>
+    <div class="card">
+      <h3>Why it matters</h3>
+      <p>Real <i>Physarum polycephalum</i> solves mazes and reproduces transit-map topologies with no brain. This is stigmergy: computation stored in the environment, not the individual. It is a vivid case study in decentralized search, self-organization, and emergent optimization.</p>
+    </div>
+  </div>
+
+  <a class="back" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- elements ----------
+  var canvas = document.getElementById('sim');
+  var stage  = canvas ? canvas.parentNode : null;
+
+  // Fail gracefully instead of throwing (which would leave a blank stage).
+  var ctx = null;
+  try { ctx = canvas && canvas.getContext('2d', { alpha:false }); } catch(e){ ctx = null; }
+  if(!ctx){
+    if(stage){
+      stage.innerHTML =
+        '<div style="padding:40px 24px;color:#9a9ab2;font:14px sans-serif;text-align:center">'
+        + 'Your browser could not provide a 2D canvas context, so this demo cannot run.'
+        + '</div>';
+    }
+    return;
+  }
+
+  var hAgents = document.getElementById('hAgents');
+  var hFps    = document.getElementById('hFps');
+  var hState  = document.getElementById('hState');
+
+  var btnPlay  = document.getElementById('btnPlay');
+  var btnReset = document.getElementById('btnReset');
+
+  // sliders
+  var sCount = document.getElementById('sCount'), vCount = document.getElementById('vCount');
+  var sAngle = document.getElementById('sAngle'), vAngle = document.getElementById('vAngle');
+  var sTurn  = document.getElementById('sTurn'),  vTurn  = document.getElementById('vTurn');
+  var sDist  = document.getElementById('sDist'),  vDist  = document.getElementById('vDist');
+  var sDep   = document.getElementById('sDep'),   vDep   = document.getElementById('vDep');
+  var sDecay = document.getElementById('sDecay'), vDecay = document.getElementById('vDecay');
+
+  // ---------- params ----------
+  var P = {
+    count: 60000,
+    sensorAngle: 30 * Math.PI/180,
+    turnSpeed: 35 * Math.PI/180,
+    sensorDist: 9,
+    deposit: 55,
+    decay: 0.09,        // multiplicative fade per frame
+    speed: 1.0,         // px per step
+    initMode: 'random'
+  };
+
+  var MAX_AGENTS = 200000;
+
+  // ---------- simulation grid (CSS-pixel resolution; capped for perf) ----------
+  var W = 0, H = 0;          // simulation grid dimensions
+  var dpr = 1;
+  var lastCssW = -1, lastCssH = -1; // remember last layout so we only rebuild on real change
+  var trail = null;         // Float32Array W*H  (current)
+  var trailB = null;        // Float32Array W*H  (blur scratch)
+  var img = null;           // ImageData for the offscreen render
+  var imgData = null;       // Uint8ClampedArray view
+
+  // agents stored as parallel typed arrays
+  var ax = new Float32Array(MAX_AGENTS);
+  var ay = new Float32Array(MAX_AGENTS);
+  var ah = new Float32Array(MAX_AGENTS); // heading
+  var nAgents = 0;
+
+  // ---------- colour lookup (teal -> violet -> white glow) ----------
+  var LUT_N = 256;
+  var lutR = new Uint8Array(LUT_N), lutG = new Uint8Array(LUT_N), lutB = new Uint8Array(LUT_N);
+  (function buildLUT(){
+    for(var i=0;i<LUT_N;i++){
+      var t = i/(LUT_N-1);
+      var r,g,b;
+      if(t < 0.5){
+        // dark -> teal
+        var u = t/0.5;
+        r = 6  + (20 - 6)*u;
+        g = 10 + (160-10)*u;
+        b = 16 + (140-16)*u;
+      } else if(t < 0.85){
+        // teal -> violet
+        var u2 = (t-0.5)/0.35;
+        r = 20  + (139-20)*u2;
+        g = 160 + (110-160)*u2;
+        b = 140 + (240-140)*u2;
+      } else {
+        // violet -> white hot
+        var u3 = (t-0.85)/0.15;
+        r = 139 + (245-139)*u3;
+        g = 110 + (240-110)*u3;
+        b = 240 + (255-240)*u3;
+      }
+      lutR[i] = r|0; lutG[i] = g|0; lutB[i] = b|0;
+    }
+  })();
+
+  function clamp(v,lo,hi){ return v<lo?lo:(v>hi?hi:v); }
+
+  // ---------- sizing ----------
+  function measureWidth(){
+    var w = stage ? (stage.clientWidth || 0) : 0;
+    if(!w || w < 2){
+      // fall back, never collapse to 1px
+      w = window.innerWidth ? Math.min(900, window.innerWidth - 36) : 320;
+    }
+    if(w < 320) w = 320;     // hard floor: never below 320, never 1px
+    return Math.round(w);
+  }
+
+  // Allocate / re-allocate the canvas + grid. Returns true if a rebuild happened.
+  // Pass force=true to always rebuild (e.g. dpr changed). Otherwise it is a no-op
+  // when the CSS size is unchanged, which avoids a flash + agent re-randomise.
+  function setup(force){
+    var newDpr = Math.min(window.devicePixelRatio || 1, 2);
+    var cssW = measureWidth();
+    var cssH = Math.max(320, Math.round(cssW * 0.62));
+
+    if(!force && cssW === lastCssW && cssH === lastCssH && newDpr === dpr && trail){
+      return false;
+    }
+    dpr = newDpr;
+    lastCssW = cssW; lastCssH = cssH;
+
+    // CSS display size
+    canvas.style.width  = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+
+    // device backing size (never 0/1px)
+    canvas.width  = Math.max(2, Math.round(cssW * dpr));
+    canvas.height = Math.max(2, Math.round(cssH * dpr));
+
+    // simulation grid resolution: cap total cells for performance
+    var targetW = Math.round(cssW * dpr);
+    var targetH = Math.round(cssH * dpr);
+    var MAXCELLS = 520000; // ~720x720 ; keeps blur + render fast
+    var cells = targetW * targetH;
+    var scale = cells > MAXCELLS ? Math.sqrt(MAXCELLS / cells) : 1;
+    W = Math.max(80, Math.round(targetW * scale));
+    H = Math.max(80, Math.round(targetH * scale));
+
+    trail  = new Float32Array(W*H);
+    trailB = new Float32Array(W*H);
+    img = ctx.createImageData(W, H);
+    imgData = img.data;
+    // opaque alpha
+    for(var i=3;i<imgData.length;i+=4) imgData[i]=255;
+
+    // draw the simulation image scaled up to the canvas
+    ctx.imageSmoothingEnabled = true;
+
+    resetAgents();
+    return true;
+  }
+
+  // ---------- agent init ----------
+  function resetAgents(){
+    if(!W || !H) return;
+    nAgents = P.count|0;
+    if(nAgents < 0) nAgents = 0;
+    if(nAgents > MAX_AGENTS) nAgents = MAX_AGENTS;
+    var cx = W*0.5, cy = H*0.5;
+    var rRing = Math.min(W,H)*0.32;
+    for(var i=0;i<nAgents;i++){
+      var a, x, y;
+      if(P.initMode === 'center'){
+        var rr = Math.sqrt(Math.random()) * Math.min(W,H)*0.06;
+        a = Math.random()*Math.PI*2;
+        x = cx + Math.cos(a)*rr;
+        y = cy + Math.sin(a)*rr;
+        ah[i] = Math.random()*Math.PI*2;
+      } else if(P.initMode === 'ring'){
+        a = Math.random()*Math.PI*2;
+        x = cx + Math.cos(a)*rRing;
+        y = cy + Math.sin(a)*rRing;
+        // point inward-ish for a satisfying collapse, then random jitter
+        ah[i] = a + Math.PI + (Math.random()-0.5)*0.8;
+      } else { // random
+        x = Math.random()*W;
+        y = Math.random()*H;
+        ah[i] = Math.random()*Math.PI*2;
+      }
+      ax[i] = clamp(x, 0, W-1);
+      ay[i] = clamp(y, 0, H-1);
+    }
+    // clear the trail field so reset is visually clean
+    if(trail)  trail.fill(0);
+    if(trailB) trailB.fill(0);
+    if(hAgents) hAgents.textContent = nAgents.toLocaleString();
+  }
+
+  // ---------- sensing ----------
+  function sense(i, angleOffset){
+    var a = ah[i] + angleOffset;
+    var sx = ax[i] + Math.cos(a) * P.sensorDist;
+    var sy = ay[i] + Math.sin(a) * P.sensorDist;
+    // wrap toroidally
+    var ix = sx % W; if(ix < 0) ix += W;
+    var iy = sy % H; if(iy < 0) iy += H;
+    var gx = ix|0, gy = iy|0;
+    if(gx<0)gx=0; else if(gx>=W)gx=W-1;
+    if(gy<0)gy=0; else if(gy>=H)gy=H-1;
+    return trail[gy*W + gx];
+  }
+
+  // ---------- one simulation step ----------
+  function stepAgents(){
+    var sa = P.sensorAngle;
+    var turn = P.turnSpeed;
+    var spd = P.speed;
+    var dep = P.deposit;
+    var TWO_PI = Math.PI*2;
+
+    for(var i=0;i<nAgents;i++){
+      var c = sense(i, 0);
+      var l = sense(i, -sa);
+      var r = sense(i, sa);
+
+      if(c > l && c > r){
+        // keep heading
+      } else if(c < l && c < r){
+        // both sides better -> random turn
+        ah[i] += (Math.random() < 0.5 ? -turn : turn);
+      } else if(l > r){
+        ah[i] -= turn;
+      } else if(r > l){
+        ah[i] += turn;
+      }
+      // else equal: straight
+
+      // move
+      var nx = ax[i] + Math.cos(ah[i]) * spd;
+      var ny = ay[i] + Math.sin(ah[i]) * spd;
+
+      // toroidal wrap keeps the field active
+      if(nx < 0) nx += W; else if(nx >= W) nx -= W;
+      if(ny < 0) ny += H; else if(ny >= H) ny -= H;
+
+      // guard against NaN
+      if(nx !== nx || ny !== ny){
+        nx = Math.random()*W; ny = Math.random()*H;
+        ah[i] = Math.random()*TWO_PI;
+      }
+
+      ax[i] = nx; ay[i] = ny;
+
+      // deposit at current cell
+      var gx = nx|0, gy = ny|0;
+      if(gx<0)gx=0; else if(gx>=W)gx=W-1;
+      if(gy<0)gy=0; else if(gy>=H)gy=H-1;
+      trail[gy*W + gx] += dep;
+    }
+  }
+
+  // ---------- diffuse (3x3 box blur) + decay ----------
+  function diffuseDecay(){
+    var fade = 1 - P.decay;
+    if(fade < 0) fade = 0;
+    if(fade > 1) fade = 1;
+    var src = trail, dst = trailB;
+    var w = W, h = H;
+    // simple toroidal 3x3 average
+    for(var y=0;y<h;y++){
+      var ym = y>0 ? y-1 : h-1;
+      var yp = y<h-1 ? y+1 : 0;
+      var row = y*w, rowm = ym*w, rowp = yp*w;
+      for(var x=0;x<w;x++){
+        var xm = x>0 ? x-1 : w-1;
+        var xp = x<w-1 ? x+1 : 0;
+        var sum =
+          src[rowm+xm] + src[rowm+x] + src[rowm+xp] +
+          src[row +xm] + src[row +x] + src[row +xp] +
+          src[rowp+xm] + src[rowp+x] + src[rowp+xp];
+        dst[row+x] = (sum * 0.1111111) * fade;
+      }
+    }
+    // swap
+    trail = dst; trailB = src;
+  }
+
+  // ---------- render trail field -> ImageData via LUT ----------
+  function render(){
+    if(!W || !H || !trail || !imgData) return;
+    var n = W*H;
+    var d = imgData;
+    var src = trail;
+    // map value through a soft curve into LUT index
+    // 1 - exp(-k*v) keeps the teal->violet midtones visible instead of blowing to white
+    var k = 0.018;
+    for(var p=0, q=0; p<n; p++, q+=4){
+      var v = src[p];
+      var b = 1 - Math.exp(-k * v);   // brightness 0..1
+      if(b < 0) b = 0; else if(b > 1) b = 1;
+      var idx = (b * (LUT_N-1))|0;
+      d[q]   = lutR[idx];
+      d[q+1] = lutG[idx];
+      d[q+2] = lutB[idx];
+      // alpha already 255
+    }
+    blit();
+  }
+
+  // temp canvas for scaling the W*H ImageData up to the full-res display canvas
+  var tmp = document.createElement('canvas');
+  var tctx = tmp.getContext('2d');
+  function blit(){
+    if(!tctx) return;
+    if(tmp.width !== W || tmp.height !== H){ tmp.width = W; tmp.height = H; }
+    tctx.putImageData(img, 0, 0);
+    ctx.drawImage(tmp, 0, 0, W, H, 0, 0, canvas.width, canvas.height);
+  }
+
+  // ---------- main loop ----------
+  var running = false;
+  var rafId = 0;
+  var lastT = 0, fpsAcc = 0, fpsFrames = 0;
+
+  function frame(t){
+    if(!running) return;
+    rafId = requestAnimationFrame(frame);
+
+    stepAgents();
+    diffuseDecay();
+    render();
+
+    // fps
+    if(lastT){
+      var dt = t - lastT;
+      fpsAcc += dt; fpsFrames++;
+      if(fpsAcc >= 500){
+        var fps = 1000 / (fpsAcc / fpsFrames);
+        if(hFps) hFps.textContent = Math.round(fps);
+        fpsAcc = 0; fpsFrames = 0;
+      }
+    }
+    lastT = t;
+  }
+
+  function play(){
+    if(running) return;
+    running = true;
+    lastT = 0;
+    if(hState) hState.textContent = 'running';
+    if(btnPlay){ btnPlay.textContent = 'Pause'; btnPlay.classList.add('on'); }
+    rafId = requestAnimationFrame(frame);
+  }
+  function pause(){
+    running = false;
+    if(rafId){ cancelAnimationFrame(rafId); rafId = 0; }
+    if(hState) hState.textContent = 'paused';
+    if(btnPlay){ btnPlay.textContent = 'Play'; btnPlay.classList.remove('on'); }
+  }
+  function togglePlay(){ running ? pause() : play(); }
+
+  function reset(){
+    resetAgents();
+    render(); // show clean state immediately even while paused
+  }
+
+  // Re-render once when paused so parameter tweaks give instant visual feedback.
+  function refreshIfPaused(){ if(!running) render(); }
+
+  // ---------- controls wiring ----------
+  if(btnPlay)  btnPlay.addEventListener('click', togglePlay);
+  if(btnReset) btnReset.addEventListener('click', reset);
+
+  // init pattern presets
+  var presets = document.querySelectorAll('button.preset[data-init]');
+  Array.prototype.forEach.call(presets, function(b){
+    b.addEventListener('click', function(){
+      Array.prototype.forEach.call(presets, function(o){ o.classList.remove('sel'); });
+      b.classList.add('sel');
+      P.initMode = b.getAttribute('data-init');
+      reset();
+    });
+  });
+
+  // fmt() returns HTML (entities like &deg;); apply() pushes the value into P.
+  // 'live' re-renders while paused so sim-parameter sliders show their effect.
+  function bindSlider(input, out, fmt, apply, live){
+    if(!input || !out) return;
+    function update(){
+      var raw = parseFloat(input.value);
+      if(raw !== raw) raw = parseFloat(input.min) || 0;  // NaN guard
+      apply(raw);
+      out.innerHTML = fmt(raw);
+      if(live) refreshIfPaused();
+    }
+    input.addEventListener('input', update);
+    update();  // initialise label + param from current value
+  }
+
+  bindSlider(sCount, vCount, function(v){ return Math.round(v).toLocaleString(); },
+    function(v){ P.count = Math.round(v); }, false);
+  // count change requires a respawn; do it on 'change' to avoid thrash while dragging
+  if(sCount) sCount.addEventListener('change', function(){ reset(); });
+
+  bindSlider(sAngle, vAngle, function(v){ return Math.round(v) + '&deg;'; },
+    function(v){ P.sensorAngle = Math.round(v) * Math.PI/180; }, true);
+
+  bindSlider(sTurn, vTurn, function(v){ return Math.round(v) + '&deg;'; },
+    function(v){ P.turnSpeed = Math.round(v) * Math.PI/180; }, true);
+
+  bindSlider(sDist, vDist, function(v){ return Math.round(v) + ' px'; },
+    function(v){ P.sensorDist = Math.round(v); }, true);
+
+  bindSlider(sDep, vDep, function(v){ return String(Math.round(v)); },
+    function(v){ P.deposit = Math.round(v); }, true);
+
+  bindSlider(sDecay, vDecay, function(v){ return (Math.round(v)/100).toFixed(2); },
+    function(v){ P.decay = Math.round(v)/100; }, true);
+
+  // ---------- resize handling ----------
+  var resizeTimer = 0;
+  function onResize(){
+    if(resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function(){
+      var wasRunning = running;
+      if(wasRunning) pause();
+      setup(false); // only rebuilds (and resets) when size truly changed
+      render();
+      if(wasRunning) play();
+    }, 150);
+  }
+  window.addEventListener('resize', onResize);
+
+  // ---------- boot ----------
+  function boot(){
+    setup(true);
+    render();
+    play();
+  }
+  boot();
+
+  // Re-measure after layout settles (late fonts / flex sizing). Idempotent:
+  // setup(false) is a no-op unless the size genuinely changed, so no flash/restart.
+  window.addEventListener('load', function(){
+    setTimeout(function(){
+      var rebuilt = setup(false);
+      if(rebuilt) render();
+    }, 60);
+  });
+
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

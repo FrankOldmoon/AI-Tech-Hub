@@ -1055,5 +1055,10 @@
     "externalNote": "Fully local in-browser simulation (MuJoCo physics + real RL policies), no extra environment needed; multiplayer ghosts need public Nostr and are auto-disabled on the intranet. Click the canvas, then use arrows/WASD to move, M to switch legs/rollers, G to ground-pick.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
+  },
+  "neuralSandbox": {
+    "externalNote": "In-browser interactive demos, no backend; all data stays on your device.",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   }
 }

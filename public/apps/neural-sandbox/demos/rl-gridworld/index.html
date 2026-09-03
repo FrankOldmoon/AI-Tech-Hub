@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RL Playground — Tabular Q-Learning on a Gridworld</title>
+<style>
+  :root{
+    --bg:#0b0b14; --panel:#16161f; --panel2:#1d1d29;
+    --fg:#e8e8f2; --muted:#9a9ab2;
+    --teal:#5eead0; --purple:#8b7bf0;
+    --border:#2a2a3a; --border2:#34344a;
+    --good:#5eead0; --bad:#f0709a;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;line-height:1.5;}
+  .wrap{max-width:1040px;margin:0 auto;padding:28px 18px 56px;}
+  header h1{font-size:26px;margin:0 0 6px;letter-spacing:.2px;}
+  header h1 .dot{color:var(--teal);}
+  header .tag{color:var(--muted);font-size:14px;margin:0 0 20px;}
+
+  .stage{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);
+    padding:14px;margin-bottom:18px;}
+  .canvas-host{position:relative;width:100%;}
+  canvas{width:100%;display:block;border-radius:10px;background:#0d0d16;
+    cursor:crosshair;touch-action:none;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:12px;
+    font-size:12px;color:var(--muted);}
+  .legend .sw{display:inline-flex;align-items:center;gap:6px;}
+  .legend i{width:14px;height:14px;border-radius:3px;display:inline-block;border:1px solid var(--border2);}
+  .gradbar{width:120px;height:12px;border-radius:3px;border:1px solid var(--border2);
+    background:linear-gradient(90deg,#142028,#173b3a,#1f6f64,#3fb89a,#5eead0);}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:18px;}
+  .stat{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .stat .k{font-size:11px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);}
+  .stat .v{font-size:22px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums;}
+  .stat .v.teal{color:var(--teal);} .stat .v.purple{color:var(--purple);}
+
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:18px;}
+  .btns{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:18px;}
+  button{font:inherit;color:var(--fg);background:var(--panel2);border:1px solid var(--border2);
+    border-radius:10px;padding:9px 16px;cursor:pointer;transition:.15s;font-size:14px;}
+  button:hover{border-color:var(--teal);color:var(--teal);}
+  button:active{transform:translateY(1px);}
+  button.primary{background:linear-gradient(135deg,var(--teal),var(--purple));color:#0b0b14;
+    border:none;font-weight:600;}
+  button.primary:hover{filter:brightness(1.08);color:#0b0b14;}
+
+  .sliders{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px 24px;}
+  .ctrl label{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);margin-bottom:6px;}
+  .ctrl label b{color:var(--teal);font-variant-numeric:tabular-nums;font-weight:600;}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:5px;border-radius:4px;
+    background:var(--border2);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;
+    border-radius:50%;background:var(--teal);cursor:pointer;border:2px solid var(--bg);}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--teal);
+    cursor:pointer;border:2px solid var(--bg);}
+
+  .modes{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;font-size:13px;color:var(--muted);align-items:center;}
+  .chip{padding:6px 12px;border:1px solid var(--border2);border-radius:20px;cursor:pointer;transition:.15s;}
+  .chip.active{background:var(--purple);color:#0b0b14;border-color:var(--purple);font-weight:600;}
+  .chip:hover:not(.active){border-color:var(--purple);color:var(--purple);}
+  .hint{margin-top:12px;font-size:12px;color:var(--muted);min-height:16px;}
+  .hint.warn{color:var(--bad);}
+
+  .docs{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:24px;}
+  .docs .card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:18px;}
+  .docs h3{margin:0 0 8px;font-size:14px;color:var(--teal);letter-spacing:.3px;}
+  .docs.purple h3{color:var(--purple);}
+  .docs p{margin:0;font-size:13px;color:var(--muted);line-height:1.65;}
+  code{background:#0d0d16;border:1px solid var(--border);border-radius:5px;padding:1px 5px;
+    font-size:12px;color:var(--teal);}
+  .back{display:inline-block;margin-top:26px;color:var(--muted);text-decoration:none;font-size:14px;
+    border:1px solid var(--border2);padding:8px 14px;border-radius:10px;transition:.15s;}
+  .back:hover{color:var(--teal);border-color:var(--teal);}
+  @media(max-width:680px){.docs{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>RL Playground<span class="dot">.</span></h1>
+    <p class="tag">Watch an agent learn the shortest path, one episode at a time.</p>
+  </header>
+
+  <div class="stage">
+    <div class="canvas-host">
+      <canvas id="cv"></canvas>
+    </div>
+    <div class="legend">
+      <span class="sw">value <span class="gradbar"></span> high</span>
+      <span class="sw"><i style="background:#3a7d44"></i> goal (+1)</span>
+      <span class="sw"><i style="background:#7a2c3a"></i> trap (−1)</span>
+      <span class="sw"><i style="background:#2a2a3a"></i> wall</span>
+      <span class="sw"><i style="background:var(--purple)"></i> agent</span>
+      <span class="sw">→ greedy policy</span>
+    </div>
+  </div>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Episode</div><div class="v teal" id="s-ep">0</div></div>
+    <div class="stat"><div class="k">Steps (this ep)</div><div class="v" id="s-steps">0</div></div>
+    <div class="stat"><div class="k">Success rate (last 50)</div><div class="v purple" id="s-succ">—</div></div>
+    <div class="stat"><div class="k">Avg return (last 50)</div><div class="v" id="s-ret">—</div></div>
+    <div class="stat"><div class="k">Epsilon (live)</div><div class="v" id="s-eps">—</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="btns">
+      <button class="primary" id="b-play">▶ Play</button>
+      <button id="b-step">Step episode</button>
+      <button id="b-reset">Reset Q</button>
+      <button id="b-maze">New maze</button>
+    </div>
+
+    <div class="sliders">
+      <div class="ctrl">
+        <label>Speed (steps/frame) <b id="l-speed">4</b></label>
+        <input type="range" id="r-speed" min="1" max="60" step="1" value="4">
+      </div>
+      <div class="ctrl">
+        <label>Learning rate α <b id="l-alpha">0.30</b></label>
+        <input type="range" id="r-alpha" min="0.01" max="1" step="0.01" value="0.30">
+      </div>
+      <div class="ctrl">
+        <label>Discount γ <b id="l-gamma">0.95</b></label>
+        <input type="range" id="r-gamma" min="0.50" max="0.999" step="0.001" value="0.95">
+      </div>
+      <div class="ctrl">
+        <label>Exploration ε <b id="l-eps">0.30</b></label>
+        <input type="range" id="r-eps" min="0" max="1" step="0.01" value="0.30">
+      </div>
+      <div class="ctrl">
+        <label>ε decay / episode <b id="l-dec">0.990</b></label>
+        <input type="range" id="r-dec" min="0.90" max="1" step="0.001" value="0.990">
+      </div>
+    </div>
+
+    <div class="modes">
+      <span>Click a cell to place:</span>
+      <span class="chip active" data-mode="wall">Wall</span>
+      <span class="chip" data-mode="trap">Trap</span>
+      <span class="chip" data-mode="goal">Goal</span>
+      <span class="chip" data-mode="erase">Erase</span>
+    </div>
+    <div class="hint" id="hint">Tip: drag to paint walls. The agent always starts bottom-left (S).</div>
+  </div>
+
+  <div class="docs">
+    <div class="card">
+      <h3>How it works</h3>
+      <p>
+        每个格子是一个状态，4 个动作（上下左右）各有一个 <code>Q(s,a)</code> 值，存在一张表里。
+        智能体用 <code>ε-greedy</code> 行动：以概率 ε 随机探索，否则选当前 Q 值最大的动作。每走一步用
+        时序差分更新 <code>Q(s,a) ← Q(s,a) + α·[r + γ·maxₐ′Q(s′,a′) − Q(s,a)]</code>。
+        奖励：到达目标 +1、踩陷阱 −1、每步 −0.02 鼓励走捷径。热力图画的是状态价值
+        <code>V(s)=maxₐ Q(s,a)</code>，箭头是贪婪策略。随着回合推进、ε 按设定衰减，
+        价值从目标向外扩散、箭头逐渐指向最短路径——纯表格 RL，无任何外部库。
+      </p>
+    </div>
+    <div class="card docs purple">
+      <h3>Why it matters</h3>
+      <p>
+        研究上：这是理解值迭代、credit assignment、exploration–exploitation 折中的最小可视化沙盒，
+        可扩展到 SARSA、Double-Q、Dyna 规划、奖励塑形或函数逼近（DQN）的教学对照。
+        产品上：可做成交互式课程组件 / 招生展示 / 技术博客嵌件，把抽象算法变成肉眼可见的涌现。
+        作品集上：体现把论文级算法压成零依赖、60fps、可分享单文件的工程能力，
+        适合放进个人主页或 GitHub Pages 作为 RL 入门 demo。
+      </p>
+    </div>
+  </div>
+
+  <a class="back" href="../../index.html">← Gallery</a>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   RL Playground — tabular Q-learning on a gridworld
+   Pure JS, zero dependencies, fully offline. ============================================================ */
+
+const clamp = (x,a,b)=> x<a?a : x>b?b : x;
+const safe  = (x)=> Number.isFinite(x)? x : 0;   // NaN/Inf guard
+const lerp  = (a,b,t)=> a+(b-a)*t;
+
+// ---- World definition ----------------------------------------------------
+const COLS = 12, ROWS = 9;
+// cell types: 0 empty, 1 wall, 2 goal, 3 trap
+let grid;            // ROWS x COLS of type ints
+let start = {r:ROWS-1, c:0};
+let goal  = {r:0, c:COLS-1};
+
+// Actions: 0 up, 1 right, 2 down, 3 left
+const ACTS = [{dr:-1,dc:0},{dr:0,dc:1},{dr:1,dc:0},{dr:0,dc:-1}];
+const ARROW = ['↑','→','↓','←'];
+
+// Q-table: ROWS*COLS*4
+let Q;
+
+// ---- Hyperparameters (driven by sliders) ---------------------------------
+const HP = { speed:4, alpha:0.30, gamma:0.95, eps0:0.30, decay:0.990 };
+let liveEps = HP.eps0;     // decayed epsilon
+const STEP_REWARD = -0.02; // small cost per step
+const MAX_STEPS = ROWS*COLS*3;
+
+// ---- Episode / agent state ----------------------------------------------
+let agent = {r:start.r, c:start.c};
+let episode = 0, stepInEp = 0, epReturn = 0;
+let trail = [];                 // recent positions this episode
+const history = [];             // {success, ret} ring buffer (last 50)
+
+// ---- Maze generation -----------------------------------------------------
+function blankGrid(){
+  return Array.from({length:ROWS},()=>new Array(COLS).fill(0));
+}
+// Place random walls + a few traps, keep start/goal clear and reachable.
+function genMaze(){
+  for(let tries=0; tries<80; tries++){
+    const g = blankGrid();
+    const wallP = 0.22;
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      if((r===start.r&&c===start.c)||(r===goal.r&&c===goal.c)) continue;
+      if(Math.random()<wallP) g[r][c]=1;
+    }
+    // sprinkle traps on empty cells
+    let traps = 4, guard = 0;
+    while(traps>0 && guard++ < 500){
+      const r=(Math.random()*ROWS)|0, c=(Math.random()*COLS)|0;
+      if(g[r][c]===0 && !(r===start.r&&c===start.c) && !(r===goal.r&&c===goal.c)){
+        g[r][c]=3; traps--;
+      }
+    }
+    g[start.r][start.c]=0;
+    g[goal.r][goal.c]=2;
+    if(reachable(g, start, goal)){ grid=g; return; }
+  }
+  // fallback: empty world (always solvable)
+  grid = blankGrid();
+  grid[goal.r][goal.c]=2;
+}
+// BFS reachability ignoring traps as blockers (traps are passable but costly)
+function reachable(g, a, b){
+  const seen = Array.from({length:ROWS},()=>new Array(COLS).fill(false));
+  const q=[[a.r,a.c]]; seen[a.r][a.c]=true; let head=0;
+  while(head < q.length){
+    const [r,c]=q[head++];
+    if(r===b.r&&c===b.c) return true;
+    for(const {dr,dc} of ACTS){
+      const nr=r+dr, nc=c+dc;
+      if(nr<0||nc<0||nr>=ROWS||nc>=COLS) continue;
+      if(seen[nr][nc]||g[nr][nc]===1) continue;
+      seen[nr][nc]=true; q.push([nr,nc]);
+    }
+  }
+  return false;
+}
+
+// ---- Q-table helpers -----------------------------------------------------
+function qIndex(r,c,a){ return (r*COLS + c)*4 + a; }
+function resetQ(){ Q = new Float64Array(ROWS*COLS*4); }
+function bestAction(r,c){
+  let best=0, bv=-Infinity;
+  for(let a=0;a<4;a++){
+    const v = safe(Q[qIndex(r,c,a)]);
+    if(v>bv){ bv=v; best=a; }
+  }
+  return best;
+}
+function stateValue(r,c){
+  let v=-Infinity;
+  for(let a=0;a<4;a++) v=Math.max(v, safe(Q[qIndex(r,c,a)]));
+  return Number.isFinite(v)? v : 0;
+}
+
+// ---- Environment step ----------------------------------------------------
+function takeStep(r,c,a){
+  const {dr,dc}=ACTS[a];
+  let nr=r+dr, nc=c+dc;
+  // bump into bounds or wall -> stay put
+  if(nr<0||nc<0||nr>=ROWS||nc>=COLS||grid[nr][nc]===1){ nr=r; nc=c; }
+  const t = grid[nr][nc];
+  let reward = STEP_REWARD, done=false, ok=false;
+  if(t===2){ reward=1; done=true; ok=true; }
+  else if(t===3){ reward=-1; done=true; ok=false; }
+  return {nr,nc,reward,done,ok};
+}
+
+// ---- One learning micro-step (one agent move) ----------------------------
+function microStep(){
+  const r=agent.r, c=agent.c;
+  // ε-greedy
+  let a;
+  if(Math.random()<liveEps) a=(Math.random()*4)|0;
+  else a=bestAction(r,c);
+
+  const {nr,nc,reward,done,ok}=takeStep(r,c,a);
+
+  // TD update (clamped against divergence / NaN)
+  const i=qIndex(r,c,a);
+  const target = reward + (done?0:HP.gamma*stateValue(nr,nc));
+  const td = safe(target) - safe(Q[i]);
+  Q[i] = clamp(safe(safe(Q[i]) + HP.alpha*td), -10, 10);
+
+  agent.r=nr; agent.c=nc;
+  stepInEp++; epReturn+=reward;
+  trail.push({r:nr,c:nc});
+  if(trail.length>40) trail.shift();
+
+  if(done || stepInEp>=MAX_STEPS){
+    endEpisode(done && ok);
+  }
+}
+function endEpisode(success){
+  episode++;
+  history.push({success: success?1:0, ret: epReturn});
+  if(history.length>50) history.shift();
+  // decay epsilon
+  liveEps = clamp(liveEps*HP.decay, 0, 1);
+  // reset agent
+  agent.r=start.r; agent.c=start.c;
+  stepInEp=0; epReturn=0; trail=[{r:start.r,c:start.c}];
+}
+
+// ---- Stats ---------------------------------------------------------------
+function updateStats(){
+  $('s-ep').textContent    = episode;
+  $('s-steps').textContent = stepInEp;
+  if(history.length){
+    const sr = history.reduce((s,h)=>s+h.success,0)/history.length;
+    const ar = history.reduce((s,h)=>s+h.ret,0)/history.length;
+    $('s-succ').textContent = Math.round(sr*100)+'%';
+    $('s-ret').textContent  = safe(ar).toFixed(2);
+  }else{
+    $('s-succ').textContent='—';
+    $('s-ret').textContent='—';
+  }
+  $('s-eps').textContent = safe(liveEps).toFixed(3);
+}
+
+// ---- Rendering -----------------------------------------------------------
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let cell=40, ox=0, oy=0, dpr=1;
+let vMin=0, vMax=1;
+
+function resize(){
+  const host = cv.parentElement;
+  // guard against a 0-width / not-yet-laid-out container
+  const cssW = Math.max(1, host.clientWidth || cv.clientWidth || 320);
+  // keep aspect ratio of the grid
+  const cssH = Math.max(1, Math.round(cssW * ROWS/COLS));
+  dpr = window.devicePixelRatio || 1;
+  cv.style.height = cssH+'px';
+  cv.width  = Math.max(1, Math.round(cssW*dpr));
+  cv.height = Math.max(1, Math.round(cssH*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cell = cssW/COLS;
+  ox=0; oy=0;
+}
+
+// value -> teal heat color
+function heatColor(v){
+  // normalize against current V range
+  const t = clamp((safe(v) - vMin)/((vMax-vMin)||1), 0, 1);
+  // dark-teal ramp
+  const stops=[[20,32,40],[23,59,58],[31,111,100],[63,184,154],[94,234,208]];
+  const f=t*(stops.length-1); const i=Math.floor(f); const j=Math.min(i+1,stops.length-1);
+  const fr=f-i;
+  const R=Math.round(lerp(stops[i][0],stops[j][0],fr));
+  const G=Math.round(lerp(stops[i][1],stops[j][1],fr));
+  const B=Math.round(lerp(stops[i][2],stops[j][2],fr));
+  return `rgb(${R},${G},${B})`;
+}
+function computeVRange(){
+  let mn=Infinity, mx=-Infinity;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    if(grid[r][c]===1) continue;
+    const v=stateValue(r,c);
+    if(v<mn)mn=v; if(v>mx)mx=v;
+  }
+  vMin=Number.isFinite(mn)?mn:0;
+  vMax=Number.isFinite(mx)?mx:1;
+  if(vMax-vMin<1e-4) vMax=vMin+1e-4;
+}
+
+function draw(){
+  if(!grid) return;
+  computeVRange();
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const cs=cell;
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+    const x=ox+c*cs, y=oy+r*cs, t=grid[r][c];
+    // base
+    if(t===1){ ctx.fillStyle='#2a2a3a'; }
+    else if(t===2){ ctx.fillStyle='#3a7d44'; }
+    else if(t===3){ ctx.fillStyle='#7a2c3a'; }
+    else { ctx.fillStyle=heatColor(stateValue(r,c)); }
+    ctx.fillRect(x,y,cs,cs);
+    // grid border
+    ctx.strokeStyle='rgba(11,11,20,0.55)';
+    ctx.lineWidth=1; ctx.strokeRect(x+0.5,y+0.5,cs-1,cs-1);
+
+    // policy arrow on empty cells with learned value
+    if(t===0){
+      const a=bestAction(r,c);
+      const hasInfo = stateValue(r,c)!==0;
+      ctx.fillStyle = hasInfo? 'rgba(232,232,242,0.78)':'rgba(154,154,178,0.28)';
+      ctx.font = `${Math.round(cs*0.46)}px -apple-system,Segoe UI,Roboto,sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(ARROW[a], x+cs/2, y+cs/2+1);
+    }
+    if(t===2){ glyph('★', x,y,cs,'#cdeccd'); }
+    if(t===3){ glyph('✕', x,y,cs,'#f0c0cc'); }
+  }
+  // start marker
+  glyph('S', ox+start.c*cell, oy+start.r*cell, cell, 'rgba(94,234,208,0.9)');
+
+  // trail
+  if(trail.length>1){
+    ctx.strokeStyle='rgba(139,123,240,0.45)';
+    ctx.lineWidth=Math.max(2,cell*0.07);
+    ctx.lineJoin='round'; ctx.beginPath();
+    trail.forEach((p,k)=>{
+      const px=ox+p.c*cell+cell/2, py=oy+p.r*cell+cell/2;
+      k? ctx.lineTo(px,py):ctx.moveTo(px,py);
+    });
+    ctx.stroke();
+  }
+  // agent
+  const ax=ox+agent.c*cell+cell/2, ay=oy+agent.r*cell+cell/2;
+  ctx.beginPath();
+  ctx.arc(ax,ay,cell*0.28,0,Math.PI*2);
+  ctx.fillStyle='#8b7bf0';
+  ctx.shadowColor='rgba(139,123,240,0.8)'; ctx.shadowBlur=cell*0.4;
+  ctx.fill(); ctx.shadowBlur=0;
+  ctx.lineWidth=2; ctx.strokeStyle='#e8e8f2'; ctx.stroke();
+}
+function glyph(ch,x,y,cs,color){
+  ctx.fillStyle=color;
+  ctx.font=`${Math.round(cs*0.42)}px -apple-system,Segoe UI,Roboto,sans-serif`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(ch, x+cs/2, y+cs/2+1);
+}
+
+// ---- Main loop -----------------------------------------------------------
+let playing=false, raf=null;
+function loop(){
+  if(playing){
+    const n=Math.max(1, HP.speed|0);
+    for(let k=0;k<n;k++) microStep();
+  }
+  draw();
+  updateStats();
+  raf=requestAnimationFrame(loop);
+}
+
+// ---- Controls ------------------------------------------------------------
+function $(id){ return document.getElementById(id); }
+function bindSlider(rid,lid,key,fmt,after){
+  const r=$(rid), l=$(lid);
+  if(!r||!l) return;
+  const apply=()=>{
+    let v=parseFloat(r.value);
+    if(!Number.isFinite(v)) v=HP[key];
+    HP[key]=v; l.textContent=fmt(v);
+    if(after) after(v);
+  };
+  r.addEventListener('input',apply); apply();
+}
+bindSlider('r-speed','l-speed','speed',v=>Math.round(v));
+bindSlider('r-alpha','l-alpha','alpha',v=>v.toFixed(2));
+bindSlider('r-gamma','l-gamma','gamma',v=>v.toFixed(3));
+bindSlider('r-eps','l-eps','eps0',v=>v.toFixed(2),v=>{ liveEps=clamp(v,0,1); updateStats(); });
+bindSlider('r-dec','l-dec','decay',v=>v.toFixed(3));
+
+$('b-play').addEventListener('click',()=>{
+  playing=!playing;
+  $('b-play').textContent = playing? '⏸ Pause':'▶ Play';
+});
+$('b-step').addEventListener('click',()=>{
+  // run exactly one full episode (cap iterations defensively)
+  const startEp=episode;
+  let guard=0;
+  while(episode===startEp && guard < MAX_STEPS+5){ microStep(); guard++; }
+  draw(); updateStats();
+});
+$('b-reset').addEventListener('click',()=>{
+  resetQ(); episode=0; stepInEp=0; epReturn=0; history.length=0;
+  liveEps=HP.eps0; agent={r:start.r,c:start.c}; trail=[{r:start.r,c:start.c}];
+  draw(); updateStats();
+});
+$('b-maze').addEventListener('click',()=>{
+  genMaze(); resetQ(); episode=0; stepInEp=0; epReturn=0; history.length=0;
+  liveEps=HP.eps0; agent={r:start.r,c:start.c}; trail=[{r:start.r,c:start.c}];
+  setHint('Fresh maze generated. Press ▶ Play to learn it.', false);
+  draw(); updateStats();
+});
+
+// edit modes
+let editMode='wall';
+document.querySelectorAll('.chip').forEach(ch=>{
+  ch.addEventListener('click',()=>{
+    document.querySelectorAll('.chip').forEach(x=>x.classList.remove('active'));
+    ch.classList.add('active'); editMode=ch.dataset.mode;
+  });
+});
+function setHint(msg, warn){
+  const h=$('hint'); if(!h) return;
+  h.textContent=msg; h.classList.toggle('warn', !!warn);
+}
+function cellFromEvent(e){
+  const rect=cv.getBoundingClientRect();
+  const px=(e.clientX-rect.left), py=(e.clientY-rect.top);
+  const c=clamp(Math.floor(px/cell),0,COLS-1);
+  const r=clamp(Math.floor(py/cell),0,ROWS-1);
+  return {r,c};
+}
+function applyEdit(r,c){
+  if(r===start.r&&c===start.c) return;      // never edit start
+  const prev = grid[r][c];
+  if(editMode==='goal'){
+    grid[goal.r][goal.c]=0;                  // move single goal
+    goal={r,c}; grid[r][c]=2;
+  }else if(editMode==='wall'){ grid[r][c]= (grid[r][c]===1)?0:1; }
+  else if(editMode==='trap'){ grid[r][c]= (grid[r][c]===3)?0:3; }
+  else if(editMode==='erase'){ if(grid[r][c]!==2) grid[r][c]=0; }
+  // ensure goal still exists & start clear
+  grid[start.r][start.c]=0;
+  if(!gridHasGoal()) grid[goal.r][goal.c]=2;
+  // keep the world solvable: revert an edit that walls off the goal
+  if(!reachable(grid, start, goal)){
+    if(editMode==='goal'){
+      grid[r][c]=prev; // restore the cell we just turned into a goal
+      // fall back: leave the previous goal in place
+      grid[goal.r][goal.c]=2; // (goal var already moved — safe because we re-derive below)
+    }else{
+      grid[r][c]=prev;
+    }
+    if(!gridHasGoal()) grid[goal.r][goal.c]=2;
+    setHint('That edit would seal off the goal — reverted.', true);
+  }else{
+    setHint('Tip: drag to paint walls. The agent always starts bottom-left (S).', false);
+  }
+  draw();
+}
+function gridHasGoal(){
+  for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++) if(grid[r][c]===2) return true;
+  return false;
+}
+let painting=false;
+cv.addEventListener('pointerdown',e=>{
+  painting=true;
+  try{ cv.setPointerCapture(e.pointerId); }catch(_){}
+  const {r,c}=cellFromEvent(e); applyEdit(r,c);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!painting) return;
+  if(editMode==='goal') return;             // dragging goal would be messy
+  const {r,c}=cellFromEvent(e); applyEdit(r,c);
+});
+function stopPaint(e){
+  painting=false;
+  if(e){ try{ cv.releasePointerCapture(e.pointerId); }catch(_){} }
+}
+cv.addEventListener('pointerup',stopPaint);
+cv.addEventListener('pointercancel',stopPaint);
+window.addEventListener('pointerup',()=>{ painting=false; });
+
+// resize: window event + ResizeObserver (catches layout reflow w/o window event)
+window.addEventListener('resize',()=>{ resize(); draw(); });
+if(typeof ResizeObserver !== 'undefined'){
+  const ro = new ResizeObserver(()=>{ resize(); draw(); });
+  ro.observe(cv.parentElement);
+}
+
+// ---- Boot ----------------------------------------------------------------
+function init(){
+  genMaze(); resetQ();
+  agent={r:start.r,c:start.c}; trail=[{r:start.r,c:start.c}];
+  resize(); draw(); updateStats();
+  loop();
+}
+init();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>
