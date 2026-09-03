@@ -1018,6 +1018,38 @@ export const demos: Demo[] = [
     icon: 'i-lucide-bird',
     status: 'ready',
     tags: ['Robotics', 'MuJoCo', 'ONNX', 'RL', 'Three.js']
+  },
+  {
+    slug: 'g1-cartpole',
+    category: 'robot',
+    title: { zh: 'G1 + HUSKY 滑板 + Cartpole（mjswan）', en: 'G1 + HUSKY Skateboard + Cartpole (mjswan)' },
+    description: {
+      zh: 'mjswan RL 机器人仿真三场景：① 宇树 G1 人形机器人官方走路策略（Locomotion/Balance，WASD 驱动）② G1 滑板（HUSKY 官方全身控制策略，调 Push Speed/Heading 滑板）③ Cartpole 倒立摆平衡（本机 PPO 从零训练）。教学对照：别人的成果 vs 自己的训练。',
+      en: 'mjswan RL robot simulation, 3 scenes: ① Unitree G1 humanoid official locomotion (Locomotion/Balance, WASD) ② G1 skateboarding (HUSKY official whole-body policy, Push Speed/Heading) ③ Cartpole balance trained from scratch with PPO locally. Compare: others\' results vs your own training.'
+    },
+    howItWorks: {
+      zh: 'MuJoCo 编译为 WebAssembly 在浏览器跑物理，onnxruntime-web 运行导出的 RL 策略（G1/HUSKY 为官方 checkpoint，Cartpole 为本机 PPO 训练导出）；纯静态无后端。',
+      en: 'MuJoCo compiled to WebAssembly steps the physics in-browser while onnxruntime-web runs the exported RL policies (G1/HUSKY = official checkpoints, Cartpole = locally PPO-trained); fully static, no backend.'
+    },
+    icon: 'i-lucide-person-standing',
+    status: 'ready',
+    tags: ['Robotics', 'MuJoCo', 'ONNX', 'RL', 'Unitree']
+  },
+  {
+    slug: 'g1-motion-tracking',
+    category: 'robot',
+    title: { zh: 'G1 动作跟踪（Humanoid Policy Viewer）', en: 'G1 Motion Tracking (Humanoid Policy Viewer)' },
+    description: {
+      zh: 'G1 人形用追踪策略跟参考动作片段（走/跑/跳/舞蹈/格斗/摔倒站起等约 15 条）；带 Compliance 柔顺度开关——打开后拖拽机器人看全身柔顺跟随。教学点：全身控制/参考运动跟踪/柔顺控制。',
+      en: 'G1 humanoid tracking policy follows reference motion clips (walk/run/jump/dance/fight/get-up etc., ~15 clips); Compliance toggle — drag the robot to see whole-body compliant following. Teaching: whole-body control / reference motion tracking / compliant control.'
+    },
+    howItWorks: {
+      zh: 'MuJoCo WASM 跑物理 + onnxruntime-web 运行 G1 追踪策略（mujoco-js），策略消费参考动作序列输出全身关节指令；纯静态无后端。',
+      en: 'MuJoCo WASM steps the physics (mujoco-js) while onnxruntime-web runs the G1 tracking policy, which consumes reference motion sequences and outputs whole-body joint commands; fully static, no backend.'
+    },
+    icon: 'i-lucide-person-standing',
+    status: 'ready',
+    tags: ['Robotics', 'MuJoCo', 'ONNX', 'MotionTracking', 'Vue3']
   }
 ]
 

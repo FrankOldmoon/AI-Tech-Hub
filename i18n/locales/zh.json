@@ -1059,8 +1059,13 @@
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
   },
-  "neuralSandbox": {
-    "externalNote": "浏览器本地交互演示，无需后端；数据不出设备。",
+  "g1Cartpole": {
+    "externalNote": "纯本地浏览器仿真（MuJoCo + ONNX 策略，mjswan 框架），无需额外环境。三个场景（左侧 Scene 下拉切换）：G1 人形机器人（WASD/方向键驱动走路）、G1 滑板 HUSKY（拖 Push Speed/Heading 控制）、Cartpole 平衡（从零训练，Reset 重新立起）。",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  },
+  "g1MotionTracking": {
+    "externalNote": "纯本地浏览器仿真（MuJoCo + ONNX 追踪策略），无需额外环境。G1 会自动跟参考动作（换 Current motion 切换走/跑/跳/舞蹈等）；打开 Compliance 并调大 threshold 后，可直接拖拽机器人看柔顺跟随。",
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
   }

@@ -1,0 +1,170 @@
+{
+  "version": "0.9.3",
+  "uses_custom_js": false,
+  "projects": [
+    {
+      "name": "RL \u673a\u5668\u4eba\u4eff\u771f",
+      "id": "oursim",
+      "scenes": [
+        {
+          "name": "G1 \u4eba\u5f62\u673a\u5668\u4eba",
+          "path": "g1/scene.mjz",
+          "camera": {
+            "lookat": [
+              0.0,
+              0.0,
+              0.7
+            ],
+            "distance": 4.5,
+            "elevation": -38.0,
+            "azimuth": -35.0,
+            "originType": "ASSET_BODY",
+            "enableReflections": false,
+            "enableShadows": true,
+            "height": 240,
+            "width": 320,
+            "bodyName": "torso_link"
+          },
+          "controlDt": 0.02,
+          "policies": [
+            {
+              "name": "Locomotion",
+              "config": "g1/locomotion.json"
+            },
+            {
+              "name": "Balance",
+              "config": "g1/balance.json"
+            }
+          ]
+        },
+        {
+          "name": "Cartpole \u5e73\u8861\uff08\u4ece\u96f6\u8bad\u7ec3\uff09",
+          "path": "cartpole/scene.mjz",
+          "camera": {
+            "lookat": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "distance": 4.0,
+            "elevation": -15.0,
+            "azimuth": 0.0,
+            "originType": "ASSET_BODY",
+            "enableReflections": true,
+            "enableShadows": true,
+            "height": 240,
+            "width": 320,
+            "entityName": "cartpole",
+            "bodyName": "cart"
+          },
+          "events": [
+            {
+              "name": "reset_slider",
+              "mode": "reset",
+              "onnx": "event/reset_slider.onnx",
+              "rand_dim": 2,
+              "rand_ranges": [
+                [
+                  -0.10000000149011612,
+                  0.10000000149011612
+                ],
+                [
+                  -0.009999999776482582,
+                  0.009999999776482582
+                ]
+              ],
+              "input_slots": [],
+              "write_targets": [
+                {
+                  "kind": "joint_state",
+                  "entity": "cartpole",
+                  "fields": [
+                    "position",
+                    "velocity"
+                  ],
+                  "outputs": [
+                    "cartpole__joint_state__position",
+                    "cartpole__joint_state__velocity"
+                  ],
+                  "joint_ids": [
+                    0
+                  ]
+                }
+              ]
+            },
+            {
+              "name": "reset_hinge",
+              "mode": "reset",
+              "onnx": "event/reset_hinge.onnx",
+              "rand_dim": 2,
+              "rand_ranges": [
+                [
+                  -0.03400000184774399,
+                  0.03400000184774399
+                ],
+                [
+                  -0.009999999776482582,
+                  0.009999999776482582
+                ]
+              ],
+              "input_slots": [],
+              "write_targets": [
+                {
+                  "kind": "joint_state",
+                  "entity": "cartpole",
+                  "fields": [
+                    "position",
+                    "velocity"
+                  ],
+                  "outputs": [
+                    "cartpole__joint_state__position",
+                    "cartpole__joint_state__velocity"
+                  ],
+                  "joint_ids": [
+                    1
+                  ]
+                }
+              ]
+            }
+          ],
+          "controlDt": 0.05,
+          "policies": [
+            {
+              "name": "Balance",
+              "config": "cartpole/balance.json"
+            }
+          ]
+        },
+        {
+          "name": "G1 \u6ed1\u677f\uff08HUSKY \u5b98\u65b9\u7b56\u7565\uff09",
+          "path": "g1_husky/scene.mjz",
+          "camera": {
+            "lookat": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "distance": 4.0,
+            "elevation": -10.0,
+            "azimuth": 210.0,
+            "originType": "ASSET_BODY",
+            "enableReflections": true,
+            "enableShadows": true,
+            "height": 240,
+            "width": 320,
+            "entityName": "robot",
+            "bodyName": "torso_link"
+          },
+          "controlDt": 0.02,
+          "policies": [
+            {
+              "name": "HUSKY Skater",
+              "config": "g1_husky/husky_skater.json",
+              "default": true
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

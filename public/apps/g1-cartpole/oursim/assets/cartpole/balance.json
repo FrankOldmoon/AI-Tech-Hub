@@ -1,0 +1,67 @@
+{
+  "onnx": {
+    "path": "balance.onnx"
+  },
+  "policy_num_actions": 1,
+  "observations": {
+    "policy": {
+      "fused": "obs/policy.onnx",
+      "input_slots": [
+        {
+          "entity": "cartpole",
+          "field": "joint_pos",
+          "input": "cartpole__joint_pos",
+          "shape": [
+            1,
+            2
+          ]
+        },
+        {
+          "entity": "cartpole",
+          "field": "joint_vel",
+          "input": "cartpole__joint_vel",
+          "shape": [
+            1,
+            2
+          ]
+        }
+      ],
+      "native_inputs": [],
+      "layout": [
+        {
+          "name": "cart_pos",
+          "size": 1
+        },
+        {
+          "name": "pole_angle",
+          "size": 2
+        },
+        {
+          "name": "cart_vel",
+          "size": 1
+        },
+        {
+          "name": "pole_vel",
+          "size": 1
+        }
+      ],
+      "size": 5
+    }
+  },
+  "actions": {
+    "effort": {
+      "type": "torque",
+      "actuator_names": [
+        "cartpole/slider"
+      ]
+    }
+  },
+  "terminations": {
+    "time_out": {
+      "name": "time_out",
+      "native": "elapsed_s >= episode_length_s",
+      "episode_length_s": 10000000000.0,
+      "time_out": true
+    }
+  }
+}

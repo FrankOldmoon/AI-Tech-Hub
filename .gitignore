@@ -52,6 +52,10 @@ tmp/
 *.gz
 # microduck 仿真器 RL 策略（pollen-robotics 官方 ONNX 导出，需随应用分发到内网，不能忽略）
 !public/apps/microduck/policies/*.onnx
+# g1-cartpole（mjswan G1 人形 + Cartpole 平衡）策略 ONNX，需随应用分发到内网
+!public/apps/g1-cartpole/oursim/assets/**/*.onnx
+# g1-motion-tracking（humanoid-policy-viewer）G1 追踪策略 ONNX
+!public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
