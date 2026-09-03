@@ -92,52 +92,64 @@ function downloadAudio() {
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12">
-      <DemoRunner
-        :demo="demo"
-        :loading="loading"
-        :error="error"
-      >
-        <!-- 输入 -->
-        <template #input>
-          <UTextarea
-            v-model="text"
-            :rows="5"
-            :placeholder="t('tts.inputPlaceholder')"
-            class="w-full"
-          />
+  <MediaDemoShell :demo="demo">
+    <DemoRunner
+      :loading="loading"
+      :error="error"
+    >
+      <!-- 输入 -->
+      <template #input>
+        <UTextarea
+          v-model="text"
+          :rows="5"
+          :placeholder="t('tts.inputPlaceholder')"
+          class="w-full"
+        />
 
-          <div class="mt-4">
-            <DemoParams v-model="params" :specs="specs" :running="loading" :title="t('params.title')" />
-          </div>
-        </template>
-
-        <!-- 控件 -->
-        <template #controls>
-          <UButton
-            icon="i-lucide-wand-sparkles"
-            :label="t('demo.run')"
-            :loading="loading"
-            color="primary"
-            @click="synthesize"
+        <div class="mt-4">
+          <DemoParams
+            v-model="params"
+            :specs="specs"
+            :running="loading"
+            :title="t('params.title')"
           />
-          <UButton
-            v-if="audioSrc"
-            icon="i-lucide-download"
-            :label="t('tts.download')"
-            color="neutral"
-            variant="subtle"
-            @click="downloadAudio"
-          />
-        </template>
+        </div>
+      </template>
 
-        <!-- 结果 -->
-        <template #result>
-          <audio v-if="audioSrc" :src="audioSrc" controls class="w-full" />
-          <div v-else class="text-sm text-muted">—</div>
-        </template>
-      </DemoRunner>
-    </div>
-  </UContainer>
+      <!-- 控件 -->
+      <template #controls>
+        <UButton
+          icon="i-lucide-wand-sparkles"
+          :label="t('demo.run')"
+          :loading="loading"
+          color="primary"
+          @click="synthesize"
+        />
+        <UButton
+          v-if="audioSrc"
+          icon="i-lucide-download"
+          :label="t('tts.download')"
+          color="neutral"
+          variant="subtle"
+          @click="downloadAudio"
+        />
+      </template>
+
+      <!-- 结果 -->
+      <template #result>
+        <audio
+          v-if="audioSrc"
+          :src="audioSrc"
+          controls
+          class="w-full"
+        />
+        <div
+          v-else
+          class="text-sm text-muted"
+        >
+          —
+        </div>
+      </template>
+    </DemoRunner>
+  </MediaDemoShell>
 </template>

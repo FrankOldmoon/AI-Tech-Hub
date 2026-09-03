@@ -45,11 +45,17 @@ watch(() => route.path, () => {
     <UMain>
       <div class="flex">
         <!-- 大屏：固定侧边栏 -->
-        <AppSidebar v-if="showSidebar" class="hidden lg:block" />
+        <AppSidebar
+          v-if="showSidebar"
+          class="hidden lg:block"
+        />
 
         <div class="flex-1 min-w-0">
           <!-- 小屏：菜单按钮 -->
-          <div v-if="showSidebar" class="lg:hidden p-3 border-b border-default">
+          <div
+            v-if="showSidebar"
+            class="lg:hidden p-3 border-b border-default"
+          >
             <UButton
               icon="i-lucide-menu"
               color="neutral"
@@ -58,7 +64,9 @@ watch(() => route.path, () => {
               @click="mobileOpen = true"
             />
           </div>
-          <NuxtPage />
+          <NuxtPage
+            :transition="{ name: 'page', mode: 'out-in' }"
+          />
         </div>
       </div>
     </UMain>

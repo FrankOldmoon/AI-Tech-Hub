@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Neural Playground</title>
+<style>
+  :root{
+    --bg:#0b0b14;
+    --panel:#16161f;
+    --panel-2:#1d1d29;
+    --text:#e8e8f2;
+    --muted:#9a9ab2;
+    --line:#2a2a3a;
+    --teal:#5eead0;
+    --violet:#8b7bf0;
+    --classA:#5eead0;   /* teal  -> label +1 */
+    --classB:#f06ec0;   /* pink  -> label -1 */
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 18px 56px}
+  header h1{
+    font-size:26px;margin:0 0 4px;letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--teal),var(--violet));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    display:inline-block;
+  }
+  header p.tag{margin:0 0 20px;color:var(--muted);font-size:14px}
+
+  .main{
+    display:flex;gap:18px;flex-wrap:wrap;align-items:stretch;
+  }
+  .canvas-card{
+    flex:1 1 420px;min-width:300px;
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px;display:flex;flex-direction:column;gap:10px;
+  }
+  .canvas-host{position:relative;width:100%;aspect-ratio:1/1;border-radius:10px;overflow:hidden;border:1px solid var(--line);cursor:crosshair;background:#0e0e18}
+  .canvas-host canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .canvas-hint{font-size:12px;color:var(--muted);min-height:16px}
+
+  .side{
+    flex:1 1 300px;min-width:280px;display:flex;flex-direction:column;gap:14px;
+  }
+  .metrics-card,.curve-card{
+    background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  }
+  .metrics{display:flex;gap:12px;flex-wrap:wrap}
+  .metric{flex:1 1 90px;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+  .metric .v{font-size:20px;font-variant-numeric:tabular-nums;margin-top:2px}
+  .curve-card h3,.metrics-card h3{margin:0 0 10px;font-size:13px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.6px}
+  .curve-host{width:100%;height:120px;border-radius:8px;border:1px solid var(--line);background:#0e0e18;overflow:hidden;position:relative}
+  .curve-host canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+  /* Controls */
+  .controls{
+    margin-top:18px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;
+    display:flex;flex-direction:column;gap:16px;
+  }
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .group{display:flex;flex-direction:column;gap:6px}
+  .group .glabel{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+
+  button,.seg button{
+    font:inherit;color:var(--text);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:9px;padding:8px 14px;cursor:pointer;
+    transition:border-color .15s, background .15s, transform .05s;
+    user-select:none;
+  }
+  button:hover{border-color:var(--violet)}
+  button:active{transform:translateY(1px)}
+  button.primary{background:linear-gradient(90deg,rgba(94,234,208,.18),rgba(139,123,240,.18));border-color:var(--violet)}
+  button.danger:hover{border-color:#f06e6e}
+
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:none;border-radius:0;background:transparent;padding:8px 12px}
+  .seg button + button{border-left:1px solid var(--line)}
+  .seg button.active{background:rgba(139,123,240,.22);color:#fff}
+  .seg.classpick button.active[data-cls="A"]{background:rgba(94,234,208,.22)}
+  .seg.classpick button.active[data-cls="B"]{background:rgba(240,110,192,.22)}
+
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .dotA{background:var(--classA)}
+  .dotB{background:var(--classB)}
+
+  .slider{display:flex;flex-direction:column;gap:4px;min-width:150px}
+  .slider .top{display:flex;justify-content:space-between;font-size:12px}
+  .slider .top .name{color:var(--muted)}
+  .slider .top .val{font-variant-numeric:tabular-nums;color:var(--text)}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:4px;border-radius:3px;
+    background:linear-gradient(90deg,var(--teal),var(--violet));outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:#fff;border:2px solid var(--violet);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:#fff;border:2px solid var(--violet);cursor:pointer}
+
+  .preset-row button{font-size:13px;padding:7px 12px}
+
+  footer{margin-top:28px;color:var(--muted);font-size:13px}
+  footer h4{color:var(--text);font-size:13px;margin:14px 0 4px}
+  footer p{margin:0 0 6px;max-width:760px}
+  .gallery-link{display:inline-block;margin-top:22px;color:var(--teal);text-decoration:none;font-size:14px}
+  .gallery-link:hover{text-decoration:underline}
+  .legend{font-size:12px;color:var(--muted);display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  code{background:var(--panel-2);border:1px solid var(--line);border-radius:5px;padding:1px 5px;font-size:12px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Neural Playground</h1>
+    <p class="tag">Draw your own data, watch a tiny neural net learn to classify it.</p>
+  </header>
+
+  <div class="main">
+    <!-- Canvas -->
+    <div class="canvas-card">
+      <div class="canvas-host" id="host">
+        <canvas id="field"></canvas>   <!-- decision-surface heatmap -->
+        <canvas id="pts"></canvas>     <!-- data points -->
+      </div>
+      <div class="canvas-hint" id="hint">Click to drop points. Painting class A.</div>
+      <div class="legend">
+        <span><span class="dot dotA"></span>Class A</span>
+        <span><span class="dot dotB"></span>Class B</span>
+        <span>Background = network confidence</span>
+      </div>
+    </div>
+
+    <!-- Side: metrics + curves -->
+    <div class="side">
+      <div class="metrics-card">
+        <h3>Live metrics</h3>
+        <div class="metrics">
+          <div class="metric"><div class="k">Epoch</div><div class="v" id="m-epoch">0</div></div>
+          <div class="metric"><div class="k">Loss</div><div class="v" id="m-loss">--</div></div>
+          <div class="metric"><div class="k">Accuracy</div><div class="v" id="m-acc">--</div></div>
+          <div class="metric"><div class="k">Points</div><div class="v" id="m-pts">0</div></div>
+        </div>
+      </div>
+      <div class="curve-card">
+        <h3>Training curves <span style="color:var(--teal)">loss</span> / <span style="color:var(--violet)">accuracy</span></h3>
+        <div class="curve-host"><canvas id="curve"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls -->
+  <div class="controls">
+    <div class="row" style="justify-content:space-between">
+      <div class="group">
+        <span class="glabel">Paint class</span>
+        <div class="seg classpick" id="classpick">
+          <button data-cls="A" class="active">A</button>
+          <button data-cls="B">B</button>
+        </div>
+      </div>
+      <div class="group">
+        <span class="glabel">Training</span>
+        <div class="row">
+          <button class="primary" id="btn-train">Train</button>
+          <button id="btn-reset-w">Reset weights</button>
+          <button class="danger" id="btn-clear">Clear data</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="group">
+        <span class="glabel">Learning rate</span>
+        <div class="slider">
+          <div class="top"><span class="name">lr</span><span class="val" id="v-lr">0.10</span></div>
+          <input type="range" id="lr" min="-3" max="0" step="0.05" value="-1" />
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="glabel">Hidden layers</span>
+        <div class="seg" id="archpick">
+          <button data-arch="4" class="">1 x 4</button>
+          <button data-arch="8,8" class="active">2 x 8</button>
+          <button data-arch="16,16,16">3 x 16</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <span class="glabel">Activation</span>
+        <div class="seg" id="actpick">
+          <button data-act="tanh" class="active">tanh</button>
+          <button data-act="relu">relu</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="group">
+      <span class="glabel">Preset datasets</span>
+      <div class="row preset-row">
+        <button data-ds="xor">XOR</button>
+        <button data-ds="spiral">Spiral</button>
+        <button data-ds="circle">Concentric circles</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <h4>How it works</h4>
+    <p>
+      Every point you draw is a training example in the square <code>[-1,1]&sup2;</code> with a label
+      (class A = +1, class B = -1). A small multilayer perceptron, implemented from scratch in plain
+      JavaScript, runs full-batch gradient descent: forward pass &rarr; mean-squared loss against a
+      <code>tanh</code> output &rarr; manual backpropagation &rarr; weight update. Gradients are clamped
+      to stay numerically stable. After each batch of steps the network is evaluated on a grid and the
+      result is painted as a smooth decision-surface heatmap behind your points.
+    </p>
+    <h4>Why it matters</h4>
+    <p>
+      It makes the abstract concrete: you feel how learning rate, depth, and activation reshape the
+      decision boundary in real time, and why some layouts (XOR, spirals) demand non-linear capacity.
+      It is the "you draw the data" cousin of TensorFlow Playground &mdash; a hands-on intuition pump
+      for how neural networks carve up space.
+    </p>
+    <a class="gallery-link" href="../../index.html">&larr; Gallery</a>
+  </footer>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   Neural Playground — from-scratch MLP + interactive data drawing
+   Zero dependencies. All math is hand-rolled for transparency.
+   ========================================================================== */
+
+(function(){
+
+/* ---------- Small linear-algebra / RNG helpers ---------- */
+let seed = 1234567;
+function rand(){ // deterministic-ish uniform [0,1)
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  return seed / 0x7fffffff;
+}
+function randn(){ // Box-Muller normal
+  let u = 0, v = 0;
+  while(u === 0) u = rand();
+  while(v === 0) v = rand();
+  return Math.sqrt(-2*Math.log(u)) * Math.cos(2*Math.PI*v);
+}
+function clamp(x,a,b){ return x < a ? a : (x > b ? b : x); }
+
+/* ---------- The MLP ----------
+   Architecture: 2 inputs -> hidden layers -> 1 output (tanh).
+   Weights stored as flat layer objects. We keep it readable over fast. */
+const Net = {
+  layers: [],      // each: {inN,outN,W:Float64Array(outN*inN),b:Float64Array(outN)}
+  act: "tanh",
+};
+
+function actFn(x, kind){
+  if(kind === "relu") return x > 0 ? x : 0;
+  // tanh
+  if(x >  20) return 1; if(x < -20) return -1;
+  const e2 = Math.exp(2*x);
+  return (e2 - 1) / (e2 + 1);
+}
+function actDeriv(a, kind){ // derivative expressed via the activation output `a`
+  if(kind === "relu") return a > 0 ? 1 : 0;
+  return 1 - a*a; // tanh'
+}
+
+function buildNet(hidden, act){
+  Net.act = act;
+  Net.layers = [];
+  let inN = 2;
+  const sizes = hidden.concat([1]); // last layer = output
+  for(let li=0; li<sizes.length; li++){
+    const outN = sizes[li];
+    const W = new Float64Array(outN*inN);
+    const b = new Float64Array(outN);
+    // He / Xavier-ish init keeps activations sane and avoids early blow-ups
+    const scale = (act === "relu") ? Math.sqrt(2/inN) : Math.sqrt(1/inN);
+    for(let i=0;i<W.length;i++) W[i] = randn()*scale;
+    const isOutput = (li === sizes.length-1);
+    Net.layers.push({inN, outN, W, b, isOutput});
+    inN = outN;
+  }
+}
+
+/* Forward pass for a single input [x,y].
+   Returns {out, acts} where acts[l] is the activation vector of layer l
+   (acts[-1] conceptually = input). We store input separately. */
+function forward(x0, x1){
+  const input = [x0, x1];
+  const acts = [];        // activation of each layer
+  let cur = input;
+  for(let li=0; li<Net.layers.length; li++){
+    const L = Net.layers[li];
+    const out = new Float64Array(L.outN);
+    for(let o=0;o<L.outN;o++){
+      let s = L.b[o];
+      const base = o*L.inN;
+      for(let i=0;i<L.inN;i++) s += L.W[base+i]*cur[i];
+      // output layer always uses tanh so prediction is in (-1,1)
+      const kind = L.isOutput ? "tanh" : Net.act;
+      out[o] = actFn(s, kind);
+    }
+    acts.push(out);
+    cur = out;
+  }
+  return {input, acts, out: acts[acts.length-1][0]};
+}
+
+/* Full-batch gradient-descent step over all data points.
+   Loss = mean 0.5*(pred - target)^2.  Manual backprop. Returns {loss,acc}. */
+function trainStep(data, lr){
+  const nL = Net.layers.length;
+  if(data.length === 0) return {loss:0, acc:0};
+
+  // gradient accumulators
+  const gW = Net.layers.map(L => new Float64Array(L.W.length));
+  const gB = Net.layers.map(L => new Float64Array(L.b.length));
+
+  let lossSum = 0, correct = 0;
+
+  for(let n=0; n<data.length; n++){
+    const p = data[n];
+    const fp = forward(p.x, p.y);
+    const pred = fp.out;
+    const target = p.label; // +1 or -1
+    const err = pred - target;
+    lossSum += 0.5*err*err;
+    if((pred >= 0 ? 1 : -1) === target) correct++;
+
+    // ---- backprop ----
+    // delta for each layer (dLoss/dPreActivation)
+    const deltas = new Array(nL);
+    // output layer
+    {
+      const L = Net.layers[nL-1];
+      const a = fp.acts[nL-1];
+      const d = new Float64Array(L.outN);
+      for(let o=0;o<L.outN;o++){
+        d[o] = err * actDeriv(a[o], "tanh"); // output uses tanh
+      }
+      deltas[nL-1] = d;
+    }
+    // hidden layers (back to front)
+    for(let li=nL-2; li>=0; li--){
+      const L = Net.layers[li];
+      const Lnext = Net.layers[li+1];
+      const a = fp.acts[li];
+      const dNext = deltas[li+1];
+      const d = new Float64Array(L.outN);
+      for(let o=0;o<L.outN;o++){
+        let s = 0;
+        // sum over next layer neurons: W_next[k,o] * delta_next[k]
+        for(let k=0;k<Lnext.outN;k++){
+          s += Lnext.W[k*Lnext.inN + o] * dNext[k];
+        }
+        d[o] = s * actDeriv(a[o], Net.act);
+      }
+      deltas[li] = d;
+    }
+
+    // accumulate gradients: dW = delta (outer) prevActivation
+    let prev = fp.input;
+    for(let li=0; li<nL; li++){
+      const L = Net.layers[li];
+      const d = deltas[li];
+      const gw = gW[li], gb = gB[li];
+      for(let o=0;o<L.outN;o++){
+        const base = o*L.inN;
+        const dv = d[o];
+        gb[o] += dv;
+        for(let i=0;i<L.inN;i++) gw[base+i] += dv*prev[i];
+      }
+      prev = fp.acts[li];
+    }
+  }
+
+  // apply averaged gradients with clamping for numerical stability
+  const inv = 1/data.length;
+  for(let li=0; li<nL; li++){
+    const L = Net.layers[li];
+    const gw = gW[li], gb = gB[li];
+    for(let i=0;i<L.W.length;i++){
+      let g = gw[i]*inv;
+      g = clamp(g, -5, 5);          // gradient clamp
+      let w = L.W[i] - lr*g;
+      if(!isFinite(w)) w = 0;        // guard against NaN/Inf
+      L.W[i] = clamp(w, -50, 50);    // weight clamp
+    }
+    for(let o=0;o<L.b.length;o++){
+      let g = gb[o]*inv;
+      g = clamp(g, -5, 5);
+      let b = L.b[o] - lr*g;
+      if(!isFinite(b)) b = 0;
+      L.b[o] = clamp(b, -50, 50);
+    }
+  }
+
+  const loss = lossSum*inv;
+  const acc = correct/data.length;
+  return {loss: isFinite(loss)?loss:0, acc};
+}
+
+/* ============================================================================
+   State + DOM
+   ========================================================================== */
+const data = [];               // {x,y in [-1,1], label +1/-1}
+let paintClass = "A";          // A -> +1, B -> -1
+let training = false;
+let curEpoch = 0;
+const history = [];            // {loss,acc}
+const MAX_POINTS = 600;
+
+const host   = document.getElementById("host");
+const fieldC = document.getElementById("field");
+const ptsC   = document.getElementById("pts");
+const curveC = document.getElementById("curve");
+const fctx = fieldC.getContext("2d");
+const pctx = ptsC.getContext("2d");
+const cctx = curveC.getContext("2d");
+
+const hint   = document.getElementById("hint");
+const mEpoch = document.getElementById("m-epoch");
+const mLoss  = document.getElementById("m-loss");
+const mAcc   = document.getElementById("m-acc");
+const mPts   = document.getElementById("m-pts");
+
+/* ---- High-DPI canvas setup ---- */
+let cssW = 0, cssH = 0, dpr = 1;
+const GRID = 56; // decision-surface resolution (GRID x GRID cells)
+let fieldImg = null;
+let ready = false; // becomes true once canvases have a real (non-zero) size
+
+function setupCanvases(){
+  dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+  const r = host.getBoundingClientRect();
+  // FIX: aspect-ratio containers can momentarily report height 0 before layout
+  // resolves. Fall back to width and clamp to >=1px so we never feed 0 into
+  // createImageData / canvas sizing (which would throw or blank the screen).
+  let w = r.width, h = r.height;
+  if(!(w > 0)) w = host.clientWidth || host.parentElement.clientWidth || 320;
+  if(!(h > 0)) h = w; // square host (aspect-ratio 1/1)
+  cssW = Math.max(1, Math.round(w));
+  cssH = Math.max(1, Math.round(h));
+
+  for(const c of [fieldC, ptsC]){
+    c.width  = Math.max(1, Math.round(cssW*dpr));
+    c.height = Math.max(1, Math.round(cssH*dpr));
+  }
+  // field is drawn at low res then scaled up smoothly
+  fieldImg = fctx.createImageData(GRID, GRID);
+  // curve canvas
+  const cr = curveC.parentElement.getBoundingClientRect();
+  let cw = cr.width, ch = cr.height;
+  if(!(cw > 0)) cw = cssW;
+  if(!(ch > 0)) ch = 120;
+  curveC.width  = Math.max(1, Math.round(cw*dpr));
+  curveC.height = Math.max(1, Math.round(ch*dpr));
+
+  ready = true;
+  drawPoints();
+  drawField();
+  drawCurves();
+}
+
+/* ---- coordinate transforms ---- */
+function toData(px, py){ // pixel (css) -> data [-1,1]
+  return [ (px/cssW)*2 - 1, -((py/cssH)*2 - 1) ];
+}
+function toPix(dx, dy){ // data -> pixel (css)
+  return [ (dx+1)/2*cssW, (1-(dy+1)/2)*cssH ];
+}
+
+/* ============================================================================
+   Rendering
+   ========================================================================== */
+// teal (A,+1)  -> pink (B,-1) gradient based on net output
+function colorFor(out){
+  const t = clamp((out+1)/2, 0, 1); // 1 = class A, 0 = class B
+  // A teal 94,234,208 ; B pink 240,110,192 ; blend toward dark in the middle
+  const aR=94,aG=234,aB=208, bR=240,bG=110,bB=192;
+  let r = bR + (aR-bR)*t;
+  let g = bG + (aG-bG)*t;
+  let b = bB + (aB-bB)*t;
+  // confidence -> alpha: near 0.5 (boundary) => faint
+  const conf = Math.abs(out);          // 0..1
+  const alpha = 0.10 + 0.42*conf;
+  return [r,g,b,alpha];
+}
+
+function drawField(){
+  if(!ready || !fieldImg) return;
+  const px = fieldImg.data;
+  for(let j=0;j<GRID;j++){
+    // map grid cell center to data coords
+    const dy = 1 - ( (j+0.5)/GRID )*2;
+    for(let i=0;i<GRID;i++){
+      const dx = ( (i+0.5)/GRID )*2 - 1;
+      const out = Net.layers.length ? forward(dx,dy).out : 0;
+      const [r,g,b,a] = colorFor(out);
+      const idx = (j*GRID+i)*4;
+      // composite over near-black bg
+      const bg = 14;
+      px[idx  ] = r*a + bg*(1-a);
+      px[idx+1] = g*a + bg*(1-a);
+      px[idx+2] = b*a + bg*(1-a);
+      px[idx+3] = 255;
+    }
+  }
+  // draw scaled-up with smoothing via an offscreen step
+  // FIX: defensively reset the transform before drawing so no stray scale leaks
+  fctx.setTransform(1,0,0,1,0,0);
+  fctx.imageSmoothingEnabled = true;
+  fctx.clearRect(0,0,fieldC.width,fieldC.height);
+  // put small image into a temp canvas then scale
+  if(!drawField._tmp){
+    drawField._tmp = document.createElement("canvas");
+    drawField._tmp.width = GRID; drawField._tmp.height = GRID;
+  }
+  const tmp = drawField._tmp;
+  tmp.getContext("2d").putImageData(fieldImg,0,0);
+  fctx.save();
+  fctx.scale(fieldC.width/GRID, fieldC.height/GRID);
+  fctx.imageSmoothingEnabled = true;
+  fctx.drawImage(tmp,0,0);
+  fctx.restore();
+}
+
+function drawPoints(){
+  if(!ready) return;
+  pctx.setTransform(dpr,0,0,dpr,0,0);
+  pctx.clearRect(0,0,cssW,cssH);
+  // axes
+  pctx.strokeStyle = "rgba(255,255,255,0.07)";
+  pctx.lineWidth = 1;
+  pctx.beginPath();
+  pctx.moveTo(cssW/2,0); pctx.lineTo(cssW/2,cssH);
+  pctx.moveTo(0,cssH/2); pctx.lineTo(cssW,cssH/2);
+  pctx.stroke();
+
+  for(let n=0;n<data.length;n++){
+    const p = data[n];
+    const [px,py] = toPix(p.x,p.y);
+    pctx.beginPath();
+    pctx.arc(px,py,4.2,0,Math.PI*2);
+    pctx.fillStyle = p.label > 0 ? "#5eead0" : "#f06ec0";
+    pctx.fill();
+    pctx.lineWidth = 1.2;
+    pctx.strokeStyle = "rgba(10,10,20,0.85)";
+    pctx.stroke();
+  }
+}
+
+function drawCurves(){
+  if(!ready) return;
+  cctx.setTransform(dpr,0,0,dpr,0,0);
+  const w = curveC.width/dpr, h = curveC.height/dpr;
+  cctx.clearRect(0,0,w,h);
+  if(history.length < 2) return;
+  const N = history.length;
+  // loss is normalized by its running max for display
+  let maxLoss = 0;
+  for(const e of history) if(e.loss>maxLoss) maxLoss = e.loss;
+  if(maxLoss <= 0) maxLoss = 1;
+
+  const pad = 4;
+  function plot(getY, color){
+    cctx.beginPath();
+    for(let i=0;i<N;i++){
+      const x = pad + (i/(N-1))*(w-2*pad);
+      const y = h-pad - getY(history[i])*(h-2*pad);
+      if(i===0) cctx.moveTo(x,y); else cctx.lineTo(x,y);
+    }
+    cctx.strokeStyle = color;
+    cctx.lineWidth = 1.8;
+    cctx.stroke();
+  }
+  plot(e => clamp(e.loss/maxLoss,0,1), "#5eead0"); // loss (teal)
+  plot(e => clamp(e.acc,0,1),          "#8b7bf0"); // accuracy (violet)
+}
+
+/* ============================================================================
+   Interaction: drawing points
+   ========================================================================== */
+let painting = false;
+let lastPaintX = -1, lastPaintY = -1;
+
+function addPointAtPixel(px, py){
+  if(data.length >= MAX_POINTS) return;
+  // throttle dense drags so points don't pile up on one spot
+  if(lastPaintX>=0){
+    const dx = px-lastPaintX, dy = py-lastPaintY;
+    if(dx*dx+dy*dy < 100) return; // min 10px gap
+  }
+  lastPaintX = px; lastPaintY = py;
+  const [dx,dy] = toData(px,py);
+  // tiny jitter so identical clicks differ slightly
+  data.push({
+    x: clamp(dx + (rand()-0.5)*0.01, -1, 1),
+    y: clamp(dy + (rand()-0.5)*0.01, -1, 1),
+    label: paintClass === "A" ? 1 : -1
+  });
+  if(data.length > MAX_POINTS) data.shift();
+  drawPoints();
+  updateMetrics();
+}
+
+function evtPos(e){
+  const r = host.getBoundingClientRect();
+  const t = (e.touches && e.touches[0]) ? e.touches[0] : e;
+  return [t.clientX - r.left, t.clientY - r.top];
+}
+
+host.addEventListener("mousedown", e=>{
+  e.preventDefault();
+  painting = true; lastPaintX = -1;
+  // shift / right-context: temporary class flip handled by 'shift' key
+  const [x,y] = evtPos(e);
+  // if shift held, paint opposite class
+  if(e.shiftKey){ const orig=paintClass; paintClass = paintClass==="A"?"B":"A"; addPointAtPixel(x,y); paintClass=orig; }
+  else addPointAtPixel(x,y);
+});
+window.addEventListener("mousemove", e=>{
+  if(!painting) return;
+  const [x,y] = evtPos(e);
+  if(x<0||y<0||x>cssW||y>cssH) return;
+  if(e.shiftKey){ const orig=paintClass; paintClass = paintClass==="A"?"B":"A"; addPointAtPixel(x,y); paintClass=orig; }
+  else addPointAtPixel(x,y);
+});
+window.addEventListener("mouseup", ()=>{ painting=false; });
+
+// touch support
+host.addEventListener("touchstart", e=>{ e.preventDefault(); painting=true; lastPaintX=-1; const [x,y]=evtPos(e); addPointAtPixel(x,y);}, {passive:false});
+host.addEventListener("touchmove", e=>{ e.preventDefault(); if(!painting) return; const [x,y]=evtPos(e); if(x<0||y<0||x>cssW||y>cssH) return; addPointAtPixel(x,y);}, {passive:false});
+host.addEventListener("touchend", ()=>{ painting=false; });
+
+// keyboard shortcut: 'a'/'b' switch class, space toggles train
+window.addEventListener("keydown", e=>{
+  if(e.target && /input|textarea/i.test(e.target.tagName)) return;
+  if(e.key==="a"||e.key==="A"){ setClass("A"); }
+  else if(e.key==="b"||e.key==="B"){ setClass("B"); }
+  else if(e.key===" "){ e.preventDefault(); toggleTrain(); }
+});
+
+/* ============================================================================
+   Controls wiring
+   ========================================================================== */
+const classpick = document.getElementById("classpick");
+function setClass(c){
+  paintClass = c;
+  for(const btn of classpick.children) btn.classList.toggle("active", btn.dataset.cls===c);
+  hint.textContent = `Click to drop points. Painting class ${c}. (press A/B to switch, hold Shift to paint the other)`;
+}
+classpick.addEventListener("click", e=>{ const b=e.target.closest("button"); if(b) setClass(b.dataset.cls); });
+
+// learning rate (log scale): slider value v -> lr = 10^v
+const lrInput = document.getElementById("lr");
+const vLr = document.getElementById("v-lr");
+let LR = 0.1;
+function updateLr(){
+  LR = Math.pow(10, parseFloat(lrInput.value));
+  vLr.textContent = LR.toFixed(LR<0.01?4:(LR<0.1?3:2));
+}
+lrInput.addEventListener("input", updateLr);
+
+// architecture
+const archpick = document.getElementById("archpick");
+let archStr = "8,8";
+archpick.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  archStr = b.dataset.arch;
+  for(const x of archpick.children) x.classList.toggle("active", x===b);
+  rebuild();
+});
+
+// activation
+const actpick = document.getElementById("actpick");
+let actStr = "tanh";
+actpick.addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  actStr = b.dataset.act;
+  for(const x of actpick.children) x.classList.toggle("active", x===b);
+  rebuild();
+});
+
+function rebuild(){
+  const hidden = archStr.split(",").map(s=>parseInt(s,10)).filter(n=>n>0);
+  buildNet(hidden, actStr);
+  curEpoch = 0; history.length = 0;
+  drawField(); drawCurves(); updateMetrics();
+}
+
+// train / pause
+const btnTrain = document.getElementById("btn-train");
+function toggleTrain(){
+  training = !training;
+  btnTrain.textContent = training ? "Pause" : "Train";
+  btnTrain.classList.toggle("primary", !training);
+}
+btnTrain.addEventListener("click", toggleTrain);
+
+// reset weights
+document.getElementById("btn-reset-w").addEventListener("click", ()=>{
+  seed = (Date.now() & 0x7fffffff) || 1; // fresh init
+  rebuild();
+});
+
+// clear data
+document.getElementById("btn-clear").addEventListener("click", ()=>{
+  data.length = 0;
+  curEpoch = 0; history.length = 0;
+  drawPoints(); drawField(); drawCurves(); updateMetrics();
+});
+
+/* ---- Preset datasets ---- */
+document.querySelectorAll(".preset-row button").forEach(btn=>{
+  btn.addEventListener("click", ()=> loadDataset(btn.dataset.ds));
+});
+
+function loadDataset(kind){
+  data.length = 0;
+  const push = (x,y,label)=>{ if(Math.abs(x)<=1&&Math.abs(y)<=1) data.push({x,y,label}); };
+  if(kind === "xor"){
+    const per = 70;
+    for(let k=0;k<per;k++){
+      const jx=()=> (rand()*0.7+0.12);
+      // four quadrants; XOR labels
+      push( jx(),  jx(),  1);
+      push(-jx(), -jx(),  1);
+      push(-jx(),  jx(), -1);
+      push( jx(), -jx(), -1);
+    }
+  } else if(kind === "spiral"){
+    const per = 110;
+    for(let k=0;k<per;k++){
+      const r = k/per;                         // 0..1
+      const t = r*3.2*Math.PI;                 // angle
+      const noise = ()=> (rand()-0.5)*0.10;
+      push( r*Math.cos(t)+noise(),  r*Math.sin(t)+noise(),  1);
+      push( r*Math.cos(t+Math.PI)+noise(), r*Math.sin(t+Math.PI)+noise(), -1);
+    }
+  } else if(kind === "circle"){
+    const per = 120;
+    for(let k=0;k<per;k++){
+      const t = rand()*2*Math.PI;
+      const rin = 0.28*Math.sqrt(rand());      // inner disk -> class A
+      push(rin*Math.cos(t), rin*Math.sin(t), 1);
+      const rout = 0.62 + rand()*0.30;         // outer ring -> class B
+      push(rout*Math.cos(t), rout*Math.sin(t), -1);
+    }
+  }
+  curEpoch = 0; history.length = 0;
+  rebuild();           // fresh weights for a clean run
+  drawPoints();
+  if(!training) toggleTrain(); // auto-start so the user sees it learn
+  updateMetrics();
+}
+
+/* ============================================================================
+   Metrics + animation loop
+   ========================================================================== */
+function updateMetrics(loss, acc){
+  mEpoch.textContent = curEpoch;
+  mPts.textContent = data.length;
+  if(loss !== undefined){
+    mLoss.textContent = loss.toFixed(4);
+    mAcc.textContent  = (acc*100).toFixed(1) + "%";
+  } else if(data.length===0){
+    mLoss.textContent = "--"; mAcc.textContent = "--";
+  }
+}
+
+const STEPS_PER_FRAME = 3;     // gradient steps batched per animation frame
+let frameCount = 0;
+
+function loop(){
+  if(training && data.length > 0){
+    let last = {loss:0, acc:0};
+    for(let s=0;s<STEPS_PER_FRAME;s++){
+      last = trainStep(data, LR);
+      curEpoch++;
+    }
+    history.push(last);
+    if(history.length > 600) history.shift();
+    updateMetrics(last.loss, last.acc);
+    // redraw heatmap a few times per second (it's the heavy part)
+    if((frameCount & 1) === 0){ drawField(); }
+    drawCurves();
+  }
+  frameCount++;
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================================
+   Boot
+   ========================================================================== */
+window.addEventListener("resize", ()=>{
+  // debounce slightly
+  clearTimeout(window.__rz);
+  window.__rz = setTimeout(setupCanvases, 120);
+});
+// FIX: re-measure once the full page (CSS/layout) has settled, so the
+// aspect-ratio host reports a real height on every browser.
+window.addEventListener("load", ()=>{ setupCanvases(); });
+
+updateLr();
+buildNet([8,8], "tanh");
+// FIX: defer first sizing into a rAF so layout has resolved before we measure
+// the aspect-ratio container (avoids a zero-size createImageData on first paint).
+requestAnimationFrame(()=>{
+  setupCanvases();
+  setClass("A");
+  updateMetrics();
+  requestAnimationFrame(loop);
+});
+
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

@@ -71,7 +71,7 @@ const faqItems = computed(() => [
     <!-- FAQ + 反馈入口 -->
     <div class="flex flex-wrap items-center gap-3">
       <UButton
-        to="https://github.com/ikeee/nuxt-ai/issues"
+        to="https://github.com/FrankOldmoon/AI-Tech-Hub/issues"
         target="_blank"
         icon="i-lucide-message-square"
         color="neutral"

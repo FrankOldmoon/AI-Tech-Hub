@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fourier Epicycles</title>
+<style>
+  :root {
+    --bg: #0b0b14;
+    --panel: #16161f;
+    --panel-2: #1d1d29;
+    --text: #e8e8f2;
+    --muted: #9a9ab2;
+    --accent: #5eead0;
+    --accent-2: #8b7bf0;
+    --border: #2a2a38;
+    --radius: 12px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 22px 18px 48px;
+  }
+
+  header h1 {
+    margin: 0 0 4px;
+    font-size: 1.55rem;
+    letter-spacing: -0.01em;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: inline-block;
+  }
+
+  header .tagline {
+    margin: 0 0 18px;
+    color: var(--muted);
+    font-size: 0.92rem;
+  }
+
+  .stage {
+    position: relative;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    touch-action: none;
+    cursor: crosshair;
+  }
+
+  .hint {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    background: rgba(11, 11, 20, 0.72);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 11px;
+    backdrop-filter: blur(6px);
+    font-size: 0.72rem;
+    line-height: 1.5;
+    color: var(--muted);
+    pointer-events: none;
+    max-width: 60%;
+  }
+  .hint b { color: var(--accent); font-weight: 600; }
+
+  .panel {
+    margin-top: 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+
+  .btnrow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  button {
+    background: var(--panel-2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 7px 13px;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: border-color .15s, background .15s, color .15s;
+  }
+  button:hover { border-color: var(--accent); }
+  button.active {
+    border-color: var(--accent-2);
+    color: var(--accent);
+    background: #20203a;
+  }
+  button.primary {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .sep { width: 1px; align-self: stretch; background: var(--border); margin: 0 2px; }
+
+  .sliders {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px 22px;
+  }
+
+  .ctrl label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.78rem;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+  .ctrl label .val {
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.82rem;
+  }
+
+  input[type="range"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 4px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+  input[type="range"]::-moz-range-thumb {
+    width: 15px; height: 15px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    border: 2px solid var(--bg);
+  }
+
+  .toggles { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 14px; }
+  .toggle { display: flex; align-items: center; gap: 7px; font-size: 0.8rem; color: var(--muted); cursor: pointer; }
+  .toggle input { accent-color: var(--accent-2); cursor: pointer; }
+
+  .footer {
+    margin-top: 22px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+  @media (max-width: 640px) { .footer { grid-template-columns: 1fr; } }
+  .footer h3 {
+    margin: 0 0 6px;
+    font-size: 0.82rem;
+    color: var(--accent);
+    letter-spacing: .02em;
+  }
+  .footer p {
+    margin: 0;
+    font-size: 0.78rem;
+    line-height: 1.65;
+    color: var(--muted);
+  }
+
+  .gallery-link {
+    display: inline-block;
+    margin-top: 26px;
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 0.84rem;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 7px 13px;
+    transition: border-color .15s, color .15s;
+  }
+  .gallery-link:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Fourier Epicycles</h1>
+    <p class="tagline">Any closed path is a sum of spinning circles.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="hint" id="hint">Draw a closed shape with your mouse, or pick a preset below. <b>The chain of circles redraws it.</b></div>
+  </div>
+
+  <div class="panel">
+    <div class="btnrow">
+      <button id="drawBtn" class="primary">Draw new</button>
+      <div class="sep"></div>
+      <button class="preset" data-shape="star">Star</button>
+      <button class="preset" data-shape="heart">Heart</button>
+      <button class="preset" data-shape="letter">Letter R</button>
+      <button class="preset" data-shape="square">Square</button>
+      <div class="sep"></div>
+      <button id="playBtn">Pause</button>
+      <button id="resetBtn">Reset trace</button>
+    </div>
+
+    <div class="sliders">
+      <div class="ctrl">
+        <label>Harmonics (circles) <span class="val" id="harmVal">&mdash;</span></label>
+        <input type="range" id="harm" min="1" max="200" step="1" value="200" />
+      </div>
+      <div class="ctrl">
+        <label>Speed <span class="val" id="spdVal">1.0&times;</span></label>
+        <input type="range" id="spd" min="1" max="40" step="1" value="10" />
+      </div>
+    </div>
+
+    <div class="toggles">
+      <label class="toggle"><input type="checkbox" id="showCircles" checked /> Show circles</label>
+      <label class="toggle"><input type="checkbox" id="showPath" checked /> Show target path</label>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <h3>How it works</h3>
+      <p>The drawing is a list of points, read as complex numbers <i>z = x + iy</i>. A discrete Fourier transform decomposes them into rotating components &mdash; each a circle with its own frequency, radius (amplitude) and starting phase. Sorted by amplitude and chained tip-to-tip, the final pen traces the original curve. Fewer harmonics = a coarse approximation; all of them reproduce the path exactly.</p>
+    </div>
+    <div>
+      <h3>Why it matters</h3>
+      <p>The same decomposition powers JPEG, MP3, MRI reconstruction and signal filtering: complex signals become a few dominant frequencies you can keep, drop or analyse. Watching circles redraw a heart makes the abstract idea of a frequency spectrum tangible.</p>
+    </div>
+  </div>
+
+  <a class="gallery-link" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("cv");
+  var ctx = canvas ? canvas.getContext("2d") : null;
+  var hint = document.getElementById("hint");
+
+  // ---- state ----
+  var W = 800, H = 520, dpr = 1;
+  var mode = "view";            // "draw" while user is sketching
+  var drawingPts = [];          // raw points captured during drawing
+  var fourier = [];             // DFT result, sorted by amplitude
+  var targetPath = [];          // cached full-resolution reconstruction (static per shape)
+  var time = 0;                 // phase parameter 0..2 pi
+  var trace = [];               // pen trail
+  var playing = true;
+
+  var harmSlider = document.getElementById("harm");
+  var spdSlider = document.getElementById("spd");
+  var harmVal = document.getElementById("harmVal");
+  var spdVal = document.getElementById("spdVal");
+  var showCircles = document.getElementById("showCircles");
+  var showPath = document.getElementById("showPath");
+  var playBtn = document.getElementById("playBtn");
+  var drawBtn = document.getElementById("drawBtn");
+  var resetBtn = document.getElementById("resetBtn");
+
+  function clamp(v, lo, hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+  if (!ctx) {
+    // Canvas unsupported: nothing more to do, page stays static (no white-screen crash).
+    return;
+  }
+
+  // ---------- sizing ----------
+  function resize() {
+    var rect = canvas.parentNode.getBoundingClientRect();
+    var cssW = rect.width;
+    if (!cssW || cssW < 2) cssW = window.innerWidth || 320; // never collapse to ~1px
+    cssW = Math.max(320, cssW);
+    var cssH = Math.max(300, Math.round(cssW * 0.62));
+
+    dpr = window.devicePixelRatio || 1;
+    W = cssW; H = cssH;
+    canvas.style.height = cssH + "px";
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  // ---------- DFT (pure JS) ----------
+  // points: array of {x,y} centred around origin. Returns sorted descriptors.
+  function dft(points) {
+    var N = points.length;
+    var out = [];
+    if (N === 0) return out;
+    for (var k = 0; k < N; k++) {
+      var re = 0, im = 0;
+      for (var n = 0; n < N; n++) {
+        var phi = (2 * Math.PI * k * n) / N;
+        var c = Math.cos(phi), s = Math.sin(phi);
+        // (x + iy) * (cos - i sin)
+        re += points[n].x * c + points[n].y * s;
+        im += points[n].y * c - points[n].x * s;
+      }
+      re /= N; im /= N;
+      out.push({
+        freq: k,
+        amp: Math.sqrt(re * re + im * im),
+        phase: Math.atan2(im, re)
+      });
+    }
+    // largest circles first so the chain looks natural
+    out.sort(function (a, b) { return b.amp - a.amp; });
+    return out;
+  }
+
+  // Resample a closed path to a fixed point count for a clean, fast DFT.
+  function resample(pts, count) {
+    if (count <= 0) return [];
+    if (pts.length < 2) return pts.slice();
+    var loop = pts.slice();
+    loop.push(pts[0]);                 // close the loop
+    var dists = [0];
+    for (var i = 1; i < loop.length; i++) {
+      var dx = loop[i].x - loop[i - 1].x;
+      var dy = loop[i].y - loop[i - 1].y;
+      dists.push(dists[i - 1] + Math.hypot(dx, dy));
+    }
+    var total = dists[dists.length - 1];
+    if (total <= 0) return pts.slice();
+    var res = [];
+    for (var j = 0; j < count; j++) {
+      var target = (total * j) / count;
+      var seg = 1;
+      while (seg < dists.length - 1 && dists[seg] < target) seg++;
+      var t = (target - dists[seg - 1]) / Math.max(1e-9, dists[seg] - dists[seg - 1]);
+      res.push({
+        x: loop[seg - 1].x + (loop[seg].x - loop[seg - 1].x) * t,
+        y: loop[seg - 1].y + (loop[seg].y - loop[seg - 1].y) * t
+      });
+    }
+    return res;
+  }
+
+  // Evaluate all harmonics at a given phase -> tip coordinate (for static target path).
+  function tipAt(phase) {
+    var x = 0, y = 0;
+    for (var i = 0; i < fourier.length; i++) {
+      var c = fourier[i];
+      var angle = c.freq * phase + c.phase;
+      x += c.amp * Math.cos(angle);
+      y += c.amp * Math.sin(angle);
+    }
+    return { x: x, y: y };
+  }
+
+  function buildTargetPath() {
+    targetPath = [];
+    if (fourier.length === 0) return;
+    for (var s = 0; s <= 240; s++) {
+      targetPath.push(tipAt((2 * Math.PI * s) / 240));
+    }
+  }
+
+  function setShape(pts) {
+    if (!pts || pts.length < 3) return;
+    var sampled = resample(pts, 220);
+    if (sampled.length < 3) return;
+    // centre around origin
+    var cx = 0, cy = 0;
+    for (var i = 0; i < sampled.length; i++) { cx += sampled[i].x; cy += sampled[i].y; }
+    cx /= sampled.length; cy /= sampled.length;
+    var centred = sampled.map(function (p) { return { x: p.x - cx, y: p.y - cy }; });
+    fourier = dft(centred);
+    harmSlider.max = fourier.length;
+    harmSlider.value = fourier.length;
+    buildTargetPath();
+    updateHarmLabel();
+    time = 0;
+    trace = [];
+  }
+
+  // ---------- preset shapes (normalised box) ----------
+  function presetPoints(name) {
+    var pts = [], i, a, R = 150;
+    if (name === "star") {
+      var spikes = 5;
+      for (i = 0; i < spikes * 2; i++) {
+        a = (Math.PI * i) / spikes - Math.PI / 2;
+        var rr = (i % 2 === 0) ? R : R * 0.42;
+        pts.push({ x: Math.cos(a) * rr, y: Math.sin(a) * rr });
+      }
+    } else if (name === "heart") {
+      for (i = 0; i <= 200; i++) {
+        var t = (Math.PI * 2 * i) / 200;
+        var x = 16 * Math.pow(Math.sin(t), 3);
+        var y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+        pts.push({ x: x * 9, y: -y * 9 });
+      }
+    } else if (name === "square") {
+      var s = 130, per = 40;
+      var corners = [[-s, -s], [s, -s], [s, s], [-s, s]];
+      for (i = 0; i < 4; i++) {
+        var c0 = corners[i], c1 = corners[(i + 1) % 4];
+        for (var j = 0; j < per; j++) {
+          var u = j / per;
+          pts.push({ x: c0[0] + (c1[0] - c0[0]) * u, y: c0[1] + (c1[1] - c0[1]) * u });
+        }
+      }
+    } else if (name === "letter") {
+      // Outline of an "R" traced as a single closed loop.
+      var raw = [
+        [-60,-110],[40,-110],[70,-95],[80,-65],[70,-35],[40,-18],
+        [10,-12],[80,110],[35,110],[-22,-6],[-22,110],[-60,110]
+      ];
+      for (i = 0; i < raw.length; i++) pts.push({ x: raw[i][0], y: raw[i][1] });
+    }
+    return pts;
+  }
+
+  function loadPreset(name) {
+    mode = "view";
+    drawingPts = [];
+    setShape(presetPoints(name));
+    hint.style.display = "none";
+    playing = true;
+    playBtn.textContent = "Pause";
+    drawBtn.classList.remove("active");
+  }
+
+  // ---------- drawing input ----------
+  function canvasPos(ev) {
+    var rect = canvas.getBoundingClientRect();
+    var src = ev.touches ? ev.touches[0] : ev;
+    return {
+      x: (src.clientX - rect.left) - W / 2,
+      y: (src.clientY - rect.top) - H / 2
+    };
+  }
+
+  function startDraw(ev) {
+    if (mode !== "draw") return;
+    ev.preventDefault();
+    drawingPts = [canvasPos(ev)];
+    canvas.addEventListener("mousemove", moveDraw);
+    canvas.addEventListener("touchmove", moveDraw, { passive: false });
+  }
+  function moveDraw(ev) {
+    if (mode !== "draw") return;
+    ev.preventDefault();
+    var p = canvasPos(ev);
+    var last = drawingPts[drawingPts.length - 1];
+    if (!last || Math.hypot(p.x - last.x, p.y - last.y) > 3) drawingPts.push(p);
+  }
+  function endDraw() {
+    if (mode !== "draw") return;
+    canvas.removeEventListener("mousemove", moveDraw);
+    canvas.removeEventListener("touchmove", moveDraw);
+    if (drawingPts.length >= 3) {
+      setShape(drawingPts);
+      hint.style.display = "none";
+    }
+    mode = "view";
+    drawBtn.classList.remove("active");
+  }
+
+  canvas.addEventListener("mousedown", startDraw);
+  canvas.addEventListener("mouseup", endDraw);
+  canvas.addEventListener("mouseleave", endDraw);
+  canvas.addEventListener("touchstart", startDraw, { passive: false });
+  canvas.addEventListener("touchend", endDraw);
+
+  // ---------- controls ----------
+  function updateHarmLabel() {
+    harmVal.textContent = Math.round(harmSlider.value) + " / " + (fourier.length || "—");
+  }
+  function updateSpdLabel() {
+    spdVal.textContent = (Math.round(spdSlider.value) / 10).toFixed(1) + "×";
+  }
+  harmSlider.addEventListener("input", updateHarmLabel);
+  spdSlider.addEventListener("input", updateSpdLabel);
+
+  drawBtn.addEventListener("click", function () {
+    mode = "draw";
+    drawingPts = [];
+    fourier = [];
+    targetPath = [];
+    trace = [];
+    hint.style.display = "block";
+    hint.innerHTML = "Drawing mode active. <b>Click and drag</b> to sketch a closed shape, then release.";
+    this.classList.add("active");
+  });
+
+  var presetBtns = document.querySelectorAll(".preset");
+  for (var b = 0; b < presetBtns.length; b++) {
+    presetBtns[b].addEventListener("click", function () {
+      loadPreset(this.getAttribute("data-shape"));
+    });
+  }
+
+  playBtn.addEventListener("click", function () {
+    playing = !playing;
+    this.textContent = playing ? "Pause" : "Play";
+  });
+  resetBtn.addEventListener("click", function () {
+    time = 0; trace = [];
+  });
+
+  // ---------- epicycle evaluation ----------
+  function epicycles(cx, cy, count) {
+    var pts = [{ x: cx, y: cy }];
+    var x = cx, y = cy;
+    var N = fourier.length;
+    var lim = clamp(count, 1, N);
+    if (N === 0) return pts;
+    for (var i = 0; i < lim; i++) {
+      var c = fourier[i];
+      var prevX = x, prevY = y;
+      var angle = c.freq * time + c.phase;
+      x += c.amp * Math.cos(angle);
+      y += c.amp * Math.sin(angle);
+      pts.push({ x: x, y: y, radius: c.amp, fromX: prevX, fromY: prevY });
+    }
+    return pts;
+  }
+
+  // ---------- render loop ----------
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    if (mode === "draw") {
+      drawLivePath();
+      requestAnimationFrame(draw);
+      return;
+    }
+
+    if (fourier.length === 0) {
+      drawEmpty();
+      requestAnimationFrame(draw);
+      return;
+    }
+
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+
+    var N = fourier.length;
+    var count = clamp(Math.round(harmSlider.value), 1, N);
+
+    // faint full-resolution target path (precomputed, static per shape)
+    if (showPath.checked && targetPath.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(targetPath[0].x, targetPath[0].y);
+      for (var s = 1; s < targetPath.length; s++) ctx.lineTo(targetPath[s].x, targetPath[s].y);
+      ctx.closePath();
+      ctx.strokeStyle = "rgba(154,154,178,0.28)";
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    // epicycle chain
+    var chain = epicycles(0, 0, count);
+    if (showCircles.checked) {
+      for (var i = 1; i < chain.length; i++) {
+        var p = chain[i];
+        ctx.beginPath();
+        ctx.arc(p.fromX, p.fromY, p.radius, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(139,123,240,0.22)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(p.fromX, p.fromY);
+        ctx.lineTo(p.x, p.y);
+        ctx.strokeStyle = "rgba(94,234,208,0.55)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+    }
+
+    var tipNow = chain[chain.length - 1] || { x: 0, y: 0 };
+
+    if (playing) {
+      trace.push({ x: tipNow.x, y: tipNow.y });
+      if (trace.length > 600) trace.shift();
+    }
+
+    // fading trail
+    if (trace.length > 1) {
+      for (var t = 1; t < trace.length; t++) {
+        var ageFrac = t / trace.length;
+        ctx.beginPath();
+        ctx.moveTo(trace[t - 1].x, trace[t - 1].y);
+        ctx.lineTo(trace[t].x, trace[t].y);
+        ctx.strokeStyle = "rgba(94,234,208," + (0.08 + 0.85 * ageFrac).toFixed(3) + ")";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    // pen tip
+    ctx.beginPath();
+    ctx.arc(tipNow.x, tipNow.y, 3.2, 0, Math.PI * 2);
+    ctx.fillStyle = "#5eead0";
+    ctx.fill();
+
+    ctx.restore();
+
+    // advance time
+    if (playing && N > 0) {
+      var speed = clamp(Math.round(spdSlider.value), 1, 40) / 10;
+      time += (2 * Math.PI / 240) * speed;
+      if (time > Math.PI * 2) {
+        time -= Math.PI * 2;
+        trace = [];   // clean redraw each loop
+      }
+    }
+
+    requestAnimationFrame(draw);
+  }
+
+  function drawLivePath() {
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    if (drawingPts.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(drawingPts[0].x, drawingPts[0].y);
+      for (var i = 1; i < drawingPts.length; i++) ctx.lineTo(drawingPts[i].x, drawingPts[i].y);
+      ctx.strokeStyle = "#8b7bf0";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawEmpty() {
+    ctx.save();
+    ctx.fillStyle = "#9a9ab2";
+    ctx.font = "14px -apple-system, Segoe UI, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("Pick a preset or press “Draw new” to begin.", W / 2, H / 2);
+    ctx.restore();
+  }
+
+  // ---------- boot ----------
+  function init() {
+    resize();
+    updateSpdLabel();
+    loadPreset("heart");
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener("resize", function () { resize(); });
+
+  init();
+  // re-measure after layout settles (fonts / scrollbars)
+  window.addEventListener("load", function () { resize(); });
+  setTimeout(resize, 120);
+  setTimeout(resize, 400);
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

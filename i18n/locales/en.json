@@ -1,6 +1,6 @@
 {
   "site": {
-    "title": "AI Tech Demos",
+    "title": "AI Tech Hub",
     "description": "A collection of AI tech demos built with Nuxt v4."
   },
   "nav": {
@@ -117,6 +117,11 @@
     "typeImage": "Please upload an image file",
     "typeVideo": "Please upload a video file",
     "tooLarge": "File too large. Please upload a file under {size}"
+  },
+  "mediaInput": {
+    "upload": "Click or drag a file here",
+    "uploadHint": "Common formats supported, auto-resized",
+    "tooLarge": "File too large. Please upload a file under {max} MB"
   },
   "textEmbedder": {
     "textA": "Text A",
@@ -979,11 +984,14 @@
       "photosHint": "Select multiple at once; for group photos click a face thumbnail to choose which face to use",
       "analyzing": "Analyzing…",
       "noFace": "No face detected",
+      "modelReady": "Model ready",
+      "dragHint": "or drop an image here",
+      "faceSummary": "Photo {photo} · face {face} · confidence {score}%",
       "demoRun": "Run demo",
-      "demoRunHint": "Register sample student \"Xiao Ming\" and recognize from the group photo in one click (sample data is deletable)",
+      "demoRunHint": "Register a sample face in one click, then auto-recognize it from another angle (sample data deletable)",
       "demoCreated": "created",
       "demoAppended": "appended",
-      "demoSuccess": "Demo done: registered \"Xiao Ming\" ({status} {n} sample(s)), recognized {count} face(s) from the group photo. Sample data can be deleted anytime.",
+      "demoSuccess": "Demo done: enrolled \"Sample · Xiao Ming\"; another-angle photo matched at {sim}% similarity. Sample data can be deleted anytime.",
       "demoNoFace": "No face detected in the sample image",
       "analyzeError": "Analysis failed",
       "faces": "face(s)",
@@ -1014,7 +1022,7 @@
       "deleteSample": "Delete sample",
       "sampleCount": "samples",
       "storageNote": "The registry is stored in this browser (localStorage); it will be lost in another browser or after clearing cache",
-      "firstRunNote": "First use loads the insightface model (buffalo_l, ~300MB); please wait",
+      "firstRunNote": "First use loads the face detection & recognition model (~7MB, fully local in-browser, no backend)",
       "useCamera": "Use camera",
       "closeCamera": "Close camera",
       "cameraCapture": "Capture & add sample",

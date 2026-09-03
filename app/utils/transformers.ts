@@ -22,7 +22,7 @@ export async function setupTransformersEnv() {
 
 /** WebGPU 是否可用 */
 export function hasWebGPU(): boolean {
-  return typeof navigator !== 'undefined' && !!(navigator as any).gpu
+  return typeof navigator !== 'undefined' && !!(navigator as { gpu?: GPU | unknown }).gpu
 }
 
 /** 优选 device：有 WebGPU 用 WebGPU，否则 WASM */
@@ -57,15 +57,36 @@ export interface TransformersTextTaskConfig {
   model: string
   inputs: TransformersInputSpec[]
   /** 由 inputs 当前值构造 pipeline 调用位置参数 */
-  buildArgs: (vals: Record<string, any>) => any[]
+  buildArgs: (vals: Record<string, string>) => unknown[]
   /** pipeline 调用选项 */
-  callOptions?: (vals: Record<string, any>, params: Record<string, any>) => Record<string, any>
+  callOptions?: (vals: Record<string, string>, params: Record<string, number | string | boolean>) => Record<string, unknown>
   /** 可调参数 */
   params?: (t: (key: string) => string) => ParamSpec[]
   /** 解析为列表项（优先） */
-  parseItems?: (raw: any) => Array<{ label: string, value?: string, score?: number }>
+  parseItems?: (raw: unknown) => Array<{ label: string, value?: string, score?: number }>
   /** 解析为纯文本 */
-  parseText?: (raw: any) => string
+  parseText?: (raw: unknown) => string
+}
+
+/** pipeline 返回项的宽松结构（各 pipeline 字段不一，按需取用） */
+interface PipelineItem {
+  label?: string
+  value?: string
+  score?: number
+  entity?: string
+  entity_group?: string
+  word?: string
+  sequence?: string
+  token_str?: string
+  answer?: string
+  labels?: string[]
+  scores?: number[]
+  summary_text?: string
+  [key: string]: unknown
+}
+
+function toItems(raw: unknown): PipelineItem[] {
+  return Array.isArray(raw) ? raw as PipelineItem[] : [raw as PipelineItem]
 }
 
 export const transformersTextTasks: Record<string, TransformersTextTaskConfig> = {
@@ -80,7 +101,7 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
     params: t => [
       { key: 'topK', label: t('params.topK'), type: 'slider', default: 10, min: 1, max: 50, step: 1 }
     ],
-    parseItems: raw => (Array.isArray(raw) ? raw : []).map((r: any) => ({
+    parseItems: raw => toItems(raw).map(r => ({
       label: r.entity_group || r.entity || '—',
       value: r.word,
       score: r.score
@@ -94,7 +115,7 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       { key: 'text', labelKey: 'tf.inputText', type: 'textarea', default: 'I have a really exciting news about a new AI model that can understand images and text.', placeholderKey: 'tf.zeroShotPlaceholder' },
       { key: 'labels', labelKey: 'tf.candidateLabels', type: 'text', default: 'technology, sports, politics, education', placeholderKey: 'tf.labelsPlaceholder' }
     ],
-    buildArgs: v => [v.text, v.labels.split(',').map((s: string) => s.trim()).filter(Boolean)],
+    buildArgs: v => [v.text, (v.labels ?? '').split(',').map((s: string) => s.trim()).filter(Boolean)],
     callOptions: (_v, p) => ({ multi_label: Boolean(p.multiLabel) }),
     params: t => [
       { key: 'multiLabel', label: t('tf.multiLabel'), type: 'switch', default: false, help: t('tf.multiLabelHelp') }
@@ -102,8 +123,9 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
     // 返回 [{sequence, labels:[...], scores:[...]}]
     parseItems: (raw) => {
       const r = Array.isArray(raw) ? raw[0] : raw
-      if (!r?.labels) return []
-      return r.labels.map((label: string, i: number) => ({ label, score: r.scores?.[i] }))
+      const item = (r ?? {}) as PipelineItem
+      if (!item.labels) return []
+      return item.labels.map((label: string, i: number) => ({ label, score: item.scores?.[i] }))
     }
   },
 
@@ -142,10 +164,7 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       { key: 'topK', label: t('params.topK'), type: 'slider', default: 3, min: 1, max: 10, step: 1 }
     ],
     // 返回 [{answer, score}] 或单个对象
-    parseItems: (raw) => {
-      const arr = Array.isArray(raw) ? raw : [raw]
-      return arr.map((r: any) => ({ label: r.answer || '—', score: r.score }))
-    }
+    parseItems: raw => toItems(raw).map(r => ({ label: r.answer || '—', score: r.score }))
   },
 
   'fill-mask': {
@@ -160,7 +179,7 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       { key: 'topK', label: t('params.topK'), type: 'slider', default: 5, min: 1, max: 20, step: 1 }
     ],
     // 返回 [{token_str, score, sequence}]
-    parseItems: raw => (Array.isArray(raw) ? raw : []).map((r: any) => ({
+    parseItems: raw => toItems(raw).map(r => ({
       label: r.token_str || '—',
       value: r.sequence,
       score: r.score

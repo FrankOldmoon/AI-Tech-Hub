@@ -2,7 +2,9 @@
 import type { DemoStatus } from '~/utils/demos'
 
 /**
- * 通用演示运行器外壳：标题/状态 + 输入/控件/结果插槽 + 可选侧栏
+ * 通用局部布局组件：输入/控件/结果卡片 + 可选侧栏。
+ * 仅负责「卡片排布」；页面外壳（标题区/HowItWorks/面包屑/SEO/上下篇）
+ * 统一由外层 MediaDemoShell 提供。
  */
 interface RunnerDemo {
   title: string
@@ -14,7 +16,7 @@ interface RunnerDemo {
 }
 
 defineProps<{
-  demo: RunnerDemo
+  demo?: RunnerDemo
   loading?: boolean
   error?: string | null
   notice?: string | null
@@ -28,32 +30,14 @@ const hasAside = computed(() => Boolean(slots.aside))
 <template>
   <div class="grid lg:grid-cols-3 gap-6">
     <div :class="hasAside ? 'lg:col-span-2 space-y-6' : 'lg:col-span-3 space-y-6'">
-      <!-- 标题区 -->
-      <div class="flex items-start gap-4">
-        <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <UIcon :name="demo.icon" class="size-6" />
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <h1 class="text-2xl font-bold text-highlighted">
-              {{ demo.title }}
-            </h1>
-            <DemoStatusBadge :status="demo.status" />
-          </div>
-          <p v-if="demo.description" class="mt-1 text-muted">
-            {{ demo.description }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 工作原理（教学向，审计批次5） -->
-      <HowItWorksSection :text="demo.howItWorks" />
-
       <!-- 输入 -->
       <UCard>
         <template #header>
           <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-keyboard" class="size-4" />
+            <UIcon
+              name="i-lucide-keyboard"
+              class="size-4"
+            />
             {{ t('demo.input') }}
           </div>
         </template>
@@ -69,9 +53,16 @@ const hasAside = computed(() => Boolean(slots.aside))
       <UCard>
         <template #header>
           <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-terminal" class="size-4" />
+            <UIcon
+              name="i-lucide-terminal"
+              class="size-4"
+            />
             {{ t('demo.result') }}
-            <UIcon v-if="loading" name="i-lucide-loader-circle" class="size-4 animate-spin ms-1" />
+            <UIcon
+              v-if="loading"
+              name="i-lucide-loader-circle"
+              class="size-4 animate-spin ms-1"
+            />
           </div>
         </template>
         <UAlert
@@ -88,12 +79,18 @@ const hasAside = computed(() => Boolean(slots.aside))
           icon="i-lucide-info"
           :title="notice"
         />
-        <slot v-else name="result" />
+        <slot
+          v-else
+          name="result"
+        />
       </UCard>
     </div>
 
     <!-- 侧栏：仅在有 aside 插槽时渲染 -->
-    <aside v-if="hasAside" class="space-y-4">
+    <aside
+      v-if="hasAside"
+      class="space-y-4"
+    >
       <slot name="aside" />
     </aside>
   </div>

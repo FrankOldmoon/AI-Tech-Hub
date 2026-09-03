@@ -51,89 +51,113 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
         :samples="pageSamples"
       />
 
-      <!-- 传统 MediaPipe 模式 -->
-      <MediaVisionRunner
+      <!-- 传统 MediaPipe 模式：外壳用 MediaDemoShell，交互面用 MediaVisionRunner -->
+      <MediaDemoShell
         v-else-if="cfg && createDetector"
         :demo="demo"
-        :create-detector="createDetector!"
-        :detect-video="detectVideo"
-        :detect-image="detectImage"
-        :draw="draw"
-        :param-specs="paramSpecs"
-        :samples="sampleImages"
       >
-        <template #result="{ result }">
-          <div v-if="result?.detections?.length" class="space-y-1">
+        <MediaVisionRunner
+          :create-detector="createDetector!"
+          :detect-video="detectVideo"
+          :detect-image="detectImage"
+          :draw="draw"
+          :param-specs="paramSpecs"
+          :samples="sampleImages"
+        >
+          <template #result="{ result }">
             <div
-              v-for="(d, i) in result.detections"
-              :key="i"
-              class="flex justify-between text-sm"
+              v-if="result?.detections?.length"
+              class="space-y-1"
             >
-              <span>{{ d.categories?.[0]?.categoryName || 'object' }}</span>
-              <span class="text-muted">{{ Math.round((d.categories?.[0]?.score || 0) * 100) }}%</span>
-            </div>
-          </div>
-          <div v-else-if="result?.classifications?.[0]?.categories?.length" class="space-y-1">
-            <div
-              v-for="(c, i) in result.classifications[0].categories"
-              :key="i"
-              class="flex justify-between text-sm"
-            >
-              <span>{{ c.categoryName }}</span>
-              <span class="text-muted">{{ Math.round(c.score * 100) }}%</span>
-            </div>
-          </div>
-          <div v-else-if="result?.gestures?.length" class="space-y-1">
-            <div
-              v-for="(g, i) in result.gestures"
-              :key="i"
-              class="flex justify-between text-sm"
-            >
-              <span>{{ g[0]?.categoryName }}</span>
-              <span class="text-muted">{{ Math.round((g[0]?.score || 0) * 100) }}%</span>
-            </div>
-          </div>
-          <div v-else-if="result?.faceLandmarks?.length" class="space-y-1 text-sm">
-            <div class="text-muted">
-              {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
-            </div>
-            <!-- face-landmarker 的表情混合值（前 8 个） -->
-            <div v-if="result.faceBlendshapes?.[0]?.categories?.length" class="space-y-1">
               <div
-                v-for="(b, bi) in result.faceBlendshapes[0].categories.slice(0, 8)"
-                :key="bi"
-                class="flex justify-between"
+                v-for="(d, i) in result.detections"
+                :key="i"
+                class="flex justify-between text-sm"
               >
-                <span>{{ b.categoryName }}</span>
-                <span class="text-muted">{{ Math.round((b.score || 0) * 100) }}%</span>
+                <span>{{ d.categories?.[0]?.categoryName || 'object' }}</span>
+                <span class="text-muted">{{ Math.round((d.categories?.[0]?.score || 0) * 100) }}%</span>
               </div>
             </div>
-          </div>
-          <div
-            v-else-if="result?.poseLandmarks?.length"
-            class="text-sm text-muted"
-          >
-            {{ result.poseLandmarks.length }} pose(s) · {{ result.poseLandmarks[0].length }} pts
-          </div>
-          <div
-            v-else-if="result?.landmarks?.length && result?.handednesses?.length"
-            class="text-sm text-muted"
-          >
-            {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
-          </div>
-          <div
-            v-else-if="result?.landmarks?.length"
-            class="text-sm text-muted"
-          >
-            {{ result.landmarks.length }} pose(s) · {{ result.landmarks[0].length }} pts
-          </div>
-          <div v-else class="text-sm text-muted">
-            —
-          </div>
-        </template>
-      </MediaVisionRunner>
+            <div
+              v-else-if="result?.classifications?.[0]?.categories?.length"
+              class="space-y-1"
+            >
+              <div
+                v-for="(c, i) in result.classifications[0].categories"
+                :key="i"
+                class="flex justify-between text-sm"
+              >
+                <span>{{ c.categoryName }}</span>
+                <span class="text-muted">{{ Math.round(c.score * 100) }}%</span>
+              </div>
+            </div>
+            <div
+              v-else-if="result?.gestures?.length"
+              class="space-y-1"
+            >
+              <div
+                v-for="(g, i) in result.gestures"
+                :key="i"
+                class="flex justify-between text-sm"
+              >
+                <span>{{ g[0]?.categoryName }}</span>
+                <span class="text-muted">{{ Math.round((g[0]?.score || 0) * 100) }}%</span>
+              </div>
+            </div>
+            <div
+              v-else-if="result?.faceLandmarks?.length"
+              class="space-y-1 text-sm"
+            >
+              <div class="text-muted">
+                {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
+              </div>
+              <!-- face-landmarker 的表情混合值（前 8 个） -->
+              <div
+                v-if="result.faceBlendshapes?.[0]?.categories?.length"
+                class="space-y-1"
+              >
+                <div
+                  v-for="(b, bi) in result.faceBlendshapes[0].categories.slice(0, 8)"
+                  :key="bi"
+                  class="flex justify-between"
+                >
+                  <span>{{ b.categoryName }}</span>
+                  <span class="text-muted">{{ Math.round((b.score || 0) * 100) }}%</span>
+                </div>
+              </div>
+            </div>
+            <div
+              v-else-if="result?.poseLandmarks?.length"
+              class="text-sm text-muted"
+            >
+              {{ result.poseLandmarks.length }} pose(s) · {{ result.poseLandmarks[0].length }} pts
+            </div>
+            <div
+              v-else-if="result?.landmarks?.length && result?.handednesses?.length"
+              class="text-sm text-muted"
+            >
+              {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
+            </div>
+            <div
+              v-else-if="result?.landmarks?.length"
+              class="text-sm text-muted"
+            >
+              {{ result.landmarks.length }} pose(s) · {{ result.landmarks[0].length }} pts
+            </div>
+            <div
+              v-else
+              class="text-sm text-muted"
+            >
+              —
+            </div>
+          </template>
+        </MediaVisionRunner>
+      </MediaDemoShell>
 
-      <UContainer v-else class="py-16">
+      <UContainer
+        v-else
+        class="py-16"
+      >
         <UAlert
           color="neutral"
           variant="subtle"
@@ -143,12 +167,18 @@ const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bi
       </UContainer>
       <template #fallback>
         <div class="py-20 flex items-center justify-center">
-          <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-muted" />
+          <UIcon
+            name="i-lucide-loader-circle"
+            class="size-8 animate-spin text-muted"
+          />
         </div>
       </template>
     </ClientOnly>
   </div>
-  <UContainer v-else class="py-16">
+  <UContainer
+    v-else
+    class="py-16"
+  >
     <UAlert
       color="neutral"
       variant="subtle"

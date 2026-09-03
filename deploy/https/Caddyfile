@@ -1,0 +1,11 @@
+# Caddy 反向代理：对外 HTTPS(443) => 转发到本机 Nuxt(127.0.0.1:80)
+# SERVER_HOST 与证书路径由 setup-https.sh 在安装时通过 sed 替换
+{
+    email off
+    local_certs
+}
+
+https://SERVER_HOST {
+    tls /etc/certs/SERVER_HOST.pem /etc/certs/SERVER_HOST.key
+    reverse_proxy 127.0.0.1:80
+}

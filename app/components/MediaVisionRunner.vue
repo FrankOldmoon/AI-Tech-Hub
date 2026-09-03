@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import type { DemoStatus } from '~/utils/demos'
 import { humanError, mediaError } from '~/utils/errors'
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
@@ -8,22 +7,13 @@ import { processImageFile } from '~/utils/image'
 
 /**
  * 通用 MediaPipe 视觉演示运行器
- * - 摄像头实时 / 图片上传双模式
+ * - 仅负责「摄像头实时 / 图片上传 + 可调参数 + 结果」的交互面；
+ *   页面外壳（标题/HowItWorks/面包屑/SEO/上下篇）统一由 MediaDemoShell 提供。
  * - 通过 props 注入 createDetector / detectVideo / detectImage / draw
- * - 可调参数面板：param key 与 setOptions 选项键一一对应，变更即调用 setOptions
  * - 结果通过 #result scoped slot 暴露
  */
-interface RunnerDemo {
-  title: string
-  description?: string
-  icon: string
-  status: DemoStatus
-  /** 工作原理（教学向，折叠渲染） */
-  howItWorks?: string
-}
 
 const props = defineProps<{
-  demo: RunnerDemo
   createDetector: (vision: any) => Promise<any>
   detectVideo: (detector: any, video: HTMLVideoElement, timestamp: number) => any
   detectImage: (detector: any, image: ImageBitmap) => any
@@ -35,17 +25,9 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-useSeoMeta({
-  title: () => props.demo.title,
-  description: () => props.demo.description || '',
-  ogTitle: () => props.demo.title,
-  ogDescription: () => props.demo.description || ''
-})
-
 const videoRef = ref<HTMLVideoElement>()
 const imgRef = ref<HTMLImageElement>()
 const canvasRef = ref<HTMLCanvasElement>()
-const fileInput = ref<HTMLInputElement>()
 
 const mode = ref<'webcam' | 'image'>('webcam')
 const downloading = ref(false) // 模型下载/加载中
@@ -217,15 +199,7 @@ async function runImageFile(file: File) {
     error.value = humanError(e, t)
   } finally {
     loading.value = false
-    if (fileInput.value) fileInput.value.value = ''
   }
-}
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  void runImageFile(file)
 }
 
 onBeforeUnmount(() => {
@@ -234,135 +208,122 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12 space-y-6">
-      <!-- 标题区 -->
-      <div class="flex items-start gap-4">
-        <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <UIcon :name="demo.icon" class="size-6" />
-        </div>
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <h1 class="text-2xl font-bold text-highlighted">
-              {{ demo.title }}
-            </h1>
-            <DemoStatusBadge :status="demo.status" />
-          </div>
-          <p v-if="demo.description" class="mt-1 text-muted">
-            {{ demo.description }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 工作原理（教学向，审计批次5） -->
-      <HowItWorksSection :text="demo.howItWorks" />
-
-      <!-- 控件 -->
-      <div class="flex flex-wrap items-center gap-2">
-        <UButton
-          v-if="!running"
-          icon="i-lucide-video"
-          :label="downloading ? t('demo.loadingModel') : t('mp.webcam')"
-          color="primary"
-          :loading="starting || downloading || loading"
-          :disabled="starting"
-          @click="startWebcam"
-        />
-        <UButton
-          v-else
-          icon="i-lucide-square"
-          :label="t('mp.stop')"
-          color="error"
-          variant="subtle"
-          @click="stopWebcam"
-        />
-        <UButton
-          icon="i-lucide-upload"
-          :label="t('mp.upload')"
-          color="neutral"
-          variant="subtle"
-          :disabled="downloading || loading"
-          @click="fileInput?.click()"
-        />
-        <template v-for="s in sampleImages" :key="s.url">
-          <UButton
-            :label="s.label"
-            icon="i-lucide-image"
-            size="sm"
-            color="neutral"
-            variant="soft"
-            :disabled="downloading || loading"
-            @click="useSample(s.url)"
-          />
-        </template>
-        <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
-        <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
-      </div>
-
-      <!-- 错误 -->
-      <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+  <div class="space-y-6">
+    <!-- 控件 -->
+    <div class="flex flex-wrap items-center gap-2">
       <UButton
-        v-if="error && mode !== 'image'"
-        icon="i-lucide-image-plus"
-        :label="t('demo.useUploadInstead')"
-        color="neutral"
-        variant="soft"
-        size="sm"
-        class="mt-2"
-        @click="fileInput?.click()"
+        v-if="!running"
+        icon="i-lucide-video"
+        :label="downloading ? t('demo.loadingModel') : t('mp.webcam')"
+        color="primary"
+        :loading="starting || downloading || loading"
+        :disabled="starting"
+        @click="startWebcam"
       />
-
-      <!-- 画面区 -->
-      <div class="relative w-full max-w-3xl mx-auto rounded-xl overflow-hidden bg-elevated/60 aspect-video flex items-center justify-center">
-        <video
-          v-show="mode === 'webcam'"
-          ref="videoRef"
-          class="w-full h-full object-contain"
-          style="transform: scaleX(-1)"
-          playsinline
-          muted
-        />
-        <img v-show="mode === 'image'" ref="imgRef" class="w-full h-full object-contain">
-        <canvas
-          ref="canvasRef"
-          class="absolute inset-0 w-full h-full object-contain"
-          :style="mode === 'webcam' ? 'transform: scaleX(-1)' : ''"
-        />
-        <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-black/40">
-          <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-white" />
-        </div>
-        <!-- 模型下载进度（MediaPipe 无百分比回调，用不确定进度条 + 文案） -->
-        <div
-          v-if="downloading"
-          class="absolute inset-x-0 bottom-0 space-y-1 bg-black/50 px-4 py-2"
-        >
-          <UProgress
-            :value="null"
-            size="xs"
-          />
-          <p class="text-xs text-white/90 flex items-center gap-1.5">
-            <UIcon
-              name="i-lucide-download"
-              class="size-3.5"
-            />
-            {{ t('demo.loadingModel') }}
-          </p>
-        </div>
-      </div>
-
-      <!-- 可调参数 -->
-      <DemoParams v-if="paramSpecs?.length" v-model="paramValues" :specs="paramSpecs" :running="running" />
-
-      <!-- 结果 -->
-      <UCard v-if="$slots.result">
-        <template #header>
-          <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon name="i-lucide-terminal" class="size-4" />
-            {{ t('demo.result') }}
-          </div>
-        </template>
-        <slot name="result" :result="result" :inference-time="inferenceTime" />
-      </UCard>
+      <UButton
+        v-else
+        icon="i-lucide-square"
+        :label="t('mp.stop')"
+        color="error"
+        variant="subtle"
+        @click="stopWebcam"
+      />
+      <span
+        v-if="inferenceTime"
+        class="text-sm text-muted ms-2 tabular-nums"
+      >{{ inferenceTime }} ms</span>
     </div>
-  </UContainer>
+
+    <!-- 图片 / 示例（非摄像头运行时可拖拽上传） -->
+    <MediaInput
+      v-if="mode === 'image' || !running"
+      :samples="sampleImages"
+      :disabled="downloading || loading"
+      @select="runImageFile"
+      @sample="useSample"
+    />
+
+    <!-- 错误 -->
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
+
+    <!-- 画面区 -->
+    <div class="relative w-full max-w-3xl mx-auto rounded-xl overflow-hidden bg-elevated/60 aspect-video flex items-center justify-center ring-1 ring-primary/10">
+      <video
+        v-show="mode === 'webcam'"
+        ref="videoRef"
+        class="w-full h-full object-contain"
+        style="transform: scaleX(-1)"
+        playsinline
+        muted
+      />
+      <img
+        v-show="mode === 'image'"
+        ref="imgRef"
+        class="w-full h-full object-contain"
+      >
+      <canvas
+        ref="canvasRef"
+        class="absolute inset-0 w-full h-full object-contain"
+        :style="mode === 'webcam' ? 'transform: scaleX(-1)' : ''"
+      />
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center bg-black/40"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-8 animate-spin text-white"
+        />
+      </div>
+      <!-- 模型下载进度（MediaPipe 无百分比回调，用不确定进度条 + 文案） -->
+      <div
+        v-if="downloading"
+        class="absolute inset-x-0 bottom-0 space-y-1 bg-black/50 px-4 py-2"
+      >
+        <UProgress
+          :value="null"
+          size="xs"
+        />
+        <p class="text-xs text-white/90 flex items-center gap-1.5">
+          <UIcon
+            name="i-lucide-download"
+            class="size-3.5"
+          />
+          {{ t('demo.loadingModel') }}
+        </p>
+      </div>
+    </div>
+
+    <!-- 可调参数 -->
+    <DemoParams
+      v-if="paramSpecs?.length"
+      v-model="paramValues"
+      :specs="paramSpecs"
+      :running="running"
+    />
+
+    <!-- 结果 -->
+    <UCard v-if="$slots.result">
+      <template #header>
+        <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+          <UIcon
+            name="i-lucide-terminal"
+            class="size-4"
+          />
+          {{ t('demo.result') }}
+        </div>
+      </template>
+      <slot
+        name="result"
+        :result="result"
+        :inference-time="inferenceTime"
+      />
+    </UCard>
+  </div>
 </template>

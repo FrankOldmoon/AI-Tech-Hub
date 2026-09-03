@@ -40,12 +40,12 @@ async function initSurfer(url: string) {
       url,
       waveColor: '#22d3ee',
       progressColor: '#0ea5e9',
-      height: 110,
+      height: 110
     })
     spec = surfer.registerPlugin(Spectrogram.create({
       container: specRef.value,
       height: 120,
-      labels: true,
+      labels: true
     }))
     surfer.on('play', () => { playing.value = true; tick() })
     surfer.on('pause', () => { playing.value = false; if (rafId !== null) cancelAnimationFrame(rafId) })
@@ -93,49 +93,70 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12">
-      <DemoRunner :demo="demo" :error="error">
-        <!-- 输入 -->
-        <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('visualizer.hint') }}</p>
-          <input
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-            class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
-            @change="onFileChange"
-          />
-        </template>
+  <MediaDemoShell :demo="demo">
+    <DemoRunner :error="error">
+      <!-- 输入 -->
+      <template #input>
+        <p class="text-sm text-muted mb-4">
+          {{ t('visualizer.hint') }}
+        </p>
+        <input
+          type="file"
+          accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
+          class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
+          @change="onFileChange"
+        >
+      </template>
 
-        <!-- 控件 -->
-        <template #controls>
-          <UButton
-            v-if="surfer"
-            :icon="playing ? 'i-lucide-pause' : 'i-lucide-play'"
-            :label="playing ? t('visualizer.pause') : t('visualizer.play')"
-            color="primary"
-            @click="togglePlay"
-          />
-          <span v-if="duration" class="text-sm text-muted tabular-nums">
-            {{ fmt(currentTime) }} / {{ fmt(duration) }}
-          </span>
-        </template>
+      <!-- 控件 -->
+      <template #controls>
+        <UButton
+          v-if="surfer"
+          :icon="playing ? 'i-lucide-pause' : 'i-lucide-play'"
+          :label="playing ? t('visualizer.pause') : t('visualizer.play')"
+          color="primary"
+          @click="togglePlay"
+        />
+        <span
+          v-if="duration"
+          class="text-sm text-muted tabular-nums"
+        >
+          {{ fmt(currentTime) }} / {{ fmt(duration) }}
+        </span>
+      </template>
 
-        <!-- 结果 -->
-        <template #result>
-          <div v-if="audioUrl" class="space-y-4">
-            <div>
-              <p class="text-xs text-muted mb-2">{{ t('visualizer.waveform') }}</p>
-              <div ref="waveRef" class="rounded-lg border border-default bg-elevated/30 overflow-hidden" />
-            </div>
-            <div>
-              <p class="text-xs text-muted mb-2">{{ t('visualizer.spectrogram') }}</p>
-              <div ref="specRef" class="rounded-lg border border-default bg-elevated/30 overflow-hidden" />
-            </div>
+      <!-- 结果 -->
+      <template #result>
+        <div
+          v-if="audioUrl"
+          class="space-y-4"
+        >
+          <div>
+            <p class="text-xs text-muted mb-2">
+              {{ t('visualizer.waveform') }}
+            </p>
+            <div
+              ref="waveRef"
+              class="rounded-lg border border-default bg-elevated/30 overflow-hidden"
+            />
           </div>
-          <div v-else class="text-sm text-muted">{{ t('visualizer.noResult') }}</div>
-        </template>
-      </DemoRunner>
-    </div>
-  </UContainer>
+          <div>
+            <p class="text-xs text-muted mb-2">
+              {{ t('visualizer.spectrogram') }}
+            </p>
+            <div
+              ref="specRef"
+              class="rounded-lg border border-default bg-elevated/30 overflow-hidden"
+            />
+          </div>
+        </div>
+        <div
+          v-else
+          class="text-sm text-muted"
+        >
+          {{ t('visualizer.noResult') }}
+        </div>
+      </template>
+    </DemoRunner>
+  </MediaDemoShell>
 </template>

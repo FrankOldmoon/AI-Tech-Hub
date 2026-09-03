@@ -84,7 +84,7 @@ async function startRecording() {
 
 function stopRecording() {
   mediaRecorder?.stop()
-  recordStream?.getTracks().forEach((t) => t.stop())
+  recordStream?.getTracks().forEach(t => t.stop())
   recordStream = null
   mediaRecorder = null
   recording.value = false
@@ -174,122 +174,154 @@ onBeforeUnmount(() => {
 })
 
 const topResult = computed(() => result.value[0] || null)
-const maxScore = computed(() => Math.max(...result.value.map((r) => r.score), 0))
+const maxScore = computed(() => Math.max(...result.value.map(r => r.score), 0))
 </script>
 
 <template>
-  <UContainer>
-    <div class="py-8 sm:py-12">
-      <DemoRunner :demo="demo" :loading="loading" :error="error">
-        <!-- 输入 -->
-        <template #input>
-          <p class="text-sm text-muted mb-4">{{ t('emotion.hint') }}</p>
-          <div class="flex flex-wrap items-center gap-3">
-            <UButton
-              v-if="!recording"
-              icon="i-lucide-mic"
-              :label="t('emotion.recordStart')"
-              color="primary"
-              variant="soft"
-              @click="startRecording"
-            />
-            <UButton
-              v-else
-              icon="i-lucide-square"
-              :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
-              color="error"
-              variant="subtle"
-              @click="stopRecording"
-            />
-            <input
-              ref="fileInput"
-              type="file"
-              accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-              class="hidden"
-              @change="onFileChange"
-            />
-            <UButton
-              icon="i-lucide-upload"
-              :label="audioFile ? audioFile.name : t('emotion.upload')"
-              variant="outline"
-              @click="pickFile"
-            />
-            <UButton
-              icon="i-lucide-flask-conical"
-              :label="t('samples.trySample')"
-              variant="soft"
-              @click="useSample"
+  <MediaDemoShell :demo="demo">
+    <DemoRunner
+      :loading="loading"
+      :error="error"
+    >
+      <!-- 输入 -->
+      <template #input>
+        <p class="text-sm text-muted mb-4">
+          {{ t('emotion.hint') }}
+        </p>
+        <div class="flex flex-wrap items-center gap-3">
+          <UButton
+            v-if="!recording"
+            icon="i-lucide-mic"
+            :label="t('emotion.recordStart')"
+            color="primary"
+            variant="soft"
+            @click="startRecording"
+          />
+          <UButton
+            v-else
+            icon="i-lucide-square"
+            :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
+            color="error"
+            variant="subtle"
+            @click="stopRecording"
+          />
+          <input
+            ref="fileInput"
+            type="file"
+            accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
+            class="hidden"
+            @change="onFileChange"
+          >
+          <UButton
+            icon="i-lucide-upload"
+            :label="audioFile ? audioFile.name : t('emotion.upload')"
+            variant="outline"
+            @click="pickFile"
+          />
+          <UButton
+            icon="i-lucide-flask-conical"
+            :label="t('samples.trySample')"
+            variant="soft"
+            @click="useSample"
+          />
+        </div>
+        <audio
+          v-if="audioUrl"
+          :src="audioUrl"
+          controls
+          class="mt-4 w-full max-w-md"
+        />
+      </template>
+
+      <!-- 控件 -->
+      <template #controls>
+        <UButton
+          icon="i-lucide-wand-sparkles"
+          :label="t('emotion.analyze')"
+          color="primary"
+          :loading="loading"
+          :disabled="!audioFile"
+          @click="analyze"
+        />
+        <UButton
+          v-if="loading"
+          icon="i-lucide-x"
+          :label="t('emotion.cancel')"
+          color="neutral"
+          variant="subtle"
+          @click="cancelAnalyze"
+        />
+      </template>
+
+      <!-- 结果 -->
+      <template #result>
+        <!-- 进度 -->
+        <div
+          v-if="loading"
+          class="space-y-3"
+        >
+          <div class="flex items-center justify-between text-sm text-muted">
+            <span>{{ loadingText }}</span>
+            <span class="tabular-nums">{{ progress }}%</span>
+          </div>
+          <div class="h-2 w-full bg-default rounded-full overflow-hidden">
+            <div
+              class="h-full bg-primary transition-all"
+              :style="{ width: progress + '%' }"
             />
           </div>
-          <audio v-if="audioUrl" :src="audioUrl" controls class="mt-4 w-full max-w-md" />
-        </template>
-
-        <!-- 控件 -->
-        <template #controls>
-          <UButton
-            icon="i-lucide-wand-sparkles"
-            :label="t('emotion.analyze')"
-            color="primary"
-            :loading="loading"
-            :disabled="!audioFile"
-            @click="analyze"
-          />
-          <UButton
-            v-if="loading"
-            icon="i-lucide-x"
-            :label="t('emotion.cancel')"
-            color="neutral"
-            variant="subtle"
-            @click="cancelAnalyze"
-          />
-        </template>
+        </div>
 
         <!-- 结果 -->
-        <template #result>
-          <!-- 进度 -->
-          <div v-if="loading" class="space-y-3">
-            <div class="flex items-center justify-between text-sm text-muted">
-              <span>{{ loadingText }}</span>
-              <span class="tabular-nums">{{ progress }}%</span>
-            </div>
-            <div class="h-2 w-full bg-default rounded-full overflow-hidden">
-              <div class="h-full bg-primary transition-all" :style="{ width: progress + '%' }" />
-            </div>
-          </div>
-
-          <!-- 结果 -->
-          <div v-else-if="result.length" class="space-y-4">
-            <div v-if="topResult" class="flex items-center gap-3">
-              <UIcon name="i-lucide-smile" class="size-8 text-primary" />
-              <div>
-                <p class="text-lg font-semibold text-highlighted">
-                  {{ t(`emotion.label.${topResult.label.toLowerCase()}`, {}, topResult.label) }}
-                </p>
-                <p class="text-sm text-muted">
-                  {{ t('emotion.confidence') }}: {{ (topResult.score * 100).toFixed(1) }}%
-                </p>
-              </div>
-            </div>
-            <div class="space-y-2">
-              <div v-for="r in result" :key="r.label" class="flex items-center gap-3">
-                <span class="w-24 shrink-0 text-sm text-muted truncate">
-                  {{ t(`emotion.label.${r.label.toLowerCase()}`, {}, r.label) }}
-                </span>
-                <div class="h-2 flex-1 bg-default rounded-full overflow-hidden">
-                  <div
-                    class="h-full bg-primary transition-all"
-                    :style="{ width: maxScore > 0 ? (r.score / maxScore) * 100 + '%' : '0%' }"
-                  />
-                </div>
-                <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted">
-                  {{ (r.score * 100).toFixed(1) }}%
-                </span>
-              </div>
+        <div
+          v-else-if="result.length"
+          class="space-y-4"
+        >
+          <div
+            v-if="topResult"
+            class="flex items-center gap-3"
+          >
+            <UIcon
+              name="i-lucide-smile"
+              class="size-8 text-primary"
+            />
+            <div>
+              <p class="text-lg font-semibold text-highlighted">
+                {{ t(`emotion.label.${topResult.label.toLowerCase()}`, {}, topResult.label) }}
+              </p>
+              <p class="text-sm text-muted">
+                {{ t('emotion.confidence') }}: {{ (topResult.score * 100).toFixed(1) }}%
+              </p>
             </div>
           </div>
-          <div v-else class="text-sm text-muted">{{ t('emotion.noResult') }}</div>
-        </template>
-      </DemoRunner>
-    </div>
-  </UContainer>
+          <div class="space-y-2">
+            <div
+              v-for="r in result"
+              :key="r.label"
+              class="flex items-center gap-3"
+            >
+              <span class="w-24 shrink-0 text-sm text-muted truncate">
+                {{ t(`emotion.label.${r.label.toLowerCase()}`, {}, r.label) }}
+              </span>
+              <div class="h-2 flex-1 bg-default rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-primary transition-all"
+                  :style="{ width: maxScore > 0 ? (r.score / maxScore) * 100 + '%' : '0%' }"
+                />
+              </div>
+              <span class="w-12 shrink-0 text-right text-xs tabular-nums text-muted">
+                {{ (r.score * 100).toFixed(1) }}%
+              </span>
+            </div>
+          </div>
+        </div>
+        <div
+          v-else
+          class="text-sm text-muted"
+        >
+          {{ t('emotion.noResult') }}
+        </div>
+      </template>
+    </DemoRunner>
+  </MediaDemoShell>
 </template>

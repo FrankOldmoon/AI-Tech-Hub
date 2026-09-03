@@ -3,9 +3,12 @@
 import { TextClassifier, LanguageDetector } from '@mediapipe/tasks-text'
 import { mediapipeModels } from './mediapipe'
 
+/** WasmFileset 类型（库内声明未导出，经 createFromOptions 参数推导） */
+type WasmFileset = Parameters<typeof TextClassifier.createFromOptions>[0]
+
 export interface TextTaskConfig {
   /** 创建任务实例 */
-  create: (text: any) => Promise<any>
+  create: (resolver: WasmFileset) => Promise<TextClassifier | LanguageDetector>
   /** 同步推理方法名 */
   method: 'classify' | 'detect'
 }

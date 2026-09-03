@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Strange Attractors</title>
+<style>
+  :root{
+    --bg:#0b0b14; --panel:#16161f; --ink:#e8e8f2; --muted:#9a9ab2;
+    --teal:#5eead0; --violet:#8b7bf0; --line:#26263a; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px; margin:0 auto; padding:28px 18px 56px}
+  header h1{
+    margin:0 0 6px; font-size:clamp(22px,4vw,32px); font-weight:650;
+    letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--teal),var(--violet));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  header p{margin:0 0 20px; color:var(--muted); font-size:14px}
+
+  .stage{
+    position:relative; width:100%;
+    border:1px solid var(--line); border-radius:var(--radius);
+    overflow:hidden; background:#06060c;
+    box-shadow:0 0 0 1px rgba(94,234,208,.04), 0 18px 50px rgba(0,0,0,.5);
+  }
+  canvas{display:block; width:100%; height:auto}
+  .badge{
+    position:absolute; top:10px; left:12px; font-size:11px; letter-spacing:.5px;
+    color:var(--muted); background:rgba(11,11,20,.55); border:1px solid var(--line);
+    padding:4px 9px; border-radius:20px; backdrop-filter:blur(4px);
+    pointer-events:none;
+  }
+
+  .panel{
+    margin-top:18px; background:var(--panel); border:1px solid var(--line);
+    border-radius:var(--radius); padding:18px;
+  }
+  .row{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:16px}
+  .seg{display:flex; flex-wrap:wrap; gap:6px}
+  button{
+    font:inherit; color:var(--ink); background:#1d1d2a; border:1px solid var(--line);
+    padding:8px 14px; border-radius:9px; cursor:pointer; transition:.15s;
+    font-size:13px;
+  }
+  button:hover{border-color:var(--violet); color:#fff}
+  button.active{
+    background:linear-gradient(135deg,rgba(94,234,208,.16),rgba(139,123,240,.16));
+    border-color:var(--teal); color:#fff;
+  }
+  button.primary{border-color:var(--teal)}
+  .spacer{flex:1}
+
+  .controls{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:14px 22px;
+  }
+  .ctl label{display:flex; justify-content:space-between; font-size:12px; color:var(--muted); margin-bottom:6px}
+  .ctl label b{color:var(--teal); font-weight:600; font-variant-numeric:tabular-nums}
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:4px;
+    background:var(--line); border-radius:3px; outline:none; margin:0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; appearance:none; width:15px; height:15px; border-radius:50%;
+    background:linear-gradient(135deg,var(--teal),var(--violet)); cursor:pointer;
+    border:2px solid #0b0b14;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:15px; height:15px; border-radius:50%; border:2px solid #0b0b14;
+    background:var(--violet); cursor:pointer;
+  }
+
+  .notes{margin-top:24px; display:grid; grid-template-columns:1fr 1fr; gap:18px}
+  .notes section{background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px}
+  .notes h3{margin:0 0 8px; font-size:13px; color:var(--teal); letter-spacing:.4px}
+  .notes p{margin:0; font-size:12.5px; color:var(--muted)}
+
+  .back{display:inline-block; margin-top:26px; color:var(--muted); text-decoration:none; font-size:13px}
+  .back:hover{color:var(--teal)}
+
+  @media(max-width:640px){ .notes{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Strange Attractors</h1>
+    <p>Watch deterministic chaos draw itself into light.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="badge" id="badge">Lorenz</div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <div class="seg" id="systems"></div>
+      <div class="spacer"></div>
+      <button id="playBtn" class="primary">Pause</button>
+      <button id="resetBtn">Reset</button>
+    </div>
+
+    <div class="controls" id="controls"></div>
+  </div>
+
+  <div class="notes">
+    <section>
+      <h3>HOW IT WORKS</h3>
+      <p>Each attractor is a deterministic rule. 2D maps (Clifford, De&nbsp;Jong) iterate (x,y) directly; Lorenz and Halvorsen are ODEs integrated with 4th-order Runge&ndash;Kutta and slowly rotated in 3D. Tens of thousands of points are accumulated per frame with additive (lighter) blending so dense regions glow, while color tracks local speed. Diverging states are clamped back to safe seeds &mdash; never a blank screen.</p>
+    </section>
+    <section>
+      <h3>WHY IT MATTERS</h3>
+      <p>These shapes are the signature of chaos: fully determined by their equations, yet impossibly sensitive to initial conditions. A tiny nudge to &sigma;, &rho; or a single map coefficient reshapes the whole topology. Strange attractors are how weather, fluids, and nonlinear circuits hide structure inside unpredictability &mdash; order and randomness woven into one curve.</p>
+    </section>
+  </div>
+
+  <a class="back" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+"use strict";
+(function(){
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d', { alpha:false });
+  const badge = document.getElementById('badge');
+  const systemsEl = document.getElementById('systems');
+  const controlsEl = document.getElementById('controls');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  const PALETTES = {
+    aurora: ['#5eead0','#8b7bf0','#f06ec0'],
+    ember:  ['#ffd166','#ff7b54','#c8377d'],
+    ice:    ['#7ed4ff','#5e8bff','#b78bff'],
+    mono:   ['#9affe0','#5eead0','#3aa890']
+  };
+
+  const SYSTEMS = {
+    lorenz: {
+      label:'Lorenz', is3d:true, dt:0.006, stepsBase:9000,
+      params:[
+        {k:'sigma', name:'σ', min:1, max:20, step:0.1, val:10},
+        {k:'rho',   name:'ρ', min:1, max:50, step:0.1, val:28},
+        {k:'beta',  name:'β', min:0.5, max:5, step:0.01, val:2.667}
+      ],
+      seed:()=>({x:0.1,y:0,z:0}),
+      deriv:(p,P)=>({
+        x:P.sigma*(p.y-p.x),
+        y:p.x*(P.rho-p.z)-p.y,
+        z:p.x*p.y-P.beta*p.z
+      }),
+      view:{scale:9.0, cz:25, rotSpeed:0.10}
+    },
+    halvorsen: {
+      label:'Halvorsen', is3d:true, dt:0.004, stepsBase:9000,
+      params:[
+        {k:'a', name:'a', min:0.5, max:3.0, step:0.01, val:1.4}
+      ],
+      seed:()=>({x:-1.48,y:-1.51,z:0.02}),
+      deriv:(p,P)=>{
+        const a=P.a;
+        return {
+          x:-a*p.x-4*p.y-4*p.z-p.y*p.y,
+          y:-a*p.y-4*p.z-4*p.x-p.z*p.z,
+          z:-a*p.z-4*p.x-4*p.y-p.x*p.x
+        };
+      },
+      view:{scale:22, cz:0, rotSpeed:0.14}
+    },
+    clifford: {
+      label:'Clifford', is3d:false, stepsBase:14000,
+      params:[
+        {k:'a', name:'a', min:-3, max:3, step:0.01, val:-1.4},
+        {k:'b', name:'b', min:-3, max:3, step:0.01, val:1.6},
+        {k:'c', name:'c', min:-3, max:3, step:0.01, val:1.0},
+        {k:'d', name:'d', min:-3, max:3, step:0.01, val:0.7}
+      ],
+      seed:()=>({x:0.1,y:0.1}),
+      map:(p,P)=>({
+        x:Math.sin(P.a*p.y)+P.c*Math.cos(P.a*p.x),
+        y:Math.sin(P.b*p.x)+P.d*Math.cos(P.b*p.y)
+      }),
+      view:{scale:0.24}
+    },
+    dejong: {
+      label:'De Jong', is3d:false, stepsBase:14000,
+      params:[
+        {k:'a', name:'a', min:-3, max:3, step:0.01, val:1.641},
+        {k:'b', name:'b', min:-3, max:3, step:0.01, val:1.902},
+        {k:'c', name:'c', min:-3, max:3, step:0.01, val:0.316},
+        {k:'d', name:'d', min:-3, max:3, step:0.01, val:1.525}
+      ],
+      seed:()=>({x:0.1,y:0.1}),
+      map:(p,P)=>({
+        x:Math.sin(P.a*p.y)-Math.cos(P.b*p.x),
+        y:Math.sin(P.c*p.x)-Math.cos(P.d*p.y)
+      }),
+      view:{scale:0.22}
+    }
+  };
+
+  // ---- Runtime state ---------------------------------------------------------
+  let current = 'lorenz';
+  let params = {};
+  let palette = 'aurora';
+  let speed = 1.0;
+  let playing = true;
+  let p = {x:0,y:0,z:0};
+  let rot = 0;
+  let iter = 0;
+  let W=0, H=0, dpr=1;
+
+  function sys(){ return SYSTEMS[current]; }
+
+  function loadParams(){
+    params = {};
+    sys().params.forEach(pr => params[pr.k] = pr.val);
+  }
+
+  function clearCanvas(){
+    ctx.fillStyle = '#06060c';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+  }
+
+  function resetSim(keepParams){
+    if(!keepParams) loadParams();
+    const s = sys();
+    const seed = s.seed();
+    p = {x:seed.x, y:seed.y, z:(seed.z||0)};
+    rot = 0; iter = 0;
+    clearCanvas();
+  }
+
+  function hexToRgb(h){
+    return [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  }
+  let pcache = null, pcacheName = null;
+  function colorAt(t){
+    if(pcacheName!==palette){ pcache = PALETTES[palette].map(hexToRgb); pcacheName=palette; }
+    const cols = pcache;
+    t = t<0?0:(t>1?1:t);
+    const seg = t*(cols.length-1);
+    const i = Math.min(cols.length-2, Math.floor(seg));
+    const f = seg - i;
+    const a=cols[i], b=cols[i+1];
+    return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+  }
+
+  const finite = v => Number.isFinite(v);
+
+  function rk4(s, P, dt){
+    const d = s.deriv;
+    const k1 = d(p,P);
+    const k2 = d({x:p.x+0.5*dt*k1.x, y:p.y+0.5*dt*k1.y, z:p.z+0.5*dt*k1.z}, P);
+    const k3 = d({x:p.x+0.5*dt*k2.x, y:p.y+0.5*dt*k2.y, z:p.z+0.5*dt*k2.z}, P);
+    const k4 = d({x:p.x+dt*k3.x, y:p.y+dt*k3.y, z:p.z+dt*k3.z}, P);
+    return {
+      x:p.x + dt/6*(k1.x+2*k2.x+2*k3.x+k4.x),
+      y:p.y + dt/6*(k1.y+2*k2.y+2*k3.y+k4.y),
+      z:p.z + dt/6*(k1.z+2*k2.z+2*k3.z+k4.z)
+    };
+  }
+
+  // ---- Frame -----------------------------------------------------------------
+  function frame(){
+    if(playing) draw();
+    requestAnimationFrame(frame);
+  }
+
+  function draw(){
+    const s = sys();
+    const cw = canvas.width, ch = canvas.height;
+    if(cw<=0 || ch<=0) return; // guard against zero-size canvas (no NaN coords)
+    const cx = cw/2, cy = ch/2;
+    const steps = Math.max(500, Math.floor(s.stepsBase * dpr * speed));
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    if(s.is3d){
+      rot += s.view.rotSpeed * 0.016;
+      const cosR = Math.cos(rot), sinR = Math.sin(rot);
+      const scale = s.view.scale * Math.min(cw,ch)/600;
+      const dt = s.dt;
+      for(let i=0;i<steps;i++){
+        const np = rk4(s, params, dt);
+        if(!finite(np.x)||!finite(np.y)||!finite(np.z) ||
+           Math.abs(np.x)>1e4||Math.abs(np.y)>1e4||Math.abs(np.z)>1e4){
+          ctx.globalCompositeOperation = 'source-over';
+          resetSim(true);
+          return;
+        }
+        const vx=np.x-p.x, vy=np.y-p.y, vz=np.z-p.z;
+        const spd = Math.sqrt(vx*vx+vy*vy+vz*vz);
+        p = np;
+        const xr = p.x*cosR - (p.z - s.view.cz)*sinR;
+        const sx = cx + xr*scale;
+        const sy = cy - (p.y)*scale*0.92;
+        if(sx<-2||sx>cw+2||sy<-2||sy>ch+2) continue;
+        const t = Math.min(1, spd/(s.dt*180));
+        const c = colorAt(t);
+        ctx.fillStyle = 'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+',0.06)';
+        ctx.fillRect(sx, sy, 1.1, 1.1);
+      }
+    } else {
+      const scale = s.view.scale * Math.min(cw,ch);
+      for(let i=0;i<steps;i++){
+        const np = s.map(p, params);
+        if(!finite(np.x)||!finite(np.y)||Math.abs(np.x)>50||Math.abs(np.y)>50){
+          ctx.globalCompositeOperation = 'source-over';
+          resetSim(true);
+          return;
+        }
+        const vx=np.x-p.x, vy=np.y-p.y;
+        const spd = Math.sqrt(vx*vx+vy*vy);
+        p = np;
+        const sx = cx + p.x*scale;
+        const sy = cy + p.y*scale;
+        if(sx<0||sx>cw||sy<0||sy>ch) continue;
+        const t = Math.min(1, spd/2.4);
+        const c = colorAt(t);
+        ctx.fillStyle = 'rgba('+(c[0]|0)+','+(c[1]|0)+','+(c[2]|0)+',0.05)';
+        ctx.fillRect(sx, sy, 1, 1);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    iter += steps;
+  }
+
+  // ---- UI build --------------------------------------------------------------
+  function buildSystemButtons(){
+    systemsEl.innerHTML='';
+    Object.keys(SYSTEMS).forEach(key=>{
+      const b=document.createElement('button');
+      b.textContent = SYSTEMS[key].label;
+      if(key===current) b.classList.add('active');
+      b.addEventListener('click', ()=>{
+        current = key;
+        badge.textContent = SYSTEMS[key].label;
+        Array.prototype.forEach.call(systemsEl.children, c=>c.classList.remove('active'));
+        b.classList.add('active');
+        resetSim(false);
+        buildControls();
+      });
+      systemsEl.appendChild(b);
+    });
+  }
+
+  function round(v,step){
+    const ss = String(step);
+    const dec = ss.indexOf('.')>=0 ? ss.split('.')[1].length : 0;
+    return Number(v).toFixed(dec);
+  }
+
+  function buildControls(){
+    controlsEl.innerHTML='';
+    sys().params.forEach(pr=>{
+      const wrap=document.createElement('div'); wrap.className='ctl';
+      const lab=document.createElement('label');
+      const span=document.createElement('span'); span.textContent=pr.name;
+      const val=document.createElement('b');
+      val.textContent = round(params[pr.k], pr.step);
+      lab.appendChild(span); lab.appendChild(val);
+      const inp=document.createElement('input');
+      inp.type='range'; inp.min=pr.min; inp.max=pr.max; inp.step=pr.step;
+      inp.value=params[pr.k];
+      inp.addEventListener('input', ()=>{
+        params[pr.k]=parseFloat(inp.value);
+        val.textContent=round(params[pr.k], pr.step);
+        resetSim(true);
+      });
+      wrap.appendChild(lab); wrap.appendChild(inp);
+      controlsEl.appendChild(wrap);
+    });
+
+    addRange('Iteration speed', 0.2, 3, 0.1, speed, v=>{ speed=v; }, v=>v.toFixed(1)+'×');
+
+    const wrap=document.createElement('div'); wrap.className='ctl';
+    const lab=document.createElement('label');
+    const span=document.createElement('span'); span.textContent='Palette';
+    const valB=document.createElement('b'); valB.textContent=palette;
+    lab.appendChild(span); lab.appendChild(valB);
+    wrap.appendChild(lab);
+    const seg=document.createElement('div'); seg.className='seg';
+    Object.keys(PALETTES).forEach(name=>{
+      const b=document.createElement('button');
+      b.textContent=name; b.style.padding='5px 10px'; b.style.fontSize='12px';
+      if(name===palette) b.classList.add('active');
+      b.addEventListener('click', ()=>{
+        palette=name; pcacheName=null;
+        valB.textContent=name;
+        Array.prototype.forEach.call(seg.children, c=>c.classList.remove('active'));
+        b.classList.add('active');
+      });
+      seg.appendChild(b);
+    });
+    wrap.appendChild(seg);
+    controlsEl.appendChild(wrap);
+  }
+
+  function addRange(name,min,max,step,value,onChange,fmt){
+    const wrap=document.createElement('div'); wrap.className='ctl';
+    const lab=document.createElement('label');
+    const span=document.createElement('span'); span.textContent=name;
+    const val=document.createElement('b');
+    val.textContent = fmt?fmt(value):String(value);
+    lab.appendChild(span); lab.appendChild(val);
+    const inp=document.createElement('input');
+    inp.type='range'; inp.min=min; inp.max=max; inp.step=step; inp.value=value;
+    inp.addEventListener('input', ()=>{
+      const v=parseFloat(inp.value);
+      val.textContent = fmt?fmt(v):String(v);
+      onChange(v);
+    });
+    wrap.appendChild(lab); wrap.appendChild(inp);
+    controlsEl.appendChild(wrap);
+  }
+
+  // ---- Resize / hi-dpi -------------------------------------------------------
+  function resize(){
+    dpr = Math.min(window.devicePixelRatio||1, 2);
+    const stage = canvas.parentElement;
+    const w = Math.max(320, Math.round(stage.clientWidth || (stage.parentElement && stage.parentElement.clientWidth) || window.innerWidth || 800));
+    const h = Math.max(360, Math.round(w * 0.62));
+    W=w; H=h;
+    canvas.style.height = h+'px';
+    canvas.width = Math.max(1, Math.round(w*dpr));
+    canvas.height = Math.max(1, Math.round(h*dpr));
+    resetSim(true);
+  }
+
+  // ---- Controls wiring -------------------------------------------------------
+  playBtn.addEventListener('click', ()=>{
+    playing=!playing;
+    playBtn.textContent = playing?'Pause':'Play';
+  });
+  resetBtn.addEventListener('click', ()=>{ resetSim(false); buildControls(); });
+
+  let rT;
+  window.addEventListener('resize', ()=>{ clearTimeout(rT); rT=setTimeout(resize,120); });
+
+  // ---- Boot ------------------------------------------------------------------
+  buildSystemButtons();
+  loadParams();
+  resize();
+  buildControls();
+  window.addEventListener('load', resize);
+  setTimeout(resize, 60);
+  requestAnimationFrame(frame);
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

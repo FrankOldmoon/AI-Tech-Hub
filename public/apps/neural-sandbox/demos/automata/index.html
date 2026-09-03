@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Automata Lab</title>
+<style>
+  :root{
+    --bg:#0b0b14;
+    --panel:#16161f;
+    --panel2:#1c1c28;
+    --ink:#e8e8f2;
+    --mut:#9a9ab2;
+    --acc:#5eead0;
+    --acc2:#8b7bf0;
+    --line:#2a2a3a;
+    --dead:#0e0e18;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:24px 18px 60px}
+  header h1{
+    margin:0 0 4px;
+    font-size:26px;
+    letter-spacing:.3px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+    color:var(--acc);
+    display:inline-block;
+  }
+  header .tag{color:var(--mut);font-size:14px;margin:0 0 18px}
+
+  .stage{
+    position:relative;
+    background:var(--dead);
+    border:1px solid var(--line);
+    border-radius:12px;
+    overflow:hidden;
+    width:100%;
+  }
+  #grid{display:block;width:100%;height:auto;cursor:crosshair;touch-action:none}
+  .hud{
+    position:absolute;top:10px;left:10px;
+    display:flex;gap:14px;
+    font-size:12px;color:var(--mut);
+    background:rgba(11,11,20,.55);
+    border:1px solid var(--line);
+    padding:6px 10px;border-radius:8px;
+    -webkit-backdrop-filter:blur(4px);
+    backdrop-filter:blur(4px);
+    pointer-events:none;
+  }
+  .hud b{color:var(--acc);font-variant-numeric:tabular-nums}
+
+  .panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:16px;
+    margin-top:16px;
+  }
+  .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .row + .row{margin-top:14px}
+  .grp-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--mut);width:100%;margin-bottom:-2px}
+
+  button{
+    font:inherit;font-size:13px;
+    color:var(--ink);
+    background:var(--panel2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:8px 14px;
+    cursor:pointer;
+    transition:border-color .15s,background .15s,color .15s;
+  }
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button:active{transform:translateY(1px)}
+  button.primary{border-color:var(--acc);color:var(--acc)}
+  button.primary.on{background:linear-gradient(90deg,rgba(94,234,208,.18),rgba(139,123,240,.18));border-color:var(--acc2)}
+  button.preset{background:transparent}
+  button.preset.sel{border-color:var(--acc2);color:var(--acc2)}
+
+  .slider{display:flex;align-items:center;gap:10px;min-width:230px;flex:1}
+  .slider label{font-size:13px;color:var(--mut);min-width:64px}
+  .slider input[type=range]{
+    flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:3px;
+    background:linear-gradient(90deg,var(--acc),var(--acc2));outline:none;
+  }
+  .slider input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;appearance:none;width:16px;height:16px;border-radius:50%;
+    background:var(--ink);border:2px solid var(--acc);cursor:pointer;
+  }
+  .slider input[type=range]::-moz-range-thumb{
+    width:16px;height:16px;border-radius:50%;background:var(--ink);border:2px solid var(--acc);cursor:pointer;
+  }
+  .slider .val{font-size:13px;color:var(--acc);min-width:54px;text-align:right;font-variant-numeric:tabular-nums}
+
+  .notes{margin-top:22px;display:grid;gap:16px;grid-template-columns:1fr 1fr}
+  .notes .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .notes h3{margin:0 0 6px;font-size:13px;color:var(--acc);letter-spacing:.5px}
+  .notes p{margin:0;font-size:12.5px;color:var(--mut)}
+  .back{display:inline-block;margin-top:24px;color:var(--acc2);text-decoration:none;font-size:14px;border:1px solid var(--line);padding:7px 14px;border-radius:8px}
+  .back:hover{border-color:var(--acc2)}
+  @media(max-width:720px){.notes{grid-template-columns:1fr}.slider{min-width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Automata Lab</h1>
+    <p class="tag">Paint a few cells, pick a rule, watch complexity bloom from nothing.</p>
+  </header>
+
+  <div class="stage">
+    <canvas id="grid"></canvas>
+    <div class="hud">
+      <span>Gen <b id="hGen">0</b></span>
+      <span>Alive <b id="hAlive">0</b></span>
+      <span>Rule <b id="hRule">B3/S23</b></span>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="row">
+      <span class="grp-label">Playback</span>
+      <button id="btnPlay" class="primary">Play</button>
+      <button id="btnStep">Step</button>
+      <button id="btnClear">Clear</button>
+      <button id="btnRand">Random fill</button>
+    </div>
+
+    <div class="row">
+      <span class="grp-label">Rules (Birth / Survival)</span>
+      <button class="preset sel" data-rule="B3/S23">Life &middot; B3/S23</button>
+      <button class="preset" data-rule="B36/S23">HighLife &middot; B36/S23</button>
+      <button class="preset" data-rule="B3/S12345">Maze &middot; B3/S12345</button>
+      <button class="preset" data-rule="B2/S">Seeds &middot; B2/S</button>
+      <button class="preset" data-rule="B34/S34">3-4 Life</button>
+      <button class="preset" data-rule="B1357/S1357">Replicator</button>
+      <button class="preset" data-rule="B5678/S45678">Diamoeba</button>
+    </div>
+
+    <div class="row">
+      <span class="grp-label">Pattern library</span>
+      <button data-pat="glider">Glider</button>
+      <button data-pat="gun">Glider gun</button>
+      <button data-pat="pulsar">Pulsar</button>
+      <button data-pat="lwss">LWSS</button>
+      <button data-pat="soup">Random soup</button>
+    </div>
+
+    <div class="row">
+      <div class="slider">
+        <label>Speed</label>
+        <input id="sSpeed" type="range" min="1" max="60" value="12">
+        <span class="val" id="vSpeed">12 fps</span>
+      </div>
+      <div class="slider">
+        <label>Density</label>
+        <input id="sDens" type="range" min="1" max="90" value="28">
+        <span class="val" id="vDens">28 %</span>
+      </div>
+      <div class="slider">
+        <label>Cell size</label>
+        <input id="sZoom" type="range" min="3" max="20" value="7">
+        <span class="val" id="vZoom">7 px</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <div class="card">
+      <h3>How it works</h3>
+      <p>&#27599;&#20010;&#32454;&#32990;&#21482;&#30475;&#33258;&#24049; 8 &#20010;&#37051;&#23621;,&#25353; B/S &#35268;&#21017;&#21516;&#27493;&#26356;&#26032;:&#37051;&#23621;&#25968;&#21629;&#20013; Birth &#38598;&#21512;&#21017;&#35806;&#29983;,&#21629;&#20013; Survival &#38598;&#21512;&#21017;&#23384;&#27963;,&#21542;&#21017;&#27515;&#20129;&#12290;&#32593;&#26684;&#23384;&#22312;&#20004;&#20010; Uint8Array(&#21452;&#32531;&#20914;)&#37324;,&#36793;&#30028;&#20570;&#29615;&#38754;&#21253;&#35065;,&#27599;&#24069;&#20889;&#20837;&#19968;&#24352; offscreen ImageData &#20877;&#25972;&#20307;&#32553;&#25918;&#21040;&#30011;&#24067;,&#22240;&#27492;&#19978;&#19975;&#32454;&#32990;&#20063;&#33021; 60fps&#12290;</p>
+    </div>
+    <div class="card">
+      <h3>Why it matters</h3>
+      <p>&#36825;&#26159;"&#28044;&#29616;"&#26368;&#32431;&#31929;&#30340;&#26679;&#26412;:&#19977;&#26465;&#26497;&#31616;&#30340;&#23616;&#37096;&#35268;&#21017;,&#27809;&#26377;&#20013;&#22830;&#25511;&#21046;,&#21364;&#38271;&#20986;&#28369;&#32735;&#26426;&#12289;&#25391;&#33633;&#22120;&#20083;&#33267;&#22270;&#28789;&#23436;&#22791;&#30340;&#35745;&#31639;&#12290;&#23427;&#26159;&#30740;&#31350;&#33258;&#32452;&#32455;&#12289;&#29983;&#21629;&#36215;&#28304;&#12289;&#20998;&#24067;&#24335;&#31995;&#32479;&#19982;&#21435;&#20013;&#24515;&#21270;&#31639;&#27861;&#30340;&#27963;&#20307;&#29609;&#20855;&#12290;</p>
+    </div>
+  </div>
+
+  <a class="back" href="../../index.html">&larr; Gallery</a>
+</div>
+
+<script>
+"use strict";
+(function(){
+  // ---------- DOM ----------
+  var canvas = document.getElementById('grid');
+  var ctx = canvas.getContext('2d', {alpha:false});
+  var stage = canvas.parentNode;
+  var hGen = document.getElementById('hGen');
+  var hAlive = document.getElementById('hAlive');
+  var hRule = document.getElementById('hRule');
+
+  // ---------- state ----------
+  var cell = 7;            // logical px per cell (before DPR)
+  var cols = 0, rows = 0;  // grid dimensions
+  var cur, nxt;            // Uint8Array double buffers
+  var off, offCtx, img;    // offscreen 1px-per-cell buffer + ImageData
+  var dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+
+  var playing = false;
+  var gen = 0;
+  var fps = 12;
+  var density = 0.28;
+  var lastStep = 0;
+  var rafId = 0;
+
+  // rule lookup tables: birth[n]=1 means dead cell with n neighbours becomes alive
+  var birth = new Uint8Array(9);
+  var survive = new Uint8Array(9);
+
+  // colors (parsed once for imageData speed)
+  var C_DEAD = [14,14,24];
+  var C_LIVE = [94,234,208];
+
+  // ---------- rule parsing ----------
+  function setRule(str){
+    birth.fill(0); survive.fill(0);
+    var m = /B([0-8]*)\/S([0-8]*)/i.exec(String(str).replace(/\s+/g,''));
+    if(!m){ m = /B([0-8]*)\/S([0-8]*)/i.exec('B3/S23'); }
+    for(var i=0;i<m[1].length;i++) birth[+m[1][i]] = 1;
+    for(var j=0;j<m[2].length;j++) survive[+m[2][j]] = 1;
+    var canon = 'B'+m[1]+'/S'+m[2];
+    hRule.textContent = canon;
+    return canon;
+  }
+
+  // ---------- sizing / rebuild ----------
+  function rebuild(keep){
+    var oldCur = keep ? cur : null;
+    var oldCols = cols, oldRows = rows;
+
+    // width of the visible stage (CSS px); fall back if not yet laid out
+    var w = Math.round(stage.clientWidth || stage.getBoundingClientRect().width || 600);
+    if(!isFinite(w) || w < 1) w = 600;
+    // comfortable ~16:9-ish aspect, clamped
+    var h = Math.round(Math.min(Math.max(w * 0.56, 280), 620));
+
+    cols = Math.max(8, Math.floor(w / cell));
+    rows = Math.max(8, Math.floor(h / cell));
+
+    // The canvas visually fills the full stage width via CSS (width:100%).
+    // Physical buffer = displayed CSS size * DPR for crisp pixels.
+    var cssW = w;
+    var cssH = h;
+    canvas.style.width = '100%';
+    canvas.style.height = cssH + 'px';
+    canvas.width  = Math.max(1, Math.round(cssW * dpr));
+    canvas.height = Math.max(1, Math.round(cssH * dpr));
+
+    cur = new Uint8Array(cols * rows);
+    nxt = new Uint8Array(cols * rows);
+
+    // offscreen 1px-per-cell
+    off = document.createElement('canvas');
+    off.width = cols; off.height = rows;
+    offCtx = off.getContext('2d');
+    img = offCtx.createImageData(cols, rows);
+
+    // copy old state centered if requested
+    if(oldCur && oldCols > 0 && oldRows > 0){
+      var dc = (cols - oldCols) >> 1, dr = (rows - oldRows) >> 1;
+      for(var y=0;y<oldRows;y++){
+        var ty = y + dr; if(ty<0||ty>=rows) continue;
+        for(var x=0;x<oldCols;x++){
+          var tx = x + dc; if(tx<0||tx>=cols) continue;
+          cur[ty*cols+tx] = oldCur[y*oldCols+x];
+        }
+      }
+    }
+    draw();
+  }
+
+  // ---------- simulation step (toroidal) ----------
+  function step(){
+    var c = cur, n = nxt, w = cols, hgt = rows;
+    for(var y=0;y<hgt;y++){
+      var yU = ((y-1+hgt)%hgt)*w;
+      var yC = y*w;
+      var yD = ((y+1)%hgt)*w;
+      for(var x=0;x<w;x++){
+        var xL = (x-1+w)%w;
+        var xR = (x+1)%w;
+        var cnt = c[yU+xL]+c[yU+x]+c[yU+xR]
+                + c[yC+xL]          +c[yC+xR]
+                + c[yD+xL]+c[yD+x]+c[yD+xR];
+        var alive = c[yC+x];
+        n[yC+x] = alive ? survive[cnt] : birth[cnt];
+      }
+    }
+    cur = n; nxt = c;
+    gen++;
+  }
+
+  // ---------- rendering ----------
+  function draw(){
+    var d = img.data, c = cur, len = c.length, alive = 0;
+    for(var i=0;i<len;i++){
+      var p = i*4, on = c[i];
+      if(on){ alive++; d[p]=C_LIVE[0]; d[p+1]=C_LIVE[1]; d[p+2]=C_LIVE[2]; }
+      else  { d[p]=C_DEAD[0]; d[p+1]=C_DEAD[1]; d[p+2]=C_DEAD[2]; }
+      d[p+3]=255;
+    }
+    offCtx.putImageData(img, 0, 0);
+    // scale offscreen onto FULL main canvas (nearest-neighbour = crisp cells,
+    // and stretching to canvas.width/height guarantees we fill the container)
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(off, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height);
+
+    hGen.textContent = gen;
+    hAlive.textContent = alive;
+  }
+
+  // ---------- animation loop ----------
+  function tick(ts){
+    rafId = requestAnimationFrame(tick);
+    if(!playing) return;
+    var safeFps = (isFinite(fps) && fps >= 1) ? fps : 1;  // guard 1000/0 -> NaN/Infinity
+    var interval = 1000 / safeFps;
+    if(ts - lastStep >= interval){
+      lastStep = ts;
+      step();
+      draw();
+    }
+  }
+
+  // ---------- grid helpers ----------
+  function clearGrid(){ cur.fill(0); gen = 0; draw(); }
+  function randomFill(){
+    for(var i=0;i<cur.length;i++) cur[i] = Math.random() < density ? 1 : 0;
+    gen = 0; draw();
+  }
+
+  // stamp a 2D pattern array centered (or at given anchor)
+  function stamp(pat, ax, ay){
+    if(!pat || !pat.length || !pat[0] || !pat[0].length) return;
+    var ph = pat.length, pw = pat[0].length;
+    var ox = ax===undefined ? ((cols - pw) >> 1) : ax;
+    var oy = ay===undefined ? ((rows - ph) >> 1) : ay;
+    for(var y=0;y<ph;y++){
+      for(var x=0;x<pw;x++){
+        if(pat[y][x]){
+          var gx = ((ox+x)%cols+cols)%cols;
+          var gy = ((oy+y)%rows+rows)%rows;
+          cur[gy*cols+gx] = 1;
+        }
+      }
+    }
+    draw();
+  }
+
+  // ---------- pattern library (string -> 2D array) ----------
+  function fromRows(rowsArr){
+    return rowsArr.map(function(r){
+      var out = []; for(var i=0;i<r.length;i++) out.push(r[i]==='O'?1:0); return out;
+    });
+  }
+  var PATTERNS = {
+    glider: fromRows([
+      ".O.",
+      "..O",
+      "OOO"
+    ]),
+    lwss: fromRows([
+      "O..O.",
+      "....O",
+      "O...O",
+      ".OOOO"
+    ]),
+    pulsar: fromRows([
+      "..OOO...OOO..",
+      ".............",
+      "O....O.O....O",
+      "O....O.O....O",
+      "O....O.O....O",
+      "..OOO...OOO..",
+      ".............",
+      "..OOO...OOO..",
+      "O....O.O....O",
+      "O....O.O....O",
+      "O....O.O....O",
+      ".............",
+      "..OOO...OOO.."
+    ]),
+    // Gosper glider gun (36 wide, 9 tall)
+    gun: fromRows([
+      "........................O...........",
+      "......................O.O...........",
+      "............OO......OO............OO",
+      "...........O...O....OO............OO",
+      "OO........O.....O...OO..............",
+      "OO........O...O.OO....O.O...........",
+      "..........O.....O.......O...........",
+      "...........O...O....................",
+      "............OO......................"
+    ])
+  };
+
+  function placePattern(name){
+    if(name === 'soup'){
+      var bw = Math.min(cols-2, Math.floor(cols*0.5));
+      var bh = Math.min(rows-2, Math.floor(rows*0.5));
+      if(bw < 1 || bh < 1){ randomFill(); return; }
+      var ox = (cols-bw)>>1, oy = (rows-bh)>>1;
+      cur.fill(0);
+      for(var y=0;y<bh;y++) for(var x=0;x<bw;x++)
+        if(Math.random()<0.42) cur[(oy+y)*cols+(ox+x)] = 1;
+      gen = 0; draw(); return;
+    }
+    var p = PATTERNS[name];
+    if(!p) return;
+    if(name==='gun') stamp(p, 1, 1);  // anchored so it has room to fire
+    else stamp(p);
+  }
+
+  // ---------- mouse / touch drawing ----------
+  var drawing = false, eraseMode = false;
+  function cellAt(ev){
+    var rect = canvas.getBoundingClientRect();
+    if(rect.width <= 0 || rect.height <= 0) return null;
+    var sx = (ev.clientX - rect.left) / rect.width;
+    var sy = (ev.clientY - rect.top) / rect.height;
+    var cx = Math.floor(sx * cols);
+    var cy = Math.floor(sy * rows);
+    if(cx<0||cy<0||cx>=cols||cy>=rows) return null;
+    return cy*cols+cx;
+  }
+  function paint(ev){
+    var idx = cellAt(ev);
+    if(idx==null) return;
+    cur[idx] = eraseMode ? 0 : 1;
+    draw();
+  }
+  canvas.addEventListener('mousedown', function(ev){
+    drawing = true;
+    eraseMode = (ev.button===2) || ev.shiftKey;
+    paint(ev); ev.preventDefault();
+  });
+  window.addEventListener('mousemove', function(ev){ if(drawing) paint(ev); });
+  window.addEventListener('mouseup', function(){ drawing = false; });
+  canvas.addEventListener('contextmenu', function(ev){ ev.preventDefault(); });
+  // touch
+  canvas.addEventListener('touchstart', function(ev){
+    drawing = true; eraseMode = false;
+    if(ev.touches[0]) paint(ev.touches[0]); ev.preventDefault();
+  }, {passive:false});
+  canvas.addEventListener('touchmove', function(ev){
+    if(drawing && ev.touches[0]) paint(ev.touches[0]); ev.preventDefault();
+  }, {passive:false});
+  window.addEventListener('touchend', function(){ drawing = false; });
+
+  // ---------- controls ----------
+  var btnPlay = document.getElementById('btnPlay');
+  function setPlaying(v){
+    playing = v;
+    btnPlay.textContent = v ? 'Pause' : 'Play';
+    btnPlay.classList.toggle('on', v);
+  }
+  btnPlay.addEventListener('click', function(){ setPlaying(!playing); });
+  document.getElementById('btnStep').addEventListener('click', function(){ setPlaying(false); step(); draw(); });
+  document.getElementById('btnClear').addEventListener('click', function(){ setPlaying(false); clearGrid(); });
+  document.getElementById('btnRand').addEventListener('click', function(){ randomFill(); });
+
+  // rule presets
+  var presetBtns = document.querySelectorAll('.preset');
+  presetBtns.forEach(function(b){
+    b.addEventListener('click', function(){
+      presetBtns.forEach(function(x){ x.classList.remove('sel'); });
+      b.classList.add('sel');
+      setRule(b.getAttribute('data-rule'));
+    });
+  });
+
+  // pattern buttons
+  document.querySelectorAll('[data-pat]').forEach(function(b){
+    b.addEventListener('click', function(){ placePattern(b.getAttribute('data-pat')); });
+  });
+
+  // sliders (rounded, live values, NaN-safe)
+  function clampInt(v, lo, hi, def){
+    v = Math.round(Number(v));
+    if(!isFinite(v)) v = def;
+    return Math.max(lo, Math.min(hi, v));
+  }
+  var sSpeed = document.getElementById('sSpeed'), vSpeed = document.getElementById('vSpeed');
+  var sDens  = document.getElementById('sDens'),  vDens  = document.getElementById('vDens');
+  var sZoom  = document.getElementById('sZoom'),  vZoom  = document.getElementById('vZoom');
+
+  sSpeed.addEventListener('input', function(){
+    fps = clampInt(sSpeed.value,1,60,12);
+    vSpeed.textContent = fps + ' fps';
+  });
+  sDens.addEventListener('input', function(){
+    var pct = clampInt(sDens.value,1,90,28);
+    density = pct/100;
+    vDens.textContent = pct + ' %';
+  });
+  sZoom.addEventListener('input', function(){
+    cell = clampInt(sZoom.value,3,20,7);
+    vZoom.textContent = cell + ' px';
+    rebuild(true);  // resize grid, keep pattern
+  });
+
+  // initialise slider readouts + state straight from the inputs (always in sync)
+  function syncSliders(){
+    fps = clampInt(sSpeed.value,1,60,12);
+    vSpeed.textContent = fps + ' fps';
+    var pct = clampInt(sDens.value,1,90,28);
+    density = pct/100;
+    vDens.textContent = pct + ' %';
+    cell = clampInt(sZoom.value,3,20,7);
+    vZoom.textContent = cell + ' px';
+  }
+
+  // ---------- resize ----------
+  var rT;
+  window.addEventListener('resize', function(){
+    clearTimeout(rT);
+    rT = setTimeout(function(){
+      dpr = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+      rebuild(true);
+    }, 120);
+  });
+
+  // ---------- boot ----------
+  syncSliders();
+  setRule('B3/S23');
+  rebuild(false);
+  placePattern('gun');   // something alive on first paint
+  setPlaying(true);
+  rafId = requestAnimationFrame(tick);
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>

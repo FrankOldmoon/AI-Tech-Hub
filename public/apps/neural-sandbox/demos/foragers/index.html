@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Foragers — Neuroevolution Foraging</title>
+<style>
+  :root{
+    --bg:#0b0b14; --panel:#16161f; --ink:#e8e8f2; --muted:#9a9ab2;
+    --accent:#5eead0; --accent2:#8b7bf0; --food:#5fd97a; --pred:#ff5d6c;
+    --obst:#3a3a4a; --best:#f4c543; --line:#26263a; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:960px;margin:0 auto;padding:20px 16px 48px}
+  header h1{margin:0 0 4px;font-size:26px;letter-spacing:.4px;
+    background:linear-gradient(90deg,var(--accent),var(--accent2));
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  header p{margin:0;color:var(--muted);font-size:14px}
+  .stage{margin:18px 0 14px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);overflow:hidden;position:relative}
+  canvas{display:block;width:100%;height:auto}
+  .stats{display:flex;flex-wrap:wrap;gap:10px;margin:0 0 14px}
+  .stat{flex:1 1 120px;background:var(--panel);border:1px solid var(--line);
+    border-radius:var(--radius);padding:10px 14px}
+  .stat .k{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px}
+  .stat .v{font-size:20px;font-weight:600;margin-top:2px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:16px;display:flex;flex-wrap:wrap;gap:18px;align-items:center}
+  .btns{display:flex;gap:10px;flex-wrap:wrap}
+  button{background:#1f1f2e;color:var(--ink);border:1px solid var(--line);
+    border-radius:10px;padding:9px 16px;font-size:14px;cursor:pointer;transition:.15s}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.primary{background:linear-gradient(90deg,var(--accent),var(--accent2));
+    color:#0b0b14;border:none;font-weight:600}
+  button.primary:hover{color:#0b0b14}
+  .ctrl{display:flex;flex-direction:column;gap:5px;min-width:160px;flex:1 1 160px}
+  .ctrl label{font-size:12px;color:var(--muted);display:flex;justify-content:space-between}
+  .ctrl label b{color:var(--ink);font-weight:600}
+  input[type=range]{-webkit-appearance:none;appearance:none;height:5px;border-radius:5px;
+    background:var(--line);outline:none}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:16px;height:16px;
+    border-radius:50%;background:var(--accent);cursor:pointer;border:2px solid #0b0b14}
+  input[type=range]::-moz-range-thumb{width:16px;height:16px;border-radius:50%;
+    background:var(--accent);cursor:pointer;border:2px solid #0b0b14}
+  .toggle{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);cursor:pointer}
+  .toggle input{accent-color:var(--accent2);width:16px;height:16px;cursor:pointer}
+  .notes{margin-top:22px;display:flex;flex-wrap:wrap;gap:18px}
+  .notes div{flex:1 1 280px}
+  .notes h3{margin:0 0 6px;font-size:13px;color:var(--accent);text-transform:uppercase;letter-spacing:.6px}
+  .notes p{margin:0;font-size:13px;color:var(--muted);line-height:1.6}
+  .gallery{display:inline-block;margin-top:26px;color:var(--accent2);
+    text-decoration:none;font-size:14px}
+  .gallery:hover{text-decoration:underline}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12px;color:var(--muted)}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .dot{width:10px;height:10px;border-radius:50%}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Foragers</h1>
+    <p>Tiny neural brains learn to hunt food and flee predators, generation by generation.</p>
+  </header>
+
+  <div class="stats">
+    <div class="stat"><div class="k">Generation</div><div class="v" id="s-gen">0</div></div>
+    <div class="stat"><div class="k">Best fitness (all time)</div><div class="v" id="s-best">0</div></div>
+    <div class="stat"><div class="k">Last gen average</div><div class="v" id="s-avg">0.0</div></div>
+    <div class="stat"><div class="k">Alive / Total</div><div class="v" id="s-alive">0 / 0</div></div>
+  </div>
+
+  <div class="stage">
+    <canvas id="cv"></canvas>
+  </div>
+
+  <div class="legend">
+    <span><i class="dot" style="background:#5eead0"></i>Forager</span>
+    <span><i class="dot" style="background:#f4c543"></i>Best of generation</span>
+    <span><i class="dot" style="background:#5fd97a"></i>Food</span>
+    <span><i class="dot" style="background:#ff5d6c"></i>Predator</span>
+    <span><i class="dot" style="background:#3a3a4a"></i>Obstacle</span>
+  </div>
+
+  <div class="panel" style="margin-top:14px">
+    <div class="btns">
+      <button class="primary" id="btn-play">Pause</button>
+      <button id="btn-reset">Reset</button>
+    </div>
+    <div class="ctrl">
+      <label>Speed <b id="v-speed">2x</b></label>
+      <input type="range" id="r-speed" min="1" max="8" step="1" value="2">
+    </div>
+    <div class="ctrl">
+      <label>Mutation rate <b id="v-mut">0.15</b></label>
+      <input type="range" id="r-mut" min="0.05" max="0.6" step="0.01" value="0.15">
+    </div>
+    <label class="toggle"><input type="checkbox" id="t-pred" checked>Predators</label>
+  </div>
+
+  <div class="notes">
+    <div>
+      <h3>How it works</h3>
+      <p>每个青色三角是一个个体,大脑是一张微型前馈网络:7 条 raycast 视觉射线探测最近的食物、捕食者与墙的距离,加上自身速度,共同输入到 8 个 tanh 隐层神经元,再输出转向与推力。吃到食物 +1 适应度并让食物重生。每代固定帧数后,按适应度排序:精英前 2 名原样保留,前 30% 作为父代,其余通过高斯变异(变异率可调)从父代繁殖出下一代。觅食与避敌行为完全由选择压力涌现,没有任何手写策略。</p>
+    </div>
+    <div>
+      <h3>Why it matters</h3>
+      <p>这是人工生命与神经进化(neuroevolution)最朴素也最直观的演示:无需梯度、无需标签,仅靠"活得好的多繁殖"就能进化出感知-决策回路。它是 evolutionary robotics、NEAT、open-ended evolution 等方向的可视化入口,也展示了简单适应度如何塑造复杂行为。</p>
+    </div>
+  </div>
+
+  <a class="gallery" href="../../index.html">← Gallery</a>
+</div>
+
+<script>
+"use strict";
+(function(){
+  // ---------- Config ----------
+  const POP = 40;            // population size
+  const N_RAY = 7;           // vision rays
+  const FOV = Math.PI * 1.2; // field of view spread
+  const RAY_LEN = 160;       // ray detection range
+  const N_FOOD = 28;
+  const N_OBST = 5;
+  const GEN_FRAMES = 900;    // frames per generation
+  // Brain topology: inputs -> hidden -> outputs
+  const N_IN = N_RAY * 3 + 2;   // 3 channels per ray (food/pred/wall) + 2 velocity
+  const N_HID = 8;
+  const N_OUT = 2;              // steer, thrust
+  const W1 = N_IN * N_HID, B1 = N_HID, W2 = N_HID * N_OUT, B2 = N_OUT;
+  const GENOME = W1 + B1 + W2 + B2;
+
+  // ---------- State ----------
+  const canvas = document.getElementById('cv');
+  const ctx = canvas.getContext('2d');
+  let W = 800, H = 480, dpr = 1;
+  let running = true;
+  let speed = 2;
+  let mutRate = 0.15;
+  let predatorsOn = true;
+
+  let gen = 0, frame = 0;
+  let bestEver = 0, lastAvg = 0;
+
+  // Foragers stored in arrays for clarity/perf
+  let agents = [];
+  let genomes = [];   // Float32Array per agent
+  let foods = [];     // {x,y}
+  let obstacles = []; // {x,y,r}
+  let predators = []; // {x,y,a}
+  let bestIdx = 0;
+
+  // ---------- Math helpers ----------
+  const clamp = (v,a,b)=> v<a?a:(v>b?b:v);
+  const safe = (v)=> Number.isFinite(v) ? v : 0;
+  function gauss(){ // Box-Muller
+    let u=0,v=0;
+    while(u===0) u=Math.random();
+    while(v===0) v=Math.random();
+    return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v);
+  }
+  function randGenome(){
+    const g = new Float32Array(GENOME);
+    for(let i=0;i<GENOME;i++) g[i] = gauss()*0.8;
+    return g;
+  }
+  function mutate(src){
+    const g = new Float32Array(GENOME);
+    for(let i=0;i<GENOME;i++){
+      g[i] = src[i];
+      if(Math.random() < mutRate) g[i] += gauss()*0.5;
+      g[i] = clamp(g[i], -6, 6); // prevent weight blow-up
+    }
+    return g;
+  }
+
+  // Forward pass: returns {steer, thrust} in [-1,1] / [0,1]
+  const hid = new Float32Array(N_HID);
+  function think(g, inputs){
+    // layer 1
+    for(let j=0;j<N_HID;j++){
+      let s = g[W1 + j]; // bias
+      const base = j*N_IN;
+      for(let i=0;i<N_IN;i++) s += g[base+i]*inputs[i];
+      hid[j] = Math.tanh(clamp(s,-30,30));
+    }
+    // layer 2
+    const o2 = W1+B1;
+    let steer = g[o2+W2];      // bias for out 0
+    let thrust = g[o2+W2+1];   // bias for out 1
+    for(let j=0;j<N_HID;j++){
+      steer  += g[o2 + j*N_OUT    ]*hid[j];
+      thrust += g[o2 + j*N_OUT + 1]*hid[j];
+    }
+    return {
+      steer: Math.tanh(clamp(steer,-30,30)),
+      thrust: (Math.tanh(clamp(thrust,-30,30))+1)*0.5
+    };
+  }
+
+  // ---------- World setup ----------
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function spawnFood(f){ f.x = rand(20,W-20); f.y = rand(20,H-20); }
+
+  function newAgent(){
+    return { x:rand(40,W-40), y:rand(40,H-40), a:rand(0,Math.PI*2),
+             vx:0, vy:0, fit:0, alive:true };
+  }
+
+  function setupWorld(freshGenomes){
+    agents = [];
+    for(let i=0;i<POP;i++) agents.push(newAgent());
+    if(freshGenomes){
+      genomes = [];
+      for(let i=0;i<POP;i++) genomes.push(randGenome());
+    }
+    foods = [];
+    for(let i=0;i<N_FOOD;i++){ const f={x:0,y:0}; spawnFood(f); foods.push(f); }
+    obstacles = [];
+    for(let i=0;i<N_OBST;i++) obstacles.push({x:rand(80,W-80), y:rand(80,H-80), r:rand(16,34)});
+    predators = [];
+    for(let i=0;i<3;i++) predators.push({x:rand(40,W-40), y:rand(40,H-40), a:rand(0,Math.PI*2)});
+    frame = 0;
+  }
+
+  // ---------- Sensing ----------
+  // For an agent, cast N_RAY rays; each returns nearest [food, predator, wall] proximity (0..1)
+  function sense(ag, out){
+    const half = FOV/2;
+    for(let r=0;r<N_RAY;r++){
+      const ang = ag.a - half + (FOV*(N_RAY===1?0.5:r/(N_RAY-1)));
+      const dx = Math.cos(ang), dy = Math.sin(ang);
+      let foodD = RAY_LEN, predD = RAY_LEN, wallD = RAY_LEN;
+
+      // food (treat as small circles)
+      for(let i=0;i<foods.length;i++){
+        const d = rayCircle(ag.x,ag.y,dx,dy, foods[i].x,foods[i].y,7);
+        if(d>=0 && d<foodD) foodD=d;
+      }
+      // predators
+      if(predatorsOn){
+        for(let i=0;i<predators.length;i++){
+          const d = rayCircle(ag.x,ag.y,dx,dy, predators[i].x,predators[i].y,10);
+          if(d>=0 && d<predD) predD=d;
+        }
+      }
+      // obstacles act as walls too
+      for(let i=0;i<obstacles.length;i++){
+        const o=obstacles[i];
+        const d = rayCircle(ag.x,ag.y,dx,dy, o.x,o.y,o.r);
+        if(d>=0 && d<wallD) wallD=d;
+      }
+      // arena bounds
+      const b = rayBounds(ag.x,ag.y,dx,dy);
+      if(b>=0 && b<wallD) wallD=b;
+
+      const base = r*3;
+      out[base]   = 1 - foodD/RAY_LEN; // closer => higher
+      out[base+1] = 1 - predD/RAY_LEN;
+      out[base+2] = 1 - wallD/RAY_LEN;
+    }
+    // velocity inputs
+    out[N_RAY*3]   = clamp(ag.vx/3, -1, 1);
+    out[N_RAY*3+1] = clamp(ag.vy/3, -1, 1);
+  }
+
+  // ray-circle intersection distance, -1 if none / behind
+  function rayCircle(ox,oy,dx,dy, cx,cy,rad){
+    const fx=ox-cx, fy=oy-cy;
+    const b=2*(fx*dx+fy*dy);
+    const c=fx*fx+fy*fy-rad*rad;
+    const disc=b*b-4*c;
+    if(disc<0) return -1;
+    const sq=Math.sqrt(disc);
+    let t=(-b-sq)/2;
+    if(t<0) t=(-b+sq)/2;
+    if(t<0 || t>RAY_LEN) return -1;
+    return t;
+  }
+  function rayBounds(ox,oy,dx,dy){
+    let best=RAY_LEN+1;
+    if(dx>1e-6){ const t=(W-ox)/dx; if(t>=0&&t<best) best=t; }
+    if(dx<-1e-6){ const t=(0-ox)/dx; if(t>=0&&t<best) best=t; }
+    if(dy>1e-6){ const t=(H-oy)/dy; if(t>=0&&t<best) best=t; }
+    if(dy<-1e-6){ const t=(0-oy)/dy; if(t>=0&&t<best) best=t; }
+    return best<=RAY_LEN?best:-1;
+  }
+
+  // ---------- Simulation step ----------
+  const senseBuf = new Float32Array(N_IN);
+  const MAXSPD = 2.6;
+
+  function step(){
+    // predators chase nearest alive agent
+    if(predatorsOn){
+      for(let p=0;p<predators.length;p++){
+        const pr=predators[p];
+        let tx=null,ty=null,bd=1e9;
+        for(let i=0;i<agents.length;i++){
+          const ag=agents[i]; if(!ag.alive) continue;
+          const d=(ag.x-pr.x)**2+(ag.y-pr.y)**2;
+          if(d<bd){bd=d;tx=ag.x;ty=ag.y;}
+        }
+        if(tx!==null){
+          const desired=Math.atan2(ty-pr.y,tx-pr.x);
+          let diff=((desired-pr.a+Math.PI)%(Math.PI*2))-Math.PI;
+          pr.a += clamp(diff,-0.08,0.08);
+        }
+        pr.x += Math.cos(pr.a)*1.7;
+        pr.y += Math.sin(pr.a)*1.7;
+        pr.x=clamp(pr.x,0,W); pr.y=clamp(pr.y,0,H);
+        if(pr.x<=0||pr.x>=W) pr.a=Math.PI-pr.a;
+        if(pr.y<=0||pr.y>=H) pr.a=-pr.a;
+        // catch agents
+        for(let i=0;i<agents.length;i++){
+          const ag=agents[i]; if(!ag.alive) continue;
+          if((ag.x-pr.x)**2+(ag.y-pr.y)**2 < 12*12){
+            ag.alive=false; ag.fit=Math.max(0,ag.fit-2); // penalty for being eaten
+          }
+        }
+      }
+    }
+
+    // agents act
+    for(let i=0;i<agents.length;i++){
+      const ag=agents[i];
+      if(!ag.alive) continue;
+      sense(ag, senseBuf);
+      const cmd = think(genomes[i], senseBuf);
+      ag.a += cmd.steer * 0.18;
+      const acc = cmd.thrust * 0.22;
+      ag.vx = safe(ag.vx + Math.cos(ag.a)*acc);
+      ag.vy = safe(ag.vy + Math.sin(ag.a)*acc);
+      // friction
+      ag.vx*=0.94; ag.vy*=0.94;
+      const sp=Math.hypot(ag.vx,ag.vy);
+      if(sp>MAXSPD){ ag.vx=ag.vx/sp*MAXSPD; ag.vy=ag.vy/sp*MAXSPD; }
+      ag.x=safe(ag.x+ag.vx); ag.y=safe(ag.y+ag.vy);
+
+      // arena walls: bounce + tiny penalty
+      if(ag.x<6){ag.x=6;ag.vx=-ag.vx*0.5;}
+      if(ag.x>W-6){ag.x=W-6;ag.vx=-ag.vx*0.5;}
+      if(ag.y<6){ag.y=6;ag.vy=-ag.vy*0.5;}
+      if(ag.y>H-6){ag.y=H-6;ag.vy=-ag.vy*0.5;}
+
+      // obstacle collision (push out)
+      for(let o=0;o<obstacles.length;o++){
+        const ob=obstacles[o];
+        const dx=ag.x-ob.x, dy=ag.y-ob.y, d=Math.hypot(dx,dy);
+        if(d<ob.r+5 && d>0){
+          const push=(ob.r+5-d);
+          ag.x+=dx/d*push; ag.y+=dy/d*push;
+          ag.vx*=0.6; ag.vy*=0.6;
+        }
+      }
+
+      // eat food
+      for(let f=0;f<foods.length;f++){
+        const fd=foods[f];
+        if((ag.x-fd.x)**2+(ag.y-fd.y)**2 < 10*10){
+          ag.fit += 1;
+          spawnFood(fd);
+        }
+      }
+    }
+
+    frame++;
+    if(frame>=GEN_FRAMES) nextGen();
+  }
+
+  // ---------- Evolution ----------
+  function nextGen(){
+    // rank by fitness
+    const order = agents.map((a,i)=>i).sort((a,b)=> agents[b].fit - agents[a].fit);
+    let sum=0; for(let i=0;i<agents.length;i++) sum+=agents[i].fit;
+    lastAvg = sum/POP;
+    const topFit = agents[order[0]].fit;
+    if(topFit>bestEver) bestEver=topFit;
+
+    // parents = top 30%
+    const nParents = Math.max(2, Math.floor(POP*0.3));
+    const parents = order.slice(0, nParents);
+
+    const next = [];
+    // elite: top 2 carried over unchanged
+    next.push(genomes[order[0]].slice());
+    next.push(genomes[order[1]].slice());
+    // fill rest by mutating a random parent
+    while(next.length < POP){
+      const p = parents[(Math.random()*nParents)|0];
+      next.push(mutate(genomes[p]));
+    }
+    genomes = next;
+
+    gen++;
+    setupWorld(false); // reset positions/food, keep genomes
+  }
+
+  // ---------- Rendering ----------
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    // arena backdrop
+    ctx.fillStyle='#0d0d18';
+    ctx.fillRect(0,0,W,H);
+    // subtle grid
+    ctx.strokeStyle='rgba(255,255,255,0.025)';
+    ctx.lineWidth=1;
+    for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+    // obstacles
+    ctx.fillStyle='#2c2c3a';
+    ctx.strokeStyle='#3a3a4a';
+    for(let i=0;i<obstacles.length;i++){
+      const o=obstacles[i];
+      ctx.beginPath();ctx.arc(o.x,o.y,o.r,0,Math.PI*2);ctx.fill();ctx.stroke();
+    }
+
+    // food
+    ctx.fillStyle='#5fd97a';
+    for(let i=0;i<foods.length;i++){
+      const f=foods[i];
+      ctx.beginPath();ctx.arc(f.x,f.y,4,0,Math.PI*2);ctx.fill();
+    }
+
+    // find current best alive (highest fit) for highlight + rays
+    bestIdx=0; let bf=-1;
+    for(let i=0;i<agents.length;i++){ if(agents[i].fit>bf){bf=agents[i].fit;bestIdx=i;} }
+
+    // best agent's vision rays (faint)
+    const ba=agents[bestIdx];
+    if(ba && ba.alive){
+      sense(ba, senseBuf);
+      const half=FOV/2;
+      ctx.lineWidth=1;
+      for(let r=0;r<N_RAY;r++){
+        const ang=ba.a-half+(FOV*(N_RAY===1?0.5:r/(N_RAY-1)));
+        const base=r*3;
+        // length proportional to nearest hit (wall channel is most reliable end)
+        const prox=Math.max(senseBuf[base],senseBuf[base+1],senseBuf[base+2]);
+        const len=RAY_LEN*(1-clamp(prox,0,1));
+        ctx.strokeStyle='rgba(244,197,67,0.18)';
+        ctx.beginPath();
+        ctx.moveTo(ba.x,ba.y);
+        ctx.lineTo(ba.x+Math.cos(ang)*len, ba.y+Math.sin(ang)*len);
+        ctx.stroke();
+      }
+    }
+
+    // agents
+    for(let i=0;i<agents.length;i++){
+      const ag=agents[i];
+      if(!ag.alive) continue;
+      const isBest = (i===bestIdx);
+      ctx.save();
+      ctx.translate(ag.x,ag.y);
+      ctx.rotate(ag.a);
+      ctx.beginPath();
+      ctx.moveTo(8,0); ctx.lineTo(-5,5); ctx.lineTo(-5,-5); ctx.closePath();
+      if(isBest){ ctx.fillStyle='#f4c543'; ctx.shadowColor='#f4c543'; ctx.shadowBlur=10; }
+      else { ctx.fillStyle='#5eead0'; ctx.shadowBlur=0; }
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // predators
+    if(predatorsOn){
+      for(let i=0;i<predators.length;i++){
+        const p=predators[i];
+        ctx.save();
+        ctx.translate(p.x,p.y); ctx.rotate(p.a);
+        ctx.beginPath();
+        ctx.moveTo(11,0); ctx.lineTo(-7,7); ctx.lineTo(-7,-7); ctx.closePath();
+        ctx.fillStyle='#ff5d6c'; ctx.shadowColor='#ff5d6c'; ctx.shadowBlur=8;
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+    // reset shadow so it never bleeds into next frame's backdrop/grid
+    ctx.shadowBlur=0;
+
+    // generation progress bar
+    ctx.fillStyle='rgba(139,123,240,0.5)';
+    ctx.fillRect(0,H-3, W*(frame/GEN_FRAMES), 3);
+  }
+
+  function updateStats(){
+    let alive=0; for(let i=0;i<agents.length;i++) if(agents[i].alive) alive++;
+    document.getElementById('s-gen').textContent = gen;
+    document.getElementById('s-best').textContent = Math.round(bestEver);
+    document.getElementById('s-avg').textContent = lastAvg.toFixed(1);
+    document.getElementById('s-alive').textContent = alive+' / '+POP;
+  }
+
+  // ---------- Main loop ----------
+  function loop(){
+    try{
+      if(running){
+        for(let s=0;s<speed;s++) step();
+      }
+      draw();
+      updateStats();
+    }catch(e){
+      console.error('Foragers error:', e);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---------- Canvas sizing (DPR aware) ----------
+  function resize(){
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const cssW = Math.max(280, rect.width||800);
+    const cssH = Math.round(clamp(cssW*0.6, 320, 560));
+    dpr = Math.min(window.devicePixelRatio||1, 2);
+    canvas.style.height = cssH+'px';
+    canvas.width = Math.round(cssW*dpr);
+    canvas.height = Math.round(cssH*dpr);
+    W = cssW; H = cssH;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    // keep entities in bounds after resize
+    for(let i=0;i<agents.length;i++){
+      agents[i].x=clamp(agents[i].x,6,W-6);
+      agents[i].y=clamp(agents[i].y,6,H-6);
+    }
+    for(let i=0;i<foods.length;i++){
+      foods[i].x=clamp(foods[i].x,10,W-10);
+      foods[i].y=clamp(foods[i].y,10,H-10);
+    }
+    for(let i=0;i<obstacles.length;i++){
+      obstacles[i].x=clamp(obstacles[i].x,obstacles[i].r,W-obstacles[i].r);
+      obstacles[i].y=clamp(obstacles[i].y,obstacles[i].r,H-obstacles[i].r);
+    }
+  }
+
+  // ---------- Controls ----------
+  const btnPlay=document.getElementById('btn-play');
+  const btnReset=document.getElementById('btn-reset');
+  const rSpeed=document.getElementById('r-speed');
+  const rMut=document.getElementById('r-mut');
+  const tPred=document.getElementById('t-pred');
+
+  btnPlay.addEventListener('click',()=>{
+    running=!running;
+    btnPlay.textContent = running?'Pause':'Play';
+  });
+  btnReset.addEventListener('click',()=>{
+    gen=0; bestEver=0; lastAvg=0;
+    setupWorld(true);
+    updateStats();
+  });
+  rSpeed.addEventListener('input',()=>{
+    speed=parseInt(rSpeed.value,10);
+    document.getElementById('v-speed').textContent=speed+'x';
+  });
+  rMut.addEventListener('input',()=>{
+    mutRate=parseFloat(rMut.value);
+    document.getElementById('v-mut').textContent=mutRate.toFixed(2);
+  });
+  tPred.addEventListener('change',()=>{ predatorsOn=tPred.checked; });
+
+  window.addEventListener('resize', resize);
+
+  // ---------- Boot ----------
+  (function init(){
+    // sync runtime state + labels from the actual control values
+    // (browsers may restore non-default slider values on reload)
+    speed = parseInt(rSpeed.value,10) || 2;
+    mutRate = parseFloat(rMut.value) || 0.15;
+    predatorsOn = tPred.checked;
+    document.getElementById('v-speed').textContent = speed+'x';
+    document.getElementById('v-mut').textContent = mutRate.toFixed(2);
+
+    // size first so spawn uses real W/H
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const cssW = Math.max(280, rect.width||800);
+    const cssH = Math.round(clamp(cssW*0.6, 320, 560));
+    W=cssW; H=cssH;
+    setupWorld(true);
+    resize();
+    updateStats();
+    requestAnimationFrame(loop);
+  })();
+})();
+</script>
+
+
+<!-- [AI Hub] 全屏按钮：进入/退出全屏（2026-09-03 v2 醒目版） -->
+<button id="pt-fs-btn" type="button"
+  style="position:fixed;top:16px;right:16px;z-index:99999;display:inline-flex;align-items:center;gap:7px;
+  padding:10px 18px 10px 14px;border:none;border-radius:12px;cursor:pointer;font-size:15px;font-weight:600;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#fff;
+  background:linear-gradient(135deg,#5eead0,#8b7bf0);box-shadow:0 4px 18px rgba(0,0,0,0.45),0 0 0 1px rgba(255,255,255,0.18) inset;
+  transition:transform .12s, box-shadow .15s, filter .15s;letter-spacing:0.2px;user-select:none;">
+  <svg id="pt-fs-max" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"/><path d="M21 8V5a2 2 0 0 0-2-2h-3"/><path d="M3 16v3a2 2 0 0 0 2 2h3"/><path d="M16 21h3a2 2 0 0 0 2-2v-3"/></svg>
+  <svg id="pt-fs-min" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3"/><path d="M21 8h-3a2 2 0 0 1-2-2V3"/><path d="M3 16h3a2 2 0 0 1 2 2v3"/><path d="M16 21v-3a2 2 0 0 1 2-2h3"/></svg>
+  <span id="pt-fs-label">全屏</span>
+</button>
+<style>
+  #pt-fs-btn:hover { transform: translateY(-2px) scale(1.05); filter: brightness(1.12); box-shadow:0 8px 26px rgba(0,0,0,0.5); }
+  #pt-fs-btn:active { transform: scale(0.96); }
+</style>
+<script>
+(function () {
+  var btn = document.getElementById('pt-fs-btn');
+  if (!btn) return;
+  var maxIc = document.getElementById('pt-fs-max');
+  var minIc = document.getElementById('pt-fs-min');
+  var label = document.getElementById('pt-fs-label');
+  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
+  function sync() {
+    var fs = isFs();
+    maxIc.style.display = fs ? 'none' : '';
+    minIc.style.display = fs ? '' : 'none';
+    label.textContent = fs ? (zh ? '退出全屏' : 'Exit') : (zh ? '全屏' : 'Fullscreen');
+    btn.setAttribute('aria-label', label.textContent);
+  }
+  function toggle() {
+    try {
+      if (!isFs()) {
+        var el = document.documentElement;
+        (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+      } else {
+        (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+      }
+    } catch (e) {}
+  }
+  btn.addEventListener('click', function (ev) { ev.stopPropagation(); toggle(); });
+  document.addEventListener('fullscreenchange', sync);
+  document.addEventListener('webkitfullscreenchange', sync);
+  sync();
+})();
+</script>
+</body>
+</html>
