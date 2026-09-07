@@ -1160,7 +1160,7 @@
     "exitFullscreen": "Exit Fullscreen"
   },
   "uaibotKinematics": {
-    "externalNote": "Fully local robot-arm kinematics demo (Three.js, UAIBot library). Drag the 6 joint-angle sliders (joint space) on the left and watch the arm move with real-time end-effector pose (forward kinematics). A geometric teaching demo, not dynamics/real hardware simulation.",
+    "externalNote": "Fully local robot-arm kinematics demo (Three.js, UAIBot library), three modes: ① Joint space — drag the 6 joint-angle sliders and watch the real-time end-effector pose (forward kinematics, FKM); ② IK drag — drag the green target ball and inverse kinematics solves the 6 joint angles live; ③ Trajectory — the end-effector follows preset paths (horizontal circle / figure-8 / vertical circle / line). A geometric teaching demo, not collision/dynamics/real-hardware simulation.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
   }

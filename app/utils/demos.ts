@@ -1176,16 +1176,16 @@ export const demos: Demo[] = [
     category: 'robot',
     title: { zh: '机械臂运动学（UAIBot）', en: 'Robot Arm Kinematics (UAIBot)' },
     description: {
-      zh: '6-DoF KUKA KR5 机械臂关节空间演示：拖动 6 个关节角滑块，实时观察机械臂运动与末端位姿（正运动学 FKM）。',
-      en: '6-DoF KUKA KR5 manipulator in joint space: drag 6 joint-angle sliders and watch the arm move with real-time end-effector pose (forward kinematics).'
+      zh: '6-DoF KUKA KR5 运动学三合一：关节角滑块（正运动学 FKM）、拖拽末端目标（逆运动学 IK 反解）、轨迹播放（IK 连续跟踪）。',
+      en: '6-DoF KUKA KR5 kinematics in three modes: joint sliders (FKM), drag the end-effector target (inverse kinematics), and trajectory playback (continuous IK tracking).'
     },
     howItWorks: {
-      zh: 'UAIBot 库在浏览器用 Three.js 渲染，用 DH 参数 + 关节角解算各连杆位姿（正运动学），滑块改关节角实时更新。',
-      en: 'The UAIBot library renders with Three.js and uses DH parameters + joint angles to solve each link pose (forward kinematics); sliders update joint angles in real time.'
+      zh: 'UAIBot 库用 Three.js 在浏览器渲染。正运动学由 DH 参数 + 关节角解算连杆位姿；逆运动学用数值雅可比 + 阻尼最小二乘实时反解 6 个关节角。',
+      en: 'Rendered in the browser with Three.js (UAIBot). FKM solves link poses from DH parameters + joint angles; IK uses a numeric Jacobian with damped least squares to solve the 6 joint angles in real time.'
     },
     icon: 'i-lucide-move-3d',
     status: 'ready',
-    tags: ['Robotics', 'Kinematics', 'Forward Kinematics', 'Three.js']
+    tags: ['Robotics', 'Kinematics', 'Forward Kinematics', 'Inverse Kinematics', 'Three.js', 'Trajectory']
   }
 ]
 
