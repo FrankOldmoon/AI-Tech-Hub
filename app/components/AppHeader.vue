@@ -4,7 +4,6 @@ const route = useRoute()
 const { categories } = useDemos()
 
 const navItems = computed(() => [
-  { label: t('nav.home'), to: '/', icon: 'i-lucide-home', active: route.path === '/' },
   ...categories.value.map(c => ({
     label: c.title,
     to: `/${c.slug}`,
@@ -33,7 +32,10 @@ onMounted(() => {
 <template>
   <UHeader :class="scrolled ? 'shadow-sm' : ''">
     <template #left>
-      <NuxtLink to="/" class="flex items-center gap-2">
+      <NuxtLink
+        to="/"
+        class="flex items-center gap-2"
+      >
         <AppLogo class="h-6 w-auto" />
         <span class="font-bold text-highlighted">{{ t('site.title') }}</span>
       </NuxtLink>
@@ -67,7 +69,10 @@ onMounted(() => {
     </template>
 
     <template #body>
-      <UNavigationMenu :items="navItems" orientation="vertical" />
+      <UNavigationMenu
+        :items="navItems"
+        orientation="vertical"
+      />
     </template>
   </UHeader>
 </template>
