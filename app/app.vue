@@ -1,6 +1,5 @@
 <script setup lang="ts">
 const { t, locale } = useI18n()
-const route = useRoute()
 
 useHead({
   meta: [
@@ -26,16 +25,7 @@ useSeoMeta({
   twitterCard: 'summary_large_image'
 })
 
-// 首页和 IDE 页面不显示侧边栏
-const showSidebar = computed(() => route.path !== '/' && !route.path.startsWith('/ide'))
-
-// 小屏侧边栏（Slideover）状态
-const mobileOpen = ref(false)
-
-// 路由变化时自动关闭 slideover
-watch(() => route.path, () => {
-  mobileOpen.value = false
-})
+// 侧边栏只出现在功能页：由 NuxtLayout 决定（功能页用 default 布局带侧边栏，首页/分类页/IDE 用 bare 布局）
 </script>
 
 <template>
@@ -43,45 +33,12 @@ watch(() => route.path, () => {
     <AppHeader />
 
     <UMain>
-      <div class="flex">
-        <!-- 大屏：固定侧边栏 -->
-        <AppSidebar
-          v-if="showSidebar"
-          class="hidden lg:block"
+      <NuxtLayout>
+        <NuxtPage
+          :transition="{ name: 'page', mode: 'out-in' }"
         />
-
-        <div class="flex-1 min-w-0">
-          <!-- 小屏：菜单按钮 -->
-          <div
-            v-if="showSidebar"
-            class="lg:hidden p-3 border-b border-default"
-          >
-            <UButton
-              icon="i-lucide-menu"
-              color="neutral"
-              variant="ghost"
-              :label="t('nav.menu')"
-              @click="mobileOpen = true"
-            />
-          </div>
-          <NuxtPage
-            :transition="{ name: 'page', mode: 'out-in' }"
-          />
-        </div>
-      </div>
+      </NuxtLayout>
     </UMain>
-
-    <!-- 小屏：Slideover 弹出侧边栏 -->
-    <USlideover
-      v-if="showSidebar"
-      v-model:open="mobileOpen"
-      side="left"
-      :title="t('nav.menu')"
-    >
-      <template #body>
-        <AppSidebar embedded />
-      </template>
-    </USlideover>
 
     <USeparator icon="i-simple-icons-nuxtdotjs" />
 

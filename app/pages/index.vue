@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import type { LocalizedDemo } from '~/utils/demos'
 
+definePageMeta({ layout: 'bare' })
+
 const { t } = useI18n()
 const { categories, byCategory, demos, classroomDemos } = useDemos()
 
