@@ -584,6 +584,22 @@ export const demos: Demo[] = [
   },
   // ===== ml (Teachable Machine) =====
   {
+    slug: 'cnn-explainer',
+    category: 'ml',
+    title: { zh: 'CNN 网络内部可视化', en: 'CNN Explainer' },
+    description: {
+      zh: '交互式拆解卷积、激活、池化与 Softmax，观察图像如何逐层变成分类结果（Tiny VGG）。',
+      en: 'Interactively inspect convolution, activations, pooling, and Softmax as an image becomes a prediction (Tiny VGG).'
+    },
+    howItWorks: {
+      zh: '浏览器加载预训练的小型 CNN（TensorFlow.js），把中间张量、卷积核和分类概率渲染为可交互视图。',
+      en: 'The browser loads a compact pretrained CNN (TensorFlow.js) and renders its intermediate tensors, kernels, and class probabilities as interactive views.'
+    },
+    icon: 'i-lucide-scan-search',
+    status: 'ready',
+    tags: ['CNN', 'TensorFlow.js', 'Visualization', 'Explainability']
+  },
+  {
     slug: 'image-training',
     category: 'ml',
     title: { zh: '图像训练', en: 'Image Training' },
@@ -1154,6 +1170,22 @@ export const demos: Demo[] = [
     icon: 'i-lucide-person-standing',
     status: 'ready',
     tags: ['Robotics', 'MuJoCo', 'ONNX', 'MotionTracking', 'Vue3']
+  },
+  {
+    slug: 'uaibot-kinematics',
+    category: 'robot',
+    title: { zh: '机械臂运动学（UAIBot）', en: 'Robot Arm Kinematics (UAIBot)' },
+    description: {
+      zh: '6-DoF KUKA KR5 机械臂关节空间演示：拖动 6 个关节角滑块，实时观察机械臂运动与末端位姿（正运动学 FKM）。',
+      en: '6-DoF KUKA KR5 manipulator in joint space: drag 6 joint-angle sliders and watch the arm move with real-time end-effector pose (forward kinematics).'
+    },
+    howItWorks: {
+      zh: 'UAIBot 库在浏览器用 Three.js 渲染，用 DH 参数 + 关节角解算各连杆位姿（正运动学），滑块改关节角实时更新。',
+      en: 'The UAIBot library renders with Three.js and uses DH parameters + joint angles to solve each link pose (forward kinematics); sliders update joint angles in real time.'
+    },
+    icon: 'i-lucide-move-3d',
+    status: 'ready',
+    tags: ['Robotics', 'Kinematics', 'Forward Kinematics', 'Three.js']
   }
 ]
 
