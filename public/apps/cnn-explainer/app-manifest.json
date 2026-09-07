@@ -1,0 +1,20 @@
+{
+  "slug": "cnn-explainer",
+  "name": "CNN 网络内部可视化",
+  "upstream": {
+    "repo": "https://github.com/poloclub/cnn-explainer",
+    "commit": "d0971f9447ed9806022a3d47587b62394682bc51",
+    "license": "MIT",
+    "build": {
+      "date": "2026-09-07",
+      "stack": "Svelte 3 + Rollup + TensorFlow.js 1.x",
+      "command": "npm install && npm run build（rollup PUBLIC_URL 已改 /apps/cnn-explainer）"
+    }
+  },
+  "localization": {
+    "note": "构建后本地化 8 个外部资源到 vendor/：d3.v5 / tfjs@1.0 / bulma 0.8 / fontawesome 5.3 / mathjax 3(tex-svg) / smooth-scroll / Neucha 字体；移除已停服 polyfill.io 与 GitHub 推荐组件。全离线可用。",
+    "assets": "tiny-vgg 预训练模型(model.json + group1-shard) 与示例图/动图随仓库分发，MIT 仓库内资产"
+  },
+  "external": {},
+  "size_mb": 17.1
+}

@@ -1153,5 +1153,15 @@
     "externalNote": "Fully local in-browser simulation (MuJoCo + ONNX tracking policy), no extra environment needed. G1 automatically follows reference motions (change Current motion for walk/run/jump/dance etc.); turn on Compliance and raise the threshold, then drag the robot to see compliant following.",
     "fullscreen": "Fullscreen",
     "exitFullscreen": "Exit Fullscreen"
+  },
+  "cnnExplainer": {
+    "externalNote": "Interactively explore the inner workings of a small pretrained network (Tiny VGG): click kernels to see activations, or upload/pick an image and watch it transform layer by layer. Runs fully locally; for teaching only, not production-grade recognition.",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
+  },
+  "uaibotKinematics": {
+    "externalNote": "Fully local robot-arm kinematics demo (Three.js, UAIBot library), three modes: ① Joint space — drag the 6 joint-angle sliders and watch the real-time end-effector pose (forward kinematics, FKM); ② IK drag — drag the green target ball and inverse kinematics solves the 6 joint angles live; ③ Trajectory — the end-effector follows preset paths (horizontal circle / figure-8 / vertical circle / line). A geometric teaching demo, not collision/dynamics/real-hardware simulation.",
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit Fullscreen"
   }
 }

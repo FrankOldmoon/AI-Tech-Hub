@@ -1,0 +1,20 @@
+{
+  "slug": "uaibot-kinematics",
+  "name": "机械臂运动学（UAIBot）v2 — 关节空间 + IK 拖拽 + 轨迹播放",
+  "upstream": {
+    "repo": "https://github.com/UAIbot/UAIbotJS",
+    "commit": "f4a367d8598ab26715aa02f71dba589e149489b1",
+    "license": "MIT",
+    "build": {
+      "date": "2026-09-07",
+      "stack": "UAIBot JS 库（Three.js 0.126 + mathjs 11.6），自研中文封装页 v2",
+      "command": "本地化依赖后静态托管，无需 npm build（index.html + main.js + ik.js）"
+    }
+  },
+  "localization": {
+    "note": "UAIBot.local.js/Utils.js import 改裸说明符 + index.html import map 本地映射；three@0.126.1(module + OrbitControls/OBJLoader examples/jsm) 与 mathjs@11.6 及其 10 个子依赖全部下载到 lib/vendor；OBJ 模型路径改 ./3d_models/（相对页面）。全离线可用。v2：main.js 三模式（关节空间/IK 拖拽/轨迹播放）+ ik.js（数值雅可比 + 阻尼最小二乘，mathjs 矩阵运算，无新增外部依赖）。",
+    "assets": "KUKA KR5 / EPSON T6 的 OBJ 模型来自 UAIBot 仓库（MIT 内资产）"
+  },
+  "external": {},
+  "size_mb": 10.3
+}

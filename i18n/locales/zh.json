@@ -1156,5 +1156,15 @@
     "externalNote": "纯本地浏览器仿真（MuJoCo + ONNX 追踪策略），无需额外环境。G1 会自动跟参考动作（换 Current motion 切换走/跑/跳/舞蹈等）；打开 Compliance 并调大 threshold 后，可直接拖拽机器人看柔顺跟随。",
     "fullscreen": "全屏",
     "exitFullscreen": "退出全屏"
+  },
+  "cnnExplainer": {
+    "externalNote": "以已训练的小型网络（Tiny VGG）交互讲解卷积网络内部计算：可点选卷积核看激活、上传/挑选图片观察逐层变化。纯本地运行；教学演示用途，不代表通用生产级识别。",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
+  },
+  "uaibotKinematics": {
+    "externalNote": "纯本地机械臂运动学演示（Three.js 渲染，UAIBot 库），三种模式：① 关节空间——拖动 6 个关节角滑块，观察末端位姿实时变化（正运动学 FKM）；② IK 拖拽——拖动绿色目标球，逆运动学实时反解 6 个关节角让末端跟随；③ 轨迹播放——末端沿预设轨迹（水平圆/8 字/竖直圆/直线）连续运动。教学用几何演示，非碰撞/动力学/真实硬件仿真。",
+    "fullscreen": "全屏",
+    "exitFullscreen": "退出全屏"
   }
 }
