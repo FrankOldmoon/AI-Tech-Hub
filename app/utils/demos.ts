@@ -584,6 +584,22 @@ export const demos: Demo[] = [
   },
   // ===== ml (Teachable Machine) =====
   {
+    slug: 'cnn-explainer',
+    category: 'ml',
+    title: { zh: 'CNN 网络内部可视化', en: 'CNN Explainer' },
+    description: {
+      zh: '交互式拆解卷积、激活、池化与 Softmax，观察图像如何逐层变成分类结果（Tiny VGG）。',
+      en: 'Interactively inspect convolution, activations, pooling, and Softmax as an image becomes a prediction (Tiny VGG).'
+    },
+    howItWorks: {
+      zh: '浏览器加载预训练的小型 CNN（TensorFlow.js），把中间张量、卷积核和分类概率渲染为可交互视图。',
+      en: 'The browser loads a compact pretrained CNN (TensorFlow.js) and renders its intermediate tensors, kernels, and class probabilities as interactive views.'
+    },
+    icon: 'i-lucide-scan-search',
+    status: 'ready',
+    tags: ['CNN', 'TensorFlow.js', 'Visualization', 'Explainability']
+  },
+  {
     slug: 'image-training',
     category: 'ml',
     title: { zh: '图像训练', en: 'Image Training' },
@@ -1154,6 +1170,22 @@ export const demos: Demo[] = [
     icon: 'i-lucide-person-standing',
     status: 'ready',
     tags: ['Robotics', 'MuJoCo', 'ONNX', 'MotionTracking', 'Vue3']
+  },
+  {
+    slug: 'uaibot-kinematics',
+    category: 'robot',
+    title: { zh: '机械臂运动学（UAIBot）', en: 'Robot Arm Kinematics (UAIBot)' },
+    description: {
+      zh: '6-DoF KUKA KR5 运动学三合一：关节角滑块（正运动学 FKM）、拖拽末端目标（逆运动学 IK 反解）、轨迹播放（IK 连续跟踪）。',
+      en: '6-DoF KUKA KR5 kinematics in three modes: joint sliders (FKM), drag the end-effector target (inverse kinematics), and trajectory playback (continuous IK tracking).'
+    },
+    howItWorks: {
+      zh: 'UAIBot 库用 Three.js 在浏览器渲染。正运动学由 DH 参数 + 关节角解算连杆位姿；逆运动学用数值雅可比 + 阻尼最小二乘实时反解 6 个关节角。',
+      en: 'Rendered in the browser with Three.js (UAIBot). FKM solves link poses from DH parameters + joint angles; IK uses a numeric Jacobian with damped least squares to solve the 6 joint angles in real time.'
+    },
+    icon: 'i-lucide-move-3d',
+    status: 'ready',
+    tags: ['Robotics', 'Kinematics', 'Forward Kinematics', 'Inverse Kinematics', 'Three.js', 'Trajectory']
   }
 ]
 
