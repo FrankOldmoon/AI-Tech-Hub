@@ -222,6 +222,76 @@
     "cancel": "取消",
     "cancelled": "已取消"
   },
+  "speech": {
+    "sourceMic": "麦克风",
+    "sourceFile": "上传文件",
+    "uploadAudio": "上传音频",
+    "analyzeFile": "分析音频",
+    "noFile": "请先上传或选择音频文件",
+    "fileHint": "整段音频将在浏览器本地逐段分析，数据不出浏览器。",
+    "fileDone": "文件分析完成"
+  },
+  "vc": {
+    "off": "原声",
+    "robot": "机器人",
+    "monster": "怪物",
+    "echo": "混响",
+    "chipmunk": "变调高",
+    "deep": "低沉",
+    "live": "实时变声中…",
+    "hint": "对着麦克风说话即可听到被改变的声音。耳机可获得更清晰的效果。"
+  },
+  "hum": {
+    "analyze": "分析转简谱",
+    "play": "回放",
+    "stopping": "播放中…",
+    "count": "共 {n} 个音",
+    "noResult": "录音或上传后点击「分析转简谱」提取音高。"
+  },
+  "sr": {
+    "start": "开始测算",
+    "cpm": "字/分钟",
+    "wpm": "词/分钟",
+    "chars": "总字数",
+    "time": "已用时"
+  },
+  "mt": {
+    "hint": "设定 BPM 聆听节拍；或在下方打拍区按着节拍连点，测出你的 BPM 与对齐度。",
+    "bpm": "目标 BPM",
+    "start": "开始节拍",
+    "stop": "停止",
+    "tapHint": "按下并连点，模拟跟节拍打拍",
+    "tapZone": "打拍区（连点）",
+    "youBpm": "你的 BPM",
+    "align": "对齐度",
+    "judgement": "评级",
+    "ace": "完美",
+    "good": "不错",
+    "keep": "再来",
+    "reset": "重置"
+  },
+  "ms": {
+    "volume": "音量",
+    "hint": "点击琴键发声（三角波 + 包络）。纯浏览器合成。"
+  },
+  "vc2": {
+    "hint": "对着麦说口令控制角色：左 / 右 / 上 / 下 / 跳 / 转 / 红 / 蓝 / 绿"
+  },
+  "vcClone": {
+    "refTitle": "① 参考音色",
+    "refHint": "录音或上传一段 5–10 秒清晰的语音，作为要克隆的音色示例。",
+    "uploadRef": "上传参考音",
+    "synthTitle": "② 输入要朗读的文本",
+    "device": "推理后端",
+    "synthesize": "生成语音",
+    "loadingModel": "下载模型（约 350MB，首次较慢）…",
+    "loaded": "模型就绪",
+    "synthesizing": "正在合成语音…",
+    "result": "合成结果",
+    "modelHint": "Chatterbox · 首次需下载模型",
+    "noRef": "请先录音或上传参考音",
+    "noText": "请输入要朗读的文本"
+  },
   "asr": {
     "lang": "识别语言",
     "start": "开始录音",
@@ -350,7 +420,10 @@
     "pause": "暂停",
     "waveform": "波形图",
     "spectrogram": "频谱图",
-    "noResult": "选择音频文件后自动可视化。"
+    "noResult": "选择音频文件后自动可视化。",
+    "micHint": "点击「开始麦克风」，实时展示波形与频谱图。",
+    "startMic": "开始麦克风",
+    "stopMic": "停止"
   },
   "meeting": {
     "upload": "请选择音频文件",

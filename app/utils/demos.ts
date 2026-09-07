@@ -186,7 +186,92 @@ export const demos: Demo[] = [
     tags: ['Visualizer', 'wavesurfer']
   },
 
+  // ===== speech：新增纯浏览器趣味体验 =====
+  {
+    slug: 'voice-changer',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '变声精灵', en: 'Voice Changer' },
+    description: { zh: '对麦说话实时加效果：机器人/怪物/混响/变调，纯 WebAudio 本端。', en: 'Add real-time effects to your voice: robot, monster, echo, chipmunk — all in-browser WebAudio.' },
+    howItWorks: { zh: '麦克风声音经 AudioContext 效果链（环调/失真/延时/滤波）后实时回放。', en: 'Mic audio runs through a WebAudio effect chain (ring-mod, distortion, delay, filters) and plays back live.' },
+    icon: 'i-lucide-sparkles',
+    status: 'ready',
+    requirements: { mic: true },
+    tags: ['Voice FX', 'WebAudio']
+  },
+  {
+    slug: 'hum-to-notes',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '哼唱转简谱', en: 'Hum to Notes' },
+    description: { zh: '哼唱一段，自动提取音高转成简谱并回放。', en: 'Hum a tune; it is transcribed into do-re-mi notes that you can play back.' },
+    howItWorks: { zh: 'YIN 算法逐帧提频，分音后映射到简谱音名，用 WebAudio 逐音回放。', en: 'YIN tracks pitch per frame, segments into notes, maps to scale syllables, and replays with WebAudio.' },
+    icon: 'i-lucide-music',
+    status: 'ready',
+    requirements: { mic: true },
+    tags: ['Pitch', 'YIN']
+  },
+  {
+    slug: 'speech-rate',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '实时语速计', en: 'Speech Rate Meter' },
+    description: { zh: '说话时实时统计字数与字数/分，测测你的语速。', en: 'Count characters and characters-per-minute live while you speak.' },
+    howItWorks: { zh: '流式语音识别累积文字与时间，滚动计算每分钟字数与词数。', en: 'Streaming speech recognition accumulates text and time, computing words-per-minute live.' },
+    icon: 'i-lucide-gauge',
+    status: 'ready',
+    requirements: { mic: true },
+    tags: ['Web Speech API']
+  },
+  {
+    slug: 'metronome',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '节拍器 + 打拍', en: 'Metronome & Tap' },
+    description: { zh: '按设定 BPM 听节拍，或手动打拍测出你的 BPM 与对齐度。', en: 'Hear ticks at a set BPM, or tap along to measure your own BPM and alignment.' },
+    howItWorks: { zh: 'Lookahead 调度 WebAudio 发出节拍音；打拍区间取中值估算 BPM 并与目标比对。', en: 'Metronome ticks are scheduled with WebAudio look-ahead; tap intervals estimate your BPM vs the target.' },
+    icon: 'i-lucide-music-4',
+    status: 'ready',
+    tags: ['Rhythm', 'WebAudio']
+  },
+  {
+    slug: 'mini-synth',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '迷你合成器', en: 'Mini Synth' },
+    description: { zh: '网页钢琴：点击琴键用三角波 + 包络发声，音量可调。', en: 'A web piano that plays triangle-wave notes with an envelope; volume adjustable.' },
+    howItWorks: { zh: '每键触发 WebAudio 振荡器与增益包络，附带低频泛音增色。', en: 'Each key fires a WebAudio oscillator with a gain envelope plus a low sub-overtone.' },
+    icon: 'i-lucide-piano',
+    status: 'ready',
+    tags: ['WebAudio', 'Synth']
+  },
+  {
+    slug: 'voice-command',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '语音口令控制台', en: 'Voice Command Console' },
+    description: { zh: '说口令（左/右/上/下/跳/转/变色）控制一个幽灵角色动起来。', en: 'Speak commands (left/right/up/down/jump/dance/color) to move a little ghost around.' },
+    howItWorks: { zh: '实时语音识别匹配口令并触发角色位移动画，适合课堂演示。', en: 'Live speech recognition matches commands and animates the character — great for class demos.' },
+    icon: 'i-lucide-gamepad-2',
+    status: 'ready',
+    requirements: { mic: true },
+    tags: ['Web Speech API', 'Animation']
+  },
+
   // ===== vision (MediaPipe) =====
+  {
+    slug: 'voice-clone',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '语音克隆（Chatterbox）', en: 'Voice Cloning (Chatterbox)' },
+    description: { zh: '录/传 5-10s 参考音，用你的音色朗读任意文本（0-shot 克隆，需下载较大模型）。', en: 'Clone any voice from a short reference clip and speak your text (0-shot; downloads a large model).' },
+    howItWorks: { zh: '参考音经语音编码器提取音色嵌入，条件 TTS 模型据此逐词生成语音（transformers.js WebGPU/WASM）。', en: 'A speech encoder extracts a voice embedding from the reference; a conditional TTS model generates speech conditioned on it (transformers.js, WebGPU/WASM).' },
+    icon: 'i-lucide-user-round-voice',
+    status: 'ready',
+    requirements: { mic: true, modelSizeMB: 350 },
+    featured: true,
+    tags: ['Chatterbox', 'Voice Clone', 'Transformers.js', 'WebGPU']
+  },
   {
     slug: 'yolo-detection',
     classroomSafe: true,
