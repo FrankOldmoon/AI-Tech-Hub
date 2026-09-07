@@ -618,6 +618,21 @@
     "stats": "{model} · {elapsed}s · {chars} 字符",
     "stopped": "已停止（用时 {elapsed}s）"
   },
+  "yolo": {
+    "start": "开启摄像头",
+    "stop": "停止",
+    "confidence": "置信度阈值",
+    "fps": "推理",
+    "results": "结果",
+    "backend": "后端",
+    "placeholder": "点击「开启摄像头」，然后用上方标签切换任务（全部在本机运行）",
+    "running": "检测运行中…（全部在本机浏览器内完成，数据不上传）",
+    "idle": "模型就绪，点击「开启摄像头」",
+    "loading": "正在加载 {name} 模型（{file}）…",
+    "loadingModelShort": "加载模型中…",
+    "camError": "摄像头打开失败",
+    "inferError": "推理出错"
+  },
   "mp": {
     "webcam": "摄像头",
     "stop": "停止",

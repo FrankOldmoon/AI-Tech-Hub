@@ -34,7 +34,8 @@ __pycache__/
 public/model/
 
 # onnxruntime WASM 自托管（node_modules/onnxruntime-web/dist 复制，部署时需同步）
-public/vendor/onnx/
+# 注：为让 YOLO 页面部署后开箱可用，此处跟随需求把 vendored WASM 一并入库
+# public/vendor/onnx/
 
 # ??????????????????
 public/generated/
@@ -56,6 +57,8 @@ tmp/
 !public/apps/g1-cartpole/oursim/assets/**/*.onnx
 # g1-motion-tracking（humanoid-policy-viewer）G1 追踪策略 ONNX
 !public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
+# YOLO26 全任务检测模型（public/models/*.onnx）需随应用分发到内网
+!public/models/*.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
