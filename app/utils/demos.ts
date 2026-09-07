@@ -188,6 +188,25 @@ export const demos: Demo[] = [
 
   // ===== vision (MediaPipe) =====
   {
+    slug: 'yolo-detection',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: 'YOLO26 全任务实时检测', en: 'YOLO26 All-task Real-time' },
+    description: {
+      zh: '一个模型全家桶实时完成 7 种视觉任务：目标检测、实例/语义分割、深度估计、图像分类、姿态估计与有向检测（WebGPU 加速）。',
+      en: 'One model family runs 7 vision tasks live in your browser: detection, instance/semantic segmentation, depth, classification, pose and oriented boxes (WebGPU accelerated).'
+    },
+    howItWorks: {
+      zh: '开启摄像头后，ONNX Runtime 在浏览器内逐帧推理 YOLO26n 模型：目标检测/分割画框、深度给热度图、分类出 Top5。切换任务即换对应模型，数据不出浏览器。',
+      en: 'Turn on the camera and ONNX Runtime runs a YOLO26n model per frame in-browser: boxes/masks for detection, heatmaps for depth, Top5 for classification. Switching tasks swaps models — all local.'
+    },
+    icon: 'i-lucide-box-select',
+    status: 'ready',
+    requirements: { camera: true, modelSizeMB: 80 },
+    featured: true,
+    tags: ['YOLO26', 'Object Detection', 'ONNX Runtime', 'WebGPU']
+  },
+  {
     slug: 'face-detection',
     classroomSafe: true,
     category: 'vision',

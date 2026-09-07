@@ -618,6 +618,21 @@
     "stats": "{model} · {elapsed}s · {chars} chars",
     "stopped": "Stopped ({elapsed}s)"
   },
+  "yolo": {
+    "start": "Start camera",
+    "stop": "Stop",
+    "confidence": "Confidence",
+    "fps": "Inference",
+    "results": "Results",
+    "backend": "Backend",
+    "placeholder": "Click \u201cStart camera\u201d, then switch tasks with the chips above (all local).",
+    "running": "Detecting… (all in-browser, nothing is uploaded)",
+    "idle": "Model ready — click \u201cStart camera\u201d",
+    "loading": "Loading {name} model ({file})…",
+    "loadingModelShort": "Loading model…",
+    "camError": "Failed to open camera",
+    "inferError": "Inference error"
+  },
   "mp": {
     "webcam": "Webcam",
     "stop": "Stop",
