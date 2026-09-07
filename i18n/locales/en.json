@@ -222,6 +222,76 @@
     "cancel": "Cancel",
     "cancelled": "Cancelled"
   },
+  "speech": {
+    "sourceMic": "Microphone",
+    "sourceFile": "Upload file",
+    "uploadAudio": "Upload audio",
+    "analyzeFile": "Analyze",
+    "noFile": "Upload or select an audio file first",
+    "fileHint": "The whole clip is analyzed locally in segments; nothing leaves your browser.",
+    "fileDone": "File analyzed"
+  },
+  "vc": {
+    "off": "Original",
+    "robot": "Robot",
+    "monster": "Monster",
+    "echo": "Echo",
+    "chipmunk": "Chipmunk",
+    "deep": "Deep",
+    "live": "Mutating live…",
+    "hint": "Speak to hear your altered voice. Headphones give the clearest effect."
+  },
+  "hum": {
+    "analyze": "Transcribe to notes",
+    "play": "Play",
+    "stopping": "Playing…",
+    "count": "{n} notes",
+    "noResult": "Record or upload, then tap “Transcribe to notes” to extract pitch."
+  },
+  "sr": {
+    "start": "Start measuring",
+    "cpm": "chars/min",
+    "wpm": "words/min",
+    "chars": "total chars",
+    "time": "elapsed"
+  },
+  "mt": {
+    "hint": "Set the target BPM and hear the ticks, or tap along in the zone below to measure your BPM and alignment.",
+    "bpm": "Target BPM",
+    "start": "Start",
+    "stop": "Stop",
+    "tapHint": "Press and tap along in rhythm",
+    "tapZone": "Tap zone (tap repeatedly)",
+    "youBpm": "Your BPM",
+    "align": "Alignment",
+    "judgement": "Verdict",
+    "ace": "Perfect",
+    "good": "Nice",
+    "keep": "Try again",
+    "reset": "Reset"
+  },
+  "ms": {
+    "volume": "Volume",
+    "hint": "Click the keys to play notes (triangle wave + envelope). Synthesized in-browser."
+  },
+  "vc2": {
+    "hint": "Speak commands to move the character: left / right / up / down / jump / dance / red / blue / green"
+  },
+  "vcClone": {
+    "refTitle": "① Reference voice",
+    "refHint": "Record or upload a clear 5-10 second clip as the voice to clone.",
+    "uploadRef": "Upload reference",
+    "synthTitle": "② Text to speak",
+    "device": "Backend",
+    "synthesize": "Generate speech",
+    "loadingModel": "Downloading model (~350MB, slower first time)…",
+    "loaded": "Model ready",
+    "synthesizing": "Synthesizing…",
+    "result": "Result",
+    "modelHint": "Chatterbox · downloads model on first use",
+    "noRef": "Record or upload a reference voice first",
+    "noText": "Enter some text to speak"
+  },
   "asr": {
     "lang": "Recognition language",
     "start": "Start recording",
@@ -350,7 +420,10 @@
     "pause": "Pause",
     "waveform": "Waveform",
     "spectrogram": "Spectrogram",
-    "noResult": "Pick an audio file to visualize it."
+    "noResult": "Pick an audio file to visualize it.",
+    "micHint": "Click “Start mic” to visualize the live waveform and spectrogram.",
+    "startMic": "Start mic",
+    "stopMic": "Stop"
   },
   "meeting": {
     "upload": "Please choose an audio file",
