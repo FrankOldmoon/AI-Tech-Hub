@@ -1,5 +1,6 @@
 <script setup lang="ts">
 // AIGC 类演示列表
+definePageMeta({ layout: 'bare' })
 </script>
 
 <template>
