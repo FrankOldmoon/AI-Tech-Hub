@@ -7,6 +7,11 @@
  */
 // downloadAllModels 由 Nitro 从 server/utils/ 自动导入
 export default defineNitroPlugin(() => {
+  // 开发模式下跳过模型预下载：dev 启动应即时，模型在前端通过 /api/hf 按需拉取即可
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[model-downloader] 开发模式，跳过模型预下载（模型由前端按需加载）')
+    return
+  }
   // 云端（Vercel）只读文件系统 + 无持久存储：跳过预下载，
   // 模型由前端通过 /api/hf 代理按需拉取
   // 自托管已预置本地模型时用 NUXT_SKIP_MODEL_DOWNLOAD=1 显式跳过

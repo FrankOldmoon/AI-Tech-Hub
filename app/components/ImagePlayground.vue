@@ -41,7 +41,7 @@ const secondCanvas = ref<HTMLCanvasElement>()
 const original = ref<ImageData | null>(null)
 const secondOriginal = ref<ImageData | null>(null)
 const result = ref<ImageData | null>(null)
-const resultInfo = ref<{ label: string; value: string }[]>([])
+const resultInfo = ref<{ label: string, value: string }[]>([])
 const fileName = ref('')
 const secondFileName = ref('')
 const sourceBytes = ref(0)
@@ -76,8 +76,9 @@ const specs = computed(() => {
     return base.map((s) => {
       if (s.key === 'width' || s.key === 'height') {
         const src = s.key === 'width' ? original.value!.width : original.value!.height
-        const cur = Number(paramValues.value[s.key]) || 0
-        const max = Math.min(4096, Math.max(src * 2, 512, cur))
+        // max 只依原图尺寸决定（≤2 倍、上限 4096），不随拖拽中的当前值变化——
+        // 否则拖动会让 max 不断增长并重渲染面板，打断原生 range 的首次拖拽
+        const max = Math.min(4096, Math.max(src * 2, 512))
         const help = s.key === 'height' && paramValues.value.keep
           ? (lang.value === 'zh' ? '保持宽高比开启时，高度按宽度自动等比计算。' : 'With aspect ratio kept, height follows width automatically.')
           : s.help
@@ -678,9 +679,9 @@ function drawCanvas(canvas: HTMLCanvasElement | undefined, data: ImageData | nul
   if (ctx) ctx.putImageData(data, 0, 0)
 }
 
-watch(original, (v) => drawCanvas(origCanvas.value, v), { flush: 'post' })
-watch(result, (v) => drawCanvas(resultCanvas.value, v), { flush: 'post' })
-watch(secondOriginal, (v) => drawCanvas(secondCanvas.value, v), { flush: 'post' })
+watch(original, v => drawCanvas(origCanvas.value, v), { flush: 'post' })
+watch(result, v => drawCanvas(resultCanvas.value, v), { flush: 'post' })
+watch(secondOriginal, v => drawCanvas(secondCanvas.value, v), { flush: 'post' })
 
 function onResultClick(e: MouseEvent) {
   const tool = activeTool.value
@@ -727,7 +728,10 @@ const modeText = computed(() => {
       <!-- 页面标题 -->
       <div class="flex items-start gap-4">
         <div class="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-          <UIcon :name="demo.icon" class="size-6" />
+          <UIcon
+            :name="demo.icon"
+            class="size-6"
+          />
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2 flex-wrap">
@@ -750,7 +754,10 @@ const modeText = computed(() => {
         <UCard class="lg:sticky lg:top-20">
           <template #header>
             <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-              <UIcon name="i-lucide-wrench" class="size-4 text-primary" />
+              <UIcon
+                name="i-lucide-wrench"
+                class="size-4 text-primary"
+              />
               <span>{{ t('image.tools') }}</span>
             </div>
           </template>
@@ -792,10 +799,20 @@ const modeText = computed(() => {
             @dragleave="dragOver = false"
             @drop.prevent="onDrop"
           >
-            <UIcon name="i-lucide-image-plus" class="size-10 text-muted mx-auto" />
-            <p class="mt-3 text-sm font-medium text-highlighted">{{ t('image.upload') }}</p>
-            <p class="mt-1 text-xs text-dimmed">{{ t('image.uploadHint') }}</p>
-            <div class="mt-4 flex flex-wrap justify-center items-center gap-2" @click.stop>
+            <UIcon
+              name="i-lucide-image-plus"
+              class="size-10 text-muted mx-auto"
+            />
+            <p class="mt-3 text-sm font-medium text-highlighted">
+              {{ t('image.upload') }}
+            </p>
+            <p class="mt-1 text-xs text-dimmed">
+              {{ t('image.uploadHint') }}
+            </p>
+            <div
+              class="mt-4 flex flex-wrap justify-center items-center gap-2"
+              @click.stop
+            >
               <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
               <UButton
                 v-for="s in sampleImages"
@@ -820,10 +837,30 @@ const modeText = computed(() => {
           <template v-if="original">
             <!-- 图片信息 -->
             <div class="flex flex-wrap gap-2 text-xs">
-              <UBadge color="neutral" variant="subtle">{{ fileName }}</UBadge>
-              <UBadge color="neutral" variant="subtle">{{ original.width }} × {{ original.height }}</UBadge>
-              <UBadge color="neutral" variant="subtle">{{ alg.formatBytes(sourceBytes) }}</UBadge>
-              <UBadge color="neutral" variant="subtle">{{ modeText }}</UBadge>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+              >
+                {{ fileName }}
+              </UBadge>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+              >
+                {{ original.width }} × {{ original.height }}
+              </UBadge>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+              >
+                {{ alg.formatBytes(sourceBytes) }}
+              </UBadge>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+              >
+                {{ modeText }}
+              </UBadge>
             </div>
 
             <!-- 控制区：参数面板 + 操作按钮（置于展示框上方） -->
@@ -837,10 +874,19 @@ const modeText = computed(() => {
               />
 
               <div class="flex flex-wrap items-center gap-2">
-                <UButton icon="i-lucide-play" :loading="running" @click="runNow">
+                <UButton
+                  icon="i-lucide-play"
+                  :loading="running"
+                  @click="runNow"
+                >
                   {{ t('image.run') }}
                 </UButton>
-                <UButton icon="i-lucide-rotate-ccw" color="neutral" variant="soft" @click="reset">
+                <UButton
+                  icon="i-lucide-rotate-ccw"
+                  color="neutral"
+                  variant="soft"
+                  @click="reset"
+                >
                   {{ t('image.reset') }}
                 </UButton>
                 <div class="ms-auto flex items-center gap-2">
@@ -866,7 +912,9 @@ const modeText = computed(() => {
             <!-- 原图 / 结果：原图列 3fr（显示约为全宽的 30%，即原来的 60%），结果列 7fr 更宽 -->
             <div class="grid grid-cols-1 md:grid-cols-[3fr_7fr] gap-4">
               <div class="space-y-2">
-                <p class="text-xs font-medium text-muted uppercase tracking-wide">{{ t('image.original') }}</p>
+                <p class="text-xs font-medium text-muted uppercase tracking-wide">
+                  {{ t('image.original') }}
+                </p>
                 <div class="overflow-auto rounded-lg border border-default">
                   <div class="relative w-fit">
                     <canvas
@@ -948,8 +996,14 @@ const modeText = computed(() => {
               <div class="space-y-2">
                 <p class="text-xs font-medium text-muted uppercase tracking-wide">
                   {{ t('image.result') }}
-                  <span v-if="running" class="text-primary normal-case tracking-normal ms-2">
-                    <UIcon name="i-lucide-loader-circle" class="size-3.5 inline animate-spin align-[-2px]" />
+                  <span
+                    v-if="running"
+                    class="text-primary normal-case tracking-normal ms-2"
+                  >
+                    <UIcon
+                      name="i-lucide-loader-circle"
+                      class="size-3.5 inline animate-spin align-[-2px]"
+                    />
                     {{ t('image.processing') }}
                   </span>
                 </p>
@@ -967,15 +1021,23 @@ const modeText = computed(() => {
                     />
                   </div>
                 </div>
-                <p v-if="activeTool?.interactive === 'click'" class="text-xs text-dimmed">
+                <p
+                  v-if="activeTool?.interactive === 'click'"
+                  class="text-xs text-dimmed"
+                >
                   {{ t('image.clickHint') }}
                 </p>
               </div>
             </div>
 
             <!-- 第二张图（双图工具） -->
-            <div v-if="activeTool?.needsSecondImage" class="rounded-lg border border-default p-4">
-              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">{{ t('image.secondImage') }}</p>
+            <div
+              v-if="activeTool?.needsSecondImage"
+              class="rounded-lg border border-default p-4"
+            >
+              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
+                {{ t('image.secondImage') }}
+              </p>
               <div
                 v-if="!secondOriginal"
                 class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors hover:border-primary/60"
@@ -983,15 +1045,32 @@ const modeText = computed(() => {
                 @dragover.prevent
                 @drop.prevent="onSecondDrop"
               >
-                <UIcon name="i-lucide-image-plus" class="size-8 text-muted mx-auto" />
-                <p class="mt-2 text-xs text-dimmed">{{ t('image.secondImageHint') }}</p>
+                <UIcon
+                  name="i-lucide-image-plus"
+                  class="size-8 text-muted mx-auto"
+                />
+                <p class="mt-2 text-xs text-dimmed">
+                  {{ t('image.secondImageHint') }}
+                </p>
               </div>
-              <div v-else class="flex items-start gap-3">
-                <canvas ref="secondCanvas" class="max-w-[180px] h-auto rounded-lg border border-default" />
+              <div
+                v-else
+                class="flex items-start gap-3"
+              >
+                <canvas
+                  ref="secondCanvas"
+                  class="max-w-[180px] h-auto rounded-lg border border-default"
+                />
                 <div class="text-xs text-muted space-y-1">
                   <p>{{ secondFileName }}</p>
                   <p>{{ secondOriginal.width }} × {{ secondOriginal.height }}</p>
-                  <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-refresh-cw" @click="openSecondFilePicker">
+                  <UButton
+                    size="xs"
+                    color="neutral"
+                    variant="soft"
+                    icon="i-lucide-refresh-cw"
+                    @click="openSecondFilePicker"
+                  >
                     {{ t('image.replaceSecond') }}
                   </UButton>
                 </div>
@@ -1006,10 +1085,19 @@ const modeText = computed(() => {
             >
 
             <!-- 结果信息 -->
-            <div v-if="resultInfo.length" class="rounded-lg border border-default p-3">
-              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">{{ t('image.info') }}</p>
+            <div
+              v-if="resultInfo.length"
+              class="rounded-lg border border-default p-3"
+            >
+              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
+                {{ t('image.info') }}
+              </p>
               <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                <div v-for="(row, i) in resultInfo" :key="i" class="flex justify-between gap-4">
+                <div
+                  v-for="(row, i) in resultInfo"
+                  :key="i"
+                  class="flex justify-between gap-4"
+                >
                   <span class="text-muted shrink-0">{{ row.label }}</span>
                   <span class="text-highlighted font-mono text-right">{{ row.value }}</span>
                 </div>
