@@ -80,7 +80,7 @@ export default defineNuxtConfig({
   },
 
   i18n: {
-    defaultLocale: "zh",
+    defaultLocale: "en",
     strategy: "no_prefix",
     locales: [
       { code: "zh", name: "中文", file: "zh.json" },
