@@ -7,7 +7,7 @@ const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'interactive-segmenter')!)
 
 const canvasRef = ref<HTMLCanvasElement>()
-const fileInput = ref<HTMLInputElement>()
+
 const loading = ref(false)
 const error = ref<string | null>(null)
 const hasImage = ref(false)
@@ -143,14 +143,6 @@ watch(backendMode, () => {
   if (segmenter) void onBackendChange()
 })
 
-async function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  await loadImageFile(file)
-  input.value = ''
-}
-
 async function loadImageFile(file: File) {
   const s = await ensure()
   if (!s) return
@@ -271,9 +263,10 @@ async function onCanvasClick(e: MouseEvent) {
 <template>
   <MediaDemoShell :demo="demo">
     <div class="flex flex-wrap items-center gap-2">
-      <UButton icon="i-lucide-upload" :label="t('mp.upload')" color="primary" :loading="loading" @click="fileInput?.click()" />
       <SampleImagePicker
         :samples="samples"
+        :disabled="loading"
+        @select="loadImageFile"
         @pick="useSample"
       />
       <USelect
@@ -282,8 +275,10 @@ async function onCanvasClick(e: MouseEvent) {
         class="w-36"
         :aria-label="t('mp.backendMode')"
       />
-      <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
-      <span v-if="hasImage" class="text-sm text-muted">{{ t('mp.clickHint') }}</span>
+      <span
+        v-if="hasImage"
+        class="text-sm text-muted"
+      >{{ t('mp.clickHint') }}</span>
       <UBadge
         v-if="hasImage"
         :color="delegateMode === 'GPU' ? 'primary' : 'neutral'"
@@ -293,7 +288,13 @@ async function onCanvasClick(e: MouseEvent) {
       </UBadge>
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
     <UAlert
       v-if="notice"
       color="info"
@@ -311,8 +312,14 @@ async function onCanvasClick(e: MouseEvent) {
         @click="onCanvasClick"
       />
     </div>
-    <div v-if="!hasImage" class="w-full max-w-3xl mx-auto aspect-video rounded-xl bg-elevated/60 flex items-center justify-center">
-      <UIcon name="i-lucide-image-plus" class="size-10 text-muted" />
+    <div
+      v-if="!hasImage"
+      class="w-full max-w-3xl mx-auto aspect-video rounded-xl bg-elevated/60 flex items-center justify-center"
+    >
+      <UIcon
+        name="i-lucide-image-plus"
+        class="size-10 text-muted"
+      />
     </div>
   </MediaDemoShell>
 </template>

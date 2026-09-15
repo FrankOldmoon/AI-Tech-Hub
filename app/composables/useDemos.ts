@@ -1,5 +1,7 @@
-import type { DemoCategory, Localized, LocalizedCategory, LocalizedDemo } from '~/utils/demos'
-import { categories, demos } from '~/utils/demos'
+import {
+  categories, demos, visionGroupKeys, visionGroupLabels,
+  type DemoCategory, type Localized, type LocalizedCategory, type LocalizedDemo, type VisionGroupKey
+} from '~/utils/demos'
 
 /**
  * 以当前 locale 解析后的 demo / category 访问器
@@ -33,6 +35,35 @@ export function useDemos() {
       .slice()
       .sort((a, b) => a.title.localeCompare(b.title, lang.value))
 
+  /**
+   * 按子分组（demo.group）聚合某个分类的 demo。组顺序 = visionGroupKeys。
+   * - vision 分类会产出多个带标题的组；无 group 的项收纳为单个未分组 bucket
+   * - 非 vision 分类（所有 demo 无 group）→ 单个未分组 bucket，CategoryPage 据此不显示标题
+   */
+  const byCategoryGrouped = (slug: DemoCategory | string) => {
+    const list = byCategory(slug)
+    const groupTitle = (key?: string) =>
+      (key && key in visionGroupLabels) ? pick(visionGroupLabels[key as VisionGroupKey]) : ''
+    const groups: { key?: string, title: string, demos: LocalizedDemo[] }[] = []
+    const unordered = new Map<string, LocalizedDemo[]>()
+    const remaining: LocalizedDemo[] = []
+    for (const d of list) {
+      if (d.group && d.group in visionGroupLabels) {
+        const arr = unordered.get(d.group) ?? []
+        arr.push(d)
+        unordered.set(d.group, arr)
+      } else {
+        remaining.push(d)
+      }
+    }
+    for (const key of visionGroupKeys) {
+      const arr = unordered.get(key)
+      if (arr?.length) groups.push({ key, title: groupTitle(key), demos: arr })
+    }
+    if (remaining.length) groups.push({ key: undefined, title: '', demos: remaining })
+    return groups
+  }
+
   const getCategory = (slug: DemoCategory | string) =>
     localizedCategories.value.find(c => c.slug === slug)
 
@@ -55,6 +86,7 @@ export function useDemos() {
     demos: localizedDemos,
     categories: localizedCategories,
     byCategory,
+    byCategoryGrouped,
     getCategory,
     getDemo,
     stats,

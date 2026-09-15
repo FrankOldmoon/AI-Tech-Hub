@@ -1,7 +1,8 @@
 <script setup lang="ts">
-const { t } = useI18n()
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
 import { humanError } from '~/utils/errors'
+
+const { t } = useI18n()
 
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'image-embedder')!)
@@ -56,7 +57,11 @@ async function ensureEmbedder() {
 async function onFile(e: Event, which: 1 | 2) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
-  if (!file) return
+  if (file) await selectFile(file, which)
+  input.value = ''
+}
+
+async function selectFile(file: File, which: 1 | 2) {
   const src = URL.createObjectURL(file)
   if (which === 1) img1Src.value = src
   else img2Src.value = src
@@ -87,10 +92,19 @@ async function compute() {
 
 <template>
   <MediaDemoShell :demo="demo">
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
 
     <div class="grid sm:grid-cols-2 gap-4">
-      <div v-for="n in 2" :key="n">
+      <div
+        v-for="n in 2"
+        :key="n"
+      >
         <label class="block text-sm font-medium text-muted mb-2">
           {{ n === 1 ? 'Image A · Portrait' : 'Image B' }}
         </label>
@@ -99,8 +113,16 @@ async function compute() {
           class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default hover:border-primary transition"
           @click="(n === 1 ? file1Input : file2Input)?.click()"
         >
-          <img v-show="(n === 1 ? img1Src : img2Src)" :src="n === 1 ? img1Src : img2Src" class="w-full h-full object-contain">
-          <UIcon v-if="!(n === 1 ? img1Src : img2Src)" name="i-lucide-image-plus" class="size-8 text-muted" />
+          <img
+            v-show="(n === 1 ? img1Src : img2Src)"
+            :src="n === 1 ? img1Src : img2Src"
+            class="w-full h-full object-contain"
+          >
+          <UIcon
+            v-if="!(n === 1 ? img1Src : img2Src)"
+            name="i-lucide-image-plus"
+            class="size-8 text-muted"
+          />
         </button>
         <div
           v-if="n === 2"
@@ -108,6 +130,7 @@ async function compute() {
         >
           <SampleImagePicker
             :samples="samples"
+            @select="(file: File) => selectFile(file, 2)"
             @pick="useSample"
           />
         </div>
@@ -124,10 +147,16 @@ async function compute() {
     <UCard>
       <div class="flex items-center justify-between">
         <span class="text-sm font-medium text-muted">Cosine Similarity</span>
-        <span v-if="similarity !== null" class="text-2xl font-bold text-highlighted">
+        <span
+          v-if="similarity !== null"
+          class="text-2xl font-bold text-highlighted"
+        >
           {{ similarity.toFixed(4) }}
         </span>
-        <span v-else class="text-sm text-muted">{{ loading ? 'computing…' : '—' }}</span>
+        <span
+          v-else
+          class="text-sm text-muted"
+        >{{ loading ? 'computing…' : '—' }}</span>
       </div>
     </UCard>
   </MediaDemoShell>

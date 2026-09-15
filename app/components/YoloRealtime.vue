@@ -7,6 +7,7 @@ import {
   postprocess, drawBoxes, drawPose, drawObb, drawSeg, drawSem, drawDepth
 } from '~/utils/yolo/postprocess'
 import { humanError } from '~/utils/errors'
+import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 
 /**
  * YOLO26 全任务实时检测交互面（纯浏览器端，数据不出浏览器）
@@ -33,6 +34,16 @@ const showTop5 = ref(false)
 
 let stream: MediaStream | null = null
 let rafId: number | null = null
+/** 静态图取帧用的离屏画布（复用 captureStream 供 loop 消费，避免改推理主循环） */
+const staticCanvas = typeof document !== 'undefined' ? document.createElement('canvas') : null
+
+const { fetchSampleFile } = useVisionSamples()
+// 检测类样本：人物/狗/街景，覆盖 common/含顶坐 pose 等场景
+const samples = computed(() => [
+  { label: t('samples.person'), url: '/samples/images/group.jpg' },
+  { label: t('samples.dog'), url: '/samples/images/dog.jpg' },
+  { label: t('samples.street'), url: '/samples/images/street.jpg' }
+])
 
 const currentModel = computed<YoloModel>(() => MODELS.find(m => m.id === currentId.value) || MODELS[0]!)
 const btnLabel = computed(() =>
@@ -41,14 +52,15 @@ const btnLabel = computed(() =>
 const needConf = computed(() => currentModel.value.needConf)
 const confText = computed(() => (conf.value / 100).toFixed(2))
 
-// 任务 chips（名称随 locale，icon 单独用 UIcon 渲染）
-const taskChips = computed(() => MODELS.map(m => ({
+// 左侧工具栏数据（共享 ToolSidebar 组件，样式集中在组件内）
+const taskItems = computed<ToolSidebarItem[]>(() => MODELS.map(m => ({
   id: m.id,
   label: locale.value === 'zh' ? m.nameZh : m.nameEn,
-  icon: m.icon
+  kind: m.id
 })))
 
-async function selectTask(id: string) {
+async function selectTask(rawId: string | number) {
+  const id = String(rawId)
   if (id === currentId.value) return
   currentId.value = id
   showTop5.value = id === 'cls'
@@ -159,32 +171,61 @@ function stop() {
   if (videoRef.value) videoRef.value.srcObject = null
 }
 
+/** 让一张静态 ImageBitmap 走同一推理主循环：绘到离屏画布 → captureStream 喂给 video。 */
+async function runOnBitmap(bitmap: ImageBitmap) {
+  await loadSession()
+  if (statusError.value) return
+  if (!staticCanvas) return
+  staticCanvas.width = bitmap.width
+  staticCanvas.height = bitmap.height
+  const ctx = staticCanvas.getContext('2d')
+  if (!ctx) return
+  ctx.drawImage(bitmap, 0, 0)
+  // 用 captureStream 挂到 video，交给 loop 消费（与摄像头一致）
+  const ms = staticCanvas.captureStream(10)
+  if (stream) { stream.getTracks().forEach(tr => tr.stop()); stream = null }
+  stream = ms
+  const video = videoRef.value!
+  video.srcObject = ms
+  await video.play().catch(() => {})
+  running.value = true
+  status.value = t('yolo.running')
+  statusError.value = false
+  loop()
+}
+
+async function onPickSample(url: string) {
+  try {
+    const file = await fetchSampleFile(url)
+    await runOnFile(file)
+  } catch (e: any) {
+    statusError.value = true
+    status.value = humanError(e, t)
+  }
+}
+
+async function runOnFile(file: File) {
+  try {
+    const bitmap = await createImageBitmap(file)
+    await runOnBitmap(bitmap)
+  } catch (err: any) {
+    statusError.value = true
+    status.value = humanError(err, t)
+  }
+}
+
 onBeforeUnmount(() => {
   stop()
 })
 </script>
 
 <template>
-  <div class="space-y-4">
-    <!-- 任务切换 chips -->
-    <div class="flex flex-wrap gap-2">
-      <button
-        v-for="c in taskChips"
-        :key="c.id"
-        class="rounded-full px-3.5 py-1.5 text-sm border transition-colors cursor-pointer"
-        :class="c.id === currentId
-          ? 'bg-primary border-primary text-white'
-          : 'bg-elevated/60 border-default text-muted hover:text-highlighted hover:border-primary'"
-        @click="selectTask(c.id)"
-      >
-        <UIcon
-          :name="c.icon"
-          class="size-4"
-        />
-        {{ c.label }}
-      </button>
-    </div>
-
+  <ToolSidebar
+    :model-value="currentId"
+    :title="t('image.tools')"
+    :items="taskItems"
+    @update:model-value="selectTask"
+  >
     <!-- 控制条 -->
     <div class="flex flex-wrap items-center gap-x-5 gap-y-3">
       <UButton
@@ -211,6 +252,13 @@ onBeforeUnmount(() => {
         >
         <span class="tabular-nums text-highlighted min-w-8">{{ confText }}</span>
       </div>
+
+      <SampleImagePicker
+        :samples="samples"
+        :disabled="loadingModel"
+        @select="runOnFile"
+        @pick="onPickSample"
+      />
     </div>
 
     <!-- 画面区 -->
@@ -277,5 +325,5 @@ onBeforeUnmount(() => {
         <span class="w-12 text-right tabular-nums">{{ (item.score * 100).toFixed(1) }}%</span>
       </div>
     </div>
-  </div>
+  </ToolSidebar>
 </template>

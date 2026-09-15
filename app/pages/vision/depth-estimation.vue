@@ -9,7 +9,6 @@ const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'depth-estimation')!)
 
-const fileInput = ref<HTMLInputElement>()
 const canvasRef = ref<HTMLCanvasElement>()
 const imgSrc = ref('')
 const loading = ref(false)
@@ -68,10 +67,7 @@ async function ensurePipeline() {
   return pipe
 }
 
-async function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+async function selectFile(file: File) {
   try {
     // 先解码为标准 PNG（处理 HEIC/超大图等 createImageBitmap 不支持的输入）
     imgSrc.value = await processImageFile(file)
@@ -80,7 +76,6 @@ async function onFileChange(e: Event) {
     error.value = err?.message || String(err)
     imgSrc.value = ''
   }
-  input.value = ''
 }
 
 async function useSample(url: string) {
@@ -178,48 +173,88 @@ onBeforeUnmount(async () => {
           @change="onModelChange"
         />
       </div>
-      <UBadge v-if="webgpu" color="primary" variant="subtle">WebGPU</UBadge>
-      <UBadge v-else color="neutral" variant="subtle">WASM</UBadge>
-      <UButton
-        icon="i-lucide-upload"
-        :label="t('mp.upload')"
+      <UBadge
+        v-if="webgpu"
         color="primary"
         variant="subtle"
-        :disabled="loading || running"
-        @click="fileInput?.click()"
-      />
+      >
+        WebGPU
+      </UBadge>
+      <UBadge
+        v-else
+        color="neutral"
+        variant="subtle"
+      >
+        WASM
+      </UBadge>
       <SampleImagePicker
         :samples="samples"
+        :disabled="loading || running"
+        @select="selectFile"
         @pick="useSample"
       />
-      <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
-      <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
+      <span
+        v-if="inferenceTime"
+        class="text-sm text-muted ms-2"
+      >{{ inferenceTime }} ms</span>
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
 
     <!-- 输入图 + 深度图对比 -->
     <div class="grid sm:grid-cols-2 gap-4">
       <div>
         <label class="block text-sm font-medium text-muted mb-2">{{ t('tf.inputImage') }}</label>
         <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default">
-          <img v-if="imgSrc" :src="imgSrc" class="w-full h-full object-contain">
-          <UIcon v-else name="i-lucide-image-plus" class="size-8 text-muted" />
+          <img
+            v-if="imgSrc"
+            :src="imgSrc"
+            class="w-full h-full object-contain"
+          >
+          <UIcon
+            v-else
+            name="i-lucide-image-plus"
+            class="size-8 text-muted"
+          />
         </div>
       </div>
       <div>
         <label class="block text-sm font-medium text-muted mb-2">{{ t('tf.depthMap') }}</label>
         <div class="relative w-full aspect-video rounded-xl overflow-hidden bg-elevated/60 flex items-center justify-center border border-dashed border-default">
-          <canvas v-show="imgSrc" ref="canvasRef" class="w-full h-full object-contain" />
-          <UIcon v-if="!imgSrc || !inferenceTime" name="i-lucide-layers" class="size-8 text-muted" />
-          <div v-if="running" class="absolute inset-0 flex items-center justify-center bg-black/40">
-            <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-white" />
+          <canvas
+            v-show="imgSrc"
+            ref="canvasRef"
+            class="w-full h-full object-contain"
+          />
+          <UIcon
+            v-if="!imgSrc || !inferenceTime"
+            name="i-lucide-layers"
+            class="size-8 text-muted"
+          />
+          <div
+            v-if="running"
+            class="absolute inset-0 flex items-center justify-center bg-black/40"
+          >
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="size-8 animate-spin text-white"
+            />
           </div>
         </div>
       </div>
     </div>
 
     <!-- 可调参数 -->
-    <DemoParams v-model="params" :specs="specs" :running="running" />
+    <DemoParams
+      v-model="params"
+      :specs="specs"
+      :running="running"
+    />
   </MediaDemoShell>
 </template>
