@@ -1,5 +1,5 @@
 // YOLO26n 浏览器端推理核心：ORT session 管理（WebGPU / WASM 回退）+ 图像预处理
-// 模型文件在 public/models/，onnxruntime wasm 自托管到 public/vendor/onnx/
+// 模型文件在 .models/yolo/（经 /model/* API 路由 Range 服务），onnxruntime wasm 自托管到 public/vendor/onnx/
 /* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
 import type { YoloModel } from '~/utils/yolo/models'
 import type { PreprocessRect } from '~/utils/yolo/postprocess'

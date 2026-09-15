@@ -43,5 +43,8 @@ useSeoMeta({
     <USeparator icon="i-simple-icons-nuxtdotjs" />
 
     <AppFooter />
+
+    <!-- 统计合规告知横幅（P2-3）：全局展示，仅首次访问出现，同意/拒绝后不再打扰 -->
+    <CookieConsent />
   </UApp>
 </template>

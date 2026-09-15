@@ -61,8 +61,8 @@ export const categories: Category[] = [
     slug: 'speech',
     title: { zh: '语音', en: 'Speech' },
     description: {
-      zh: '语音合成、语音识别、音频分类等语音相关 AI 演示。',
-      en: 'Speech synthesis, recognition and audio classification AI demos.'
+      zh: '语音合成、语音识别、语音翻译、声纹识别与音乐听觉等语音相关 AI 演示。',
+      en: 'Speech synthesis, recognition, translation, speaker verification and music/audio AI demos.'
     },
     icon: 'i-lucide-audio-lines'
   },
@@ -121,12 +121,12 @@ export const demos: Demo[] = [
     category: 'speech',
     title: { zh: '文本转语音 (TTS)', en: 'Text to Speech (TTS)' },
     description: { zh: '文本转语音合成。', en: 'Text to speech synthesis.' },
-    howItWorks: { zh: '输入文本，合成引擎（如 edge-tts 神经网络语音）逐句生成语音，可直接播放或下载。', en: 'Type text and a neural TTS engine turns it into natural speech you can play or download.' },
+    howItWorks: { zh: '文本输入后，Kokoro 神经 TTS 模型在浏览器本地（WebGPU/WASM + ONNX q8）生成语音，数据不出设备，可即时播放或下载。', en: 'Type text and a Kokoro neural TTS model (ONNX q8, WebGPU/WASM) synthesizes speech directly in your browser — no server involved.' },
     icon: 'i-lucide-volume-2',
     status: 'ready',
-    requirements: { modelSizeMB: 100 },
+    requirements: { modelSizeMB: 92 },
     featured: true,
-    tags: ['TTS', 'edge-tts']
+    tags: ['TTS', 'Kokoro', 'WebGPU', 'ONNX']
   },
   {
     slug: 'asr',
@@ -266,11 +266,47 @@ export const demos: Demo[] = [
     title: { zh: '语音克隆（Chatterbox）', en: 'Voice Cloning (Chatterbox)' },
     description: { zh: '录/传 5-10s 参考音，用你的音色朗读任意文本（0-shot 克隆，需下载较大模型）。', en: 'Clone any voice from a short reference clip and speak your text (0-shot; downloads a large model).' },
     howItWorks: { zh: '参考音经语音编码器提取音色嵌入，条件 TTS 模型据此逐词生成语音（transformers.js WebGPU/WASM）。', en: 'A speech encoder extracts a voice embedding from the reference; a conditional TTS model generates speech conditioned on it (transformers.js, WebGPU/WASM).' },
-    icon: 'i-lucide-user-round-voice',
+    icon: 'i-lucide-mic-vocal',
     status: 'ready',
     requirements: { mic: true, modelSizeMB: 350 },
     featured: true,
     tags: ['Chatterbox', 'Voice Clone', 'Transformers.js', 'WebGPU']
+  },
+  {
+    slug: 'voiceprint',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '声纹识别（说话人验证）', en: 'Voiceprint (Speaker Verification)' },
+    description: { zh: '录入声纹后，用一段语音判断「是不是同一个人」，并给出全部相似度排名。', en: 'Enroll a voiceprint, then match a new clip against everyone — with a full similarity ranking.' },
+    howItWorks: { zh: 'WavLM 把每段语音编码为 512 维说话人向量（x-vector），与本地声纹库逐一算余弦相似度。阈值可现场调节，用来演示「误认」与「认不出」之间的权衡。', en: 'A WavLM model encodes each clip into a 512-d speaker vector (x-vector); cosine similarity against the local library decides the match. The threshold is adjustable, so you can show the trade-off between false accepts and misses.' },
+    icon: 'i-lucide-fingerprint',
+    status: 'ready',
+    requirements: { mic: true, modelSizeMB: 481 },
+    tags: ['Speaker ID', 'WavLM', 'X-Vector', 'Biometrics']
+  },
+  {
+    slug: 'speech-translate',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '语音翻译机（中 ↔ 英）', en: 'Speech Translator (zh ↔ en)' },
+    description: { zh: '说一句中文，自动转写、翻译成英文，再用英文音色读出来 —— 全流程离线。', en: 'Speak Chinese: it transcribes, translates into English and speaks it back — fully offline.' },
+    howItWorks: { zh: '三段级联流水线：whisper 语音识别 → opus-mt 机器翻译 → Kokoro 语音合成。中间文本全部展示，便于讲解误差如何逐级累积。', en: 'A three-stage cascade: Whisper ASR → opus-mt machine translation → Kokoro TTS. Every intermediate text is shown so error propagation can be traced step by step.' },
+    icon: 'i-lucide-languages',
+    status: 'ready',
+    requirements: { mic: true, modelSizeMB: 600 },
+    tags: ['ASR', 'MT', 'TTS', 'Speech Translation']
+  },
+  {
+    slug: 'audiobook',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '多角色有声书', en: 'Multi-speaker Audiobook' },
+    description: { zh: '贴一段「角色：台词」剧本，自动给每个角色分配不同音色朗读，并导出整段 WAV。', en: 'Paste a script of “Character: line”, each character gets its own voice, then export the whole thing as one WAV.' },
+    howItWorks: { zh: '按行解析剧本并依出场顺序分配音色，逐句用 Kokoro 合成后按顺序拼接（句间静音可调），最后编码为单个 WAV。', en: 'The script is parsed line by line and voices are cast in order of appearance; each line is synthesized with Kokoro, concatenated with an adjustable gap, and encoded into a single WAV.' },
+    icon: 'i-lucide-book-audio',
+    status: 'ready',
+    requirements: { modelSizeMB: 116 },
+    tags: ['TTS', 'Kokoro', 'Multi-voice']
   },
   {
     slug: 'yolo-detection',
@@ -1119,7 +1155,7 @@ export const demos: Demo[] = [
       zh: '纯前端机械臂仿真：加载 URDF/STL 模型，浏览器本地解算关节运动；连实体机械臂需 rosbridge（ws://机械臂IP:9090）。',
       en: 'Pure front-end arm simulation: loads URDF/STL and solves joint motion in-browser; connecting a real arm requires rosbridge (ws://ARM_IP:9090).'
     },
-    icon: 'i-lucide-robot',
+    icon: 'i-lucide-bot',
     status: 'ready',
     tags: ['Robotics', 'ROS2', 'Three.js']
   },

@@ -1,6 +1,6 @@
 # 项目交接文档（Handoff）
 
-> 整理时间：2026-08-14
+> 整理时间：2026-08-14（架构速查已按 2026-09 迭代刷新，见「五」）
 > 项目：nuxt_AI（Nuxt 4 全栈 AI Demo 集合站，包名 "nn"）
 > 当前分支：main（基线 v0.11.0，2026-08-14 发布完成）
 > 基线标签：`pre-ux-audit`（UX 修复前）→ `v0.11.0`（当前基线）
@@ -13,8 +13,11 @@
 **工作方式已约定**（用户确认）：
 
 - 按批次切短期特性分支（`fix/<主题>` / `feat/<主题>`），验证通过后 `--no-ff` 合并回 main
-- 本项目**无测试、无 CI**，合并门槛 = 改动文件 lint 无新增错误 + typecheck 无新增错误 + 人工冒烟清单
+- 合并门槛 = 改动文件 lint 无新增错误 + typecheck 无新增错误 + 人工冒烟清单；
+  2026-09 起新增 `check:i18n`（script）与 vitest，并接入 GitHub Actions（`.github/workflows/quality.yml`）
 - 每批完成在 UX-AUDIT.md 上勾掉对应项
+
+> **2026-09 迭代已收尾**：P0（图标/i18n/CI）、P1（示例素材、iframe locale 同步、中屏导航、部署瘦身）、P2（模型清单 lock、教学纵深、cookie/WebGPU 提示）已按 `docs/model-manifest.md` 与 `docs/DEPLOY-AIHUB.md` 落地，具体见文末「六」。2026-09-10 追加：模型 5.2GB 由 `public/model/` 迁入 `.models/`，新增 `server/routes/model/[...].ts`（Range/206）接管 `/model/*`，构建产物不再含模型，详见 `docs/DEPLOY-AIHUB.md` 第八节。
 
 ## 二、已完成的任务
 
@@ -75,7 +78,24 @@ const { poll, stop: stopPolling } = useTaskPoller({
 - **架构**：Nuxt 4（`app/` 目录）+ Nitro；浏览器端推理（transformers.js/WebLLM/MediaPipe/TF.js/ONNX/Pyodide）为主，重任务走 server 队列（`server/utils/*-queue.ts`，内存 Map，**重启即丢**）spawn Python venv 子进程
 - **前后端通信**：纯 HTTP + 轮询，无 SSE/WebSocket
 - **无数据库**：localStorage（人脸库）、Cache API（模型分片）、`public/generated/<taskId>/`（任务产物）
-- **零测试**：只有 lint + typecheck（且基线已坏，见坑 #1）
-- **关键文件**：`app/utils/demos.ts`（demo 中央注册表）、`app/app.vue`（唯一布局）、`nuxt.config.ts`、`server/api/hf/[...].get.ts`（HF 反代）
+- **测试**：vitest（24 例）+ `check:i18n`（`.github/workflows/quality.yml`，pnpm 11 + node 22）；lint/typecheck 基线仍有存量错误（~1724/555），验收用「对比基线、不新增错误」，见坑 #1
+- **关键文件**：`app/utils/demos.ts`（demo 中央注册表）、`app/layouts/default.vue` + `app/layouts/bare.vue`（布局）、`app/components/DemoIframeLoader.vue`（重型 iframe 按需加载）、`nuxt.config.ts`、`server/api/hf/[...].get.ts`（HF 反代，模型按需拉取）、`server/routes/model/[...].ts`（本地模型 API，Range/206，从 `.models/` 服务 `/model/*`）、`server/utils/model-downloader.ts`（预下载到 `.models/`）、`scripts/trim-production-assets.mjs`（构建防御清理）、`scripts/check-i18n.mjs`（i18n 校验）
+- **模型清单**：`docs/model-manifest.md`（权威 lock：目录/占用/预下载/按需清单/裁剪方法）
+- **模型目录**：`.models/`（2026-09-10 由 `public/model/` 迁入；不随构建产物，`MODELS_DIR` env 可覆盖；不用 `storage/` 命名是为避开全局 gitignore 的 `storage` 规则导致 yolo 入库例外失效）
 - **审计报告**：`docs/UX-AUDIT.md`；**标杆实践参考**：`FaceCamera.vue`（权限处理）、`denoise.vue`（进度+取消）、`asr.vue`（WebGPU→WASM 回退）
 - **远端**：`github/main`，本地多个提交未推送
+
+## 六、2026-09 迭代成果（P0-P2 已收尾）
+
+| 批次 | 成果 | 落地位置 / 说明 |
+| --- | --- | --- |
+| P0-1 | 无效 lucide 图标名修复 | `demos.ts` 两处（`i-lucide-bot` / `i-lucide-mic-vocal`） |
+| P0-2 | i18n 缺 key 补齐 | `neuralSandbox.externalNote` 等；此后由 check:i18n 防回归 |
+| P0-3 | i18n 校验 + CI | `scripts/check-i18n.mjs` + `.github/workflows/quality.yml`（check:i18n + vitest 24 例） |
+| P1-1 | 示例素材「试试示例」 | transformers 5 任务 × 2 groups + MediaTextRunner samples（13 双语 key） |
+| P1-2 | iframe locale 同步 | `useIframeLocale.ts`（src 追加 `?locale=`）；**21 个子应用 index.html 统一改为 query 优先/浏览器语言回落**（此前参数不消费、语言不跟随） |
+| P1-3 | 中屏导航断层 | `app.config.ts` 覆盖 UHeader center/toggle、AppHeader 断点与 `UNavigationMenu` 微调；852px 实测可达 |
+| P1-4 | 部署瘦身 | `DemoIframeLoader.vue`（7 重型页点击后加载）；`scripts/trim-production-assets.mjs` 接入 build；`DEPLOY-AIHUB.md` 第八节 |
+| P2-1 | 模型清单 lock | `docs/model-manifest.md`（含裁剪方法，与 download-models.ts 联动） |
+| P2-2 | 教学纵深 | `RuntimeStats.vue`（fps 徽章，接入 flappy）；Runner 模型卡（TransformersTextRunner/MediaTextRunner）；robot 分类文案去「敬请期待」；本文档架构速查刷新 |
+| P2-3 | 合规与提示 | cookie 告知组件 + WebGPU 兼容提示（见下批次备注） |

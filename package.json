@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build",
+    "build": "nuxt build && node scripts/trim-production-assets.mjs",
     "dev": "NODE_USE_ENV_PROXY=1 nuxt dev --host",
     "preview": "nuxt preview",
     "server": "node .output/server/index.mjs",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "models:fetch": "node scripts/fetch-models.mjs",
+    "models:list": "node scripts/fetch-models.mjs --list",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
     "typecheck": "nuxt typecheck",
@@ -28,6 +31,7 @@
     "@tensorflow-models/speech-commands": "^0.5.4",
     "@tensorflow/tfjs": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
+    "kokoro-js": "^1.2.1",
     "nuxt": "^4.5.2",
     "onnxruntime-web": "^1.27.0",
     "tailwindcss": "^4.3.3"

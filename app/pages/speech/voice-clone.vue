@@ -118,6 +118,7 @@ async function ensureModel() {
   const { AutoProcessor, ChatterboxModel } = await import('@huggingface/transformers')
   const hasWebGpu = !!(navigator as any).gpu
   const useDevice = device.value === 'webgpu' && hasWebGpu ? 'webgpu' : 'wasm'
+  device.value = useDevice // 回显实际后端：无 WebGPU 时降级为 wasm，避免界面显示与实际不符
   const dtype = DTYPE[useDevice] as Record<string, string>
   const onProgress = (p: any) => {
     if (!p) return

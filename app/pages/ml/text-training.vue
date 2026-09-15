@@ -65,7 +65,7 @@ async function loadModels() {
   loadProgress.value = t('ml.textTraining.loadingModel')
   try {
     const env = await setupTransformersEnv()
-    // 本地 public/model/transformers 有该模型才允许本地加载，否则走 /api/hf 远程代理
+    // 本地 .models/transformers 有该模型才允许本地加载，否则走 /api/hf 远程代理
     const localOk = await localModelExists(modelId.value)
     env.allowLocalModels = localOk
     const { pipeline } = await import('@huggingface/transformers')

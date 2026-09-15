@@ -18,6 +18,11 @@ const jump = ref(false)
 const color = ref('#f59e0b')
 
 let recognition: any = null
+/** 是否已进入不可恢复的错误态：为 true 时 onend 不再自动重启识别 */
+let fatalError = false
+
+/** 这几类错误重启也没用（权限被拒 / 服务不可用 / 采不到音），必须停下来让用户处理 */
+const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture']
 
 const COMMANDS: Record<string, string> = {
   ...zhLeft(),
@@ -80,13 +85,21 @@ onMounted(() => {
       setTimeout(() => { lastMatched = '' }, 600)
     }
   }
-  recognition.onerror = (e: any) => { error.value = e.error || 'error' }
-  recognition.onend = () => { if (listening.value) try { recognition.start() } catch { /* */ } }
+  recognition.onerror = (e: any) => {
+    error.value = e.error || 'error'
+    // 致命错误：置 listening=false 并标记，避免 onend 里无限重启（曾实测 8s 内触发上万次 error）
+    if (FATAL_ERRORS.includes(e.error)) {
+      fatalError = true
+      listening.value = false
+    }
+  }
+  recognition.onend = () => { if (listening.value && !fatalError) try { recognition.start() } catch { /* */ } }
 })
 
 function start() {
   if (!recognition) return
   error.value = null
+  fatalError = false
   try { recognition.start(); listening.value = true } catch { /* */ }
 }
 function stop() {

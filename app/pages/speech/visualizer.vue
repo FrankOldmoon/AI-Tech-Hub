@@ -54,6 +54,10 @@ async function useSample() {
   }
 }
 
+/** wavesurfer ESM 自托管在 public/vendor/wavesurfer（与 public/vendor/onnx 同一策略），
+ *  避免运行时依赖 unpkg CDN —— 内网/离线部署时 CDN 不通会让「上传文件」模式直接失效 */
+const WAVESURFER_BASE = '/vendor/wavesurfer'
+
 async function module(url: string): Promise<any> {
   return await (import(/* @vite-ignore */ url))
 }
@@ -61,8 +65,8 @@ async function module(url: string): Promise<any> {
 async function initFile(url: string) {
   destroySurfer()
   try {
-    const WaveSurfer = (await module('https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.esm.js')).default
-    const Spectrogram = (await module('https://unpkg.com/wavesurfer.js@7/dist/plugins/spectrogram.esm.js')).default
+    const WaveSurfer = (await module(`${WAVESURFER_BASE}/wavesurfer.esm.js`)).default
+    const Spectrogram = (await module(`${WAVESURFER_BASE}/plugins/spectrogram.esm.js`)).default
     if (!waveRef.value || !specRef.value) return
     surfer = WaveSurfer.create({
       container: waveRef.value,

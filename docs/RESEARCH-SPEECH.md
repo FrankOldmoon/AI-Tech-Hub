@@ -51,7 +51,7 @@
 - ⚠️ **S15 歌声合成受限（2026-08-11）**：DiffSinger 需 GPU + 声库训练数据（本机无 GPU）；注册为 planned + Python 示例（python/speech/singing/main.py 说明）。
 - ✅ **S4/S6 Python 示例已添加（2026-08-11）**：python/speech/emotion/main.py（wav2vec2 情感分类）、python/speech/pitch-detector/main.py（librosa PYIN 音高检测），均已注册 pythonModule，两个页面底部出现「Python 最简实现」面板。
 - 🔧 **S1 修复记录（2026-08-11，对照 python-tool-integration 验收标准）**：
-  - 本地模型路径 404 噪音：加载 whisper 时临时 `env.allowLocalModels=false`（本地无 whisper 模型，避免先探测 public/model 再回退）
+  - 本地模型路径 404 噪音：加载 whisper 时临时 `env.allowLocalModels=false`（本地无 whisper 模型，避免先探测 .models 再回退）
   - 语言默认 `auto` → `chinese`（WebGPU 下自动检测回退英文，导致中文被跳过）+ 帮助文案提示
   - 默认模型 tiny → base（中文识别更准）+ modelHelp 文案
   - 进度条显示具体下载文件名；离开页面 `onBeforeUnmount` 取消转写

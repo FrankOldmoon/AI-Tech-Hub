@@ -1,5 +1,8 @@
 /**
- * 预下载所有 AI 模型到 public/model/ 目录。
+ * 预下载所有 AI 模型到 .models/ 目录。
+ *
+ * 模型不再放入 public/（构建时会被复制进 .output），而是存到项目根 .models/，
+ * 由 server/routes/model/[...].ts 以 HTTP Range(206) 方式提供给浏览器端推理库。
  *
  * 在 Nuxt 服务器启动时通过 server plugin 自动触发；
  * 已存在的文件会跳过，缺失的文件才下载。
@@ -11,8 +14,14 @@ import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, st
 import { dirname, join, relative, basename, extname } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+// 仓库级下载（ModelScope → hf-mirror → huggingface 自动回退）与语音模型清单共用，
+// 手动预取入口见 scripts/fetch-models.mjs（pnpm models:fetch）
+import { SPEECH_REPOS, fetchModelRepo } from './model-fetch.mjs'
 
-const BASE = join(process.cwd(), 'public', 'model')
+// 模型根目录：默认 <cwd>/.models，可用 MODELS_DIR 环境变量覆盖
+// （与 server/routes/model/[...].ts 的服务路径保持一致；
+//  不用 storage/：全局 gitignore 有 storage 规则会阻断 yolo 入库例外）
+const BASE = process.env.MODELS_DIR || join(process.cwd(), '.models')
 const MIRROR = 'https://hf-mirror.com'
 
 // 防止并发重复执行
@@ -92,28 +101,17 @@ async function listHfFiles(modelId: string): Promise<string[]> {
   }
 }
 
-/** 下载 HF 仓库所有文件（跳过指定后缀/文件名）。 */
+/** 下载 HF 仓库所有文件（跳过指定后缀/文件名）。
+ *  实际下载交给 model-fetch.mjs：优先 ModelScope（国内可直连），
+ *  再回退 hf-mirror.com / huggingface.co —— 单靠 hf-mirror 时，
+ *  其 308 跳转到被墙的 huggingface.co 会让整条预取链路失效。 */
 async function downloadHfRepo(
   modelId: string,
   destSubdir: string,
   skipExts: string[] = ['.gitattributes'],
   skipNames: string[] = ['.gitattributes', 'README.md', 'LICENSE']
 ): Promise<void> {
-  const destDir = join(BASE, destSubdir)
-  const files = await listHfFiles(modelId)
-  if (!files.length) {
-    console.log(`  WARN: 未获取到文件列表，跳过 ${modelId}`)
-    return
-  }
-  console.log(`  ${modelId}: ${files.length} 个文件`)
-  for (const f of files) {
-    const bname = basename(f)
-    const ext = extname(f)
-    if (skipNames.includes(bname) || skipExts.includes(ext)) continue
-    const url = `${MIRROR}/${modelId}/resolve/main/${f}`
-    const dest = join(destDir, f)
-    await downloadFile(url, dest)
-  }
+  await fetchModelRepo(modelId, join(BASE, destSubdir), { skipExts, skipNames })
 }
 
 /** 读取并解析 JSON 文件。 */
@@ -203,6 +201,17 @@ async function downloadTransformersModels(): Promise<void> {
   for (const modelId of models) {
     console.log(`  --- ${modelId} ---`)
     await downloadHfRepo(modelId, `transformers/${modelId}`, skipExts, skipNames)
+  }
+}
+
+// ============================================================
+// 3.5 语音模块模型（ASR / 情感识别 / 语音克隆）
+// ============================================================
+async function downloadSpeechModels(): Promise<void> {
+  console.log('\n=== 语音模块模型（whisper / wav2vec2-SER / chatterbox / wavlm-SV / opus-mt） ===')
+  for (const repo of SPEECH_REPOS) {
+    console.log(`  --- ${repo.id}（${repo.label}）---`)
+    await fetchModelRepo(repo.id, join(BASE, 'transformers', repo.id), { keep: repo.keep })
   }
 }
 
@@ -340,7 +349,7 @@ function totalSizeMb(dir: string): number {
 }
 
 /**
- * 下载所有模型到 public/model/。
+ * 下载所有模型到 .models/。
  * 已存在的文件会跳过，只下载缺失的文件。
  * 通过 server plugin 在服务器启动时自动调用。
  */
@@ -357,6 +366,7 @@ export async function downloadAllModels(): Promise<void> {
     await downloadMediapipeModels()
     await downloadMediapipeWasm()
     await downloadTransformersModels()
+    await downloadSpeechModels()
     await downloadTfjsModels()
     await downloadWebllmModels()
     await downloadFaceApiModels()

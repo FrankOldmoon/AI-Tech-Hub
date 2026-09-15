@@ -1,14 +1,18 @@
 <script setup lang="ts">
 /* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
-/** 哼唱转简谱：录音/上传 → YIN 提调 → 分音 → 显示简谱并可回放（纯 WebAudio 本端） */
+/**
+ * 哼唱转简谱：麦克风实时识别（ScriptProcessor 逐帧 YIN → 半音量化 → 音符合并，
+ * 边哼边出简谱），或上传文件整段分析（纯 WebAudio 本端）
+ */
 import { humanError, mediaError } from '~/utils/errors'
 import { decodeTo16k } from '~/utils/audio'
+import { freqToName, mergeLivePitch, yinPitch, type PitchNote } from '~/utils/pitch'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'hum-to-notes')!)
 
-const source = ref<'mic' | 'file'>('file')
+const source = ref<'mic' | 'file'>('mic')
 const recording = ref(false)
 const recordSeconds = ref(0)
 const audioFile = ref<File | null>(null)
@@ -17,62 +21,15 @@ const audioUrl = ref('')
 const analyzing = ref(false)
 const error = ref<string | null>(null)
 
-let mediaRecorder: MediaRecorder | null = null
-let recordStream: MediaStream | null = null
-let recordChunks: Blob[] = []
-let recordTimer: number | null = null
-
-interface Note { freq: number, name: string, syll: string, start: number, end: number }
-
-const notes = ref<Note[]>([])
+const notes = ref<PitchNote[]>([])
+/** 实时模式下当前检测到的音高（用于边哼边反馈） */
+const liveFreq = ref(0)
+const liveNoteName = ref('')
 const played = ref(false)
 const isPlaying = ref(false)
 
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-const SCALE = ['do', 're', 'mi', 'fa', 'sol', 'la', 'si']
-/** 以 C 大调（do=C）将频率量化为音名 */
-function freqToName(f: number) {
-  const midi = 69 + 12 * Math.log2(f / 440)
-  const r = Math.round(midi)
-  const name = NOTE_NAMES[((r % 12) + 12) % 12]!
-  const oct = Math.floor(r / 12) - 1
-  return { name: `${name}${oct}`, syll: SCALE[((r % 12) + 12) % 7]! }
-}
-
-/** YIN 基频检测（取自 pitch-detector） */
-function yinPitch(buffer: Float32Array, sampleRate: number, threshold: number, minF: number, maxF: number) {
-  const len = buffer.length
-  const half = Math.floor(len / 2)
-  if (half < 4) return null
-  const cmnd = new Float32Array(half)
-  cmnd[0] = 1
-  let sum = 0
-  for (let tau = 1; tau < half; tau++) {
-    let diff = 0
-    for (let i = 0; i < half; i++) { const d = buffer[i]! - buffer[i + tau]!; diff += d * d }
-    sum += diff
-    cmnd[tau] = sum > 0 ? (diff * tau) / sum : 1
-  }
-  let tau = -1
-  for (let q = 2; q < half - 1; q++) {
-    if (cmnd[q]! < threshold && cmnd[q]! < cmnd[q - 1]! && cmnd[q]! < cmnd[q + 1]!) { tau = q; break }
-  }
-  if (tau === -1) {
-    let min = 1
-    for (let q = 2; q < half - 1; q++) { if (cmnd[q]! < min) { min = cmnd[q]!; tau = q } }
-    if (min > threshold) return null
-  }
-  const s0 = cmnd[tau - 1]!, s1 = cmnd[tau]!, s2 = cmnd[tau + 1]!
-  const denom = s0 - 2 * s1 + s2
-  const shift = denom !== 0 ? (s0 - s2) / (2 * denom) : 0
-  const period = tau + shift
-  const f = sampleRate / period
-  if (f < minF || f > maxF) return null
-  return { freq: f, clarity: Math.max(0, Math.min(1, 1 - s1)) }
-}
-
 /** 滑动窗口提调 + 分音（相邻帧落在同一半音内合并为一音） */
-function extractNotes(samples: Float32Array): Note[] {
+function extractNotes(samples: Float32Array): PitchNote[] {
   const hop = 1024
   const win = 2048
   const threshold = 0.15
@@ -82,17 +39,9 @@ function extractNotes(samples: Float32Array): Note[] {
     const r = yinPitch(samples.slice(i * hop, i * hop + win) as Float32Array, 16000, threshold, 70, 900)
     if (r && r.clarity > 0.5) frames.push({ freq: r.freq, t: (i * hop) / 16000 })
   }
-  const out: Note[] = []
+  const out: PitchNote[] = []
   for (const f of frames) {
-    const n = freqToName(f.freq)
-    const semi = ((Math.round(69 + 12 * Math.log2(f.freq / 440)) % 12) + 12) % 12
-    const last = out[out.length - 1]
-    if (last && last.name === n.name) {
-      last.end = f.t
-    } else {
-      const syll = SCALE[semi % 7]!
-      out.push({ freq: f.freq, name: n.name, syll, start: f.t, end: f.t })
-    }
+    mergeLivePitch(out, f, f.t)
   }
   return out
 }
@@ -113,23 +62,58 @@ async function analyze() {
   }
 }
 
-// ---- 录音（麦克风）----
+// ---- 麦克风实时识别（边哼边出简谱）----
+let audioCtx: AudioContext | null = null
+let liveStream: MediaStream | null = null
+let processor: ScriptProcessorNode | null = null
+let recordTimer: number | null = null
+/** 录音开始时的 context 时钟，用于换算相对时间 */
+let liveStartCtx = 0
+/** 连续静音帧数（静音超过阈值则闭合当前音符） */
+let silentFrames = 0
+const LIVE_WIN = 2048
+
 async function startRecording() {
   if (recording.value) return
   error.value = null
   notes.value = []
+  liveFreq.value = 0
+  liveNoteName.value = ''
+  played.value = false
+  silentFrames = 0
   try {
-    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(recordStream)
-    recordChunks = []
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordChunks.push(e.data) }
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      const file = new File([blob], `hum-${Date.now()}.webm`, { type: blob.type })
-      setFile(file)
-      recordSeconds.value = 0
+    liveStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
+    audioCtx = new AudioContext({ sampleRate: 16000 })
+    liveStartCtx = audioCtx.currentTime
+    const source = audioCtx.createMediaStreamSource(liveStream)
+    processor = audioCtx.createScriptProcessor(4096, 1, 1)
+    processor.onaudioprocess = (e: AudioProcessingEvent) => {
+      const data = e.inputBuffer.getChannelData(0)
+      const t = Math.max(0, e.playbackTime - liveStartCtx)
+      const res = yinPitch(data.subarray(0, LIVE_WIN) as Float32Array, 16000, 0.15, 70, 900)
+      const last = notes.value[notes.value.length - 1]
+      if (res && res.clarity > 0.5) {
+        silentFrames = 0
+        liveFreq.value = Math.round(res.freq)
+        const n = freqToName(res.freq)
+        liveNoteName.value = `${n.syll} (${n.name})`
+        if (last && last.name === n.name) {
+          last.end = t
+        } else {
+          // 上一音已静音闭合，或直接开新音
+          notes.value.push({ freq: res.freq, name: n.name, syll: n.syll, start: t, end: t })
+        }
+      } else if (last) {
+        silentFrames++
+        if (silentFrames >= 6) {
+          last.end = t
+          silentFrames = 0
+          liveNoteName.value = ''
+        }
+      }
     }
-    mediaRecorder.start()
+    source.connect(processor)
+    processor.connect(audioCtx.destination)
     recording.value = true
     recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
   } catch (e: any) {
@@ -138,12 +122,16 @@ async function startRecording() {
 }
 
 function stopRecording() {
-  mediaRecorder?.stop()
-  recordStream?.getTracks().forEach(t => t.stop())
-  recordStream = null
-  mediaRecorder = null
+  if (processor) { processor.disconnect(); processor = null }
+  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null }
+  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null }
   recording.value = false
   if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
+  recordSeconds.value = 0
+  liveFreq.value = 0
+  liveNoteName.value = ''
+  // 收尾：丢弃过短的首音（启动噪声）
+  notes.value = notes.value.filter(n => n.end - n.start > 0.12)
 }
 
 function setFile(f: File) {
@@ -250,7 +238,7 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <!-- 录音（麦克风） -->
+      <!-- 录音（麦克风，实时识别） -->
       <div
         v-else
         class="flex flex-wrap items-center gap-2"
@@ -272,21 +260,15 @@ onBeforeUnmount(() => {
           @click="stopRecording"
         />
         <span
-          v-if="audioFile && !recording"
+          v-if="recording"
           class="text-sm text-muted"
-        >{{ audioFile.name }}</span>
-        <UButton
-          v-if="audioFile && !recording"
-          icon="i-lucide-wand-sparkles"
-          :label="t('hum.analyze')"
-          color="primary"
-          :loading="analyzing"
-          @click="analyze"
-        />
+        >
+          {{ liveNoteName ? t('hum.livePitch', { note: liveNoteName }) : t('hum.liveListening') }}
+        </span>
       </div>
 
       <audio
-        v-if="audioUrl"
+        v-if="audioUrl && source === 'file'"
         :src="audioUrl"
         controls
         class="w-full max-w-md"
@@ -299,7 +281,7 @@ onBeforeUnmount(() => {
         :title="error"
       />
 
-      <!-- 结果 -->
+      <!-- 结果（麦克风模式边哼边实时刷新） -->
       <div
         v-if="notes.length"
         class="space-y-4"

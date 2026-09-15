@@ -30,8 +30,10 @@ logs
 .venv/
 __pycache__/
 
-# ???????????? AI ?????????????????????????????????????????????
-public/model/
+# AI 模型文件不入库（.models/，由 model-downloader 预下载，model API 路由 Range 服务）
+.models/*
+# 需要分发到内网的 yolo 子目录：反转目录本身使 git 能进入遍历
+!.models/yolo/
 
 # onnxruntime WASM 自托管（node_modules/onnxruntime-web/dist 复制，部署时需同步）
 # 注：为让 YOLO 页面部署后开箱可用，此处跟随需求把 vendored WASM 一并入库
@@ -57,8 +59,8 @@ tmp/
 !public/apps/g1-cartpole/oursim/assets/**/*.onnx
 # g1-motion-tracking（humanoid-policy-viewer）G1 追踪策略 ONNX
 !public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
-# YOLO26 全任务检测模型（public/models/*.onnx）需随应用分发到内网
-!public/models/*.onnx
+# YOLO26 全任务检测模型（.models/yolo/*.onnx）需随应用分发到内网
+!.models/yolo/yolo26*.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
@@ -69,5 +71,9 @@ tmp/chrome-headless/
 
 # 杂散产物（勿提交）
 output/
+
+# 工具会话目录（勿提交）
+.dumate/
+.workbuddy/
 
 # 独立应用模型/大数据（不入库，部署时上传）

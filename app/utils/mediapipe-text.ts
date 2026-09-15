@@ -11,6 +11,8 @@ export interface TextTaskConfig {
   create: (resolver: WasmFileset) => Promise<TextClassifier | LanguageDetector>
   /** 同步推理方法名 */
   method: 'classify' | 'detect'
+  /** 模型名（教学向展示，MediaTextRunner 顶部模型卡） */
+  model?: string
 }
 
 export const textTasks: Record<string, TextTaskConfig> = {
@@ -18,12 +20,14 @@ export const textTasks: Record<string, TextTaskConfig> = {
     create: text => TextClassifier.createFromOptions(text, {
       baseOptions: { modelAssetPath: mediapipeModels.textClassifier }
     }),
-    method: 'classify'
+    method: 'classify',
+    model: 'bert_classifier.tflite · MediaPipe Bert Text Classifier'
   },
   'language-detector': {
     create: text => LanguageDetector.createFromOptions(text, {
       baseOptions: { modelAssetPath: mediapipeModels.languageDetector }
     }),
-    method: 'detect'
+    method: 'detect',
+    model: 'language_detector.tflite · MediaPipe Language Detector'
   }
 }

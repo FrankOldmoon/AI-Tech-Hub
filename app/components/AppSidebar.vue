@@ -57,7 +57,7 @@ function isDemoActive(catSlug: string, demoSlug: string) {
             :class="activeCategory === cat.slug ? 'text-primary' : 'text-muted hover:text-highlighted'"
           >
             <UIcon :name="cat.icon" class="size-4 shrink-0" />
-            <span class="truncate">{{ cat.title }}</span>
+            <span class="truncate" :title="cat.title">{{ cat.title }}</span>
           </NuxtLink>
           <button
             type="button"
@@ -85,7 +85,7 @@ function isDemoActive(catSlug: string, demoSlug: string) {
               : 'text-muted hover:bg-elevated/60 hover:text-highlighted'"
           >
             <UIcon :name="demo.icon" class="size-3.5 shrink-0" />
-            <span class="truncate">{{ demo.title }}</span>
+            <span class="truncate" :title="demo.title">{{ demo.title }}</span>
           </NuxtLink>
         </div>
       </template>

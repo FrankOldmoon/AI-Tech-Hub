@@ -27,9 +27,8 @@ async function ensure() {
   loading.value = true
   error.value = null
   try {
-    const { FilesetResolver, ImageSegmenter, DrawingUtils } = await import('@mediapipe/tasks-vision')
+    const { FilesetResolver, ImageSegmenter } = await import('@mediapipe/tasks-vision')
     const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
-    DrawingUtilsCtor = DrawingUtils
     segmenter = await ImageSegmenter.createFromOptions(vision, {
       baseOptions: { modelAssetPath: mediapipeModels.selfieSegmenter, delegate: 'GPU' },
       runningMode: 'VIDEO',
@@ -52,8 +51,22 @@ function drawMask(result: any) {
   if (w && h) { canvas.width = w; canvas.height = h }
   const ctx = canvas.getContext('2d')!
   ctx.clearRect(0, 0, canvas.width, canvas.height)
-  const d = new DrawingUtilsCtor(ctx)
-  d.drawCategoryMask(result.categoryMask, ['rgba(0,0,0,0)', 'rgba(0,220,130,0.6)'])
+  // 逐像素着色：前景半透明绿，背景全透（比 DrawingUtils 稳，无 WebGL2 依赖）
+  const mask = result.categoryMask
+  const m = mask.getAsUint8Array()
+  const out = ctx.createImageData(canvas.width, canvas.height)
+  const px = out.data
+  for (let i = 0; i < m.length; i++) {
+    if (m[i] > 0) {
+      const j = i * 4
+      px[j] = 0
+      px[j + 1] = 220
+      px[j + 2] = 130
+      px[j + 3] = 153
+    }
+  }
+  ctx.putImageData(out, 0, 0)
+  mask.close()
 }
 
 async function startWebcam() {
@@ -61,6 +74,10 @@ async function startWebcam() {
   if (!s) return
   stopLoop()
   mode.value = 'webcam'
+  if (!navigator.mediaDevices?.getUserMedia) {
+    error.value = t('errors.insecureContext')
+    return
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     const video = videoRef.value!

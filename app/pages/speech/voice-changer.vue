@@ -17,9 +17,9 @@ const effectItems = computed(() => [
   { id: 'off' as const, label: t('vc.off'), icon: 'i-lucide-volume-x' },
   { id: 'robot' as const, label: t('vc.robot'), icon: 'i-lucide-bot' },
   { id: 'monster' as const, label: t('vc.monster'), icon: 'i-lucide-skull' },
-  { id: 'echo' as const, label: t('vc.echo'), icon: 'i-lucide-echo-off' },
+  { id: 'echo' as const, label: t('vc.echo'), icon: 'i-lucide-waves' },
   { id: 'chipmunk' as const, label: t('vc.chipmunk'), icon: 'i-lucide-rat' },
-  { id: 'deep' as const, label: t('vc.deep'), icon: 'i-lucide-volcano' }
+  { id: 'deep' as const, label: t('vc.deep'), icon: 'i-lucide-mountain' }
 ])
 
 let audioCtx: AudioContext | null = null

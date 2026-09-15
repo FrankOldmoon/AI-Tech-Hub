@@ -17,6 +17,10 @@ const props = defineProps<{
   createTask: (resolver: WasmFileset) => Promise<TextTask>
   method: 'classify' | 'detect'
   placeholder?: string
+  /** 模型名（教学向展示）；为空时不显示模型卡 */
+  model?: string
+  /** 示例文本（label + text），未配置时回落通用默认 */
+  samples?: Array<{ label: string, text: string }> | null
 }>()
 
 const { t } = useI18n()
@@ -30,6 +34,12 @@ const inferenceTime = ref(0)
 const copied = ref(false)
 
 let task: TextTask | null = null
+
+/** 应用示例文本（填充输入框；乐学场景点击即运行） */
+async function useSample(s: { text: string }) {
+  input.value = s.text
+  await run()
+}
 
 async function copyResult() {
   try {
@@ -83,6 +93,16 @@ async function run() {
 
 <template>
   <div class="space-y-6">
+    <!-- 模型信息（教学向：模型名 / 来源 / 本地推理） -->
+    <div
+      v-if="props.model"
+      class="flex flex-wrap items-center gap-2 text-sm"
+    >
+      <span class="text-muted">{{ t('demo.model') }}:</span>
+      <code class="px-1.5 py-0.5 rounded bg-default ring-1 ring-inset ring-muted/40 font-mono text-xs break-all">{{ props.model }}</code>
+      <span class="text-xs text-dimmed">{{ t('demo.modelNote') }}</span>
+    </div>
+
     <!-- 输入 -->
     <div class="space-y-2">
       <UTextarea
@@ -91,6 +111,23 @@ async function run() {
         :rows="4"
         class="w-full"
       />
+      <div class="flex items-center gap-2">
+        <span
+          v-if="samples?.length"
+          class="text-xs text-dimmed me-1"
+        >{{ t('samples.trySample') }}:</span>
+        <UButton
+          v-for="s in samples"
+          :key="s.label"
+          :label="s.label"
+          icon="i-lucide-wand-2"
+          size="xs"
+          color="neutral"
+          variant="soft"
+          :disabled="!input.trim() || downloading || running"
+          @click="useSample(s)"
+        />
+      </div>
       <div class="flex items-center gap-2">
         <UButton
           icon="i-lucide-play"

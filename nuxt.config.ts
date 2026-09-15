@@ -11,23 +11,11 @@ export default defineNuxtConfig({
   },
 
   // 网站统计：百度统计 + Google Analytics (GA4)
-  // 在 <head> 注入统计脚本（SSR 时也随首屏 HTML 返回）
+  // 合规条件化：不再在 <head> 无条件注入；用户「同意」后由
+  // app/utils/stats.ts + plugins/stats-consent.client.ts 注入（见 CookieConsent.vue）
   app: {
     head: {
-      script: [
-        // 百度统计
-        {
-          innerHTML: 'var _hmt=_hmt||[];(function(){var hm=document.createElement("script");hm.src="https://hm.baidu.com/hm.js?86faec7849fa9c0a981876f7193cebfd";var s=document.getElementsByTagName("script")[0];s.parentNode.insertBefore(hm,s)})();'
-        },
-        // Google Analytics (GA4)
-        {
-          src: 'https://www.googletagmanager.com/gtag/js?id=G-PMGVZBWTZQ',
-          async: true
-        },
-        {
-          innerHTML: 'window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-PMGVZBWTZQ");'
-        }
-      ]
+      // 统计脚本已移至 stats-consent 流程（P2-3），勿在此加回
     }
   },
 

@@ -19,8 +19,9 @@ const backendMode = ref<'auto' | 'GPU' | 'CPU'>('auto')
 const notice = ref<string | null>(null)
 
 let segmenter: any = null
-let DrawingUtilsCtor: any = null
 let bitmap: ImageBitmap | null = null
+/** 掩码着色用的临时画布（模块级复用） */
+let maskCanvas: HTMLCanvasElement | null = null
 
 /**
  * @mediapipe/tasks-vision v1.0.1 的 BrushMode 仅存在于类型声明，
@@ -48,8 +49,6 @@ function resolveDelegate(): 'GPU' | 'CPU' {
 
 /** 关闭旧的并重建指定 delegate 的 segmenter（恢复当前图片） */
 async function disposeAndRecreate(delegate: 'GPU' | 'CPU') {
-  const { DrawingUtils } = await import('@mediapipe/tasks-vision')
-  DrawingUtilsCtor = DrawingUtils
   if (segmenter) {
     try {
       segmenter.close()
@@ -90,8 +89,6 @@ async function ensure() {
   loading.value = true
   error.value = null
   try {
-    const { DrawingUtils } = await import('@mediapipe/tasks-vision')
-    DrawingUtilsCtor = DrawingUtils
     // 按用户选择 + 客户端能力判定：auto 时先主动检测 WebGL2，不可用直接 CPU
     const preferred = resolveDelegate()
     try {
@@ -201,8 +198,27 @@ function redraw(mask?: any, point?: { x: number, y: number }) {
   ctx.clearRect(0, 0, canvas.width, canvas.height)
   ctx.drawImage(bitmap, 0, 0)
   if (mask) {
-    const d = new DrawingUtilsCtor(ctx)
-    d.drawCategoryMask(mask, ['rgba(0,0,0,0)', 'rgba(0,220,130,0.55)'])
+    // 逐像素着色到临时画布，再 alpha 合成到主画布（比 DrawingUtils 稳，无 WebGL2 依赖）
+    const m = mask.getAsUint8Array()
+    console.log('[interactive-segmenter] mask bytes len=', m.length, 'nonzero=', m.reduce((a: number, v: number) => a + (v > 0 ? 1 : 0), 0))
+    const tmp = maskCanvas ??= document.createElement('canvas')
+    tmp.width = canvas.width
+    tmp.height = canvas.height
+    const tctx = tmp.getContext('2d')!
+    const out = tctx.createImageData(canvas.width, canvas.height)
+    const px = out.data
+    for (let i = 0; i < m.length; i++) {
+      if (m[i] > 0) {
+        const j = i * 4
+        px[j] = 0
+        px[j + 1] = 220
+        px[j + 2] = 130
+        px[j + 3] = 140
+      }
+    }
+    tctx.putImageData(out, 0, 0)
+    ctx.drawImage(tmp, 0, 0)
+    mask.close()
   }
   if (point) {
     ctx.beginPath()
@@ -226,7 +242,8 @@ async function onCanvasClick(e: MouseEvent) {
   error.value = null
   const doSegment = () => segmenter.segment([{
     brushMode: BrushMode.POSITIVE,
-    point: [{ x: nx, y: ny }],
+    // v1.0.1 新 API 的 Stroke.point 是像素坐标（旧 RegionOfInterest 才用归一化坐标）
+    point: [{ x: nx * bitmap!.width, y: ny * bitmap!.height }],
     isCompleted: true
   }])
   try {

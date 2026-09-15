@@ -110,7 +110,7 @@
 
 - **lint/typecheck 基线坏**：所有验收只看增量；新文件保持 lint 干净（`no-explicit-any` 等用局部 disable）
 - **无 CI**：合并前必须本地跑完门槛；关键批（1/2/6）建议合并后立即验证 dev server
-- **模型体积**：public/model 不入库；示例素材必须小体积（<10MB 总量）
+- **模型体积**：`.models/` 不入库（2026-09-10 起由 `public/model` 迁入，经 `server/routes/model/[...].ts` Range 服务 `/model/*`）；示例素材必须小体积（<10MB 总量）
 - **行号漂移**：每批完成后用 git 基线复核审计条目，勾兑以"问题是否消失"为准，不以行号为准
 - **Python 环境**：服务端 demo 依赖本机 venv；云端部署时需 `requiresPython` 标注（批次 5）
 

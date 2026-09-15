@@ -11,7 +11,7 @@
 ```
 学生浏览器 ──HTTP:80──> nginx（2026-09-01 起暂停 SSL/443，证书保留在 /etc/nginx/ssl/，可随时恢复）
    ├── / → 反代 node (.output/server/index.mjs @127.0.0.1:3000)   [Nitro + 页面/API]
-   ├── /model/     → alias public/model/     [60G 本地模型，nginx 直出，长缓存 + Range]
+   ├── /model/     → alias .models/     [60G 本地模型，nginx 直出，长缓存 + Range]
    ├── /generated/ → alias public/generated/ [Python 任务产物，nginx 直出]
    ├── /apps/rebot-arm/   → Nitro 静态（public/apps/rebot-arm/）[独立应用前端，iframe 嵌入]
    ├── /api/apps/rebot-arm/ → Nitro API（URDF/STL/配置；模型在 server/assets/apps/rebot-arm/）
@@ -20,7 +20,7 @@
 
 **关键变化（v2）**：
 1. **模型/产物不再走 Node**（Nitro 静态清单不含构建后加入的文件，且 60G 会让构建 OOM）
-   → nginx 直接 `alias` 源码 `public/model` 与 `public/generated`
+   → nginx 直接 `alias` 源码 `.models` 与 `public/generated`（2026-09-10 起模型目录由 `public/model` 迁至 `.models`，见第八节）
 2. **自托管/Python 标志用 `runtimeConfig.public`**（`import.meta.env` 不内联 `NUXT_PUBLIC_*`，此前是隐藏 bug）
    → `nuxt.config.ts` 声明 `runtimeConfig.public.selfHosted/enablePython`，构建/运行环境变量 `NUXT_PUBLIC_SELF_HOSTED=true`、`NUXT_PUBLIC_ENABLE_PYTHON=true`
    → `app/plugins/deploy-config.ts` 启动时注入 `remote-models.ts`
@@ -43,11 +43,11 @@ sudo -i
 export PATH=/usr/local/bin:$PATH
 export NUXT_PUBLIC_SELF_HOSTED=true NUXT_PUBLIC_ENABLE_PYTHON=true
 # ⚠️ 60G 模型会让构建 OOM：构建前暂移模型，构建后放回（nginx 直读源码目录，无需拷进 .output）
-mv public/model /opt/aihub-model-stash
+mv .models /opt/aihub-model-stash
 git pull origin main
 pnpm build
-mv /opt/aihub-model-stash public/model
-chown -R www:www .output public python
+mv /opt/aihub-model-stash .models
+chown -R www:www .output public .models python
 mkdir -p .output/public/generated
 systemctl restart aihub
 ```
@@ -98,7 +98,7 @@ systemctl restart aihub
 
 ### 流程与自愈
 1. fetch origin/main，与 `deploy-state.json` 的 `last_success_commit` 比较，无变更则跳过
-2. 暂移 `public/model`（60G，防构建 OOM）→ 备份旧 `.output` → `pnpm build`（4 个 env）→ 放回模型
+2. 暂移 `.models`（60G，防构建 OOM）→ 备份旧 `.output` → `pnpm build`（4 个 env）→ 放回模型
 3. 重启 aihub → curl 冒烟（首页 / rebot urdf / 模型文件）
 4. 成功：写 state（success）；失败：恢复 `.output.bak` + git 回退到 last_success + 重启（rolled_back）
 5. **连续失败 3 次 → `degraded=true` 自动停表**，待人工介入
@@ -109,5 +109,21 @@ systemctl restart aihub
 
 ### 注意
 - deploy.sh 需 root 运行（非 root 会提示用 sudo）；手动入口用 `sudo`
-- `server/assets/apps/` 已并入 git（rebot 模型随部署自动到位，不再单独上传）；60G `public/model` 仍为服务器持久资产（不入库、部署不动、构建时暂移）
+- `server/assets/apps/` 已并入 git（rebot 模型随部署自动到位，不再单独上传）；60G `.models` 仍为服务器持久资产（不入库、部署不动、构建时暂移）
 - 更新本地代码后只需 push 到 github main，定时器会在下个周期自动部署
+
+## 八、生产产物瘦身（P1-4，2026-09 起；模型迁移改造 2026-09-10）
+
+**模型目录迁移**：模型已从 `public/model/` 迁至项目根 `.models/`（2026-09-10）。
+
+- **为什么**：`public/` 里的文件会被 Nitro 构建复制进 `.output/public`（历史实测 5.2GB+），拖慢构建；迁出后构建产物不再含任何模型
+- **怎么服务**：新增 `server/routes/model/[...].ts` 接管 `/model/*`，从 `.models/` 以 HTTP Range(206) 提供（onnxruntime-web / transformers.js / mediapipe 等推理库按段下载必需 206）；前端所有 `/model/...` 引用保持不变
+- **为什么是 `.models`**：全局 gitignore（`~/.gitignore_global`）有 `storage` 规则，git 无法反转被全局排除的父目录，yolo 入库例外会失效；`.models` 与 URL 解耦，可用 `MODELS_DIR` 环境变量覆盖（下载器与路由共用）
+- **部署同步**：nginx `/model/` alias 需改为指向 `.models/`（长缓存 + Range 直出不变）；deploy.sh 暂移/放回、`chown` 目标同步改为 `.models`
+- **防御清理**：`scripts/trim-production-assets.mjs` 现在是防御性清理——若产物残留 `.output/public/model`（旧产物/意外复制）则整体删除；`SKIP_TRIM_MODELS=1` 可跳过
+- **需离线模型**：把模型放在服务器 `.models/`（或 `MODELS_DIR` 指向目录）即可，无需任何构建期操作
+- 服务器侧 `.models`（60G 持久资产）与 `.output` 互不影响，构建时暂移流程照旧
+
+**onnxruntime WASM 现状**：`public/vendor/onnx`（76MB，共享 ort 运行时）供站点内部推理使用；`microduck / g1-cartpole / g1-motion-tracking` 三个子应用内置各自的 ort 副本（13-27MB 不等，且 `ort.min.mjs` 与共享版文件名/版本不一致，暂无法无损去重）。后续子应用升级依赖时可统一引用 `/vendor/onnx/` 公共路径，删除内置副本。
+
+**大 iframe 按需加载**：7 个重型子应用页（microduck / g1-cartpole / g1-motion-tracking / rebot-arm / uaibot-kinematics / cnn-explainer / neural-sandbox）已用 `DemoIframeLoader.vue` 占位（点击后才创建 iframe + `loading="lazy"`），首屏不拉取子应用任何资源，实测微鸭占位→点击→iframe 加载（src 带 `?locale=`）正常。
