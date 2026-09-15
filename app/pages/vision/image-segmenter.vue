@@ -9,7 +9,6 @@ const demo = computed(() => getDemo('vision', 'image-segmenter')!)
 const videoRef = ref<HTMLVideoElement>()
 const imgRef = ref<HTMLImageElement>()
 const canvasRef = ref<HTMLCanvasElement>()
-const fileInput = ref<HTMLInputElement>()
 
 const mode = ref<'webcam' | 'image'>('webcam')
 const loading = ref(false)
@@ -17,7 +16,7 @@ const running = ref(false)
 const error = ref<string | null>(null)
 
 let segmenter: any = null
-let DrawingUtilsCtor: any = null
+const DrawingUtilsCtor: any = null
 let stream: MediaStream | null = null
 let rafId: number | null = null
 let lastTime = -1
@@ -116,14 +115,6 @@ function stopWebcam() {
   if (videoRef.value) videoRef.value.srcObject = null
 }
 
-async function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  await loadImageFile(file)
-  input.value = ''
-}
-
 async function loadImageFile(file: File) {
   const s = await ensure()
   if (!s) return
@@ -172,24 +163,65 @@ onBeforeUnmount(() => stopWebcam())
 <template>
   <MediaDemoShell :demo="demo">
     <div class="flex flex-wrap items-center gap-2">
-      <UButton v-if="!running" icon="i-lucide-video" :label="t('mp.webcam')" color="primary" :loading="loading" @click="startWebcam" />
-      <UButton v-else icon="i-lucide-square" :label="t('mp.stop')" color="error" variant="subtle" @click="stopWebcam" />
-      <UButton icon="i-lucide-upload" :label="t('mp.upload')" color="neutral" variant="subtle" :disabled="loading" @click="fileInput?.click()" />
+      <UButton
+        v-if="!running"
+        icon="i-lucide-video"
+        :label="t('mp.webcam')"
+        color="primary"
+        :loading="loading"
+        @click="startWebcam"
+      />
+      <UButton
+        v-else
+        icon="i-lucide-square"
+        :label="t('mp.stop')"
+        color="error"
+        variant="subtle"
+        @click="stopWebcam"
+      />
       <SampleImagePicker
         :samples="samples"
+        :disabled="loading"
+        @select="loadImageFile"
         @pick="useSample"
       />
-      <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-alert-triangle" :title="error" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-alert-triangle"
+      :title="error"
+    />
 
     <div class="relative w-full max-w-3xl mx-auto rounded-xl overflow-hidden bg-elevated/60 aspect-video flex items-center justify-center">
-      <video v-show="mode === 'webcam'" ref="videoRef" class="w-full h-full object-contain" style="transform: scaleX(-1)" playsinline muted />
-      <img v-show="mode === 'image'" ref="imgRef" class="w-full h-full object-contain">
-      <canvas ref="canvasRef" class="absolute inset-0 w-full h-full object-contain" :style="mode === 'webcam' ? 'transform: scaleX(-1)' : ''" />
-      <div v-if="loading" class="absolute inset-0 flex items-center justify-center bg-black/40">
-        <UIcon name="i-lucide-loader-circle" class="size-8 animate-spin text-white" />
+      <video
+        v-show="mode === 'webcam'"
+        ref="videoRef"
+        class="w-full h-full object-contain"
+        style="transform: scaleX(-1)"
+        playsinline
+        muted
+      />
+      <img
+        v-show="mode === 'image'"
+        ref="imgRef"
+        class="w-full h-full object-contain"
+      >
+      <canvas
+        ref="canvasRef"
+        class="absolute inset-0 w-full h-full object-contain"
+        :style="mode === 'webcam' ? 'transform: scaleX(-1)' : ''"
+      />
+      <div
+        v-if="loading"
+        class="absolute inset-0 flex items-center justify-center bg-black/40"
+      >
+        <UIcon
+          name="i-lucide-loader-circle"
+          class="size-8 animate-spin text-white"
+        />
       </div>
     </div>
   </MediaDemoShell>

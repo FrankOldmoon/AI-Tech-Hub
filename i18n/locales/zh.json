@@ -126,6 +126,11 @@
     "uploadHint": "支持图片等常见格式，自动缩放处理",
     "tooLarge": "文件过大，请上传不超过 {max} MB 的文件"
   },
+  "webcam": {
+    "useCamera": "使用摄像头",
+    "capture": "拍照",
+    "closeCamera": "关闭摄像头"
+  },
   "textEmbedder": {
     "textA": "文本 A",
     "textB": "文本 B",
@@ -807,7 +812,7 @@
     "fps": "推理",
     "results": "结果",
     "backend": "后端",
-    "placeholder": "点击「开启摄像头」，然后用上方标签切换任务（全部在本机运行）",
+    "placeholder": "点击「开启摄像头」，然后用左侧列表切换任务（全部在本机运行）",
     "running": "检测运行中…（全部在本机浏览器内完成，数据不上传）",
     "idle": "模型就绪，点击「开启摄像头」",
     "loading": "正在加载 {name} 模型（{file}）…",

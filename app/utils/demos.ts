@@ -28,6 +28,8 @@ export interface DemoRequirements {
 export interface Demo {
   slug: string
   category: DemoCategory
+  /** 子分组稳定键（仅 vision 分类使用，值为 visionGroupKeys 之一；其他分类缺省） */
+  group?: string
   title: Localized
   description: Localized
   icon: string
@@ -54,6 +56,28 @@ export interface LocalizedDemo extends Omit<Demo, 'title' | 'description' | 'how
   title: string
   description: string
   howItWorks?: string
+}
+
+/** vision 分类的子分组（顺序即展示顺序） */
+export const visionGroupKeys = [
+  'image-workbench',
+  'face',
+  'hand-pose',
+  'ai-object',
+  'segmentation',
+  'multimodal',
+  'embedding-ocr'
+] as const
+export type VisionGroupKey = typeof visionGroupKeys[number]
+
+export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
+  'image-workbench': { zh: '图像处理工坊', en: 'Image Workbench' },
+  'face': { zh: '人脸视觉', en: 'Face Vision' },
+  'hand-pose': { zh: '手势与姿态', en: 'Hands & Pose' },
+  'ai-object': { zh: 'AI 检测与识别', en: 'AI Detection & Recognition' },
+  'segmentation': { zh: '图像分割与抠图', en: 'Segmentation & Matting' },
+  'multimodal': { zh: '深度与图像描述', en: 'Depth & Captioning' },
+  'embedding-ocr': { zh: '嵌入与文字识别', en: 'Embedding & OCR' }
 }
 
 export const categories: Category[] = [
@@ -310,6 +334,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'yolo-detection',
+    group: 'ai-object',
     classroomSafe: true,
     category: 'vision',
     title: { zh: 'YOLO26 全任务实时检测', en: 'YOLO26 All-task Real-time' },
@@ -329,6 +354,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face-detection',
+    group: 'face',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '人脸检测', en: 'Face Detector' },
@@ -342,6 +368,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face-landmarker',
+    group: 'face',
     category: 'vision',
     title: { zh: '人脸关键点', en: 'Face Landmarker' },
     description: { zh: '检测人脸 478 个关键点。', en: 'Detect 478 face landmarks.' },
@@ -353,6 +380,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'hand-landmarker',
+    group: 'hand-pose',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '手势关键点', en: 'Hand Landmarker' },
@@ -365,6 +393,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'gesture-recognizer',
+    group: 'hand-pose',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '手势识别', en: 'Gesture Recognizer' },
@@ -377,6 +406,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'pose-landmarker',
+    group: 'hand-pose',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '姿态估计', en: 'Pose Landmarker' },
@@ -389,6 +419,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'holistic-landmarker',
+    group: 'hand-pose',
     category: 'vision',
     title: { zh: '整体检测', en: 'Holistic Landmarker' },
     description: { zh: '同时检测人脸、手部与姿态。', en: 'Detect face, hands and pose together.' },
@@ -400,6 +431,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'object-detector',
+    group: 'ai-object',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '目标检测', en: 'Object Detector' },
@@ -411,6 +443,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'image-classifier',
+    group: 'ai-object',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '图像分类', en: 'Image Classifier' },
@@ -422,6 +455,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'image-embedder',
+    group: 'embedding-ocr',
     category: 'vision',
     title: { zh: '图像嵌入', en: 'Image Embedder' },
     description: { zh: '计算图像相似度。', en: 'Compute image similarity.' },
@@ -432,6 +466,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'image-segmenter',
+    group: 'segmentation',
     category: 'vision',
     title: { zh: '图像分割', en: 'Image Segmenter' },
     description: { zh: '分割图像前景。', en: 'Segment image foreground.' },
@@ -443,6 +478,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'interactive-segmenter',
+    group: 'segmentation',
     category: 'vision',
     title: { zh: '交互式分割', en: 'Interactive Segmenter' },
     description: { zh: '点击选取目标并分割。', en: 'Click to segment a target.' },
@@ -454,6 +490,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'depth-estimation',
+    group: 'multimodal',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '深度估计', en: 'Depth Estimation' },
@@ -465,6 +502,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'image-captioning',
+    group: 'multimodal',
     category: 'vision',
     title: { zh: '图像描述', en: 'Image Captioning' },
     description: { zh: '生成图像内容的文字描述。', en: 'Generate a text description of an image.' },
@@ -913,6 +951,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'bg-removal',
+    group: 'segmentation',
     classroomSafe: true,
     category: 'vision',
     title: { zh: '智能抠图（背景移除）', en: 'Background Removal' },
@@ -983,6 +1022,7 @@ export const demos: Demo[] = [
   // ===== vision 图像处理 Playground（viewer/transform/... 共 15 页）=====
   {
     slug: 'viewer',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '图像查看器', en: 'Image Viewer' },
     description: { zh: '图片信息、像素取色与格式转换下载。', en: 'Image info, pixel color picking, format conversion and download.' },
@@ -993,6 +1033,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'transform',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '图像变换', en: 'Image Transform' },
     description: { zh: '缩放、裁剪、旋转、翻转、缩放比例、边距、透视与仿射变换。', en: 'Resize, crop, rotate, flip, scale, padding, perspective and affine transform.' },
@@ -1003,6 +1044,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'pixel',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '像素处理', en: 'Pixel Processing' },
     description: { zh: '读取像素、像素网格放大与像素级数学运算。', en: 'Read pixels, magnify the pixel grid and run pixel-level math.' },
@@ -1013,6 +1055,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'color',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '颜色处理', en: 'Color Processing' },
     description: { zh: '灰度化、通道提取与合并、色彩空间、颜色替换与量化。', en: 'Grayscale, channel extraction & merge, color spaces, color replacement and quantization.' },
@@ -1023,6 +1066,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'adjustment',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '图像调整', en: 'Image Adjustment' },
     description: { zh: '亮度、对比度、伽马、饱和度、色相、曝光、白平衡与自动增强。', en: 'Brightness, contrast, gamma, saturation, hue, exposure, white balance and auto enhancement.' },
@@ -1033,6 +1077,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'filters',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '图像滤镜', en: 'Image Filters' },
     description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters.' },
@@ -1043,6 +1088,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'enhancement',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '噪声与增强', en: 'Noise & Enhancement' },
     description: { zh: '加噪、去噪、直方图均衡与图像增强。', en: 'Add noise, denoise, histogram equalization and enhancement.' },
@@ -1053,6 +1099,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'morphology',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '阈值与形态学', en: 'Threshold & Morphology' },
     description: { zh: '二值化、自适应阈值、腐蚀膨胀、开闭运算与形态学梯度。', en: 'Binary/adaptive/Otsu threshold, erosion, dilation, opening, closing and morphological gradient.' },
@@ -1063,6 +1110,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'edge',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '边缘与形状检测', en: 'Edge & Shape Detection' },
     description: { zh: 'Sobel、Canny、Harris 角点、Hough 直线与圆检测。', en: 'Sobel, Canny, Harris corners, Hough lines and circles.' },
@@ -1073,6 +1121,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'object',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '颜色与物体检测', en: 'Color & Object Detection' },
     description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition.' },
@@ -1083,6 +1132,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'features',
+    group: 'image-workbench',
     category: 'vision',
     title: { zh: '特征检测', en: 'Feature Detection' },
     description: { zh: 'ORB/BRISK 关键点与特征匹配。', en: 'ORB/BRISK keypoints and feature matching.' },
@@ -1093,6 +1143,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face',
+    group: 'face',
     category: 'vision',
     title: { zh: '人脸视觉', en: 'Face Vision' },
     description: { zh: '人脸检测、关键点、模糊、马赛克与双图验证（MediaPipe）。', en: 'Face detection, landmarks, blur, pixelation and two-image verification (MediaPipe).' },
@@ -1103,6 +1154,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'face-recognition',
+    group: 'face',
     category: 'vision',
     title: { zh: '人脸注册与识别', en: 'Face Registration & Recognition' },
     description: { zh: '在浏览器注册多样张人脸并在本地识别，注册库存于 localStorage，数据不出设备。', en: 'Enroll multiple face samples in-browser and recognize locally — registry stored on-device (localStorage).' },
@@ -1114,6 +1166,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ocr',
+    group: 'embedding-ocr',
     category: 'vision',
     title: { zh: 'OCR 与文档视觉', en: 'OCR & Document Vision' },
     description: { zh: '文字识别（Tesseract.js）与文档扫描校正（OpenCV.js）。', en: 'Text recognition (Tesseract.js) and document scanning (OpenCV.js).' },
@@ -1125,6 +1178,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ai-vision',
+    group: 'ai-object',
     category: 'vision',
     title: { zh: 'AI 目标与图像视觉', en: 'AI Object & Image Vision' },
     description: { zh: '图像分类、目标检测、分割、抠图、嵌入与相似度（MediaPipe）。', en: 'Classification, detection, segmentation, background removal, embedding and similarity (MediaPipe).' },
@@ -1135,6 +1189,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'multimodal',
+    group: 'multimodal',
     category: 'vision',
     title: { zh: 'AI 视觉与多模态', en: 'AI Vision & Multimodal' },
     description: { zh: '图像描述与深度估计（Transformers.js），问答/修复/风格迁移见 AIGC。', en: 'Image captioning and depth estimation (Transformers.js); QA/inpainting/style transfer under AIGC.' },

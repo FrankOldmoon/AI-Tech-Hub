@@ -10,6 +10,7 @@
 import type { LocalizedDemo } from '~/utils/demos'
 import { humanError } from '~/utils/errors'
 import type { ImageTool, ImageToolKind } from '~/utils/image-tools'
+import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 import { buildParamSpecs, pickText } from '~/utils/image-tools'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
@@ -48,6 +49,7 @@ const sourceBytes = ref(0)
 const running = ref(false)
 const error = ref<string | null>(null)
 const dragOver = ref(false)
+const webcamOpen = ref(false)
 
 const activeToolId = ref('')
 const activeTool = computed<ImageTool | undefined>(() => props.tools.find(t => t.id === activeToolId.value) || props.tools[0])
@@ -129,6 +131,14 @@ function kindLabel(kind: ImageToolKind): string {
   return kindLabels[kind]
 }
 
+// 左侧工具栏数据（共享 ToolSidebar 组件，样式集中在组件内）
+const toolItems = computed<ToolSidebarItem[]>(() => props.tools.map(tool => ({
+  id: tool.id,
+  label: pickText(tool.name, lang.value),
+  kind: kindLabel(tool.kind),
+  badge: tool.planned ? t('image.planned') : undefined
+})))
+
 let timer: ReturnType<typeof setTimeout> | null = null
 let rafId = 0
 let latestReq = 0
@@ -168,8 +178,8 @@ watch(original, () => {
   }
 })
 
-function selectTool(id: string) {
-  activeToolId.value = id
+function selectTool(rawId: string | number) {
+  activeToolId.value = String(rawId)
   pulseResult(0.97)
 }
 
@@ -654,6 +664,11 @@ function onDrop(e: DragEvent) {
   if (f) loadFile(f)
 }
 
+function onCamCapture(file: File) {
+  loadFile(file)
+  webcamOpen.value = false
+}
+
 function openSecondFilePicker() {
   secondFileInput.value?.click()
 }
@@ -749,372 +764,360 @@ const modeText = computed(() => {
       <!-- 工作原理（教学向，审计批次5） -->
       <HowItWorksSection :text="demo.howItWorks" />
 
-      <div class="grid lg:grid-cols-[240px_minmax(0,1fr)] gap-6 items-start">
-        <!-- 工具列表 -->
-        <UCard class="lg:sticky lg:top-20">
-          <template #header>
-            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-              <UIcon
-                name="i-lucide-wrench"
-                class="size-4 text-primary"
-              />
-              <span>{{ t('image.tools') }}</span>
-            </div>
-          </template>
-          <nav class="space-y-1">
-            <button
-              v-for="tool in tools"
-              :key="tool.id"
-              type="button"
-              class="w-full flex flex-col items-start gap-0.5 px-2 py-2 rounded-lg text-sm text-left transition-colors cursor-pointer"
-              :class="tool.id === activeToolId
-                ? 'bg-primary/10 text-primary font-medium'
-                : 'text-muted hover:bg-elevated/60 hover:text-highlighted'"
-              @click="selectTool(tool.id)"
-            >
-              <!-- 两行布局：第一行完整工具名（可换行不截断），第二行类型 + 状态徽章 -->
-              <span class="leading-snug w-full break-words">{{ pickText(tool.name, lang) }}</span>
-              <span class="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-dimmed shrink-0">
-                <span class="font-medium">{{ kindLabel(tool.kind) }}</span>
-                <span
-                  v-if="tool.planned"
-                  class="px-1 py-px rounded bg-neutral/10 text-dimmed normal-case"
-                >
-                  {{ t('image.planned') }}
-                </span>
-              </span>
-            </button>
-          </nav>
-        </UCard>
-
-        <!-- 主区域 -->
-        <div class="space-y-4 min-w-0">
-          <!-- 上传区 -->
+      <ToolSidebar
+        :model-value="activeToolId"
+        :title="t('image.tools')"
+        :items="toolItems"
+        @update:model-value="selectTool"
+      >
+        <!-- 上传区 -->
+        <div
+          v-if="!original"
+          class="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors"
+          :class="dragOver ? 'border-primary bg-primary/5' : 'border-default hover:border-primary/60'"
+          @click="openFilePicker"
+          @dragover.prevent="dragOver = true"
+          @dragleave="dragOver = false"
+          @drop.prevent="onDrop"
+        >
+          <UIcon
+            name="i-lucide-image-plus"
+            class="size-10 text-muted mx-auto"
+          />
+          <p class="mt-3 text-sm font-medium text-highlighted">
+            {{ t('image.upload') }}
+          </p>
+          <p class="mt-1 text-xs text-dimmed">
+            {{ t('image.uploadHint') }}
+          </p>
           <div
-            v-if="!original"
-            class="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors"
-            :class="dragOver ? 'border-primary bg-primary/5' : 'border-default hover:border-primary/60'"
-            @click="openFilePicker"
-            @dragover.prevent="dragOver = true"
-            @dragleave="dragOver = false"
-            @drop.prevent="onDrop"
+            class="mt-4 flex flex-wrap justify-center items-center gap-2"
+            @click.stop
           >
-            <UIcon
-              name="i-lucide-image-plus"
-              class="size-10 text-muted mx-auto"
+            <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
+            <UButton
+              v-for="s in sampleImages"
+              :key="s.url"
+              :label="s.label"
+              icon="i-lucide-image"
+              size="xs"
+              color="neutral"
+              variant="soft"
+              @click="useSample(s)"
             />
-            <p class="mt-3 text-sm font-medium text-highlighted">
-              {{ t('image.upload') }}
-            </p>
-            <p class="mt-1 text-xs text-dimmed">
-              {{ t('image.uploadHint') }}
-            </p>
-            <div
-              class="mt-4 flex flex-wrap justify-center items-center gap-2"
-              @click.stop
+          </div>
+        </div>
+        <input
+          ref="fileInput"
+          type="file"
+          accept="image/*"
+          class="hidden"
+          @change="onFileChange"
+        >
+
+        <!-- 摄像头取帧 -->
+        <div
+          v-if="webcamOpen"
+          class="mt-4"
+        >
+          <WebcamCapture
+            @capture="onCamCapture"
+            @close="webcamOpen = false"
+          />
+        </div>
+        <button
+          v-if="!webcamOpen"
+          type="button"
+          class="mt-3 mx-auto flex items-center gap-2 rounded-lg border border-default/70 bg-elevated/40 px-3 py-1.5 text-sm text-muted transition hover:border-primary/50 hover:text-highlighted"
+          @click="webcamOpen = true"
+        >
+          <UIcon
+            name="i-lucide-video"
+            class="size-4"
+          />
+          {{ t('webcam.useCamera') }}
+        </button>
+
+        <template v-if="original">
+          <!-- 图片信息 -->
+          <div class="flex flex-wrap gap-2 text-xs">
+            <UBadge
+              color="neutral"
+              variant="subtle"
             >
-              <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
+              {{ fileName }}
+            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="subtle"
+            >
+              {{ original.width }} × {{ original.height }}
+            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="subtle"
+            >
+              {{ alg.formatBytes(sourceBytes) }}
+            </UBadge>
+            <UBadge
+              color="neutral"
+              variant="subtle"
+            >
+              {{ modeText }}
+            </UBadge>
+          </div>
+
+          <!-- 控制区：参数面板 + 操作按钮（置于展示框上方） -->
+          <div class="space-y-3">
+            <DemoParams
+              v-if="specs.length"
+              v-model="paramValues"
+              :specs="specs"
+              :running="running"
+              :disabled-keys="disabledParamKeys"
+            />
+
+            <div class="flex flex-wrap items-center gap-2">
               <UButton
-                v-for="s in sampleImages"
-                :key="s.url"
-                :label="s.label"
-                icon="i-lucide-image"
-                size="xs"
+                icon="i-lucide-play"
+                :loading="running"
+                @click="runNow"
+              >
+                {{ t('image.run') }}
+              </UButton>
+              <UButton
+                icon="i-lucide-rotate-ccw"
                 color="neutral"
                 variant="soft"
-                @click="useSample(s)"
+                @click="reset"
+              >
+                {{ t('image.reset') }}
+              </UButton>
+              <div class="ms-auto flex items-center gap-2">
+                <USelect
+                  v-model="downloadFormat"
+                  :items="formatItems"
+                  class="w-32"
+                  :aria-label="t('image.format')"
+                />
+                <UButton
+                  icon="i-lucide-download"
+                  color="primary"
+                  variant="solid"
+                  :disabled="!result"
+                  @click="download"
+                >
+                  {{ t('image.download') }}
+                </UButton>
+              </div>
+            </div>
+          </div>
+
+          <!-- 原图 / 结果：两列对半，图像一样大 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="space-y-2">
+              <p class="text-xs font-medium text-muted uppercase tracking-wide">
+                {{ t('image.original') }}
+              </p>
+              <div class="overflow-auto rounded-lg border border-default">
+                <div class="relative w-fit">
+                  <canvas
+                    ref="origCanvas"
+                    class="rounded-lg max-w-full h-auto"
+                  />
+                  <!-- resize 三把手（原图固定，结果图响应）：右中=水平(只改宽)、下中=垂直(只改高)、右下=等比 -->
+                  <button
+                    v-if="activeTool?.id === 'resize' && original"
+                    type="button"
+                    class="absolute right-1 top-1/2 -translate-y-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ew-resize hover:bg-primary transition-colors touch-none"
+                    :class="{ 'ring-2 ring-primary': resizing }"
+                    :aria-label="t('image.resizeDragH')"
+                    data-resize-mode="h"
+                    @pointerdown="onResizeStart($event, 'h')"
+                  >
+                    <UIcon
+                      name="i-lucide-move-horizontal"
+                      class="size-3.5"
+                    />
+                  </button>
+                  <button
+                    v-if="activeTool?.id === 'resize' && original"
+                    type="button"
+                    class="absolute bottom-1 left-1/2 -translate-x-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ns-resize hover:bg-primary transition-colors touch-none"
+                    :class="{ 'ring-2 ring-primary': resizing }"
+                    :aria-label="t('image.resizeDragV')"
+                    data-resize-mode="v"
+                    @pointerdown="onResizeStart($event, 'v')"
+                  >
+                    <UIcon
+                      name="i-lucide-move-vertical"
+                      class="size-3.5"
+                    />
+                  </button>
+                  <button
+                    v-if="activeTool?.id === 'resize' && original"
+                    type="button"
+                    class="absolute bottom-1 right-1 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
+                    :class="{ 'ring-2 ring-primary': resizing }"
+                    :aria-label="t('image.resizeDragS')"
+                    data-resize-mode="s"
+                    @pointerdown="onResizeStart($event, 's')"
+                  >
+                    <UIcon
+                      name="i-lucide-move-diagonal"
+                      class="size-3.5"
+                    />
+                  </button>
+                  <!-- crop 选区框：拖动移动 / 四角缩放，与 x/y/w/h 参数双向同步 -->
+                  <div
+                    v-if="activeTool?.id === 'crop' && original"
+                    ref="cropWrap"
+                    class="absolute z-10 cursor-move touch-none"
+                    :style="{
+                      left: `${cropRect.x}%`,
+                      top: `${cropRect.y}%`,
+                      width: `${cropRect.w}%`,
+                      height: `${cropRect.h}%`
+                    }"
+                    :aria-label="t('image.cropDrag')"
+                    @pointerdown="onCropStart"
+                    @pointermove="onCropMove"
+                    @pointerup="onCropEnd"
+                    @pointercancel="onCropEnd"
+                  >
+                    <div class="absolute inset-0 border-2 border-primary/80 bg-primary/10 pointer-events-none" />
+                    <div
+                      v-for="h in cropHandles"
+                      :key="h.mode"
+                      :data-mode="h.mode"
+                      :class="h.cls"
+                      class="absolute size-3 bg-primary border-2 border-white rounded-sm pointer-events-auto"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="space-y-2">
+              <p class="text-xs font-medium text-muted uppercase tracking-wide">
+                {{ t('image.result') }}
+                <span
+                  v-if="running"
+                  class="text-primary normal-case tracking-normal ms-2"
+                >
+                  <UIcon
+                    name="i-lucide-loader-circle"
+                    class="size-3.5 inline animate-spin align-[-2px]"
+                  />
+                  {{ t('image.processing') }}
+                </span>
+              </p>
+              <div class="overflow-auto rounded-lg border border-default">
+                <div
+                  class="relative w-fit"
+                  :style="{ transform: `scale(${resultPulse})`, transformOrigin: 'center' }"
+                >
+                  <canvas
+                    ref="resultCanvas"
+                    class="rounded-lg max-w-full h-auto"
+                    :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
+                    :style="resizeResultStyle"
+                    @click="onResultClick"
+                  />
+                </div>
+              </div>
+              <p
+                v-if="activeTool?.interactive === 'click'"
+                class="text-xs text-dimmed"
+              >
+                {{ t('image.clickHint') }}
+              </p>
+            </div>
+          </div>
+
+          <!-- 第二张图（双图工具） -->
+          <div
+            v-if="activeTool?.needsSecondImage"
+            class="rounded-lg border border-default p-4"
+          >
+            <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
+              {{ t('image.secondImage') }}
+            </p>
+            <div
+              v-if="!secondOriginal"
+              class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors hover:border-primary/60"
+              @click="openSecondFilePicker"
+              @dragover.prevent
+              @drop.prevent="onSecondDrop"
+            >
+              <UIcon
+                name="i-lucide-image-plus"
+                class="size-8 text-muted mx-auto"
               />
+              <p class="mt-2 text-xs text-dimmed">
+                {{ t('image.secondImageHint') }}
+              </p>
+            </div>
+            <div
+              v-else
+              class="flex items-start gap-3"
+            >
+              <canvas
+                ref="secondCanvas"
+                class="max-w-[180px] h-auto rounded-lg border border-default"
+              />
+              <div class="text-xs text-muted space-y-1">
+                <p>{{ secondFileName }}</p>
+                <p>{{ secondOriginal.width }} × {{ secondOriginal.height }}</p>
+                <UButton
+                  size="xs"
+                  color="neutral"
+                  variant="soft"
+                  icon="i-lucide-refresh-cw"
+                  @click="openSecondFilePicker"
+                >
+                  {{ t('image.replaceSecond') }}
+                </UButton>
+              </div>
             </div>
           </div>
           <input
-            ref="fileInput"
+            ref="secondFileInput"
             type="file"
             accept="image/*"
             class="hidden"
-            @change="onFileChange"
+            @change="onSecondFileChange"
           >
 
-          <template v-if="original">
-            <!-- 图片信息 -->
-            <div class="flex flex-wrap gap-2 text-xs">
-              <UBadge
-                color="neutral"
-                variant="subtle"
-              >
-                {{ fileName }}
-              </UBadge>
-              <UBadge
-                color="neutral"
-                variant="subtle"
-              >
-                {{ original.width }} × {{ original.height }}
-              </UBadge>
-              <UBadge
-                color="neutral"
-                variant="subtle"
-              >
-                {{ alg.formatBytes(sourceBytes) }}
-              </UBadge>
-              <UBadge
-                color="neutral"
-                variant="subtle"
-              >
-                {{ modeText }}
-              </UBadge>
-            </div>
-
-            <!-- 控制区：参数面板 + 操作按钮（置于展示框上方） -->
-            <div class="space-y-3">
-              <DemoParams
-                v-if="specs.length"
-                v-model="paramValues"
-                :specs="specs"
-                :running="running"
-                :disabled-keys="disabledParamKeys"
-              />
-
-              <div class="flex flex-wrap items-center gap-2">
-                <UButton
-                  icon="i-lucide-play"
-                  :loading="running"
-                  @click="runNow"
-                >
-                  {{ t('image.run') }}
-                </UButton>
-                <UButton
-                  icon="i-lucide-rotate-ccw"
-                  color="neutral"
-                  variant="soft"
-                  @click="reset"
-                >
-                  {{ t('image.reset') }}
-                </UButton>
-                <div class="ms-auto flex items-center gap-2">
-                  <USelect
-                    v-model="downloadFormat"
-                    :items="formatItems"
-                    class="w-32"
-                    :aria-label="t('image.format')"
-                  />
-                  <UButton
-                    icon="i-lucide-download"
-                    color="primary"
-                    variant="solid"
-                    :disabled="!result"
-                    @click="download"
-                  >
-                    {{ t('image.download') }}
-                  </UButton>
-                </div>
-              </div>
-            </div>
-
-            <!-- 原图 / 结果：原图列 3fr（显示约为全宽的 30%，即原来的 60%），结果列 7fr 更宽 -->
-            <div class="grid grid-cols-1 md:grid-cols-[3fr_7fr] gap-4">
-              <div class="space-y-2">
-                <p class="text-xs font-medium text-muted uppercase tracking-wide">
-                  {{ t('image.original') }}
-                </p>
-                <div class="overflow-auto rounded-lg border border-default">
-                  <div class="relative w-fit">
-                    <canvas
-                      ref="origCanvas"
-                      class="rounded-lg max-w-full h-auto"
-                    />
-                    <!-- resize 三把手（原图固定，结果图响应）：右中=水平(只改宽)、下中=垂直(只改高)、右下=等比 -->
-                    <button
-                      v-if="activeTool?.id === 'resize' && original"
-                      type="button"
-                      class="absolute right-1 top-1/2 -translate-y-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ew-resize hover:bg-primary transition-colors touch-none"
-                      :class="{ 'ring-2 ring-primary': resizing }"
-                      :aria-label="t('image.resizeDragH')"
-                      data-resize-mode="h"
-                      @pointerdown="onResizeStart($event, 'h')"
-                    >
-                      <UIcon
-                        name="i-lucide-move-horizontal"
-                        class="size-3.5"
-                      />
-                    </button>
-                    <button
-                      v-if="activeTool?.id === 'resize' && original"
-                      type="button"
-                      class="absolute bottom-1 left-1/2 -translate-x-1/2 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-ns-resize hover:bg-primary transition-colors touch-none"
-                      :class="{ 'ring-2 ring-primary': resizing }"
-                      :aria-label="t('image.resizeDragV')"
-                      data-resize-mode="v"
-                      @pointerdown="onResizeStart($event, 'v')"
-                    >
-                      <UIcon
-                        name="i-lucide-move-vertical"
-                        class="size-3.5"
-                      />
-                    </button>
-                    <button
-                      v-if="activeTool?.id === 'resize' && original"
-                      type="button"
-                      class="absolute bottom-1 right-1 size-6 rounded-md bg-primary/90 text-white flex items-center justify-center shadow cursor-nwse-resize hover:bg-primary transition-colors touch-none"
-                      :class="{ 'ring-2 ring-primary': resizing }"
-                      :aria-label="t('image.resizeDragS')"
-                      data-resize-mode="s"
-                      @pointerdown="onResizeStart($event, 's')"
-                    >
-                      <UIcon
-                        name="i-lucide-move-diagonal"
-                        class="size-3.5"
-                      />
-                    </button>
-                    <!-- crop 选区框：拖动移动 / 四角缩放，与 x/y/w/h 参数双向同步 -->
-                    <div
-                      v-if="activeTool?.id === 'crop' && original"
-                      ref="cropWrap"
-                      class="absolute z-10 cursor-move touch-none"
-                      :style="{
-                        left: `${cropRect.x}%`,
-                        top: `${cropRect.y}%`,
-                        width: `${cropRect.w}%`,
-                        height: `${cropRect.h}%`
-                      }"
-                      :aria-label="t('image.cropDrag')"
-                      @pointerdown="onCropStart"
-                      @pointermove="onCropMove"
-                      @pointerup="onCropEnd"
-                      @pointercancel="onCropEnd"
-                    >
-                      <div class="absolute inset-0 border-2 border-primary/80 bg-primary/10 pointer-events-none" />
-                      <div
-                        v-for="h in cropHandles"
-                        :key="h.mode"
-                        :data-mode="h.mode"
-                        :class="h.cls"
-                        class="absolute size-3 bg-primary border-2 border-white rounded-sm pointer-events-auto"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="space-y-2">
-                <p class="text-xs font-medium text-muted uppercase tracking-wide">
-                  {{ t('image.result') }}
-                  <span
-                    v-if="running"
-                    class="text-primary normal-case tracking-normal ms-2"
-                  >
-                    <UIcon
-                      name="i-lucide-loader-circle"
-                      class="size-3.5 inline animate-spin align-[-2px]"
-                    />
-                    {{ t('image.processing') }}
-                  </span>
-                </p>
-                <div class="overflow-auto rounded-lg border border-default">
-                  <div
-                    class="relative w-fit"
-                    :style="{ transform: `scale(${resultPulse})`, transformOrigin: 'center' }"
-                  >
-                    <canvas
-                      ref="resultCanvas"
-                      class="rounded-lg max-w-full h-auto"
-                      :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
-                      :style="resizeResultStyle"
-                      @click="onResultClick"
-                    />
-                  </div>
-                </div>
-                <p
-                  v-if="activeTool?.interactive === 'click'"
-                  class="text-xs text-dimmed"
-                >
-                  {{ t('image.clickHint') }}
-                </p>
-              </div>
-            </div>
-
-            <!-- 第二张图（双图工具） -->
-            <div
-              v-if="activeTool?.needsSecondImage"
-              class="rounded-lg border border-default p-4"
-            >
-              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
-                {{ t('image.secondImage') }}
-              </p>
+          <!-- 结果信息 -->
+          <div
+            v-if="resultInfo.length"
+            class="rounded-lg border border-default p-3"
+          >
+            <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
+              {{ t('image.info') }}
+            </p>
+            <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
               <div
-                v-if="!secondOriginal"
-                class="border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors hover:border-primary/60"
-                @click="openSecondFilePicker"
-                @dragover.prevent
-                @drop.prevent="onSecondDrop"
+                v-for="(row, i) in resultInfo"
+                :key="i"
+                class="flex justify-between gap-4"
               >
-                <UIcon
-                  name="i-lucide-image-plus"
-                  class="size-8 text-muted mx-auto"
-                />
-                <p class="mt-2 text-xs text-dimmed">
-                  {{ t('image.secondImageHint') }}
-                </p>
-              </div>
-              <div
-                v-else
-                class="flex items-start gap-3"
-              >
-                <canvas
-                  ref="secondCanvas"
-                  class="max-w-[180px] h-auto rounded-lg border border-default"
-                />
-                <div class="text-xs text-muted space-y-1">
-                  <p>{{ secondFileName }}</p>
-                  <p>{{ secondOriginal.width }} × {{ secondOriginal.height }}</p>
-                  <UButton
-                    size="xs"
-                    color="neutral"
-                    variant="soft"
-                    icon="i-lucide-refresh-cw"
-                    @click="openSecondFilePicker"
-                  >
-                    {{ t('image.replaceSecond') }}
-                  </UButton>
-                </div>
+                <span class="text-muted shrink-0">{{ row.label }}</span>
+                <span class="text-highlighted font-mono text-right">{{ row.value }}</span>
               </div>
             </div>
-            <input
-              ref="secondFileInput"
-              type="file"
-              accept="image/*"
-              class="hidden"
-              @change="onSecondFileChange"
-            >
+          </div>
 
-            <!-- 结果信息 -->
-            <div
-              v-if="resultInfo.length"
-              class="rounded-lg border border-default p-3"
-            >
-              <p class="text-xs font-medium text-muted uppercase tracking-wide mb-2">
-                {{ t('image.info') }}
-              </p>
-              <div class="grid sm:grid-cols-2 gap-x-6 gap-y-1 text-sm">
-                <div
-                  v-for="(row, i) in resultInfo"
-                  :key="i"
-                  class="flex justify-between gap-4"
-                >
-                  <span class="text-muted shrink-0">{{ row.label }}</span>
-                  <span class="text-highlighted font-mono text-right">{{ row.value }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- 错误 -->
-            <UAlert
-              v-if="error"
-              color="error"
-              variant="subtle"
-              icon="i-lucide-alert-triangle"
-              :title="error"
-            />
-          </template>
-        </div>
-      </div>
+          <!-- 错误 -->
+          <UAlert
+            v-if="error"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-alert-triangle"
+            :title="error"
+          />
+        </template>
+      </ToolSidebar>
     </div>
   </UContainer>
 </template>

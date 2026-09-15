@@ -23,7 +23,6 @@ const progressPct = ref(0)
 const inferenceTime = ref(0)
 const webgpu = ref(false)
 const alphaThreshold = ref(128)
-const fileInput = ref<HTMLInputElement>()
 
 onMounted(() => {
   webgpu.value = typeof navigator !== 'undefined' && !!(navigator as any).gpu
@@ -69,10 +68,7 @@ async function ensureModel() {
   }
 }
 
-async function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
+async function selectFile(file: File) {
   try {
     imgSrc.value = await processImageFile(file)
     resultUrl.value = ''
@@ -80,7 +76,6 @@ async function onFileChange(e: Event) {
   } catch (err: any) {
     error.value = err?.message || String(err)
   }
-  input.value = ''
 }
 
 async function useSample(url: string) {
@@ -169,9 +164,25 @@ onBeforeUnmount(async () => {
 <template>
   <MediaDemoShell :demo="demo">
     <div class="flex flex-wrap items-center gap-3">
-      <UBadge v-if="webgpu" color="primary" variant="subtle">WebGPU</UBadge>
-      <UBadge v-else color="neutral" variant="subtle">WASM</UBadge>
-      <UBadge v-if="modelReady" color="success" variant="subtle">
+      <UBadge
+        v-if="webgpu"
+        color="primary"
+        variant="subtle"
+      >
+        WebGPU
+      </UBadge>
+      <UBadge
+        v-else
+        color="neutral"
+        variant="subtle"
+      >
+        WASM
+      </UBadge>
+      <UBadge
+        v-if="modelReady"
+        color="success"
+        variant="subtle"
+      >
         {{ t('bgRemoval.loaded') }}
       </UBadge>
       <UButton
@@ -187,10 +198,25 @@ onBeforeUnmount(async () => {
       <span class="text-sm text-muted">{{ t('bgRemoval.modelHelp') }}</span>
     </div>
 
-    <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="error" />
-    <UAlert v-if="!modelReady && !error" color="info" variant="subtle" icon="i-lucide-info" :title="t('bgRemoval.firstDownload')" />
+    <UAlert
+      v-if="error"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="error"
+    />
+    <UAlert
+      v-if="!modelReady && !error"
+      color="info"
+      variant="subtle"
+      icon="i-lucide-info"
+      :title="t('bgRemoval.firstDownload')"
+    />
 
-    <div v-if="loading" class="space-y-1">
+    <div
+      v-if="loading"
+      class="space-y-1"
+    >
       <div class="flex items-center justify-between text-sm">
         <span class="text-muted truncate">{{ progressFile || t('bgRemoval.loadingModel') }}</span>
         <span class="text-muted">{{ progressPct }}%</span>
@@ -201,24 +227,20 @@ onBeforeUnmount(async () => {
     <UCard>
       <template #header>
         <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-          <UIcon name="i-lucide-upload" class="size-4" />
+          <UIcon
+            name="i-lucide-upload"
+            class="size-4"
+          />
           {{ t('bgRemoval.upload') }}
         </div>
       </template>
       <div class="flex flex-wrap items-end gap-4">
-        <UButton
-          icon="i-lucide-upload"
-          :label="t('bgRemoval.uploadBtn')"
-          color="primary"
-          variant="subtle"
-          :disabled="loading || running"
-          @click="fileInput?.click()"
-        />
         <SampleImagePicker
           :samples="samples"
+          :disabled="loading || running"
+          @select="selectFile"
           @pick="useSample"
         />
-        <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="onFileChange">
         <UButton
           icon="i-lucide-scissors"
           :label="t('bgRemoval.run')"
@@ -227,14 +249,23 @@ onBeforeUnmount(async () => {
           :disabled="loading || running || !imgSrc"
           @click="removeBg"
         />
-        <span v-if="inferenceTime" class="text-sm text-muted">
+        <span
+          v-if="inferenceTime"
+          class="text-sm text-muted"
+        >
           {{ t('bgRemoval.time') }}: {{ inferenceTime }} ms
         </span>
       </div>
       <label class="mt-4 block">
         <span class="block text-sm font-medium text-muted mb-1">{{ t('bgRemoval.threshold') }}</span>
         <div class="flex items-center gap-3 max-w-sm">
-          <USlider v-model="alphaThreshold" :min="0" :max="255" :step="1" class="flex-1" />
+          <USlider
+            v-model="alphaThreshold"
+            :min="0"
+            :max="255"
+            :step="1"
+            class="flex-1"
+          />
           <span class="text-sm text-muted w-10 text-right">{{ alphaThreshold }}</span>
         </div>
       </label>
@@ -244,19 +275,43 @@ onBeforeUnmount(async () => {
       <div>
         <label class="block text-sm font-medium text-muted mb-2">{{ t('bgRemoval.original') }}</label>
         <div class="relative aspect-video rounded-xl overflow-hidden bg-elevated/60 border border-dashed border-default flex items-center justify-center">
-          <img v-if="imgSrc" :src="imgSrc" class="w-full h-full object-contain">
-          <UIcon v-else name="i-lucide-image-plus" class="size-8 text-muted" />
+          <img
+            v-if="imgSrc"
+            :src="imgSrc"
+            class="w-full h-full object-contain"
+          >
+          <UIcon
+            v-else
+            name="i-lucide-image-plus"
+            class="size-8 text-muted"
+          />
         </div>
       </div>
       <div>
         <label class="block text-sm font-medium text-muted mb-2">{{ t('bgRemoval.result') }}</label>
-        <div class="relative aspect-video rounded-xl overflow-hidden border border-dashed border-default flex items-center justify-center"
+        <div
+          class="relative aspect-video rounded-xl overflow-hidden border border-dashed border-default flex items-center justify-center"
           :style="{ backgroundImage: 'linear-gradient(45deg,#ddd 25%,transparent 25%,transparent 75%,#ddd 75%),linear-gradient(45deg,#ddd 25%,transparent 25%,transparent 75%,#ddd 75%)', backgroundSize: '16px 16px', backgroundPosition: '0 0,8px 8px' }"
         >
-          <img v-if="resultUrl" :src="resultUrl" class="w-full h-full object-contain">
-          <div v-else class="flex flex-col items-center gap-2 text-muted">
-            <UIcon v-if="running" name="i-lucide-loader-circle" class="size-8 animate-spin" />
-            <UIcon v-else name="i-lucide-scissors" class="size-8" />
+          <img
+            v-if="resultUrl"
+            :src="resultUrl"
+            class="w-full h-full object-contain"
+          >
+          <div
+            v-else
+            class="flex flex-col items-center gap-2 text-muted"
+          >
+            <UIcon
+              v-if="running"
+              name="i-lucide-loader-circle"
+              class="size-8 animate-spin"
+            />
+            <UIcon
+              v-else
+              name="i-lucide-scissors"
+              class="size-8"
+            />
             <span class="text-sm">{{ running ? t('bgRemoval.running') : t('bgRemoval.noResult') }}</span>
           </div>
         </div>

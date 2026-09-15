@@ -2,6 +2,7 @@
 /* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
 /** 图像像素原理教学页：左侧导航（存储原理/RGB/大小计算/像素绘制），右侧对应内容 */
 import { humanError } from '~/utils/errors'
+import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 
 const { t, locale } = useI18n()
 const { getDemo } = useDemos()
@@ -40,6 +41,14 @@ const sections = [
   { id: 4, icon: 'i-lucide-brush', title: { zh: '像素绘制', en: 'Pixel drawing' } }
 ] as const
 const active = ref<(typeof sections)[number]['id']>(1)
+
+// 左侧工具栏数据（共享 ToolSidebar 组件，样式集中在组件内）
+const sidebarItems = computed<ToolSidebarItem[]>(() => sections.map(s => ({
+  id: s.id,
+  label: pick(s.title as L),
+  kind: String(s.id),
+  icon: s.icon
+})))
 
 // ===== 模块 1：存储原理 =====
 const SRC_N = 8
@@ -317,349 +326,331 @@ onMounted(() => {
 
 <template>
   <MediaDemoShell :demo="demo">
-    <div class="grid lg:grid-cols-[220px_1fr] gap-6 items-start">
-      <!-- 左侧：四个选项导航 -->
-      <nav class="lg:sticky lg:top-4 rounded-lg border border-default bg-elevated/50 p-2">
-        <button
-          v-for="s in sections"
-          :key="s.id"
-          type="button"
-          class="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm text-left transition"
-          :class="active === s.id ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:bg-elevated hover:text-highlighted'"
-          @click="active = s.id"
-        >
-          <UIcon
-            :name="s.icon"
-            class="size-4 shrink-0"
-          />
-          <span class="font-mono text-xs opacity-70">{{ s.id }}</span>
-          <span>{{ pick(s.title as L) }}</span>
-        </button>
-      </nav>
-
-      <!-- 右侧：正式内容 -->
-      <div>
-        <!-- 1 · 存储原理 -->
-        <div v-if="active === 1">
-          <UCard>
-            <template #header>
-              <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                  <UIcon
-                    name="i-lucide-database"
-                    class="size-4 text-primary"
-                  />
-                  <span>{{ pick({ zh: '像素是如何存储在计算机里的？', en: 'How is a pixel stored?' }) }}</span>
-                </div>
-                <div class="flex gap-1">
-                  <UButton
-                    v-for="k in ['photo', 'gradient', 'noise'] as const"
-                    :key="k"
-                    size="xs"
-                    color="neutral"
-                    variant="subtle"
-                    :class="sourceKind === k ? 'ring-1 ring-primary' : ''"
-                    @click="sourceKind = k"
-                  >
-                    {{ srcLabel(k) }}
-                  </UButton>
-                </div>
-              </div>
-            </template>
-            <div class="grid lg:grid-cols-2 gap-4">
-              <div>
-                <p class="text-sm text-muted mb-2">
-                  {{ pick({ zh: '把鼠标移到放大后的图上查看每个像素，点击固定选中。每个像素按 RGBA 顺序用 4 字节存储。', en: 'Hover to inspect each pixel, or click to pin it. Every pixel is stored as 4 bytes in RGBA order.' }) }}
-                </p>
-                <canvas
-                  ref="storageCanvas"
-                  :width="SRC_N * SCALE"
-                  :height="SRC_N * SCALE"
-                  class="w-full max-w-[320px] rounded border border-default cursor-crosshair touch-none"
-                  @pointermove="onStoragePointer"
+    <ToolSidebar
+      v-model="active"
+      :title="t('image.tools')"
+      :items="sidebarItems"
+    >
+      <!-- 1 · 存储原理 -->
+      <div v-if="active === 1">
+        <UCard>
+          <template #header>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+                <UIcon
+                  name="i-lucide-database"
+                  class="size-4 text-primary"
                 />
-                <p
-                  v-if="storageSel"
-                  class="mt-2 text-sm text-highlighted font-mono"
-                >
-                  pixel({{ storageSel.x }}, {{ storageSel.y }}) = {{ rbgaOf }} · {{ pick({ zh: '字节', en: 'bytes' }) }}: R,G,B,A
-                </p>
+                <span>{{ pick({ zh: '像素是如何存储在计算机里的？', en: 'How is a pixel stored?' }) }}</span>
               </div>
-              <div class="space-y-3 text-sm">
-                <p class="text-muted">
-                  {{ pick({ zh: '这图被缩到 8×8，每个像素用 4 字节 RGBA，所以内存占用：', en: 'Downsampled to 8×8; 4 RGBA bytes per pixel, so in memory:' }) }}
-                  <span class="text-highlighted font-mono">{{ SRC_N }} × {{ SRC_N }} × 4 = {{ srcSizeBytes }} {{ pick({ zh: '字节', en: 'bytes' }) }}</span>
-                </p>
-                <p class="text-muted">
-                  {{ pick({ zh: '数据是连续的一维数组，顺序 R,G,B,A,…。下面是最新一帧前 32 字节（hex）：', en: 'A flat array of R,G,B,A,… The first 32 bytes of this frame (hex):' }) }}
-                </p>
-                <pre class="rounded bg-elevated/60 p-3 text-[11px] leading-relaxed font-mono overflow-auto">{{ rawHexRows.join('\n') }}</pre>
-                <p class="text-xs text-dimmed">
-                  {{ pick({ zh: '多样：格式如 JPEG/PNG 会压缩；RAW 直接存这些值。', en: 'Note: JPEG/PNG compress; RAW stores these raw values.' }) }}
+              <div class="flex gap-1">
+                <UButton
+                  v-for="k in ['photo', 'gradient', 'noise'] as const"
+                  :key="k"
+                  size="xs"
+                  color="neutral"
+                  variant="subtle"
+                  :class="sourceKind === k ? 'ring-1 ring-primary' : ''"
+                  @click="sourceKind = k"
+                >
+                  {{ srcLabel(k) }}
+                </UButton>
+              </div>
+            </div>
+          </template>
+          <div class="grid lg:grid-cols-2 gap-4">
+            <div>
+              <p class="text-sm text-muted mb-2">
+                {{ pick({ zh: '把鼠标移到放大后的图上查看每个像素，点击固定选中。每个像素按 RGBA 顺序用 4 字节存储。', en: 'Hover to inspect each pixel, or click to pin it. Every pixel is stored as 4 bytes in RGBA order.' }) }}
+              </p>
+              <canvas
+                ref="storageCanvas"
+                :width="SRC_N * SCALE"
+                :height="SRC_N * SCALE"
+                class="w-full max-w-[320px] rounded border border-default cursor-crosshair touch-none"
+                @pointermove="onStoragePointer"
+              />
+              <p
+                v-if="storageSel"
+                class="mt-2 text-sm text-highlighted font-mono"
+              >
+                pixel({{ storageSel.x }}, {{ storageSel.y }}) = {{ rbgaOf }} · {{ pick({ zh: '字节', en: 'bytes' }) }}: R,G,B,A
+              </p>
+            </div>
+            <div class="space-y-3 text-sm">
+              <p class="text-muted">
+                {{ pick({ zh: '这图被缩到 8×8，每个像素用 4 字节 RGBA，所以内存占用：', en: 'Downsampled to 8×8; 4 RGBA bytes per pixel, so in memory:' }) }}
+                <span class="text-highlighted font-mono">{{ SRC_N }} × {{ SRC_N }} × 4 = {{ srcSizeBytes }} {{ pick({ zh: '字节', en: 'bytes' }) }}</span>
+              </p>
+              <p class="text-muted">
+                {{ pick({ zh: '数据是连续的一维数组，顺序 R,G,B,A,…。下面是最新一帧前 32 字节（hex）：', en: 'A flat array of R,G,B,A,… The first 32 bytes of this frame (hex):' }) }}
+              </p>
+              <pre class="rounded bg-elevated/60 p-3 text-[11px] leading-relaxed font-mono overflow-auto">{{ rawHexRows.join('\n') }}</pre>
+              <p class="text-xs text-dimmed">
+                {{ pick({ zh: '多样：格式如 JPEG/PNG 会压缩；RAW 直接存这些值。', en: 'Note: JPEG/PNG compress; RAW stores these raw values.' }) }}
+              </p>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- 2 · RGB 颜色 -->
+      <div v-else-if="active === 2">
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon
+                name="i-lucide-palette"
+                class="size-4 text-primary"
+              />
+              <span>{{ pick({ zh: 'RGB 颜色原理与混合', en: 'RGB color & mixing' }) }}</span>
+            </div>
+          </template>
+          <p class="text-sm text-muted mb-4">
+            {{ pick({ zh: '屏幕用红绿蓝三原色发光合成颜色；调节每通道 0–255 即得任意色彩。', en: 'Screens mix red/green/blue light; tuning each channel 0–255 yields any color.' }) }}
+          </p>
+          <div class="grid md:grid-cols-2 gap-6">
+            <div class="space-y-3">
+              <div class="flex items-center gap-3">
+                <div
+                  class="size-12 rounded-lg border border-default shrink-0"
+                  :style="{ background: rgbHex(col.r, col.g, col.b) }"
+                />
+                <div>
+                  <p class="text-sm font-mono text-highlighted">
+                    {{ rgbHex(col.r, col.g, col.b) }}
+                  </p>
+                  <p class="text-xs text-muted font-mono">
+                    {{ col.r }}, {{ col.g }}, {{ col.b }} {{ pick({ zh: '（十进制）', en: '(decimal)' }) }}
+                  </p>
+                </div>
+              </div>
+              <label class="block text-xs text-muted">R <span class="text-red-400 font-mono">{{ col.r }}</span> <input
+                v-model.number="col.r"
+                type="range"
+                min="0"
+                max="255"
+                class="w-full accent-primary"
+              ></label>
+              <label class="block text-xs text-muted">G <span class="text-green-400 font-mono">{{ col.g }}</span> <input
+                v-model.number="col.g"
+                type="range"
+                min="0"
+                max="255"
+                class="w-full accent-primary"
+              ></label>
+              <label class="block text-xs text-muted">B <span class="text-blue-400 font-mono">{{ col.b }}</span> <input
+                v-model.number="col.b"
+                type="range"
+                min="0"
+                max="255"
+                class="w-full accent-primary"
+              ></label>
+              <p class="text-xs text-dimmed">
+                {{ pick({ zh: '红+蓝=品红，红+绿=黄，绿+蓝=青——三原色相加可混合出任何颜色。', en: 'Red+Blue=Magenta, Red+Green=Yellow, Green+Blue=Cyan — the additive primaries mix any color.' }) }}
+              </p>
+            </div>
+            <div>
+              <p class="text-xs text-muted mb-2">
+                {{ pick({ zh: '常用颜色预设（十进制 · 十六进制）', en: 'Color presets (decimal · hex)' }) }}
+              </p>
+              <div class="grid grid-cols-2 gap-2">
+                <button
+                  v-for="(p, i) in presets"
+                  :key="i"
+                  type="button"
+                  class="flex items-center gap-2 rounded border p-1.5 text-left transition"
+                  :class="col.r === p.r && col.g === p.g && col.b === p.b ? 'border-primary bg-primary/10' : 'border-default hover:bg-elevated'"
+                  @click="col = { r: p.r, g: p.g, b: p.b }"
+                >
+                  <span
+                    class="size-7 shrink-0 rounded border border-default"
+                    :style="{ background: rgbHex(p.r, p.g, p.b) }"
+                  />
+                  <span class="text-xs leading-tight">
+                    <span class="block font-medium text-highlighted">{{ pick(p.name) }}</span>
+                    <span class="block font-mono text-[10px] text-muted">{{ p.r }},{{ p.g }},{{ p.b }} · {{ rgbHex(p.r, p.g, p.b) }}</span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </UCard>
+      </div>
+
+      <!-- 3 · 图片大小 -->
+      <div v-else-if="active === 3">
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon
+                name="i-lucide-calculator"
+                class="size-4 text-primary"
+              />
+              <span>{{ pick({ zh: '图片大小怎么算？', en: 'How big is the image?' }) }}</span>
+            </div>
+          </template>
+          <p class="text-sm text-muted mb-4">
+            {{ pick({ zh: '未压缩体积 = 宽 × 高 × 每像素位数 ÷ 8。', en: 'Uncompressed size = width × height × bits-per-pixel ÷ 8.' }) }}
+          </p>
+          <div class="grid md:grid-cols-2 gap-6 items-start">
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs text-muted mb-1">{{ pick({ zh: '宽度', en: 'Width' }) }} · <span class="font-mono">{{ calcW }} px</span></label>
+                <input
+                  v-model.number="calcW"
+                  type="range"
+                  min="1"
+                  max="40"
+                  class="w-full accent-primary"
+                >
+              </div>
+              <div>
+                <label class="block text-xs text-muted mb-1">{{ pick({ zh: '高度', en: 'Height' }) }} · <span class="font-mono">{{ calcH }} px</span></label>
+                <input
+                  v-model.number="calcH"
+                  type="range"
+                  min="1"
+                  max="40"
+                  class="w-full accent-primary"
+                >
+              </div>
+              <div>
+                <label class="block text-xs text-muted mb-1">{{ pick({ zh: '每像素位数（位深）', en: 'Bits per pixel' }) }}</label>
+                <USelect
+                  v-model="calcBpp"
+                  :items="bppItems"
+                  class="w-full"
+                />
+              </div>
+              <div class="rounded border border-default p-3">
+                <p class="text-sm text-muted">
+                  {{ pick({ zh: '体积', en: 'Size' }) }} = <span class="font-mono text-highlighted">{{ calcW }} × {{ calcH }} × {{ calcBpp }} / 8</span> =
+                  <span class="text-lg font-bold text-primary font-mono">{{ fmtBytes(calcBytes) }}</span>
                 </p>
               </div>
             </div>
-          </UCard>
-        </div>
+            <div>
+              <p class="text-xs text-muted mb-2">
+                {{ pick({ zh: '这就是由下方这么多真实像素组成的图：', en: 'This image is literally made of the pixels below:' }) }}
+              </p>
+              <canvas
+                ref="sizeCanvas"
+                :width="SIZE_SCALE"
+                :height="SIZE_SCALE"
+                class="w-full max-w-[360px] rounded border border-default"
+              />
+            </div>
+          </div>
+        </UCard>
+      </div>
 
-        <!-- 2 · RGB 颜色 -->
-        <div v-else-if="active === 2">
-          <UCard>
-            <template #header>
-              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                <UIcon
-                  name="i-lucide-palette"
-                  class="size-4 text-primary"
-                />
-                <span>{{ pick({ zh: 'RGB 颜色原理与混合', en: 'RGB color & mixing' }) }}</span>
-              </div>
-            </template>
-            <p class="text-sm text-muted mb-4">
-              {{ pick({ zh: '屏幕用红绿蓝三原色发光合成颜色；调节每通道 0–255 即得任意色彩。', en: 'Screens mix red/green/blue light; tuning each channel 0–255 yields any color.' }) }}
-            </p>
-            <div class="grid md:grid-cols-2 gap-6">
-              <div class="space-y-3">
-                <div class="flex items-center gap-3">
-                  <div
-                    class="size-12 rounded-lg border border-default shrink-0"
-                    :style="{ background: rgbHex(col.r, col.g, col.b) }"
-                  />
-                  <div>
-                    <p class="text-sm font-mono text-highlighted">
-                      {{ rgbHex(col.r, col.g, col.b) }}
-                    </p>
-                    <p class="text-xs text-muted font-mono">
-                      {{ col.r }}, {{ col.g }}, {{ col.b }} {{ pick({ zh: '（十进制）', en: '(decimal)' }) }}
-                    </p>
-                  </div>
-                </div>
-                <label class="block text-xs text-muted">R <span class="text-red-400 font-mono">{{ col.r }}</span> <input
-                  v-model.number="col.r"
-                  type="range"
-                  min="0"
-                  max="255"
-                  class="w-full accent-primary"
-                ></label>
-                <label class="block text-xs text-muted">G <span class="text-green-400 font-mono">{{ col.g }}</span> <input
-                  v-model.number="col.g"
-                  type="range"
-                  min="0"
-                  max="255"
-                  class="w-full accent-primary"
-                ></label>
-                <label class="block text-xs text-muted">B <span class="text-blue-400 font-mono">{{ col.b }}</span> <input
-                  v-model.number="col.b"
-                  type="range"
-                  min="0"
-                  max="255"
-                  class="w-full accent-primary"
-                ></label>
-                <p class="text-xs text-dimmed">
-                  {{ pick({ zh: '红+蓝=品红，红+绿=黄，绿+蓝=青——三原色相加可混合出任何颜色。', en: 'Red+Blue=Magenta, Red+Green=Yellow, Green+Blue=Cyan — the additive primaries mix any color.' }) }}
-                </p>
-              </div>
+      <!-- 4 · 像素绘制工具 -->
+      <div v-else>
+        <UCard>
+          <template #header>
+            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon
+                name="i-lucide-brush"
+                class="size-4 text-primary"
+              />
+              <span>{{ pick({ zh: '像素绘制工具', en: 'Pixel drawing tool' }) }}</span>
+            </div>
+          </template>
+          <div class="grid lg:grid-cols-[auto_1fr] gap-6">
+            <div class="space-y-3">
+              <canvas
+                ref="drawCanvas"
+                :width="400"
+                :height="400"
+                class="rounded border border-default cursor-pointer touch-none"
+                @pointerdown="paintAt"
+                @pointermove="onHover"
+              />
+              <p
+                v-if="hoverPixel"
+                class="text-xs text-muted font-mono"
+              >
+                ({{ hoverPixel.x }}, {{ hoverPixel.y }}) · {{ hoverPixel.hex }}
+              </p>
+            </div>
+            <div class="space-y-4">
               <div>
                 <p class="text-xs text-muted mb-2">
-                  {{ pick({ zh: '常用颜色预设（十进制 · 十六进制）', en: 'Color presets (decimal · hex)' }) }}
+                  {{ pick({ zh: '画笔颜色', en: 'Brush color' }) }}
                 </p>
-                <div class="grid grid-cols-2 gap-2">
+                <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="(p, i) in presets"
+                    v-for="(c, i) in palettes"
                     :key="i"
                     type="button"
-                    class="flex items-center gap-2 rounded border p-1.5 text-left transition"
-                    :class="col.r === p.r && col.g === p.g && col.b === p.b ? 'border-primary bg-primary/10' : 'border-default hover:bg-elevated'"
-                    @click="col = { r: p.r, g: p.g, b: p.b }"
-                  >
-                    <span
-                      class="size-7 shrink-0 rounded border border-default"
-                      :style="{ background: rgbHex(p.r, p.g, p.b) }"
-                    />
-                    <span class="text-xs leading-tight">
-                      <span class="block font-medium text-highlighted">{{ pick(p.name) }}</span>
-                      <span class="block font-mono text-[10px] text-muted">{{ p.r }},{{ p.g }},{{ p.b }} · {{ rgbHex(p.r, p.g, p.b) }}</span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </UCard>
-        </div>
-
-        <!-- 3 · 图片大小 -->
-        <div v-else-if="active === 3">
-          <UCard>
-            <template #header>
-              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                <UIcon
-                  name="i-lucide-calculator"
-                  class="size-4 text-primary"
-                />
-                <span>{{ pick({ zh: '图片大小怎么算？', en: 'How big is the image?' }) }}</span>
-              </div>
-            </template>
-            <p class="text-sm text-muted mb-4">
-              {{ pick({ zh: '未压缩体积 = 宽 × 高 × 每像素位数 ÷ 8。', en: 'Uncompressed size = width × height × bits-per-pixel ÷ 8.' }) }}
-            </p>
-            <div class="grid md:grid-cols-2 gap-6 items-start">
-              <div class="space-y-4">
-                <div>
-                  <label class="block text-xs text-muted mb-1">{{ pick({ zh: '宽度', en: 'Width' }) }} · <span class="font-mono">{{ calcW }} px</span></label>
-                  <input
-                    v-model.number="calcW"
-                    type="range"
-                    min="1"
-                    max="40"
-                    class="w-full accent-primary"
-                  >
-                </div>
-                <div>
-                  <label class="block text-xs text-muted mb-1">{{ pick({ zh: '高度', en: 'Height' }) }} · <span class="font-mono">{{ calcH }} px</span></label>
-                  <input
-                    v-model.number="calcH"
-                    type="range"
-                    min="1"
-                    max="40"
-                    class="w-full accent-primary"
-                  >
-                </div>
-                <div>
-                  <label class="block text-xs text-muted mb-1">{{ pick({ zh: '每像素位数（位深）', en: 'Bits per pixel' }) }}</label>
-                  <USelect
-                    v-model="calcBpp"
-                    :items="bppItems"
-                    class="w-full"
+                    class="size-8 rounded border border-default cursor-pointer"
+                    :style="{ background: `rgb(${c.r},${c.g},${c.b})` }"
+                    @click="pen = { ...c }"
                   />
                 </div>
-                <div class="rounded border border-default p-3">
-                  <p class="text-sm text-muted">
-                    {{ pick({ zh: '体积', en: 'Size' }) }} = <span class="font-mono text-highlighted">{{ calcW }} × {{ calcH }} × {{ calcBpp }} / 8</span> =
-                    <span class="text-lg font-bold text-primary font-mono">{{ fmtBytes(calcBytes) }}</span>
-                  </p>
+                <div class="mt-3 flex items-center gap-3">
+                  <div
+                    class="size-8 rounded border border-default shrink-0"
+                    :style="{ background: rgbHex(pen.r, pen.g, pen.b) }"
+                  />
+                  <div class="grid grid-cols-3 gap-2 flex-1">
+                    <label class="block text-xs text-muted">R <input
+                      v-model.number="pen.r"
+                      type="range"
+                      min="0"
+                      max="255"
+                      class="w-full accent-primary"
+                    ></label>
+                    <label class="block text-xs text-muted">G <input
+                      v-model.number="pen.g"
+                      type="range"
+                      min="0"
+                      max="255"
+                      class="w-full accent-primary"
+                    ></label>
+                    <label class="block text-xs text-muted">B <input
+                      v-model.number="pen.b"
+                      type="range"
+                      min="0"
+                      max="255"
+                      class="w-full accent-primary"
+                    ></label>
+                  </div>
                 </div>
               </div>
-              <div>
-                <p class="text-xs text-muted mb-2">
-                  {{ pick({ zh: '这就是由下方这么多真实像素组成的图：', en: 'This image is literally made of the pixels below:' }) }}
-                </p>
-                <canvas
-                  ref="sizeCanvas"
-                  :width="SIZE_SCALE"
-                  :height="SIZE_SCALE"
-                  class="w-full max-w-[360px] rounded border border-default"
-                />
-              </div>
-            </div>
-          </UCard>
-        </div>
-
-        <!-- 4 · 像素绘制工具 -->
-        <div v-else>
-          <UCard>
-            <template #header>
-              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                <UIcon
-                  name="i-lucide-brush"
-                  class="size-4 text-primary"
-                />
-                <span>{{ pick({ zh: '像素绘制工具', en: 'Pixel drawing tool' }) }}</span>
-              </div>
-            </template>
-            <div class="grid lg:grid-cols-[auto_1fr] gap-6">
-              <div class="space-y-3">
-                <canvas
-                  ref="drawCanvas"
-                  :width="400"
-                  :height="400"
-                  class="rounded border border-default cursor-pointer touch-none"
-                  @pointerdown="paintAt"
-                  @pointermove="onHover"
-                />
-                <p
-                  v-if="hoverPixel"
-                  class="text-xs text-muted font-mono"
+              <div class="flex flex-wrap gap-2">
+                <UButton
+                  icon="i-lucide-eraser"
+                  color="neutral"
+                  variant="subtle"
+                  @click="clearDraw"
                 >
-                  ({{ hoverPixel.x }}, {{ hoverPixel.y }}) · {{ hoverPixel.hex }}
-                </p>
+                  {{ pick({ zh: '清空', en: 'Clear' }) }}
+                </UButton>
+                <UButton
+                  icon="i-lucide-paint-bucket"
+                  color="neutral"
+                  variant="subtle"
+                  @click="fillAll"
+                >
+                  {{ pick({ zh: '填充全部', en: 'Fill all' }) }}
+                </UButton>
+                <UButton
+                  icon="i-lucide-download"
+                  color="primary"
+                  @click="downloadDraw"
+                >
+                  {{ pick({ zh: '下载 PNG', en: 'Download PNG' }) }}
+                </UButton>
               </div>
-              <div class="space-y-4">
-                <div>
-                  <p class="text-xs text-muted mb-2">
-                    {{ pick({ zh: '画笔颜色', en: 'Brush color' }) }}
-                  </p>
-                  <div class="flex flex-wrap gap-2">
-                    <button
-                      v-for="(c, i) in palettes"
-                      :key="i"
-                      type="button"
-                      class="size-8 rounded border border-default cursor-pointer"
-                      :style="{ background: `rgb(${c.r},${c.g},${c.b})` }"
-                      @click="pen = { ...c }"
-                    />
-                  </div>
-                  <div class="mt-3 flex items-center gap-3">
-                    <div
-                      class="size-8 rounded border border-default shrink-0"
-                      :style="{ background: rgbHex(pen.r, pen.g, pen.b) }"
-                    />
-                    <div class="grid grid-cols-3 gap-2 flex-1">
-                      <label class="block text-xs text-muted">R <input
-                        v-model.number="pen.r"
-                        type="range"
-                        min="0"
-                        max="255"
-                        class="w-full accent-primary"
-                      ></label>
-                      <label class="block text-xs text-muted">G <input
-                        v-model.number="pen.g"
-                        type="range"
-                        min="0"
-                        max="255"
-                        class="w-full accent-primary"
-                      ></label>
-                      <label class="block text-xs text-muted">B <input
-                        v-model.number="pen.b"
-                        type="range"
-                        min="0"
-                        max="255"
-                        class="w-full accent-primary"
-                      ></label>
-                    </div>
-                  </div>
-                </div>
-                <div class="flex flex-wrap gap-2">
-                  <UButton
-                    icon="i-lucide-eraser"
-                    color="neutral"
-                    variant="subtle"
-                    @click="clearDraw"
-                  >
-                    {{ pick({ zh: '清空', en: 'Clear' }) }}
-                  </UButton>
-                  <UButton
-                    icon="i-lucide-paint-bucket"
-                    color="neutral"
-                    variant="subtle"
-                    @click="fillAll"
-                  >
-                    {{ pick({ zh: '填充全部', en: 'Fill all' }) }}
-                  </UButton>
-                  <UButton
-                    icon="i-lucide-download"
-                    color="primary"
-                    @click="downloadDraw"
-                  >
-                    {{ pick({ zh: '下载 PNG', en: 'Download PNG' }) }}
-                  </UButton>
-                </div>
-                <p class="text-xs text-dimmed">
-                  {{ pick({ zh: '画布默认全白，点击/拖动用当前画笔上色；底层就是 16×16×4 的字节数组。', en: 'Canvas starts all-white; click/drag to paint. Under the hood it is a 16×16×4 byte array.' }) }}
-                </p>
-              </div>
+              <p class="text-xs text-dimmed">
+                {{ pick({ zh: '画布默认全白，点击/拖动用当前画笔上色；底层就是 16×16×4 的字节数组。', en: 'Canvas starts all-white; click/drag to paint. Under the hood it is a 16×16×4 byte array.' }) }}
+              </p>
             </div>
-          </UCard>
-        </div>
+          </div>
+        </UCard>
       </div>
-    </div>
+    </ToolSidebar>
   </MediaDemoShell>
 </template>

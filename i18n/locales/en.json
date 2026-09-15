@@ -126,6 +126,11 @@
     "uploadHint": "Common formats supported, auto-resized",
     "tooLarge": "File too large. Please upload a file under {max} MB"
   },
+  "webcam": {
+    "useCamera": "Use camera",
+    "capture": "Capture",
+    "closeCamera": "Close camera"
+  },
   "textEmbedder": {
     "textA": "Text A",
     "textB": "Text B",
@@ -807,7 +812,7 @@
     "fps": "Inference",
     "results": "Results",
     "backend": "Backend",
-    "placeholder": "Click “Start camera”, then switch tasks with the chips above (all local).",
+    "placeholder": "Click “Start camera”, then switch tasks from the list on the left (all local).",
     "running": "Detecting… (all in-browser, nothing is uploaded)",
     "idle": "Model ready — click “Start camera”",
     "loading": "Loading {name} model ({file})…",

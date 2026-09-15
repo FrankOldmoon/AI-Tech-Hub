@@ -240,13 +240,13 @@ onBeforeUnmount(() => {
       >{{ inferenceTime }} ms</span>
     </div>
 
-    <!-- 图片 / 示例（非摄像头运行时可拖拽上传） -->
-    <MediaInput
+    <!-- 图片 / 示例 / 摄像头拍照（非实时运行时显示，与各视觉页输入形态一致） -->
+    <SampleImagePicker
       v-if="mode === 'image' || !running"
       :samples="sampleImages"
-      :disabled="downloading || loading"
+      :disabled="downloading || loading || starting"
       @select="runImageFile"
-      @sample="useSample"
+      @pick="useSample"
     />
 
     <!-- 错误 -->
