@@ -93,7 +93,7 @@ async function ensureModel() {
       envReady = true
     }
     const { env, AutoProcessor, MultiModalityCausalLM } = await import('@huggingface/transformers')
-    // Janus 模型未放在 public/model/transformers，跳过本地探测避免 404 噪音
+    // Janus 模型未放在 .models/transformers，跳过本地探测避免 404 噪音
     const prevAllowLocal = env.allowLocalModels
     env.allowLocalModels = false
     const modelId = 'onnx-community/Janus-Pro-1B-ONNX'

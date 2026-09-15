@@ -10,8 +10,8 @@ const mobileOpen = ref(false)
     <AppSidebar class="hidden lg:block" />
 
     <div class="flex-1 min-w-0">
-      <!-- 小屏：菜单按钮 -->
-      <div class="lg:hidden p-3 border-b border-default">
+      <!-- 小屏：菜单按钮（<768px；中屏 ≥768 用 header 水平导航，避免两个入口重复） -->
+      <div class="md:hidden p-3 border-b border-default">
         <UButton
           icon="i-lucide-menu"
           color="neutral"

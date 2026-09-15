@@ -3,6 +3,7 @@ import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
 import { fetchSample } from '~/utils/samples'
+import { decodeTo16k } from '~/utils/audio'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -176,26 +177,6 @@ function pickFile() {
   fileInput.value?.click()
 }
 
-/** 解码音频并重采样到 16kHz 单声道（Whisper 期望格式） */
-async function decodeTo16k(file: File): Promise<Float32Array> {
-  const buf = await file.arrayBuffer()
-  const Ctx: any = window.AudioContext || (window as any).webkitAudioContext
-  const ctx = new Ctx()
-  try {
-    const audio = await ctx.decodeAudioData(buf)
-    const src = audio.getChannelData(0)
-    if (audio.sampleRate === 16000) return src.slice()
-    const ratio = audio.sampleRate / 16000
-    const out = new Float32Array(Math.floor(src.length / ratio))
-    for (let i = 0; i < out.length; i++) {
-      out[i] = src[Math.floor(i * ratio)]
-    }
-    return out
-  } finally {
-    ctx.close()
-  }
-}
-
 async function transcribe() {
   if (!audioFile.value) {
     whisperError.value = t('asr.whisper.uploadRequired')
@@ -210,11 +191,10 @@ async function transcribe() {
   whisperStatus.value = t('asr.whisper.loadingModel')
   cancelled = false
   try {
-    const env = await setupTransformersEnv()
+    // whisper 三档已随 `pnpm models:fetch` 预取到 .models/transformers/，默认走本地，
+    // 缺失的文件才回退 /api/hf 远程（见 server/utils/model-fetch.mjs）
+    await setupTransformersEnv()
     const { pipeline } = await import('@huggingface/transformers')
-    // whisper 模型未放在 public/model/transformers，跳过本地探测避免 404 噪音
-    const prevAllowLocal = env.allowLocalModels
-    env.allowLocalModels = false
     const onProgress = (p: any) => {
       if (!p) return
       if (p.status === 'progress' && p.total) {
@@ -241,8 +221,6 @@ async function transcribe() {
       } else {
         throw e
       }
-    } finally {
-      env.allowLocalModels = prevAllowLocal
     }
     whisperLoading.value = false
     whisperStatus.value = t('asr.whisper.transcribing')

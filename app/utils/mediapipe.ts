@@ -1,5 +1,5 @@
 // MediaPipe Tasks JS 共用配置：wasm 文件集路径与模型资源路径
-// wasm 和模型均从本地 public/model/ 加载
+// wasm 和模型均从本地 .models/ 加载（经 /model/* API 路由 Range 服务）
 import { isRemoteDeploy, REMOTE_MEDIAPIPE_WASM, REMOTE_MEDIAPIPE_MODELS } from './remote-models'
 
 /** @mediapipe/tasks-* wasm 文件集本地路径 */

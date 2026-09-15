@@ -5,7 +5,7 @@ import type { ParamSpec } from './params'
 /** 初始化 transformers.js 运行环境（仅客户端调用一次） */
 export async function setupTransformersEnv() {
   const { env } = await import('@huggingface/transformers')
-  // 优先从本地 public/model/transformers/ 加载
+  // 优先从本地 .models/transformers/ 加载（经 /model/* API 路由 Range 服务）
   env.allowLocalModels = true
   env.localModelPath = '/model/transformers'
   // 远程回退：使用本地代理转发 hf-mirror.com，绕过 CORS
@@ -66,6 +66,8 @@ export interface TransformersTextTaskConfig {
   parseItems?: (raw: unknown) => Array<{ label: string, value?: string, score?: number }>
   /** 解析为纯文本 */
   parseText?: (raw: unknown) => string
+  /** 预置示例（试试示例按钮组）：labelKey 为 i18n key，values 按 input.key 填充 */
+  examples?: Array<{ labelKey: string, values: Record<string, string> }>
 }
 
 /** pipeline 返回项的宽松结构（各 pipeline 字段不一，按需取用） */
@@ -105,7 +107,11 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       label: r.entity_group || r.entity || '—',
       value: r.word,
       score: r.score
-    }))
+    })),
+    examples: [
+      { labelKey: 'samples.exNerPerson', values: { text: 'My name is Sarah and I live in London. I work at Google.' } },
+      { labelKey: 'samples.exNerNews', values: { text: 'Apple CEO Tim Cook visited China to meet with officials and discuss trade.' } }
+    ]
   },
 
   'zero-shot': {
@@ -126,7 +132,11 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       const item = (r ?? {}) as PipelineItem
       if (!item.labels) return []
       return item.labels.map((label: string, i: number) => ({ label, score: item.scores?.[i] }))
-    }
+    },
+    examples: [
+      { labelKey: 'samples.exZsMovie', values: { text: 'This movie was absolutely fantastic! The acting was superb and the story kept me on the edge of my seat.', labels: 'positive, negative, neutral' } },
+      { labelKey: 'samples.exZsNews', values: { text: 'The government announced that new AI regulations will take effect next year, affecting all major tech companies.', labels: 'technology, politics, sports, education' } }
+    ]
   },
 
   'summarization': {
@@ -148,7 +158,11 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       { key: 'minLength', label: t('tf.minLength'), type: 'slider', default: 20, min: 5, max: 100, step: 5 }
     ],
     // 返回 [{summary_text}]
-    parseText: raw => (Array.isArray(raw) ? raw[0] : raw)?.summary_text || ''
+    parseText: raw => (Array.isArray(raw) ? raw[0] : raw)?.summary_text || '',
+    examples: [
+      { labelKey: 'samples.exSummaryAI', values: { text: 'Artificial intelligence has transformed industries ranging from healthcare to transportation. In medicine, AI systems now assist doctors in detecting diseases from medical images with accuracy comparable to human experts. Self-driving cars use neural networks to process sensor data and make split-second decisions. However, these advances also raise important questions about privacy, bias, and the future of work. Researchers continue to debate how to balance innovation with ethical safeguards.' } },
+      { labelKey: 'samples.exSummaryEiffel', values: { text: 'The tower is 324 metres (1,063 ft) tall, about the same height as an 81-storey building, and the tallest structure in Paris. Its base is square, measuring 125 metres (410 ft) on each side. During its construction, the Eiffel Tower surpassed the Washington Monument to become the tallest man-made structure in the world, a title it held for 41 years until the Chrysler Building in New York City was finished in 1930.' } }
+    ]
   },
 
   'qa': {
@@ -165,6 +179,11 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
     ],
     // 返回 [{answer, score}] 或单个对象
     parseItems: raw => toItems(raw).map(r => ({ label: r.answer || '—', score: r.score }))
+    ,
+    examples: [
+      { labelKey: 'samples.exQaEiffel', values: { question: 'When was the Eiffel Tower built?', context: 'The Eiffel Tower was constructed from 1887 to 1889 as the entrance to the 1889 World\'s Fair. It is named after the engineer Gustave Eiffel.' } },
+      { labelKey: 'samples.exQaMars', values: { question: 'Which planet is known as the Red Planet?', context: 'Mars is the fourth planet from the Sun and the second-smallest planet in the Solar System. It is often called the "Red Planet" because of the iron oxide on its surface, which gives it a reddish appearance.' } }
+    ]
   },
 
   'fill-mask': {
@@ -183,6 +202,10 @@ export const transformersTextTasks: Record<string, TransformersTextTaskConfig> =
       label: r.token_str || '—',
       value: r.sequence,
       score: r.score
-    }))
+    })),
+    examples: [
+      { labelKey: 'samples.exMaskCapital', values: { text: 'The capital of France is [MASK].' } },
+      { labelKey: 'samples.exMaskPlanets', values: { text: 'There are [MASK] planets in the Solar System.' } }
+    ]
   }
 }

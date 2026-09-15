@@ -50,8 +50,9 @@ const blacks = computed<Array<{ id: string, freq: number, afterIdx: number }>>((
 
 const whiteCount = computed(() => whites.value.length)
 
+/** 黑键定位于第 idx 个白键的右边界（白键等宽 flex-1，第 k 个右边界 = k/总数） */
 function blackLeft(idx: number): string {
-  return `${((idx - 1) / Math.max(1, whiteCount.value)) * 100}%`
+  return `${(idx / Math.max(1, whiteCount.value)) * 100}%`
 }
 
 function ensure() {

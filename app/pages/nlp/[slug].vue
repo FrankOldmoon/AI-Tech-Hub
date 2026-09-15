@@ -4,6 +4,7 @@ import type { TransformersTextTaskConfig } from '~/utils/transformers'
 
 const route = useRoute()
 const { getDemo } = useDemos()
+const { t } = useI18n()
 
 const slug = computed(() => route.params.slug as string)
 const demo = computed(() => getDemo('nlp', slug.value))
@@ -34,6 +35,24 @@ onMounted(async () => {
 
 const createTask = computed(() => mpCfg.value?.create ?? null)
 const method = computed(() => mpCfg.value?.method ?? 'classify')
+
+// MediaPipe 文本任务示例（text-classifier / language-detector 共用的多语言例句）
+const textSamples = computed<Array<{ label: string, text: string }> | null>(() => {
+  if (taskKind.value !== 'mediapipe') return null
+  if (method.value === 'detect') {
+    return [
+      { label: 'EN', text: 'Artificial intelligence is changing the way we live and work every single day.' },
+      { label: '中文', text: '人工智能正在以惊人的速度改变我们的生活方式。' },
+      { label: '日本語', text: '人工知能は私たちの生活を急速に変えています。' },
+      { label: 'Français', text: 'L\'intelligence artificielle transforme rapidement notre quotidien.' }
+    ]
+  }
+  return [
+    { label: t('samples.exSentimentPos'), text: 'I absolutely love this new feature, it works perfectly and saves me so much time!' },
+    { label: t('samples.exSentimentNeg'), text: 'This was the worst experience ever, I am extremely disappointed with the service.' },
+    { label: t('samples.exTopicNews'), text: 'The government announced new policies to boost the economy and create more jobs.' }
+  ]
+})
 </script>
 
 <template>
@@ -47,6 +66,8 @@ const method = computed(() => mpCfg.value?.method ?? 'classify')
         <MediaTextRunner
           :create-task="createTask!"
           :method="method"
+          :model="mpCfg?.model"
+          :samples="textSamples"
         >
           <template #result="{ result }">
             <!-- 文本分类：classifications[0].categories -->

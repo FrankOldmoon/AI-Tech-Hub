@@ -1,7 +1,7 @@
 /**
  * 远程模型资源配置
  *
- * 本地开发（localhost）使用 public/model/ 本地文件；
+ * 本地开发（localhost）使用 .models/ 本地文件（经 /model/* API 路由 Range 服务）；
  * 云端部署（Vercel 等，无静态模型文件）自动切换到远程 URL：
  * - MediaPipe WASM -> jsdelivr CDN（与 npm 包同源）
  * - MediaPipe 模型 -> Google 官方模型存储（带 CORS）

@@ -5,8 +5,13 @@ export type ParamType = 'slider' | 'number' | 'select' | 'switch' | 'text'
 
 export interface ParamOption {
   label: string
-  value: string | number | boolean
+  value?: string | number | boolean
+  /** Nuxt UI Select 组标题条目（type: 'label'，无 value） */
+  type?: 'label'
 }
+
+/** Select 可选项：平铺数组，或「数组的数组」分组（每项为一组，组内可用 type:'label' 当标题） */
+export type ParamOptions = ParamOption[] | ParamOption[][]
 
 export interface ParamSpec {
   /** 参数键名，对应 values 对象的字段 */
@@ -19,8 +24,8 @@ export interface ParamSpec {
   min?: number
   max?: number
   step?: number
-  /** select 类型的可选项 */
-  options?: ParamOption[]
+  /** select 类型的可选项（支持平铺或分组） */
+  options?: ParamOptions
   /** 附加说明（已本地化） */
   help?: string
   /** 是否在运行中禁用（默认 true：运行时禁用） */

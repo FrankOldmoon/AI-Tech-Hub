@@ -122,7 +122,7 @@
 
 | 项目 | 说明 | 备注 |
 |------|------|------|
-| **MNIST 手写数字训练** | 浏览器内训练 CNN/MLP 识别 0-9，实时 loss/accuracy、画板手写测试、混淆矩阵 | 参考 [nomi30701/mnist-playground-tfjs](https://github.com/nomi30701/mnist-playground-tfjs)（WebGPU 优先、WebGL 兜底）；MNIST 数据压缩约 10MB 放 `public/model/` |
+| **MNIST 手写数字训练** | 浏览器内训练 CNN/MLP 识别 0-9，实时 loss/accuracy、画板手写测试、混淆矩阵 | 参考 [nomi30701/mnist-playground-tfjs](https://github.com/nomi30701/mnist-playground-tfjs)（WebGPU 优先、WebGL 兜底）；MNIST 数据压缩约 10MB 放 `.models/transformers/` |
 | **K-Means 聚类可视化** | 画布点集 + 步进迭代（Lloyd），可调 K、显示质心与 inertia 下降 | 参考 visualize-it / kanaries 交互；手写 K-Means++ 约 200 行，零依赖，无监督学习入门 |
 | **回归拟合** | 画布点出数据 → 选线性/多项式 → SGD 实时拟合曲线 + loss 曲线 | 参考 tfjs-examples/polynomial-regression、Google Codelab tfjs-training-regression |
 | **强化学习 CartPole** | 浏览器内 policy gradient 训练倒立摆，canvas 可视化，实时观看学习过程 | 官方 [tfjs-examples/cart-pole](https://github.com/tensorflow/tfjs-examples/blob/master/cart-pole/README.md) 可移植；分帧训练防卡 UI；支持 IndexedDB 保存模型 |

@@ -79,18 +79,21 @@ pnpm dev
 
 ### 模型管理
 
-模型默认下载到 `public/model/`（**不纳入 git**）：
+模型默认下载到项目根 `.models/`（**不纳入 git**，2026-09-10 起由 `public/model/` 迁出）：
 
 - 服务器启动时 `server/plugins/download-models.ts` 会自动检查并下载缺失模型（MediaPipe 模型/WASM、Transformers.js 模型、WebLLM 模型），已存在的文件跳过
 - 模型源：hf-mirror.com（HuggingFace 国内镜像）+ jsdelivr CDN
+- 运行时由 `server/routes/model/[...].ts` 以 HTTP Range(206) 从 `.models/` 服务 `/model/*` 请求，前端推理库引用路径不变；构建产物不再包含模型
+- `MODELS_DIR` 环境变量可覆盖模型目录位置
 - 目录结构：
 
 ```
-public/model/
+.models/
 ├── mediapipe/          # MediaPipe 模型 + WASM
 ├── transformers/       # Transformers.js ONNX 模型
 ├── tfjs/               # MobileNet / Speech Commands
-└── webllm/             # WebLLM 模型 + wasm 运行库
+├── webllm/             # WebLLM 模型 + wasm 运行库
+└── yolo/               # YOLO26n ONNX 模型
 ```
 
 - 若模型缺失，前端会通过 `/api/hf/**` 本地代理自动回退下载（绕过 CORS）

@@ -2,7 +2,7 @@
  * HuggingFace 模型代理 - 转发到 hf-mirror.com
  *
  * transformers.js 的 env.remoteHost 指向 /api/hf（见 app/utils/transformers.ts），
- * 本地 public/model/transformers/ 缺少文件时回退到这里下载，绕过 CORS。
+ * 本地 .models/transformers/ 缺少文件时回退到这里下载，绕过 CORS。
  *
  * 请求格式：/api/hf/{model}/resolve/{revision}/{file...}
  * 转发到： https://hf-mirror.com/{model}/resolve/{revision}/{file...}

@@ -15,16 +15,8 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
-const { demos, getCategory } = useDemos()
+const { getCategory } = useDemos()
 
-// 同分类内的上一个/下一个（审计维度四-3）
-const siblings = computed(() => {
-  if (!props.demo.slug || !props.demo.category) return []
-  return demos.value.filter(d => d.category === props.demo.category && d.status === 'ready')
-})
-const currentIndex = computed(() => siblings.value.findIndex(d => d.slug === props.demo.slug))
-const prevDemo = computed(() => currentIndex.value > 0 ? siblings.value[currentIndex.value - 1] : null)
-const nextDemo = computed(() => currentIndex.value >= 0 && currentIndex.value < siblings.value.length - 1 ? siblings.value[currentIndex.value + 1] : null)
 const category = computed(() => props.demo.category ? getCategory(props.demo.category) : null)
 
 // SEO：每个 demo 页独立 title/description（审计维度四-8）
@@ -76,33 +68,6 @@ useSeoMeta({
       <HowItWorksSection :text="demo.howItWorks" />
 
       <slot />
-
-      <!-- 上一个 / 下一个（同分类内，审计维度四-3） -->
-      <div
-        v-if="prevDemo || nextDemo"
-        class="flex items-center justify-between gap-3 pt-2"
-      >
-        <UButton
-          v-if="prevDemo"
-          :to="`/${prevDemo.category}/${prevDemo.slug}`"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-arrow-left"
-          :label="prevDemo.title"
-          class="max-w-[45%]"
-        />
-        <span v-else />
-        <UButton
-          v-if="nextDemo"
-          :to="`/${nextDemo.category}/${nextDemo.slug}`"
-          color="neutral"
-          variant="ghost"
-          icon="i-lucide-arrow-right"
-          trailing
-          :label="nextDemo.title"
-          class="max-w-[45%]"
-        />
-      </div>
     </div>
   </UContainer>
 </template>

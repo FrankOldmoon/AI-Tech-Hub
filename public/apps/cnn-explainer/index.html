@@ -114,7 +114,7 @@
   var maxIc = document.getElementById('pt-fs-max');
   var minIc = document.getElementById('pt-fs-min');
   var label = document.getElementById('pt-fs-label');
-  var zh = (navigator.language || '').toLowerCase().indexOf('zh') !== -1;
+  var _l = (new URLSearchParams(location.search)).get("locale"); var zh = _l ? _l.indexOf("zh") !== -1 : (navigator.language || "").toLowerCase().indexOf("zh") !== -1;
   function isFs() { return !!(document.fullscreenElement || document.webkitFullscreenElement); }
   function sync() {
     var fs = isFs();

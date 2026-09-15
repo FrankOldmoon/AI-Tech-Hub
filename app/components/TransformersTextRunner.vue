@@ -136,6 +136,14 @@ async function run() {
   }
 }
 
+/** 点击预置示例：填充对应输入并自动运行 */
+async function useExample(ex: { labelKey: string, values: Record<string, string> }) {
+  for (const [k, v] of Object.entries(ex.values)) {
+    inputValues.value[k] = v
+  }
+  await run()
+}
+
 onBeforeUnmount(async () => {
   try {
     if (pipe) await pipe.dispose?.()
@@ -165,8 +173,32 @@ onBeforeUnmount(async () => {
       </UBadge>
     </div>
 
+    <!-- 模型信息（教学向：模型名 / 来源 / 本地推理） -->
+    <div class="flex flex-wrap items-center gap-2 text-sm">
+      <span class="text-muted">{{ t('demo.model') }}:</span>
+      <code class="px-1.5 py-0.5 rounded bg-default ring-1 ring-inset ring-muted/40 font-mono text-xs break-all">{{ config.model }}</code>
+      <span class="text-xs text-dimmed">{{ t('demo.modelNote') }}</span>
+    </div>
+
     <!-- 输入区 -->
     <div class="space-y-3">
+      <div
+        v-if="config.examples?.length"
+        class="flex flex-wrap items-center gap-2"
+      >
+        <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
+        <UButton
+          v-for="ex in config.examples"
+          :key="ex.labelKey"
+          :label="t(ex.labelKey)"
+          icon="i-lucide-wand-2"
+          size="xs"
+          color="neutral"
+          variant="soft"
+          :disabled="running"
+          @click="useExample(ex)"
+        />
+      </div>
       <div
         v-for="inp in config.inputs"
         :key="inp.key"

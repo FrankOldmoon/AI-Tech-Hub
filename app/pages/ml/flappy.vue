@@ -245,6 +245,7 @@ onBeforeUnmount(() => pause())
 
     <div class="grid lg:grid-cols-[auto_1fr] gap-6 items-start">
       <div class="space-y-2">
+        <RuntimeStats v-if="running" class="pb-1" />
         <canvas
           ref="canvasRef"
           :width="W"

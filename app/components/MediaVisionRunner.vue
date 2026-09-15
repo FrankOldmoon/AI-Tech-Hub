@@ -93,6 +93,12 @@ async function startWebcam() {
   }
   stopLoop()
   mode.value = 'webcam'
+  // 非安全上下文（非 https / 非 localhost）时 mediaDevices 为 undefined，需单独提示
+  if (!navigator.mediaDevices?.getUserMedia) {
+    error.value = t('errors.insecureContext')
+    starting.value = false
+    return
+  }
   try {
     stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
     const video = videoRef.value!

@@ -234,7 +234,7 @@ onBeforeUnmount(async () => {
       <label class="mt-4 block">
         <span class="block text-sm font-medium text-muted mb-1">{{ t('bgRemoval.threshold') }}</span>
         <div class="flex items-center gap-3 max-w-sm">
-          <URange v-model="alphaThreshold" :min="0" :max="255" :step="1" class="flex-1" />
+          <USlider v-model="alphaThreshold" :min="0" :max="255" :step="1" class="flex-1" />
           <span class="text-sm text-muted w-10 text-right">{{ alphaThreshold }}</span>
         </div>
       </label>

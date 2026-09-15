@@ -14,10 +14,11 @@ const elapsed = ref(0)
 const error = ref<string | null>(null)
 const cpm = ref(0)
 const wpm = ref(0)
+/** 已识别字符数（响应式：模板与 cpm/wpm 一起刷新，不再依赖其它 ref 顺带触发渲染） */
+const chars = ref(0)
 
 let recognition: any = null
 let timer: number | null = null
-let chars = 0
 
 onMounted(() => {
   hydrated.value = true
@@ -32,7 +33,7 @@ onMounted(() => {
     let interimText = ''
     for (let i = e.resultIndex; i < e.results.length; i++) {
       const tx = e.results[i][0].transcript
-      if (e.results[i].isFinal) { finalText.value += tx; chars += tx.replace(/\s/g, '').length } else interimText += tx
+      if (e.results[i].isFinal) { finalText.value += tx; chars.value += tx.replace(/\s/g, '').length } else interimText += tx
     }
     interim.value = interimText
   }
@@ -43,14 +44,14 @@ onMounted(() => {
 function start() {
   if (!recognition) return
   error.value = null
-  finalText.value = ''; interim.value = ''; chars = 0
+  finalText.value = ''; interim.value = ''; chars.value = 0
   elapsed.value = 0; cpm.value = 0; wpm.value = 0
   if (timer !== null) clearInterval(timer)
   timer = window.setInterval(() => {
     elapsed.value++
     const mins = elapsed.value / 60 || 1e-9
-    cpm.value = Math.round(chars / mins)
-    wpm.value = Math.round((chars / 5) / mins) // 以 5 字符/词 估算
+    cpm.value = Math.round(chars.value / mins)
+    wpm.value = Math.round((chars.value / 5) / mins) // 以 5 字符/词 估算
   }, 1000)
   try { recognition.start(); listening.value = true } catch { /* */ }
 }

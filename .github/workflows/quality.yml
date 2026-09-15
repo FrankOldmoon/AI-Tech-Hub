@@ -1,0 +1,35 @@
+name: Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  i18n-and-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.18.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # i18n key 完整性：缺失 key 会直接拦截合并（防止 P0-2 类问题回归）
+      - name: Check i18n keys
+        run: pnpm check:i18n
+
+      # 单元测试：任务轮询 / 文件上传 / 错误工具等
+      - name: Run unit tests
+        run: pnpm test
+
+  # 注：全量 lint（基线 ~1700 错误）与 typecheck（基线 ~550 错误）尚未收敛，
+  # 暂不进 CI；待基线清零后单独开启，见 docs/QUALITY-GATE.md。

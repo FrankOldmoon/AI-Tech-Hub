@@ -36,8 +36,8 @@ onMounted(() => {
         to="/"
         class="flex items-center gap-2"
       >
-        <AppLogo class="h-6 w-auto" />
-        <span class="font-bold text-highlighted">{{ t('site.title') }}</span>
+        <AppLogo class="h-6 w-auto shrink-0" />
+        <span class="font-bold text-highlighted whitespace-nowrap">{{ t('site.title') }}</span>
       </NuxtLink>
     </template>
 
@@ -45,6 +45,11 @@ onMounted(() => {
       :items="navItems"
       variant="link"
       class="hidden md:flex -mb-px"
+      :ui="{
+        root: 'relative gap-1.5 md:gap-1 lg:gap-1.5 [&>div]:min-w-0 items-center justify-between hidden md:flex -mb-px',
+        // 中屏 768–1023px 隐藏导航项图标（每项省 ~20px），腾出空间给右侧按钮；lg+ 恢复图标+文字
+        linkLeadingIcon: 'shrink-0 size-5 hidden lg:block'
+      }"
     />
 
     <template #right>

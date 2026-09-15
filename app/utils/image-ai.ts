@@ -74,7 +74,7 @@ export async function segmentImage(
   imageData: ImageData,
   mode: 'background-removal' | 'overlay'
 ): Promise<ImageData> {
-  const { FilesetResolver, ImageSegmenter, DrawingUtils } = await import('@mediapipe/tasks-vision')
+  const { FilesetResolver, ImageSegmenter } = await import('@mediapipe/tasks-vision')
   const vision = await FilesetResolver.forVisionTasks(mediapipeWasm.vision)
   const segmenter = await ImageSegmenter.createFromOptions(vision, {
     baseOptions: { modelAssetPath: mediapipeModels.selfieSegmenter, delegate: 'GPU' },
@@ -88,11 +88,21 @@ export async function segmentImage(
     const mask = result.categoryMask
     const maskData = mask.getAsUint8Array()
     if (mode === 'overlay') {
-      // 用 DrawingUtils 在画布上叠加半透明绿色
+      // 逐像素着色叠加半透明绿色（与 image-segmenter 一致，无 WebGL2 / DrawingUtils 依赖）
       const canvas = toCanvas(imageData)
       const ctx = canvas.getContext('2d')!
-      const d = new DrawingUtils(ctx)
-      d.drawCategoryMask(result.categoryMask, ['rgba(0,0,0,0)', 'rgba(0,220,130,0.55)'])
+      const overlay = ctx.createImageData(canvas.width, canvas.height)
+      const px = overlay.data
+      for (let i = 0; i < maskData.length; i++) {
+        if (maskData[i] > 0) {
+          const j = i * 4
+          px[j] = 0
+          px[j + 1] = 220
+          px[j + 2] = 130
+          px[j + 3] = 153
+        }
+      }
+      ctx.putImageData(overlay, 0, 0)
       return ctx.getImageData(0, 0, canvas.width, canvas.height)
     }
     // 背景移除：mask==0 的像素 alpha 置 0

@@ -122,7 +122,7 @@ async function loadModel() {
       engine = null
       loadedModelId = null
     }
-    // 从本地 public/model/webllm/ 加载模型
+    // 从本地 .models/webllm/ 加载模型（经 /model/webllm/ API 路由 Range 服务）
     // 注意：必须用绝对 URL（WebLLM 内部 cleanModelUrl 会 new URL(相对路径) 且无 base，相对路径会抛 "Invalid URL"）
     // 云端（Vercel）无本地模型：保留默认 HuggingFace / GitHub raw URL 直连
     const localize = !isRemoteDeploy()

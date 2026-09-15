@@ -8,6 +8,10 @@
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('ml', 'cnn-explainer')!)
+
+// locale 同步：切语言时 iframe 子应用跟随（?locale=zh|en）
+const { locale, withLocale } = useIframeLocale()
+const iframeSrc = computed(() => withLocale('/apps/cnn-explainer/index.html'))
 </script>
 
 <template>
@@ -19,15 +23,6 @@ const demo = computed(() => getDemo('ml', 'cnn-explainer')!)
       :title="t('cnnExplainer.externalNote')"
       class="mb-3"
     />
-    <div class="rounded-lg overflow-hidden ring ring-default bg-default">
-      <iframe
-        src="/apps/cnn-explainer/index.html"
-        class="w-full border-0"
-        style="height: 85vh"
-        :title="demo.title"
-        allowfullscreen
-        loading="lazy"
-      />
-    </div>
+    <DemoIframeLoader :key="locale" :src="iframeSrc" :title="demo.title" />
   </MediaDemoShell>
 </template>
