@@ -17,6 +17,8 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.12.6",
+    "@ffmpeg/ffmpeg": "0.12.10",
     "@huggingface/transformers": "^4.2.0",
     "@iconify-json/lucide": "^1.2.121",
     "@iconify-json/simple-icons": "^1.2.92",
