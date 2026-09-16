@@ -362,6 +362,62 @@ export const demos: Demo[] = [
     tags: ['TTS', 'Kokoro', 'Multi-voice']
   },
   {
+    slug: 'audio-recorder',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '录音工具', en: 'Audio Recorder' },
+    description: { zh: '用麦克风录音并实时显示输入电平；录完可试听、下载，也能在浏览器内转成 MP3 / WAV / OGG / M4A / FLAC。', en: 'Record from the microphone with a live input level meter; play back, download, and convert to MP3 / WAV / OGG / M4A / FLAC in the browser.' },
+    howItWorks: { zh: 'MediaRecorder 直接采集麦克风并用浏览器原生编码（Chrome 为 webm/Opus，Safari 为 m4a/AAC），音频不经过服务器。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，转换全在本地完成。电平表由 WebAudio 分析节点驱动。', en: 'MediaRecorder captures the microphone with the browser’s native codec (webm/Opus on Chrome, m4a/AAC on Safari); audio never touches a server. Conversion uses ffmpeg.wasm, lazily loaded from a CDN with the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here): ~32MB on first use, all on-device. A WebAudio analyser node drives the level meter.' },
+    icon: 'i-lucide-mic',
+    status: 'ready',
+    requirements: { mic: true },
+    tags: ['MediaRecorder', 'ffmpeg.wasm', 'WebAudio']
+  },
+  {
+    slug: 'audio-convert',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '音频格式转换', en: 'Audio Format Converter' },
+    description: { zh: '在 MP3 / WAV / OGG / M4A / FLAC 之间互转，可调码率，并对比转换前后的体积。', en: 'Convert between MP3 / WAV / OGG / M4A / FLAC, adjust the bitrate, and compare the file size before and after.' },
+    howItWorks: { zh: '导入音频后选目标格式与码率：有损格式（MP3/OGG/M4A）可按 kbps 调，WAV/FLAC 是无损、无需码率。转换由 ffmpeg.wasm 完成（从 CDN 懒加载单线程核心），音频不上传。', en: 'Pick a target format and bitrate: lossy formats (MP3/OGG/M4A) take a kbps setting, while WAV/FLAC are lossless and need none. Conversion runs in ffmpeg.wasm (single-thread core fetched from a CDN) and audio never leaves the device.' },
+    icon: 'i-lucide-file-audio',
+    status: 'ready',
+    tags: ['MP3', 'WAV', 'FLAC', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'video-to-audio',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '视频提取音频', en: 'Extract Audio from Video' },
+    description: { zh: '从 MP4 / MOV / WebM 等视频里抽出音轨，存成 MP3 / WAV / OGG / M4A / FLAC。', en: 'Pull the audio track out of an MP4 / MOV / WebM video and save it as MP3 / WAV / OGG / M4A / FLAC.' },
+    howItWorks: { zh: '导入视频后只解码音轨（-vn 丢弃画面），按所选格式与码率重新编码，全程由 ffmpeg.wasm 在浏览器内完成，视频文件不上传。', en: 'The video is decoded for its audio only (-vn drops the picture) and re-encoded to the chosen format and bitrate. ffmpeg.wasm runs this in the browser; the video is never uploaded.' },
+    icon: 'i-lucide-audio-lines',
+    status: 'ready',
+    tags: ['Extract Audio', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'audio-compress',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '音频压缩', en: 'Audio Compressor' },
+    description: { zh: '降码率、降采样、转单声道一起压，并实时给出预计体积与源文件码率。', en: 'Lower the bitrate, drop the sample rate and mix to mono — with a live size estimate and the source bitrate for reference.' },
+    howItWorks: { zh: '码率决定体积（≈ 码率 ÷ 8 × 时长），降采样与单声道再砍一半；页面算出源文件平均码率供对比，并给出预计体积。编码由 ffmpeg.wasm 在浏览器内完成，音频不上传。', en: 'Bitrate drives size (≈ bitrate ÷ 8 × duration), while a lower sample rate and mono mixing halve it again. The page shows the source’s average bitrate for comparison plus a predicted output size. ffmpeg.wasm encodes locally; audio is never uploaded.' },
+    icon: 'i-lucide-minimize-2',
+    status: 'ready',
+    tags: ['Compress', 'Bitrate', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'audio-trim',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '音频裁剪', en: 'Audio Trimmer' },
+    description: { zh: '在波形上拖出要保留的一段，只导出这一段；输出格式默认跟随源文件。', en: 'Drag out the span to keep on the waveform and export just that part; the output format follows the source by default.' },
+    howItWorks: { zh: '波形由解码后的样本算每列峰值画出（不依赖播放），拖动选区选出片段，可先试听再导出。截取走 -ss/-t 重编码，格式默认跟随源文件（无损源不会被悄悄转成有损）。全程本地完成，音频不上传。', en: 'The waveform is drawn from per-column peaks of the decoded samples (no playback needed); drag to pick a span and audition it before exporting. Trimming uses -ss/-t with a re-encode, and the format follows the source by default so a lossless file is not silently turned into a lossy one. Everything stays local; nothing is uploaded.' },
+    icon: 'i-lucide-audio-waveform',
+    status: 'ready',
+    tags: ['Trim', 'Waveform', 'ffmpeg.wasm']
+  },
+  {
     slug: 'yolo',
     group: 'engine',
     classroomSafe: true,
@@ -1224,17 +1280,107 @@ export const demos: Demo[] = [
     category: 'vision',
     title: { zh: '录制工具', en: 'Recorder' },
     description: {
-      zh: '摄像头、屏幕、摄像头+屏幕（画中画）三种录制方式，摄像头录制自带音频；录完可直接下载，并能在浏览器内转成 MP4 / GIF / MP3。',
-      en: 'Record from the camera, the screen, or both (picture-in-picture). Camera mode captures audio too. Download the result, or convert it to MP4 / GIF / MP3 in the browser.'
+      zh: '摄像头、屏幕、摄像头+屏幕（画中画）三种录制方式，摄像头录制自带音频；录完可直接下载、在浏览器内转成 MP4 / GIF / MP3，或生成 SRT 字幕；摄像头模式还能单独拍照存成 JPG。',
+      en: 'Record from the camera, the screen, or both (picture-in-picture). Camera mode captures audio too. Download the result, convert it to MP4 / GIF / MP3, or generate an SRT subtitle file in the browser; camera mode can also snap a still as JPG.'
     },
     howItWorks: {
-      zh: '用 MediaRecorder 录制：屏幕走 getDisplayMedia，摄像头走 getUserMedia（含麦克风）。「摄像头+屏幕」把两路画进 canvas（屏幕铺底、摄像头右下角画中画）后录 canvas.captureStream()，音频用 WebAudio 混成一路。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，全部在本地完成、不上传。',
-      en: 'Recording uses MediaRecorder: getDisplayMedia for the screen, getUserMedia for the camera (with mic). The combined mode draws both into a canvas (screen plus a camera picture-in-picture) and records canvas.captureStream(), with audio mixed via WebAudio. Format conversion runs ffmpeg.wasm, lazily loaded from a CDN using the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here). ~32MB on first use, and everything stays on-device.'
+      zh: '用 MediaRecorder 录制：屏幕走 getDisplayMedia，摄像头走 getUserMedia（含麦克风）。「摄像头+屏幕」把两路画进 canvas（屏幕铺底、摄像头右下角画中画）后录 canvas.captureStream()，音频用 WebAudio 混成一路。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，全部在本地完成、不上传。「拍照」则是把当前帧画进 canvas 直接导成 JPG（摄像头模式抓预览帧，画中画模式抓合成画布）。',
+      en: 'Recording uses MediaRecorder: getDisplayMedia for the screen, getUserMedia for the camera (with mic). The combined mode draws both into a canvas (screen plus a camera picture-in-picture) and records canvas.captureStream(), with audio mixed via WebAudio. Format conversion runs ffmpeg.wasm, lazily loaded from a CDN using the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here). ~32MB on first use, and everything stays on-device. "Take photo" simply draws the current frame into a canvas and exports it as JPG (the camera preview in camera mode, the composed canvas in picture-in-picture mode).'
     },
     icon: 'i-lucide-circle-dot',
     status: 'ready',
     requirements: { camera: true, mic: true },
     tags: ['MediaRecorder', 'getDisplayMedia', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'image-convert',
+    group: 'media',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '图片格式转换', en: 'Image Format Converter' },
+    description: {
+      zh: '在 PNG / JPEG / WebP / BMP 之间互转，可调画质，并直接对比转换前后的体积。',
+      en: 'Convert between PNG / JPEG / WebP / BMP, adjust quality, and compare the file size before and after.'
+    },
+    howItWorks: {
+      zh: '上传或拖入图片，选目标格式后本地转码：由 ffmpeg.wasm 完成（从 CDN 懒加载单线程核心），图片不上传；完成后并排展示原始与结果体积，方便挑「够用又最小」的格式。',
+      en: 'Drop an image in, pick a target format and convert locally: ffmpeg.wasm does the work (single-thread core fetched from a CDN) and the file never leaves the device. Before/after sizes sit side by side so the smallest acceptable format is easy to pick.'
+    },
+    icon: 'i-lucide-file-image',
+    status: 'ready',
+    tags: ['PNG', 'JPEG', 'WebP', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'video-convert',
+    group: 'media',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '视频格式转换', en: 'Video Format Converter' },
+    description: {
+      zh: '把视频转成 MP4（可调分辨率与码率）或 GIF（可调帧率与宽度），全程本地完成。',
+      en: 'Convert a video to MP4 (resolution and bitrate adjustable) or GIF (frame rate and width adjustable), entirely on-device.'
+    },
+    howItWorks: {
+      zh: '导入视频后选目标格式与参数：MP4 走 H.264 + AAC（yuv420p、faststart，手机与剪辑软件都能直接播），GIF 先按帧率抽帧再单趟生成调色板（palettegen/paletteuse）。转码由 ffmpeg.wasm 完成，文件不上传；GIF 只有画面、没有声音。',
+      en: 'Pick a target format and its parameters: MP4 uses H.264 + AAC (yuv420p, faststart, so phones and editors can play and scrub it), while GIF drops to the chosen frame rate and builds a palette in a single palettegen/paletteuse pass. Conversion runs in ffmpeg.wasm with nothing uploaded; GIF carries picture only, no audio.'
+    },
+    icon: 'i-lucide-film',
+    status: 'ready',
+    tags: ['MP4', 'GIF', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'image-compress',
+    group: 'media',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '图片压缩', en: 'Image Compressor' },
+    description: {
+      zh: '给定目标体积（如 200 KB），自动逐档降画质压到线下；也可限制长边尺寸。',
+      en: 'Set a target size (say 200 KB) and it steps the quality down until the image fits; a max edge length can be applied too.'
+    },
+    howItWorks: {
+      zh: 'webp/jpeg 的体积对画质高度非线性、又依赖图像内容，没法一次算准，于是按画质阶梯（92→30）逐档编码并实测体积，命中目标即停；长边可另行限制。每档都是一次 ffmpeg.wasm 本地编码，图片不上传。',
+      en: 'WebP/JPEG size is highly non-linear with quality and depends on the picture, so it cannot be predicted in one shot: the page encodes down a quality ladder (92→30), measures each result and stops as soon as it fits. A max edge length can be applied as well. Every attempt is a local ffmpeg.wasm encode; nothing is uploaded.'
+    },
+    icon: 'i-lucide-archive',
+    status: 'ready',
+    tags: ['Compress', 'WebP', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'video-trim',
+    group: 'media',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '视频裁剪', en: 'Video Trimmer' },
+    description: {
+      zh: '按起止时间截取视频的一段，可先预览选区；输出为通用 MP4。',
+      en: 'Cut a segment out of a video by start/end time, preview the selection first, and export a universal MP4.'
+    },
+    howItWorks: {
+      zh: '拖滑块定起止（点「预览选区」只播这一段），截取时重编码为 H.264 + AAC：只有重编码才能帧级精确，顺带把 webm/mov 等统一成 MP4。全程由 ffmpeg.wasm 在浏览器内完成，文件不上传。',
+      en: 'Set the in/out points with sliders (use “Preview selection” to play just that span). Trimming re-encodes to H.264 + AAC: only a re-encode is frame-accurate, and it also normalises webm/mov into MP4. ffmpeg.wasm runs this in the browser and nothing is uploaded.'
+    },
+    icon: 'i-lucide-scissors',
+    status: 'ready',
+    tags: ['Trim', 'MP4', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'video-compress',
+    group: 'media',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '视频压缩', en: 'Video Compressor' },
+    description: {
+      zh: '按目标体积（或清晰度档位）把视频压小：由「目标体积 ÷ 时长」反推码率，压之前先算给你看。',
+      en: 'Shrink a video to a target size (or a quality preset): the bitrate is derived from target size ÷ duration, and the predicted size is shown up front.'
+    },
+    howItWorks: {
+      zh: '体积 ≈ 总码率 ÷ 8 × 时长，所以给定目标体积就能反推视频码率（扣掉音频码率），再按 ABR（-b:v + maxrate/bufsize）编码；分辨率与音频码率可一并下调。码率是平均目标，实际体积会随画面复杂度浮动 ±10~20%，因此压完会显示实际值、超出目标时给出提示。全程由 ffmpeg.wasm 在浏览器内完成，文件不上传。',
+      en: 'Size ≈ total bitrate ÷ 8 × duration, so a target size yields the video bitrate (audio bitrate subtracted) and the encode runs in ABR mode (-b:v with maxrate/bufsize); resolution and audio bitrate can be lowered as well. Bitrate is an average target, so the real size drifts ±10–20% with picture complexity — the page reports the actual size and warns when it overshoots. ffmpeg.wasm does the work locally; nothing is uploaded.'
+    },
+    icon: 'i-lucide-minimize-2',
+    status: 'ready',
+    tags: ['Compress', 'Bitrate', 'ffmpeg.wasm']
   },
   {
     slug: 'rebot-arm',

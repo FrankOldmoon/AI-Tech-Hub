@@ -1459,6 +1459,13 @@
     "start": "Start recording",
     "starting": "Starting…",
     "stop": "Stop recording",
+    "photo": "Take photo",
+    "photoTitle": "Photo",
+    "photoDownload": "Download photo",
+    "photoRetake": "Retake",
+    "photoClose": "Close camera",
+    "photoPreviewHint": "The camera is on for preview only (not recording). Snap the current frame, or close it when you're done — starting a recording takes over this stream automatically.",
+    "photoNotReady": "The camera frame isn't ready yet. Please try again in a moment.",
     "result": "Recording",
     "download": "Download",
     "downloadConverted": "Download converted",
@@ -1489,5 +1496,116 @@
     "subtitleHint": "Transcribes the audio inside the recording, entirely in your browser (the model is fetched once; nothing is uploaded). The recognition language follows the interface language.",
     "subtitleNoAudio": "This recording has no audio track, so subtitles cannot be generated.",
     "subtitleEmpty": "No speech was recognized, so no subtitle file was produced. Try a larger model if the audio is quiet."
+  },
+  "audioRecorder": {
+    "hint": "Press Start to record from the microphone. Play it back, download it, or convert it to another format. Audio is processed entirely in the browser and never uploaded.",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "recording": "Recording…",
+    "level": "Input level (the bar moves when you speak)",
+    "result": "Recording",
+    "download": "Download",
+    "downloadConverted": "Download converted file",
+    "recordAgain": "Record again",
+    "convertTitle": "Convert format",
+    "convert": "Start converting",
+    "converting": "Converting…",
+    "convertHint": "Conversion runs in the browser via ffmpeg (single-thread core, ~32MB downloaded from a CDN on first use). Your file is never uploaded. Longer recordings take longer to convert.",
+    "targetMp3": "MP3 (lossy, small, universal)",
+    "targetWav": "WAV (lossless PCM, large)",
+    "targetOgg": "OGG (Vorbis)",
+    "targetM4a": "M4A (AAC, Apple-friendly)",
+    "targetFlac": "FLAC (lossless compressed)",
+    "unsupported": "This browser cannot record audio (MediaRecorder is unavailable). Please use Chrome or Edge.",
+    "emptyRecording": "That recording came out empty — please try again."
+  },
+  "convert": {
+    "input": "Source file",
+    "target": "Output format",
+    "start": "Start converting",
+    "converting": "Converting…",
+    "download": "Download",
+    "again": "Choose another file",
+    "result": "Result",
+    "quality": "Quality",
+    "dimension": "Resolution",
+    "dimOriginal": "Original size",
+    "videoBitrate": "Video bitrate",
+    "audioBitrate": "Audio bitrate",
+    "losslessBitrate": "WAV / FLAC are lossless, so there is no bitrate to set.",
+    "gifFps": "GIF frame rate",
+    "gifWidth": "GIF width",
+    "smaller": "{n}% smaller than the original",
+    "larger": "{n}% larger than the original",
+    "hint": "Conversion runs in the browser via ffmpeg (single-thread core, ~32MB downloaded from a CDN on first use). Your file is never uploaded. Larger files take longer.",
+    "targetPng": "PNG (lossless, keeps transparency)",
+    "targetJpg": "JPEG (lossy, small)",
+    "targetWebp": "WebP (smaller, modern browsers)",
+    "targetBmp": "BMP (uncompressed bitmap)",
+    "targetMp4": "MP4 (H.264 + AAC)",
+    "targetGif": "GIF (silent looping animation)",
+    "targetMp3": "MP3 (lossy, universal)",
+    "targetWav": "WAV (lossless PCM)",
+    "targetOgg": "OGG (Vorbis)",
+    "targetM4a": "M4A (AAC)",
+    "targetFlac": "FLAC (lossless compressed)"
+  },
+  "imageConvert": {
+    "hint": "Drop an image here or click to choose; PNG / JPEG / WebP / BMP / GIF and friends are supported."
+  },
+  "videoConvert": {
+    "hint": "Drop a video here or click to choose; MP4 / MOV / WebM / MKV and friends are supported.",
+    "gifNote": "GIF has no audio and loops forever; a higher frame rate and width mean a bigger file."
+  },
+  "audioConvert": {
+    "hint": "Drop an audio file here or click to choose; MP3 / WAV / OGG / M4A / FLAC and friends are supported."
+  },
+  "videoToAudio": {
+    "hint": "Drop a video here or click to choose; only its audio track is kept.",
+    "note": "Only the audio track is kept — the picture is discarded."
+  },
+  "compress": {
+    "start": "Compress",
+    "targetSize": "Target size",
+    "maxDimension": "Max edge",
+    "qualityStep": "Quality {q} → {size}",
+    "used": "Used quality {q} after {n} attempt(s)",
+    "notReached": "Even the lowest quality did not reach the target, so the smallest result is shown. Try a smaller max edge.",
+    "estimated": "Roughly {size} expected"
+  },
+  "trim": {
+    "startLabel": "Start",
+    "endLabel": "End",
+    "selection": "Selected {len} of {total}",
+    "preview": "Preview selection",
+    "trim": "Trim"
+  },
+  "imageCompress": {
+    "hint": "Drop an image here or click to choose; handy for shrinking phone photos to a sendable size.",
+    "note": "WebP/JPEG size is highly non-linear with quality and cannot be predicted, so it encodes down a quality ladder and measures each result, stopping as soon as it fits."
+  },
+  "videoTrim": {
+    "hint": "Drop a video here or click to choose; cut out one segment of it.",
+    "note": "Frame-accurate cutting needs a re-encode, so the output is always MP4 (H.264 + AAC)."
+  },
+  "audioCompress": {
+    "hint": "Drop an audio file here or click to choose; a lower bitrate, sample rate or mono mixing all shrink it noticeably.",
+    "note": "Bitrate drives size (≈ bitrate ÷ 8 × duration); a lower sample rate and mono mixing halve it again.",
+    "sampleRate": "Sample rate",
+    "sampleRateKeep": "Keep original",
+    "mono": "Mix to mono (roughly halves the size)",
+    "sourceBitrate": "Source is about {kbps} kbps"
+  },
+  "audioTrim": {
+    "hint": "Drop an audio file here or click to choose; drag out the span to keep on the waveform.",
+    "dragHint": "Press and drag on the waveform to select the part to keep (a single click selects everything)."
+  },
+  "videoCompress": {
+    "hint": "Drop a video here or click to choose; shrink it to a target size or a quality preset.",
+    "note": "Size ≈ total bitrate ÷ 8 × duration, so a target size yields the bitrate; bitrate is an average target, so the real size drifts ±10–20% with picture complexity.",
+    "mode": "Mode",
+    "modeSize": "Target size",
+    "modeQuality": "Quality preset",
+    "over": "The result overshoots the target a little — bitrate is an average and complex scenes push it up. Try one step lower on resolution or bitrate."
   }
 }

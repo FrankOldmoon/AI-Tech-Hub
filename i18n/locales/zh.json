@@ -1459,6 +1459,13 @@
     "start": "开始录制",
     "starting": "正在启动…",
     "stop": "停止录制",
+    "photo": "拍照",
+    "photoTitle": "照片",
+    "photoDownload": "下载照片",
+    "photoRetake": "重新拍照",
+    "photoClose": "关闭摄像头",
+    "photoPreviewHint": "摄像头已开启，但只是在预览（没在录制）。点「拍照」抓当前画面，或者点「关闭摄像头」放掉它；开始录制会自动接管这一路。",
+    "photoNotReady": "摄像头画面还没就绪，请稍后再试。",
     "result": "录制结果",
     "download": "下载",
     "downloadConverted": "下载转换后文件",
@@ -1489,5 +1496,116 @@
     "subtitleHint": "对录制文件里的音轨做识别，全程在浏览器本地完成（首次需下载模型，数据不上传）。识别语言跟随界面语言。",
     "subtitleNoAudio": "本次录制没有音轨，无法生成字幕。",
     "subtitleEmpty": "没有识别到语音，未生成字幕文件。如果声音偏小，可换更大的模型再试。"
+  },
+  "audioRecorder": {
+    "hint": "点「开始录音」用麦克风录音，录完可以试听、下载，或转成别的格式。声音只在浏览器里处理，不会上传。",
+    "start": "开始录音",
+    "stop": "停止录音",
+    "recording": "正在录音…",
+    "level": "输入电平（对着麦克风说话条子会动）",
+    "result": "录音结果",
+    "download": "下载",
+    "downloadConverted": "下载转换后文件",
+    "recordAgain": "重新录制",
+    "convertTitle": "转换格式",
+    "convert": "开始转换",
+    "converting": "转换中…",
+    "convertHint": "转换在浏览器内由 ffmpeg 完成（单线程核心，首次从 CDN 下载约 32MB），文件不上传。录音越长，转换越慢。",
+    "targetMp3": "MP3（有损，体积小、最通用）",
+    "targetWav": "WAV（无损 PCM，体积大）",
+    "targetOgg": "OGG（Vorbis）",
+    "targetM4a": "M4A（AAC，苹果生态友好）",
+    "targetFlac": "FLAC（无损压缩）",
+    "unsupported": "当前浏览器无法录音（MediaRecorder 不可用），请使用 Chrome 或 Edge。",
+    "emptyRecording": "这次录音是空的，请重新录一次。"
+  },
+  "convert": {
+    "input": "原文件",
+    "target": "输出格式",
+    "start": "开始转换",
+    "converting": "转换中…",
+    "download": "下载",
+    "again": "换一个文件",
+    "result": "转换结果",
+    "quality": "画质",
+    "dimension": "分辨率",
+    "dimOriginal": "原始尺寸",
+    "videoBitrate": "视频码率",
+    "audioBitrate": "音频码率",
+    "losslessBitrate": "WAV / FLAC 是无损格式，不需要码率。",
+    "gifFps": "GIF 帧率",
+    "gifWidth": "GIF 宽度",
+    "smaller": "比原始小 {n}%",
+    "larger": "比原始大 {n}%",
+    "hint": "转换在浏览器内由 ffmpeg 完成（单线程核心，首次从 CDN 下载约 32MB），文件不上传。文件越大越慢。",
+    "targetPng": "PNG（无损，支持透明）",
+    "targetJpg": "JPEG（有损，体积小）",
+    "targetWebp": "WebP（更小，现代浏览器）",
+    "targetBmp": "BMP（无压缩位图）",
+    "targetMp4": "MP4（H.264 + AAC）",
+    "targetGif": "GIF（无声循环动图）",
+    "targetMp3": "MP3（有损，最通用）",
+    "targetWav": "WAV（无损 PCM）",
+    "targetOgg": "OGG（Vorbis）",
+    "targetM4a": "M4A（AAC）",
+    "targetFlac": "FLAC（无损压缩）"
+  },
+  "imageConvert": {
+    "hint": "把图片拖到这里，或点击选择；支持 PNG / JPEG / WebP / BMP / GIF 等常见格式。"
+  },
+  "videoConvert": {
+    "hint": "把视频拖到这里，或点击选择；支持 MP4 / MOV / WebM / MKV 等。",
+    "gifNote": "GIF 没有声音、只循环播放；帧率与宽度越大文件越大。"
+  },
+  "audioConvert": {
+    "hint": "把音频拖到这里，或点击选择；支持 MP3 / WAV / OGG / M4A / FLAC 等。"
+  },
+  "videoToAudio": {
+    "hint": "把视频拖到这里，或点击选择；只抽出音轨，画面丢弃。",
+    "note": "只保留音轨，视频画面会被丢弃。"
+  },
+  "compress": {
+    "start": "开始压缩",
+    "targetSize": "目标体积",
+    "maxDimension": "长边上限",
+    "qualityStep": "画质 {q} → {size}",
+    "used": "采用画质 {q}，共试了 {n} 轮",
+    "notReached": "整条画质阶梯都没压到目标以内，已给出最小结果；可再调小「长边上限」。",
+    "estimated": "预计约 {size}"
+  },
+  "trim": {
+    "startLabel": "开始",
+    "endLabel": "结束",
+    "selection": "已选 {len} / 共 {total}",
+    "preview": "预览选区",
+    "trim": "裁剪"
+  },
+  "imageCompress": {
+    "hint": "把图片拖到这里，或点击选择；适合把手机照片压到能发出去的大小。",
+    "note": "webp/jpeg 的体积对画质高度非线性，没法一次算准，所以按画质阶梯逐档编码并实测体积，命中目标即停。"
+  },
+  "videoTrim": {
+    "hint": "把视频拖到这里，或点击选择；截取其中一段。",
+    "note": "截取需要重编码才能帧级精确，输出统一为 MP4（H.264 + AAC）。"
+  },
+  "audioCompress": {
+    "hint": "把音频拖到这里，或点击选择；降码率 / 降采样 / 单声道都能显著缩小体积。",
+    "note": "码率决定体积（≈ 码率 ÷ 8 × 时长），降采样与单声道再砍一半。",
+    "sampleRate": "采样率",
+    "sampleRateKeep": "保持原样",
+    "mono": "转为单声道（体积几乎减半）",
+    "sourceBitrate": "源文件约 {kbps} kbps"
+  },
+  "audioTrim": {
+    "hint": "把音频拖到这里，或点击选择；在波形上选出要保留的一段。",
+    "dragHint": "在波形上按住拖动选择要保留的片段（点一下则选整段）。"
+  },
+  "videoCompress": {
+    "hint": "把视频拖到这里，或点击选择；按目标体积或清晰度把体积压小。",
+    "note": "体积 ≈ 总码率 ÷ 8 × 时长，所以给定目标体积就能反推码率；码率是平均目标，实际体积会随画面复杂度浮动 ±10~20%。",
+    "mode": "压缩方式",
+    "modeSize": "按目标体积",
+    "modeQuality": "按清晰度",
+    "over": "实际体积略超目标 —— 码率是平均值，画面复杂时会浮动；可再降一档分辨率或码率。"
   }
 }
