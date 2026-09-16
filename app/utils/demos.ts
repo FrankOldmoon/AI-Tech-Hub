@@ -72,7 +72,8 @@ export const visionGroupKeys = [
   'face',
   'capability',
   'engine',
-  'lesson'
+  'lesson',
+  'media'
 ] as const
 export type VisionGroupKey = typeof visionGroupKeys[number]
 
@@ -81,7 +82,9 @@ export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
   face: { zh: '人脸', en: 'Face' },
   capability: { zh: '能力对比', en: 'Capability Comparison' },
   engine: { zh: '引擎全览', en: 'Engine Overview' },
-  lesson: { zh: '教学', en: 'Lessons' }
+  lesson: { zh: '教学', en: 'Lessons' },
+  // 录制这类「不是图像处理」的媒体工具单列一组，避免混进「图像处理工坊」造成误导
+  media: { zh: '媒体工具', en: 'Media Tools' }
 }
 
 export const categories: Category[] = [
@@ -1214,6 +1217,24 @@ export const demos: Demo[] = [
     status: 'ready',
     featured: true,
     tags: ['Tesseract.js', 'OCR']
+  },
+  {
+    slug: 'recorder',
+    group: 'media',
+    category: 'vision',
+    title: { zh: '录制工具', en: 'Recorder' },
+    description: {
+      zh: '摄像头、屏幕、摄像头+屏幕（画中画）三种录制方式，摄像头录制自带音频；录完可直接下载，并能在浏览器内转成 MP4 / GIF / MP3。',
+      en: 'Record from the camera, the screen, or both (picture-in-picture). Camera mode captures audio too. Download the result, or convert it to MP4 / GIF / MP3 in the browser.'
+    },
+    howItWorks: {
+      zh: '用 MediaRecorder 录制：屏幕走 getDisplayMedia，摄像头走 getUserMedia（含麦克风）。「摄像头+屏幕」把两路画进 canvas（屏幕铺底、摄像头右下角画中画）后录 canvas.captureStream()，音频用 WebAudio 混成一路。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，全部在本地完成、不上传。',
+      en: 'Recording uses MediaRecorder: getDisplayMedia for the screen, getUserMedia for the camera (with mic). The combined mode draws both into a canvas (screen plus a camera picture-in-picture) and records canvas.captureStream(), with audio mixed via WebAudio. Format conversion runs ffmpeg.wasm, lazily loaded from a CDN using the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here). ~32MB on first use, and everything stays on-device.'
+    },
+    icon: 'i-lucide-circle-dot',
+    status: 'ready',
+    requirements: { camera: true, mic: true },
+    tags: ['MediaRecorder', 'getDisplayMedia', 'ffmpeg.wasm']
   },
   {
     slug: 'rebot-arm',

@@ -1448,5 +1448,32 @@
   },
   "neuralSandbox": {
     "externalNote": "本演示为独立 HTML 子应用，模型全部在浏览器本地运行，数据不出设备。"
+  },
+  "recorder": {
+    "modeCamera": "摄像头",
+    "modeScreen": "屏幕",
+    "modeBoth": "摄像头 + 屏幕",
+    "hintCamera": "摄像头画面会出现在这里。录制会一并录下麦克风的声音。",
+    "hintScreen": "选择要共享的屏幕或窗口。想录系统声音，请在弹窗里勾选「分享音频」。",
+    "hintBoth": "屏幕按原尺寸录制，摄像头以画中画放在右下角；麦克风与系统声音会混成一路。",
+    "start": "开始录制",
+    "starting": "正在启动…",
+    "stop": "停止录制",
+    "result": "录制结果",
+    "download": "下载",
+    "downloadConverted": "下载转换后文件",
+    "recordAgain": "重新录制",
+    "convertTitle": "转换格式",
+    "convert": "开始转换",
+    "converting": "转换中…",
+    "convertHint": "转换在浏览器内由 ffmpeg 完成（单线程核心，首次从 CDN 下载约 32MB），文件不上传。录制越长，转换越慢。",
+    "targetMp4": "MP4（H.264 + AAC）",
+    "targetGif": "GIF（无声，480px）",
+    "targetMp3": "MP3（仅音频）",
+    "noAudioForMp3": "本次录制没有音轨，因此不提供 MP3 抽取；需要声音请重新录制并勾选「分享音频」。",
+    "noScreenAudio": "这次共享没有音轨。想录系统声音，请重新共享并在弹窗里勾选「分享音频」——macOS 上需要 Chrome/Edge（Safari 不支持）。",
+    "unsupported": "当前浏览器无法录制视频（MediaRecorder 不可用），请使用 Chrome 或 Edge。",
+    "emptyRecording": "没有录到内容，导出文件是空的。请再试一次。",
+    "canvasMissing": "合成画布未就绪，请刷新页面后重试。"
   }
 }

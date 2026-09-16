@@ -1448,5 +1448,32 @@
   },
   "neuralSandbox": {
     "externalNote": "This demo is a standalone HTML sub-app; all models run locally in your browser, data never leaves your device."
+  },
+  "recorder": {
+    "modeCamera": "Camera",
+    "modeScreen": "Screen",
+    "modeBoth": "Camera + Screen",
+    "hintCamera": "Camera preview appears here. The recording also captures audio from your microphone.",
+    "hintScreen": "Pick a screen or window to share. To include system sound, tick “Share audio” in the picker.",
+    "hintBoth": "The screen is recorded full-frame with your camera as a picture-in-picture in the bottom-right corner; microphone and system audio are mixed into one track.",
+    "start": "Start recording",
+    "starting": "Starting…",
+    "stop": "Stop recording",
+    "result": "Recording",
+    "download": "Download",
+    "downloadConverted": "Download converted",
+    "recordAgain": "Record again",
+    "convertTitle": "Convert format",
+    "convert": "Convert",
+    "converting": "Converting…",
+    "convertHint": "Conversion runs ffmpeg in your browser (single-thread core, ~32MB fetched from a CDN on first use) and nothing is uploaded. Longer recordings take noticeably longer.",
+    "targetMp4": "MP4 (H.264 + AAC)",
+    "targetGif": "GIF (silent, 480px)",
+    "targetMp3": "MP3 (audio only)",
+    "noAudioForMp3": "This recording has no audio track, so MP3 extraction is not offered. Re-record and enable “Share audio” if you need sound.",
+    "noScreenAudio": "This share has no audio track. To capture system sound, share again and tick “Share audio” in the picker — on macOS that needs Chrome or Edge (Safari cannot).",
+    "unsupported": "This browser cannot record video (MediaRecorder is unavailable). Please use Chrome or Edge.",
+    "emptyRecording": "Nothing was recorded — the exported file came out empty. Please try again.",
+    "canvasMissing": "The composition canvas is not ready. Please reload the page and try again."
   }
 }
