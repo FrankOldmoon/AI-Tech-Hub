@@ -42,6 +42,14 @@ export interface Demo {
   description: Localized
   icon: string
   status: DemoStatus
+  /**
+   * 卡片封面图：站内路径（`/covers/vision-face.webp`）或外链均可，建议 16:9。
+   *
+   * 留空时卡片会用 `demoCoverArt()`（app/utils/demo-cover.ts）按分类与 slug
+   * 程序化生成一张 SVG 封面，两者占同一个 16:9 格子，所以补图不会引起布局跳动；
+   * 图片加载失败也会自动退回生成的封面，不会出现裂图。
+   */
+  cover?: string
   /** 运行前提（需摄像头/麦克风/模型体积） */
   requirements?: DemoRequirements
   /** 首页精选（在分类限流中优先展示） */
