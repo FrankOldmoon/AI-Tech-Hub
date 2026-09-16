@@ -19,7 +19,8 @@ export function useMediaConvert(config: {
   const { t } = useI18n()
 
   const file = ref<File | null>(null)
-  const sourceUrl = ref('')
+  /** 源文件预览 URL（objectURL 的回收交给 useObjectUrl，与 useAudioSource 共用同一实现） */
+  const source = useObjectUrl()
   const sourceSize = ref(0)
   /** 由各页在预览元素 metadata 就绪后填（分辨率/时长），纯展示 */
   const sourceMeta = ref('')
@@ -30,7 +31,7 @@ export function useMediaConvert(config: {
   const log = ref('')
   const error = ref<string | null>(null)
 
-  const outUrl = ref('')
+  const output = useObjectUrl()
   const outName = ref('')
   const outSize = ref(0)
   /** 体积变化百分比（负数=变小）；原始与结果都已知时才有值 */
@@ -41,8 +42,7 @@ export function useMediaConvert(config: {
     log.value = ''
     outSize.value = 0
     outName.value = ''
-    if (outUrl.value) URL.revokeObjectURL(outUrl.value)
-    outUrl.value = ''
+    output.clear()
   }
 
   function select(f: File) {
@@ -51,8 +51,7 @@ export function useMediaConvert(config: {
     file.value = f
     sourceSize.value = f.size
     sourceMeta.value = ''
-    if (sourceUrl.value) URL.revokeObjectURL(sourceUrl.value)
-    sourceUrl.value = URL.createObjectURL(f)
+    source.set(f)
   }
 
   function reset() {
@@ -61,8 +60,7 @@ export function useMediaConvert(config: {
     sourceSize.value = 0
     sourceMeta.value = ''
     error.value = null
-    if (sourceUrl.value) URL.revokeObjectURL(sourceUrl.value)
-    sourceUrl.value = ''
+    source.clear()
   }
 
   async function convert() {
@@ -80,7 +78,7 @@ export function useMediaConvert(config: {
       const out = config.run
         ? await config.run(f, target.value, hooks, options)
         : await convertMedia(f, target.value, hooks, options)
-      outUrl.value = URL.createObjectURL(out.blob)
+      output.set(out.blob)
       outName.value = out.name
       outSize.value = out.blob.size
     } catch (e: unknown) {
@@ -91,9 +89,9 @@ export function useMediaConvert(config: {
   }
 
   function download() {
-    if (!outUrl.value) return
+    if (!output.url.value) return
     const a = document.createElement('a')
-    a.href = outUrl.value
+    a.href = output.url.value
     a.download = outName.value
     a.click()
   }
@@ -104,7 +102,7 @@ export function useMediaConvert(config: {
 
   return {
     file,
-    sourceUrl,
+    sourceUrl: source.url,
     sourceSize,
     sourceMeta,
     target,
@@ -112,7 +110,7 @@ export function useMediaConvert(config: {
     ratio,
     log,
     error,
-    outUrl,
+    outUrl: output.url,
     outName,
     outSize,
     delta,
