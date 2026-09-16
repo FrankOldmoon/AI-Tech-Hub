@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { humanError, mediaError } from '~/utils/errors'
-import { convertRecording, type ConvertTarget } from '~/utils/ffmpeg'
+import { convertMedia, type ConvertTarget } from '~/utils/ffmpeg'
 import { transcribeToSrt, type SubtitleStage, type WhisperSubtitleModel } from '~/utils/whisper-subtitles'
 
 /**
@@ -12,6 +12,9 @@ import { transcribeToSrt, type SubtitleStage, type WhisperSubtitleModel } from '
  *   录的是 canvas.captureStream()；音频经 WebAudio 混成一路（只接 MediaStreamDestination，
  *   不接扬声器，否则麦克风会立刻啸叫）。
  * - 产物是浏览器原生编码的 webm（Safari 下是 mp4），转其它格式交给 ffmpeg.wasm（见 ~/utils/ffmpeg）。
+ * - 拍照：摄像头模式抓当前预览帧，「摄像头+屏幕」抓合成画布（也就是录下来看到的画面）。
+ *   没在录制时点拍照会单独开一路摄像头预览（只取视频、不开录音），拍完可以接着拍，
+ *   或者点「关闭摄像头」放掉；开始录制时会自动接管这路预览。
  */
 
 type RecordMode = 'camera' | 'screen' | 'both'
@@ -44,6 +47,15 @@ const convertedUrl = ref('')
 const convertedName = ref('')
 /** 这次录制的流里有没有音轨：没有（例如屏幕共享未勾选「分享音频」）就不提供 MP3 选项 */
 const hadAudio = ref(true)
+
+// 拍照（摄像头模式抓预览帧；画中画模式抓合成画布）
+const photoUrl = ref('')
+const photoName = ref('')
+const photoSize = ref(0)
+const photoDims = ref('')
+const photoBusy = ref(false)
+/** 只为了拍照而开着摄像头预览（没有在录制），拍完可以关掉 */
+const previewOnly = ref(false)
 
 // 字幕（本地 Whisper，见 ~/utils/whisper-subtitles）
 const subtitleEnabled = ref(false)
@@ -105,6 +117,7 @@ const modeHint = computed(() => {
 })
 const elapsedText = computed(() => formatTime(elapsed.value))
 const resultSizeText = computed(() => formatSize(resultSize.value))
+const photoSizeText = computed(() => formatSize(photoSize.value))
 
 function formatTime(seconds: number): string {
   const total = Math.max(0, Math.floor(seconds))
@@ -177,6 +190,16 @@ function resetCapture() {
   chunks = []
   recording.value = false
   elapsed.value = 0
+  previewOnly.value = false
+}
+
+/** 清掉上一张照片（不碰摄像头预览：拍完可以接着拍） */
+function clearPhoto() {
+  photoSize.value = 0
+  photoDims.value = ''
+  photoName.value = ''
+  if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
+  photoUrl.value = ''
 }
 
 function clearResult() {
@@ -197,6 +220,7 @@ function clearResult() {
   subtitleStage.value = ''
   subtitlePercent.value = 0
   note.value = ''
+  clearPhoto()
 }
 
 /** 摄像头+屏幕：canvas 合成（屏幕铺底 + 摄像头画中画），音频混音 */
@@ -410,6 +434,107 @@ function stop() {
   if (recorder && recorder.state !== 'inactive') recorder.stop()
 }
 
+/** 只为了拍照单独开一路摄像头（只要视频，不开麦克风），开始录制时会被 start() 接管 */
+async function openPhotoPreview(): Promise<boolean> {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    })
+    liveStream = stream
+    previewOnly.value = true
+    const live = liveRef.value
+    if (live) {
+      live.srcObject = stream
+      await live.play()
+    }
+    await nextFrame(liveRef.value)
+    return true
+  } catch (e: unknown) {
+    error.value = mediaError(e, t)
+    return false
+  }
+}
+
+function closePreview() {
+  if (recording.value) return
+  stopSources()
+  previewOnly.value = false
+}
+
+// 切模式时收掉「只为拍照开着」的摄像头，免得切到屏幕模式还挂着摄像头画面
+watch(mode, () => {
+  if (previewOnly.value && !recording.value) closePreview()
+})
+
+/** 等首帧到位：readyState < 2 时 drawImage 只会画出一片黑 */
+function nextFrame(video: HTMLVideoElement | undefined): Promise<void> {
+  if (!video) return Promise.resolve()
+  if (video.readyState >= 2 && video.videoWidth) return Promise.resolve()
+  return new Promise((resolve) => {
+    const done = () => {
+      video.removeEventListener('loadeddata', done)
+      resolve()
+    }
+    video.addEventListener('loadeddata', done)
+    setTimeout(done, 1500)
+  })
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(b => (b ? resolve(b) : reject(new Error('toBlob: empty'))), type, quality)
+  })
+}
+
+/** 抓当前一帧：画中画模式抓合成画布，摄像头模式抓预览帧 */
+function grabFrame(): HTMLCanvasElement | null {
+  if (mode.value === 'both') {
+    const stage = stageRef.value
+    if (stage?.width) return stage
+    error.value = t('recorder.canvasMissing')
+    return null
+  }
+  const video = liveRef.value
+  const w = video?.videoWidth ?? 0
+  const h = video?.videoHeight ?? 0
+  if (!video || !w || !h) {
+    error.value = t('recorder.photoNotReady')
+    return null
+  }
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  ctx.drawImage(video, 0, 0, w, h)
+  return canvas
+}
+
+async function takePhoto() {
+  if (photoBusy.value) return
+  error.value = null
+  photoBusy.value = true
+  try {
+    if (mode.value === 'camera' && !liveStream?.getVideoTracks().length) {
+      const ok = await openPhotoPreview()
+      if (!ok) return
+    }
+    const canvas = grabFrame()
+    if (!canvas) return
+    const blob = await canvasToBlob(canvas, 'image/jpeg', 0.92)
+    if (photoUrl.value) URL.revokeObjectURL(photoUrl.value)
+    photoSize.value = blob.size
+    photoDims.value = `${canvas.width} × ${canvas.height}`
+    photoName.value = `photo-${stamp()}.jpg`
+    photoUrl.value = URL.createObjectURL(blob)
+  } catch (e: unknown) {
+    error.value = mediaError(e, t)
+  } finally {
+    photoBusy.value = false
+  }
+}
+
 function download(url: string, name: string) {
   if (!url) return
   const a = document.createElement('a')
@@ -425,7 +550,7 @@ async function convert() {
   convertRatio.value = 0
   convertLog.value = ''
   try {
-    const out = await convertRecording(resultBlob, target.value, {
+    const out = await convertMedia(resultBlob, target.value, {
       onLog: (message) => { convertLog.value = message },
       onProgress: (ratio) => {
         convertRatio.value = Number.isFinite(ratio) ? Math.min(1, Math.max(0, ratio)) : 0
@@ -503,6 +628,25 @@ onBeforeUnmount(() => {
         @click="mode = opt.value"
       />
       <div class="ms-auto flex items-center gap-2">
+        <!-- 摄像头没开也能直接拍：会先单独开一路预览（不录音）再抓这一帧 -->
+        <UButton
+          v-if="mode !== 'screen'"
+          icon="i-lucide-camera"
+          :label="t('recorder.photo')"
+          color="neutral"
+          variant="subtle"
+          :loading="photoBusy"
+          :disabled="starting || (mode === 'both' && !recording)"
+          @click="takePhoto"
+        />
+        <UButton
+          v-if="previewOnly && !recording"
+          icon="i-lucide-video-off"
+          :label="t('recorder.photoClose')"
+          color="neutral"
+          variant="subtle"
+          @click="closePreview"
+        />
         <UButton
           v-if="!recording"
           icon="i-lucide-circle-dot"
@@ -520,6 +664,13 @@ onBeforeUnmount(() => {
         />
       </div>
     </div>
+
+    <p
+      v-if="previewOnly && !recording"
+      class="text-xs text-muted"
+    >
+      {{ t('recorder.photoPreviewHint') }}
+    </p>
 
     <UAlert
       v-if="error"
@@ -551,7 +702,7 @@ onBeforeUnmount(() => {
         class="w-full h-full object-contain"
       />
       <div
-        v-if="!recording && !resultUrl"
+        v-if="!recording && !resultUrl && !previewOnly"
         class="absolute inset-0 flex flex-col items-center justify-center gap-2 text-white/60"
       >
         <UIcon :name="currentIcon" class="size-10" />
@@ -567,6 +718,51 @@ onBeforeUnmount(() => {
         <span class="text-sm tabular-nums">{{ elapsedText }}</span>
       </div>
     </div>
+
+    <!-- 照片（拍照产物，独立于录制结果） -->
+    <UCard v-if="photoUrl">
+      <template #header>
+        <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+          <UIcon
+            name="i-lucide-camera"
+            class="size-4"
+          />
+          {{ t('recorder.photoTitle') }}
+        </div>
+      </template>
+      <div class="space-y-4">
+        <img
+          :src="photoUrl"
+          :alt="photoName"
+          class="w-full rounded-lg bg-black max-h-80 object-contain"
+        >
+        <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
+          <span class="font-mono">{{ photoName }}</span>
+          <span>{{ photoSizeText }}</span>
+          <span
+            v-if="photoDims"
+            class="tabular-nums"
+          >
+            {{ photoDims }}
+          </span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <UButton
+            icon="i-lucide-download"
+            :label="t('recorder.photoDownload')"
+            color="primary"
+            @click="download(photoUrl, photoName)"
+          />
+          <UButton
+            icon="i-lucide-refresh-cw"
+            :label="t('recorder.photoRetake')"
+            color="neutral"
+            variant="subtle"
+            @click="clearPhoto"
+          />
+        </div>
+      </div>
+    </UCard>
 
     <!-- 结果 + 下载 + 转格式 -->
     <UCard v-if="resultUrl">
