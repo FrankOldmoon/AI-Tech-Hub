@@ -18,25 +18,33 @@ function modelSizeText(mb?: number): string {
     :to="to"
     class="block h-full group relative"
   >
-    <UCard class="h-full transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-primary/10 group-hover:ring-1 group-hover:ring-primary/40 ring-1 ring-default/70">
-      <div class="flex items-start gap-3">
-        <!-- 分类色渐变图标 -->
-        <div
-          class="size-10 rounded-lg bg-gradient-to-br text-white flex items-center justify-center shrink-0 shadow-sm"
-          :class="accent"
-        >
-          <UIcon
-            :name="demo.icon"
-            class="size-5"
-          />
-        </div>
-        <div class="min-w-0">
-          <h3 class="font-semibold text-highlighted truncate group-hover:text-primary transition-colors">
-            {{ demo.title }}
-          </h3>
-          <p class="mt-1 text-sm text-muted line-clamp-2">
-            {{ demo.description }}
-          </p>
+    <UCard
+      :ui="{ body: 'p-0 sm:p-0' }"
+      class="h-full transition-all duration-300 group-hover:-translate-y-0.5 group-hover:shadow-lg group-hover:shadow-primary/10 group-hover:ring-1 group-hover:ring-primary/40 ring-1 ring-default/70"
+    >
+      <!-- 封面位：优先 demo.cover 的图片，缺省用程序化生成的 SVG -->
+      <DemoCover :demo="demo" />
+
+      <div class="p-4 sm:p-6">
+        <div class="flex items-start gap-3">
+          <!-- 分类色渐变图标 -->
+          <div
+            class="size-10 rounded-lg bg-gradient-to-br text-white flex items-center justify-center shrink-0 shadow-sm"
+            :class="accent"
+          >
+            <UIcon
+              :name="demo.icon"
+              class="size-5"
+            />
+          </div>
+          <div class="min-w-0">
+            <h3 class="font-semibold text-highlighted truncate group-hover:text-primary transition-colors">
+              {{ demo.title }}
+            </h3>
+            <p class="mt-1 text-sm text-muted line-clamp-2">
+              {{ demo.description }}
+            </p>
+          </div>
         </div>
       </div>
 
