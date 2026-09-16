@@ -1474,6 +1474,20 @@
     "noScreenAudio": "这次共享没有音轨。想录系统声音，请重新共享并在弹窗里勾选「分享音频」——macOS 上需要 Chrome/Edge（Safari 不支持）。",
     "unsupported": "当前浏览器无法录制视频（MediaRecorder 不可用），请使用 Chrome 或 Edge。",
     "emptyRecording": "没有录到内容，导出文件是空的。请再试一次。",
-    "canvasMissing": "合成画布未就绪，请刷新页面后重试。"
+    "canvasMissing": "合成画布未就绪，请刷新页面后重试。",
+    "subtitleTitle": "SRT 字幕（本地 Whisper）",
+    "subtitleEnable": "录完自动生成字幕",
+    "modelTiny": "whisper-tiny · 最快（~75MB）",
+    "modelBase": "whisper-base · 均衡（~145MB）",
+    "modelSmall": "whisper-small · 更准（~460MB）",
+    "subtitleGenerate": "生成字幕",
+    "subtitleDownload": "下载 SRT",
+    "subtitleSegments": "字幕条数",
+    "subtitleStageDecode": "正在解码音轨…",
+    "subtitleStageLoad": "正在加载模型…",
+    "subtitleStageTranscribe": "正在识别…",
+    "subtitleHint": "对录制文件里的音轨做识别，全程在浏览器本地完成（首次需下载模型，数据不上传）。识别语言跟随界面语言。",
+    "subtitleNoAudio": "本次录制没有音轨，无法生成字幕。",
+    "subtitleEmpty": "没有识别到语音，未生成字幕文件。如果声音偏小，可换更大的模型再试。"
   }
 }
