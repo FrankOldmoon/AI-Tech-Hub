@@ -12,6 +12,7 @@ import { humanError, mediaError } from '~/utils/errors'
 import type { ImageTool, ImageToolKind } from '~/utils/image-tools'
 import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 import { buildParamSpecs, pickText } from '~/utils/localized'
+import { formatBytes } from '~/utils/format'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
 import * as alg from '~/utils/image-algorithms'
@@ -1223,7 +1224,7 @@ const modeText = computed(() => {
               color="neutral"
               variant="subtle"
             >
-              {{ alg.formatBytes(sourceBytes) }}
+              {{ formatBytes(sourceBytes) }}
             </UBadge>
             <UBadge
               color="neutral"

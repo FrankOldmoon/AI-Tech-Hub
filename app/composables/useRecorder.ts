@@ -4,6 +4,8 @@
  * 替代了 3 份近似代码（speech/voice-clone、voiceprint、speech-translate）：
  * 都是「点开始 → 收 chunk → 点停止 → 拼 Blob 包成 File」，只差文件名前缀。
  * 产物统一是 File，因此后续可直接走 decodeTo16k（与上传文件同一条路径）。
+ *
+ * 另外把实时 stream 交出去，方便页面在**同一条流**上挂电平表（见 speech/audio-recorder）。
  */
 export function useRecorder(options: {
   /** 生成的文件名前缀，如 'voice' → voice-1712345678.webm */
@@ -17,6 +19,12 @@ export function useRecorder(options: {
 
   const recording = ref(false)
   const seconds = ref(0)
+  /**
+   * 当前采集的实时流（未录音时为 null）。暴露给页面挂电平表用 —— 另开一路 getUserMedia
+   * 会占第二次麦克风，有些设备上两路会互相干扰。
+   * 用 shallowRef：MediaStream 是带方法的原生对象，深层响应式会破坏它。
+   */
+  const stream = shallowRef<MediaStream | null>(null)
 
   let mediaRecorder: MediaRecorder | null = null
   let recordStream: MediaStream | null = null
@@ -31,6 +39,7 @@ export function useRecorder(options: {
     }
     recordStream?.getTracks().forEach(t => t.stop())
     recordStream = null
+    stream.value = null
     mediaRecorder = null
     recording.value = false
     if (timer !== null) {
@@ -43,6 +52,7 @@ export function useRecorder(options: {
     if (recording.value) return
     try {
       recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      stream.value = recordStream
       const recorder = new MediaRecorder(recordStream)
       chunks = []
       recorder.ondataavailable = (e) => {
@@ -70,5 +80,5 @@ export function useRecorder(options: {
 
   onBeforeUnmount(stop)
 
-  return { recording, seconds, start, stop }
+  return { recording, seconds, stream, start, stop }
 }

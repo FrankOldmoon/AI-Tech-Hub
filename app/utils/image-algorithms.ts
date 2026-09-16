@@ -681,11 +681,9 @@ export function pixelInfoRows(p: PixelInfo, lang: 'zh' | 'en'): { label: string;
 
 // ===== 通用 =====
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(2)} MB`
-}
+// formatBytes 已移到 ~/utils/format（音视频转换页也要用）。
+// 这里不 re-export：Nuxt 会自动导入 app/utils 下的所有导出，同一名字导出两处会触发
+// 「Duplicated imports」警告（既有的 LocalizedText 也踩过同一个坑）。
 
 /** 判断是否含透明通道（存在 alpha < 255 的像素） */
 export function hasAlpha(src: ImageData): boolean {

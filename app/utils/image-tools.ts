@@ -16,6 +16,7 @@
 
 import type { ParamSpec } from '~/utils/params'
 import { pickText, buildParamSpecs } from '~/utils/localized'
+import { formatBytes } from '~/utils/format'
 import * as alg from '~/utils/image-algorithms'
 import { imageDataToMat, matToImageData, withCvMat } from '~/utils/opencv'
 import * as ai from '~/utils/image-ai'
@@ -162,7 +163,7 @@ const viewerTools: ImageTool[] = [
               ? (L ? 'RGBA（含透明）' : 'RGBA (with alpha)')
               : (L ? 'RGB（不透明）' : 'RGB (opaque)')
           },
-          { label: L ? '估算大小（未压缩）' : 'Estimated size (uncompressed)', value: alg.formatBytes(imageData.width * imageData.height * 4) }
+          { label: L ? '估算大小（未压缩）' : 'Estimated size (uncompressed)', value: formatBytes(imageData.width * imageData.height * 4) }
         ]
       }
     }
