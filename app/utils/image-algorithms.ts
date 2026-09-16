@@ -1082,3 +1082,215 @@ export function morphGradient(src: ImageData, size: number): ImageData {
     return [r - er.data[i], g - er.data[i + 1], b - er.data[i + 2], a]
   })
 }
+
+/** 两图逐通道相减（结果 clamp 到 0~255），用于顶帽 = 原图 − 开运算、黑帽 = 闭运算 − 原图 */
+export function subtractImages(a: ImageData, b: ImageData): ImageData {
+  const out = cloneImageData(a)
+  for (let i = 0; i < out.data.length; i += 4) {
+    out.data[i] = clamp(a.data[i]! - b.data[i]!)
+    out.data[i + 1] = clamp(a.data[i + 1]! - b.data[i + 1]!)
+    out.data[i + 2] = clamp(a.data[i + 2]! - b.data[i + 2]!)
+  }
+  return out
+}
+
+/** 顶帽（Top-hat）= 原图 − 开运算：提取比结构元素小的亮细节 */
+export function topHat(src: ImageData, size: number): ImageData {
+  return subtractImages(src, opening(src, size))
+}
+
+/** 黑帽（Black-hat）= 闭运算 − 原图：提取比结构元素小的暗细节 */
+export function blackHat(src: ImageData, size: number): ImageData {
+  return subtractImages(closing(src, size), src)
+}
+
+// ===== 色阶（Levels）=====
+
+/**
+ * 色阶：输入黑/白点重映射 + gamma 校正 + 输出范围。
+ * black/white 为输入黑/白点（0~255），gamma > 1 变亮，outBlack/outWhite 为输出范围。
+ */
+export function colorLevels(
+  src: ImageData,
+  black: number,
+  white: number,
+  gamma: number,
+  outBlack = 0,
+  outWhite = 255
+): ImageData {
+  const b = Math.max(0, Math.min(254, black))
+  const w = Math.min(255, Math.max(b + 1, white))
+  const g = gamma <= 0 ? 1 : gamma
+  const span = w - b
+  const lut = new Uint8ClampedArray(256)
+  for (let i = 0; i < 256; i++) {
+    let v = (i - b) / span
+    v = v <= 0 ? 0 : v >= 1 ? 1 : v
+    lut[i] = Math.round(outBlack + Math.pow(v, 1 / g) * (outWhite - outBlack))
+  }
+  return applyPixelOp(src, (r, gch, bch, a) => [
+    lut[clamp(Math.round(r))]!,
+    lut[clamp(Math.round(gch))]!,
+    lut[clamp(Math.round(bch))]!,
+    a
+  ])
+}
+
+// ===== 直方图匹配 / 规定化 =====
+
+function cumulativeHist(hist: number[]): number[] {
+  const cdf = new Array<number>(256).fill(0)
+  let acc = 0
+  let total = 0
+  for (let i = 0; i < 256; i++) total += hist[i] ?? 0
+  for (let i = 0; i < 256; i++) {
+    acc += hist[i] ?? 0
+    cdf[i] = total ? acc / total : 0
+  }
+  return cdf
+}
+
+/**
+ * 直方图匹配：把源图亮度分布对齐到参考图（不传参考图时对齐到均匀分布 = 直方图规定化）。
+ * 实现方式：由亮度直方图的 CDF 建立 256 级 LUT，再对 RGB 三通道同时应用（经典简化做法）。
+ */
+export function histogramMatch(src: ImageData, reference?: ImageData): ImageData {
+  const srcCdf = cumulativeHist(luminanceHistogram(src))
+  const refCdf = reference
+    ? cumulativeHist(luminanceHistogram(reference))
+    : cumulativeHist(new Array<number>(256).fill(1))
+  const lut = new Uint8ClampedArray(256)
+  let j = 0
+  for (let i = 0; i < 256; i++) {
+    const target = srcCdf[i] ?? 0
+    while (j < 255 && (refCdf[j] ?? 0) < target) j++
+    lut[i] = j
+  }
+  return applyPixelOp(src, (r, g, b, a) => [
+    lut[clamp(Math.round(r))]!,
+    lut[clamp(Math.round(g))]!,
+    lut[clamp(Math.round(b))]!,
+    a
+  ])
+}
+
+// ===== 双边滤波 =====
+
+/**
+ * 双边滤波：空间核 × 值域核，保边平滑。
+ * 复杂度 O(r²)/像素，建议半径 ≤ 6（小图仍可交互）。
+ */
+export function bilateralFilter(src: ImageData, radius: number, sigmaColor: number, sigmaSpace: number): ImageData {
+  const d = Math.max(1, Math.min(8, Math.round(radius)))
+  const sc = Math.max(1, sigmaColor)
+  const ss = Math.max(0.5, sigmaSpace)
+  const space: number[][] = []
+  for (let dy = -d; dy <= d; dy++) {
+    const row: number[] = []
+    for (let dx = -d; dx <= d; dx++) {
+      row.push(Math.exp(-(dx * dx + dy * dy) / (2 * ss * ss)))
+    }
+    space.push(row)
+  }
+  const colorW = new Float32Array(512)
+  for (let i = 0; i < 512; i++) colorW[i] = Math.exp(-(i * i) / (2 * sc * sc))
+  return applyPixelOp(src, (r, g, b, a, x, y) => {
+    let sr = 0
+    let sg = 0
+    let sb = 0
+    let sw = 0
+    for (let dy = -d; dy <= d; dy++) {
+      const yy = y + dy
+      if (yy < 0 || yy >= src.height) continue
+      for (let dx = -d; dx <= d; dx++) {
+        const xx = x + dx
+        if (xx < 0 || xx >= src.width) continue
+        const i = (yy * src.width + xx) * 4
+        const nr = src.data[i]!
+        const ng = src.data[i + 1]!
+        const nb = src.data[i + 2]!
+        // 值域距离用三通道均值差的绝对值，映射进预计算的 0~511 表
+        const diff = Math.min(511, Math.abs(nr - r) + Math.abs(ng - g) + Math.abs(nb - b)) | 0
+        const wgt = (space[dy + d]?.[dx + d] ?? 0) * (colorW[diff] ?? 0)
+        sr += nr * wgt
+        sg += ng * wgt
+        sb += nb * wgt
+        sw += wgt
+      }
+    }
+    return sw > 0 ? [sr / sw, sg / sw, sb / sw, a] : [r, g, b, a]
+  })
+}
+
+// ===== 骨架化（Zhang-Suen 细化）=====
+
+/**
+ * 骨架化：先按亮度阈值二值化（自动判断前景为少数派），再做 Zhang-Suen 细化。
+ * 输出：前景为黑线、背景为白（教学上更直观）。
+ */
+export function skeletonize(src: ImageData, thresh = 128, maxIterations = 60): ImageData {
+  const w = src.width
+  const h = src.height
+  const bin = new Uint8Array(w * h)
+  for (let i = 0; i < w * h; i++) {
+    const j = i * 4
+    const lum = 0.299 * src.data[j]! + 0.587 * src.data[j + 1]! + 0.114 * src.data[j + 2]!
+    bin[i] = lum >= thresh ? 1 : 0
+  }
+  let ones = 0
+  for (let i = 0; i < bin.length; i++) ones += bin[i]!
+  // 前景取少数派：多数为亮则该图是"黑底白线"，反相后统一为前景=1
+  if (ones > bin.length / 2) {
+    for (let i = 0; i < bin.length; i++) bin[i] = bin[i] ? 0 : 1
+  }
+  const at = (x: number, y: number) => (x < 0 || y < 0 || x >= w || y >= h ? 0 : bin[y * w + x] ?? 0)
+  const marks: number[] = []
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let changed = false
+    for (let step = 0; step < 2; step++) {
+      marks.length = 0
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          if (!at(x, y)) continue
+          const p2 = at(x, y - 1)
+          const p3 = at(x + 1, y - 1)
+          const p4 = at(x + 1, y)
+          const p5 = at(x + 1, y + 1)
+          const p6 = at(x, y + 1)
+          const p7 = at(x - 1, y + 1)
+          const p8 = at(x - 1, y)
+          const p9 = at(x - 1, y - 1)
+          const neighbours = p2 + p3 + p4 + p5 + p6 + p7 + p8 + p9
+          if (neighbours < 2 || neighbours > 6) continue
+          const seq = [p2, p3, p4, p5, p6, p7, p8, p9, p2]
+          let transitions = 0
+          for (let i = 0; i < 8; i++) {
+            if (seq[i] === 0 && seq[i + 1] === 1) transitions++
+          }
+          if (transitions !== 1) continue
+          if (step === 0) {
+            if (p2 * p4 * p6 !== 0 || p4 * p6 * p8 !== 0) continue
+          } else if (p2 * p4 * p8 !== 0 || p2 * p6 * p8 !== 0) {
+            continue
+          }
+          marks.push(y * w + x)
+        }
+      }
+      if (marks.length) {
+        changed = true
+        for (const i of marks) bin[i] = 0
+      }
+    }
+    if (!changed) break
+  }
+  const out = newImageData(w, h)
+  for (let i = 0; i < w * h; i++) {
+    const v = bin[i] ? 0 : 255
+    const j = i * 4
+    out.data[j] = v
+    out.data[j + 1] = v
+    out.data[j + 2] = v
+    out.data[j + 3] = 255
+  }
+  return out
+}

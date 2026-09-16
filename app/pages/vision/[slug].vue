@@ -1,12 +1,16 @@
 <script setup lang="ts">
 /**
- * 视觉分类通用页面（统一分发）：
- * 1. slug 命中图像工坊注册表（imageToolsByPage）-> ImagePlayground（15 个图像工坊页）
- * 2. 否则命中 MediaPipe visionTasks -> MediaVisionRunner（人脸/手/姿态/检测等旧视觉 demo）
- * 3. 都没有 -> 404
+ * 视觉分类通用页面（能力 × 引擎双轴统一分发）。
+ *
+ * 所有视觉页都由工具注册表驱动：ImagePlayground 负责「左侧工具栏（可分组）+ 上传/示例/拍照/实时 + 结果」，
+ * 页面归属由 ImageTool 的 page / pages 决定（见 ~/utils/image-tools 的 toolPages）：
+ *   - 图像工坊（viewer / transform / …）      ：经典算法与文档，单引擎
+ *   - 引擎页（mediapipe / yolo / transformers）：一个模型库的全部任务，侧栏按任务族分组
+ *   - 能力页（detection / classification / …） ：同一任务的多引擎实现，侧栏按引擎分组
+ *
+ * slug 不在注册表内 -> 提示未找到（旧 slug 由 nuxt.config routeRules 301 到对应能力页/引擎页）。
  */
-import type { VisionTaskConfig } from '~/utils/mediapipe-vision'
-import { imageToolsByPage, imagePageSamples } from '~/utils/image-tools'
+import { imagePageSamples, imageToolsByPage } from '~/utils/image-tools'
 
 const route = useRoute()
 const { getDemo } = useDemos()
@@ -16,155 +20,21 @@ const slug = computed(() => route.params.slug as string)
 const demo = computed(() => getDemo('vision', slug.value))
 const tools = computed(() => imageToolsByPage(slug.value))
 
-const cfg = ref<VisionTaskConfig | null>(null)
-// 图像工坊各页专属示例图（labelKey 解析为 i18n 文案；未配置回落通用列表）
+// 各页专属示例图（labelKey 解析为 i18n 文案；未配置的页回落 ImagePlayground 的通用列表）
 const pageSamples = computed(() => {
   const list = imagePageSamples[slug.value as keyof typeof imagePageSamples]
   return list ? list.map(s => ({ label: t(s.labelKey), url: s.url, secondUrl: s.secondUrl })) : null
 })
-
-onMounted(async () => {
-  if (tools.value.length) return
-  const mod = await import('~/utils/mediapipe-vision')
-  const c = mod.visionTasks[slug.value]
-  if (c) cfg.value = c
-})
-
-const createDetector = computed(() => cfg.value?.create ?? null)
-const draw = computed(() => cfg.value?.draw)
-// 可调参数 specs（label 随 locale 变化自动重算）
-const paramSpecs = computed(() => cfg.value?.params ? cfg.value.params(t) : [])
-// demo 专属示例图（未配置时 MediaVisionRunner 回落通用列表）
-const sampleImages = computed(() => cfg.value?.samples ? cfg.value.samples(t) : null)
-const detectVideo = (det: any, video: HTMLVideoElement, ts: number) => det[cfg.value!.method](video, ts)
-const detectImage = (det: any, bitmap: ImageBitmap) => det[cfg.value!.method](bitmap, performance.now())
 </script>
 
 <template>
-  <div v-if="demo">
+  <div v-if="demo && tools.length">
     <ClientOnly>
-      <!-- 图像工坊模式 -->
       <ImagePlayground
-        v-if="tools.length"
         :demo="demo"
         :tools="tools"
         :samples="pageSamples"
       />
-
-      <!-- 传统 MediaPipe 模式：外壳用 MediaDemoShell，交互面用 MediaVisionRunner -->
-      <MediaDemoShell
-        v-else-if="cfg && createDetector"
-        :demo="demo"
-      >
-        <MediaVisionRunner
-          :create-detector="createDetector!"
-          :detect-video="detectVideo"
-          :detect-image="detectImage"
-          :draw="draw"
-          :param-specs="paramSpecs"
-          :samples="sampleImages"
-        >
-          <template #result="{ result }">
-            <div
-              v-if="result?.detections?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="(d, i) in result.detections"
-                :key="i"
-                class="flex justify-between text-sm"
-              >
-                <span>{{ d.categories?.[0]?.categoryName || 'object' }}</span>
-                <span class="text-muted">{{ Math.round((d.categories?.[0]?.score || 0) * 100) }}%</span>
-              </div>
-            </div>
-            <div
-              v-else-if="result?.classifications?.[0]?.categories?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="(c, i) in result.classifications[0].categories"
-                :key="i"
-                class="flex justify-between text-sm"
-              >
-                <span>{{ c.categoryName }}</span>
-                <span class="text-muted">{{ Math.round(c.score * 100) }}%</span>
-              </div>
-            </div>
-            <div
-              v-else-if="result?.gestures?.length"
-              class="space-y-1"
-            >
-              <div
-                v-for="(g, i) in result.gestures"
-                :key="i"
-                class="flex justify-between text-sm"
-              >
-                <span>{{ g[0]?.categoryName }}</span>
-                <span class="text-muted">{{ Math.round((g[0]?.score || 0) * 100) }}%</span>
-              </div>
-            </div>
-            <div
-              v-else-if="result?.faceLandmarks?.length"
-              class="space-y-1 text-sm"
-            >
-              <div class="text-muted">
-                {{ result.faceLandmarks.length }} face(s) · {{ result.faceLandmarks[0].length }} pts
-              </div>
-              <!-- face-landmarker 的表情混合值（前 8 个） -->
-              <div
-                v-if="result.faceBlendshapes?.[0]?.categories?.length"
-                class="space-y-1"
-              >
-                <div
-                  v-for="(b, bi) in result.faceBlendshapes[0].categories.slice(0, 8)"
-                  :key="bi"
-                  class="flex justify-between"
-                >
-                  <span>{{ b.categoryName }}</span>
-                  <span class="text-muted">{{ Math.round((b.score || 0) * 100) }}%</span>
-                </div>
-              </div>
-            </div>
-            <div
-              v-else-if="result?.poseLandmarks?.length"
-              class="text-sm text-muted"
-            >
-              {{ result.poseLandmarks.length }} pose(s) · {{ result.poseLandmarks[0].length }} pts
-            </div>
-            <div
-              v-else-if="result?.landmarks?.length && result?.handednesses?.length"
-              class="text-sm text-muted"
-            >
-              {{ result.landmarks.length }} hand(s) · {{ result.landmarks[0].length }} pts
-            </div>
-            <div
-              v-else-if="result?.landmarks?.length"
-              class="text-sm text-muted"
-            >
-              {{ result.landmarks.length }} pose(s) · {{ result.landmarks[0].length }} pts
-            </div>
-            <div
-              v-else
-              class="text-sm text-muted"
-            >
-              —
-            </div>
-          </template>
-        </MediaVisionRunner>
-      </MediaDemoShell>
-
-      <UContainer
-        v-else
-        class="py-16"
-      >
-        <UAlert
-          color="neutral"
-          variant="subtle"
-          icon="i-lucide-hourglass"
-          :title="t('image.comingSoon')"
-        />
-      </UContainer>
       <template #fallback>
         <div class="py-20 flex items-center justify-center">
           <UIcon

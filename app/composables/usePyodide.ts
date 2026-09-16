@@ -4,8 +4,8 @@
  * - 通过 CDN 动态加载，不进入主包
  */
 
-const PYODIDE_VERSION = '0.27.7'
-const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full`
+// 本地托管：scripts/sync-runtime-libs.mjs 从 package.json 的 pyodide 依赖同步产物，不再走 CDN
+const PYODIDE_BASE = '/model/vendor/pyodide'
 
 const scriptCache = new Map<string, Promise<void>>()
 function loadScript(src: string): Promise<void> {

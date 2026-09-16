@@ -8,8 +8,6 @@
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { humanError, mediaError } from '~/utils/errors'
-import { decodeTo16k } from '~/utils/audio'
-import { fetchSample } from '~/utils/samples'
 import { preferredDevice, setupTransformersEnv } from '~/utils/transformers'
 import { kokoroSynthesize, type KokoroProgress } from '~/utils/kokoro'
 
@@ -33,15 +31,18 @@ const dirItems = computed(() => [
 
 // ===== 输入 =====
 const source = ref<'mic' | 'file'>('mic')
-const recording = ref(false)
-const recordSeconds = ref(0)
-const audioFile = ref<File | null>(null)
-const fileInput = ref<HTMLInputElement>()
-const audioUrl = ref('')
-let mediaRecorder: MediaRecorder | null = null
-let recordStream: MediaStream | null = null
-let recordChunks: Blob[] = []
-let recordTimer: number | null = null
+
+// 上传/示例：文件 ref、objectURL、隐藏 input、解码缓存全交给 useAudioSource，
+// objectURL 的创建与回收也随之移出本页。
+const audioSource = useAudioSource({
+  defaultSampleUrl: '/samples/audio/speech-zh.wav',
+  onError: (e) => { error.value = humanError(e, t) }
+})
+const audioFile = audioSource.file
+const audioUrl = audioSource.url
+const fileInput = audioSource.inputRef
+const pickFile = audioSource.pick
+const onFileChange = audioSource.onFileChange
 
 // ===== 参数 =====
 const specs = computed<ParamSpec[]>(() => [
@@ -81,62 +82,37 @@ function revokeResult() {
   resultUrl.value = ''
 }
 
-function pickFile() { fileInput.value?.click() }
-
-function setFile(f: File) {
-  audioFile.value = f
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  audioUrl.value = URL.createObjectURL(f)
+// 换输入后清空上一次的三段结果。原 setFile 的这些副作用改挂在 file 的 watch 上，
+// 以便 setFile 本身完全由 useAudioSource 提供（否则又要包一层重复实现）。
+watch(audioFile, () => {
   sourceText.value = ''
   translatedText.value = ''
   timings.value = null
   revokeResult()
   error.value = null
-}
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (f) setFile(f)
-}
+})
 
 async function useSample() {
-  try {
-    // 中文方向用中文示例音，反之用英文示例音
-    setFile(await fetchSample(dir.value === 'zh-en' ? '/samples/audio/speech-zh.wav' : '/samples/audio/speech.wav'))
-  } catch (e) {
-    error.value = humanError(e, t)
-  }
+  // 中文方向用中文示例音，反之用英文示例音（示例机由 useAudioSource 负责）
+  await audioSource.useSample(dir.value === 'zh-en' ? '/samples/audio/speech-zh.wav' : '/samples/audio/speech.wav')
 }
 
-async function startRecording() {
-  if (recording.value) return
+// 录音：采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」。
+const recorder = useRecorder({
+  namePrefix: 'speech',
+  onStop: audioSource.setFile,
+  onError: (e) => { error.value = mediaError(e, t) }
+})
+const recording = recorder.recording
+const recordSeconds = recorder.seconds
+
+function startRecording() {
   error.value = null
-  try {
-    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(recordStream)
-    recordChunks = []
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordChunks.push(e.data) }
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      setFile(new File([blob], `speech-${Date.now()}.webm`, { type: blob.type }))
-      recordSeconds.value = 0
-    }
-    mediaRecorder.start()
-    recording.value = true
-    recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
-  } catch (e: unknown) {
-    error.value = mediaError(e, t)
-  }
+  recorder.start()
 }
 
 function stopRecording() {
-  mediaRecorder?.stop()
-  recordStream?.getTracks().forEach(tr => tr.stop())
-  recordStream = null
-  mediaRecorder = null
-  recording.value = false
-  if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
+  recorder.stop()
 }
 
 function onKokoroProgress(p: KokoroProgress) {
@@ -157,7 +133,8 @@ async function transcribe(audio: Float32Array): Promise<string> {
     if (p.status === 'progress' && p.total) progress.value = Math.round((p.loaded / p.total) * 100)
     if (p.file) statusText.value = `${t('st.asrLoading')} · ${String(p.file).split('/').pop()}`
   }
-  const options = { dtype: 'q8', device: device.value, progress_callback: onProgress }
+  // dtype 需要字面量类型：写成 'q8' 会被推断成 string，与 PretrainedModelOptions.dtype 的联合类型不兼容
+  const options = { dtype: 'q8' as const, device: device.value, progress_callback: onProgress }
   let asr: any = null
   try {
     asr = await pipeline('automatic-speech-recognition', model, options)
@@ -181,7 +158,7 @@ async function translate(text: string): Promise<string> {
   progress.value = 0
   const { pipeline } = await import('@huggingface/transformers')
   const model = DIRECTIONS[dir.value].mt
-  const options = { dtype: 'q8', device: device.value }
+  const options = { dtype: 'q8' as const, device: device.value }
   let mt: any = null
   try {
     mt = await pipeline('text2text-generation', model, options)
@@ -211,7 +188,8 @@ async function speak(text: string): Promise<void> {
   )
   revokeResult()
   resultUrl.value = URL.createObjectURL(blob)
-  device.value = ttsDevice
+  // kokoroSynthesize 返回的 device 是宽 string；本页只关心 webgpu / wasm 两档，收窄后再写回
+  device.value = ttsDevice === 'webgpu' ? 'webgpu' : 'wasm'
 }
 
 async function run() {
@@ -223,11 +201,12 @@ async function run() {
   running.value = true
   cancelled = false
   try {
-    const audio = await decodeTo16k(audioFile.value)
+    // 16kHz 单声道样本由 useAudioSource 解码并缓存（Whisper 期望输入），本页不再自己解码
+    const samples = await audioSource.toSamples16k()
     if (cancelled) return
 
     const t0 = performance.now()
-    const recognized = await transcribe(audio)
+    const recognized = await transcribe(samples)
     if (cancelled) return
     sourceText.value = recognized
     const t1 = performance.now()
@@ -272,10 +251,9 @@ watch(dir, () => {
   timings.value = null
 })
 
+// 只终止在途流水线与回收合成结果的 objectURL；输入流/输入 URL 已由 useRecorder / useAudioSource 接管。
 onBeforeUnmount(() => {
   cancelled = true
-  stopRecording()
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
   revokeResult()
 })
 
@@ -328,7 +306,7 @@ const stepLabel = computed(() => ({
               <UButton
                 v-if="!recording"
                 icon="i-lucide-mic"
-                :label="t('emotion.recordStart')"
+                :label="t('speech.recordStart')"
                 color="primary"
                 variant="soft"
                 :disabled="running"
@@ -337,7 +315,7 @@ const stepLabel = computed(() => ({
               <UButton
                 v-else
                 icon="i-lucide-square"
-                :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
+                :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
                 color="error"
                 variant="subtle"
                 @click="stopRecording"
@@ -404,7 +382,7 @@ const stepLabel = computed(() => ({
         <UButton
           v-if="running"
           icon="i-lucide-x"
-          :label="t('emotion.cancel')"
+          :label="t('speech.cancel')"
           color="neutral"
           variant="subtle"
           @click="cancel"

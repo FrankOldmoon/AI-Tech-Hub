@@ -8,8 +8,6 @@
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { humanError, mediaError } from '~/utils/errors'
-import { decodeTo16k } from '~/utils/audio'
-import { fetchSample } from '~/utils/samples'
 import {
   DEFAULT_THRESHOLD,
   MIN_AUDIO_SECONDS,
@@ -54,16 +52,20 @@ const modeItems = computed(() => [
 
 // ===== 输入 =====
 const source = ref<'mic' | 'file'>('mic')
-const recording = ref(false)
-const recordSeconds = ref(0)
-const audioFile = ref<File | null>(null)
-const fileInput = ref<HTMLInputElement>()
-const audioUrl = ref('')
 const name = ref('')
-let mediaRecorder: MediaRecorder | null = null
-let recordStream: MediaStream | null = null
-let recordChunks: Blob[] = []
-let recordTimer: number | null = null
+
+// 上传/示例：文件 ref、objectURL、隐藏 input、解码缓存与时长全交给 useAudioSource，
+// 它自己负责卸载时 revoke objectURL，所以下面不再出现 URL.createObjectURL/revokeObjectURL。
+const audioSource = useAudioSource({
+  defaultSampleUrl: '/samples/audio/speech-zh.wav',
+  onError: (e) => { error.value = humanError(e, t) }
+})
+const audioFile = audioSource.file
+const audioUrl = audioSource.url
+const fileInput = audioSource.inputRef
+const pickFile = audioSource.pick
+const onFileChange = audioSource.onFileChange
+const useSample = audioSource.useSample
 
 // ===== 运行状态 =====
 const busy = ref(false)
@@ -87,70 +89,41 @@ const ranks = ref<VoiceRank[]>([])
 function refreshRegistry() { registry.value = getVoiceprints() }
 refreshRegistry()
 
-function pickFile() { fileInput.value?.click() }
-
-function setFile(f: File) {
-  audioFile.value = f
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  audioUrl.value = URL.createObjectURL(f)
+// 换输入（录音产物 / 上传 / 示例）后必须清掉上一次的向量与排名。这段副作用原本写在页面自己的
+// setFile 里，而 setFile 已由 useAudioSource 提供，故用 watch 监听 file 补齐，避免再包一层重复的 setFile。
+watch(audioFile, () => {
   lastEmbedding = null
   ranks.value = []
   flash.value = null
   error.value = null
-}
+})
 
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (f) setFile(f)
-}
+// ---- 录音（MediaRecorder → File，后续与上传文件统一走 toSamples16k）----
+// 采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」这一步。
+const recorder = useRecorder({
+  namePrefix: 'voice',
+  onStop: audioSource.setFile,
+  onError: (e) => { error.value = mediaError(e, t) }
+})
+const recording = recorder.recording
+const recordSeconds = recorder.seconds
 
-async function useSample(path = '/samples/audio/speech.wav') {
-  try {
-    setFile(await fetchSample(path))
-  } catch (e) {
-    error.value = humanError(e, t)
-  }
-}
-
-// ---- 录音（MediaRecorder → blob → File，后续统一走 decodeTo16k）----
-async function startRecording() {
-  if (recording.value) return
+function startRecording() {
   error.value = null
-  try {
-    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(recordStream)
-    recordChunks = []
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordChunks.push(e.data) }
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      setFile(new File([blob], `voice-${Date.now()}.webm`, { type: blob.type }))
-      recordSeconds.value = 0
-    }
-    mediaRecorder.start()
-    recording.value = true
-    recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
-  } catch (e: unknown) {
-    error.value = mediaError(e, t)
-  }
+  recorder.start()
 }
 
 function stopRecording() {
-  mediaRecorder?.stop()
-  recordStream?.getTracks().forEach(tr => tr.stop())
-  recordStream = null
-  mediaRecorder = null
-  recording.value = false
-  if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
+  recorder.stop()
 }
 
-/** 解码到 16kHz 单声道（WavLM 期望输入） */
+/** 解码到 16kHz 单声道（WavLM 期望输入）；解码缓存与时长由 useAudioSource 算好 */
 async function loadAudio(): Promise<Float32Array> {
   if (!audioFile.value) throw new Error(t('vp.noFile'))
-  const audio = await decodeTo16k(audioFile.value)
-  lastSeconds.value = Math.round((audio.length / 16000) * 10) / 10
+  const samples = await audioSource.toSamples16k()
+  lastSeconds.value = audioSource.seconds.value
   if (lastSeconds.value < MIN_AUDIO_SECONDS) throw new Error(t('vp.tooShort'))
-  return audio
+  return samples
 }
 
 function onProgress(p: { status: string, file?: string, progress?: number }) {
@@ -232,10 +205,10 @@ function clearAll() {
   ranks.value = []
 }
 
+// 只需终止在途推理：录音流与输入 objectURL 的回收已由 useRecorder / useAudioSource 各自接管，
+// 这里再 stop/revoke 一次就是双重释放。
 onBeforeUnmount(() => {
   cancelled = true
-  stopRecording()
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
 })
 
 // ===== 派生 =====
@@ -290,7 +263,7 @@ const sampleCount = computed(() => registry.value.reduce((s, p) => s + p.samples
               <UButton
                 v-if="!recording"
                 icon="i-lucide-mic"
-                :label="t('emotion.recordStart')"
+                :label="t('speech.recordStart')"
                 color="primary"
                 variant="soft"
                 @click="startRecording"
@@ -298,7 +271,7 @@ const sampleCount = computed(() => registry.value.reduce((s, p) => s + p.samples
               <UButton
                 v-else
                 icon="i-lucide-square"
-                :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
+                :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
                 color="error"
                 variant="subtle"
                 @click="stopRecording"
@@ -373,7 +346,7 @@ const sampleCount = computed(() => registry.value.reduce((s, p) => s + p.samples
         <UButton
           v-if="busy"
           icon="i-lucide-x"
-          :label="t('emotion.cancel')"
+          :label="t('speech.cancel')"
           color="neutral"
           variant="subtle"
           @click="cancel"

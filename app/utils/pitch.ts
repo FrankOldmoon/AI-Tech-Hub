@@ -25,6 +25,17 @@ export function freqToName(f: number): { name: string, syll: string } {
   return { name: `${name}${oct}`, syll: SCALE[idx]! }
 }
 
+/**
+ * 频率 → 音名 + 偏差音分（±50¢）。
+ * pitch-detector 页面原先自带一份（freqToNote + midiToNote + NOTE_NAMES），
+ * 搬过来时只把「偏差」这一项加在这里，音名仍复用 freqToName，避免出现第二份音名换算。
+ */
+export function freqToNote(f: number): { note: string, cents: number } {
+  const midi = 69 + 12 * Math.log2(f / 440)
+  const cents = Math.round((midi - Math.round(midi)) * 100)
+  return { note: freqToName(f).name, cents }
+}
+
 /** YIN 基频检测（CMND + 抛物线插值），返回 { freq, clarity } 或 null */
 export function yinPitch(
   buffer: Float32Array,

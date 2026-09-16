@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
+/* eslint-disable @stylistic/max-statements-per-line */
 /** 变声精灵：麦克风实时加效果（机器人/怪物/混响/变调），纯 WebAudio 本端 */
 import { mediaError } from '~/utils/errors'
 
@@ -7,7 +7,6 @@ const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'voice-changer')!)
 
-const running = ref(false)
 const error = ref<string | null>(null)
 
 type EffectId = 'off' | 'robot' | 'monster' | 'echo' | 'chipmunk' | 'deep'
@@ -22,8 +21,12 @@ const effectItems = computed(() => [
   { id: 'deep' as const, label: t('vc.deep'), icon: 'i-lucide-mountain' }
 ])
 
+// 开麦与 AudioContext 的生命周期交给 useMicStream（它负责关流、关 context、卸载回收）；
+// 效果链是本页独有的音频图，仍由本页持有，所以走 onReady 只拿裸 stream + audioCtx。
+const mic = useMicStream()
+const running = mic.running
+
 let audioCtx: AudioContext | null = null
-let stream: MediaStream | null = null
 let dest: MediaStreamAudioDestinationNode | null = null
 // 效果链：source → wetIn → [效果节点…] → wetOut → dest；dry 直通 dest
 let wetIn: GainNode | null = null
@@ -41,31 +44,36 @@ function connect(node: AudioNode): AudioNode {
 async function start() {
   if (running.value) return
   error.value = null
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
-    audioCtx = new AudioContext()
-    dest = audioCtx.createMediaStreamDestination()
+  // 显式 48000：useMicStream 默认 16kHz 是给语音分析模型喂帧用的，拿来放声音会明显发闷；
+  // 本页不喂帧，只传 onReady，composable 因此不会挂 ScriptProcessor。
+  await mic.start({
+    sampleRate: 48000,
+    onReady: ({ stream, audioCtx: ctx }) => {
+      audioCtx = ctx
+      dest = ctx.createMediaStreamDestination()
 
-    const source = audioCtx.createMediaStreamSource(stream)
-    const dry = audioCtx.createGain(); dry.gain.value = 1
-    source.connect(dry); dry.connect(dest)
+      const source = ctx.createMediaStreamSource(stream)
+      const dry = ctx.createGain(); dry.gain.value = 1
+      source.connect(dry); dry.connect(dest)
 
-    wetIn = audioCtx.createGain(); wetIn.gain.value = 1
-    source.connect(wetIn)
-    wetOut = audioCtx.createGain(); wetOut.gain.value = 0
-    wetOut.connect(dest)
+      wetIn = ctx.createGain(); wetIn.gain.value = 1
+      source.connect(wetIn)
+      wetOut = ctx.createGain(); wetOut.gain.value = 0
+      wetOut.connect(dest)
 
-    applyEffect()
+      applyEffect()
 
-    if (audioEl.value) {
-      audioEl.value.srcObject = dest.stream
-      audioEl.value.play().catch(() => {})
+      if (audioEl.value) {
+        audioEl.value.srcObject = dest.stream
+        audioEl.value.play().catch(() => {})
+      }
+    },
+    // composable 出错时已自行停流，这里只补本页的收尾（清效果节点 + <audio>）
+    onError: (e) => {
+      error.value = mediaError(e, t)
+      teardown()
     }
-    running.value = true
-  } catch (e: any) {
-    error.value = mediaError(e, t)
-    teardown()
-  }
+  })
 }
 
 function applyEffect() {
@@ -149,17 +157,15 @@ function toggleEffect(id: EffectId) {
   if (running.value) applyEffect()
 }
 
+// 只收拾「本页自己的东西」：效果节点 + <audio>。stream / audioCtx 交给 useMicStream 回收，
+// 页面再 close 一次会双重释放（composable 注释明确禁止）；卸载时的回收也由它兜底。
 function teardown() {
-  running.value = false
-  if (audioEl.value) { audioEl.value.pause(); audioEl.value.srcObject = null }
   oscBank.forEach((o) => { try { o.stop() } catch { /* */ } }); oscBank = []
   if (effectEntry) { try { effectEntry.disconnect() } catch { /* */ } effectEntry = null }
-  if (audioCtx) { audioCtx.close().catch(() => {}) }
+  if (audioEl.value) { audioEl.value.pause(); audioEl.value.srcObject = null }
   audioCtx = null; dest = null; wetIn = null; wetOut = null
-  stream?.getTracks().forEach(t => t.stop()); stream = null
+  mic.stop()
 }
-
-onBeforeUnmount(teardown)
 </script>
 
 <template>
@@ -190,14 +196,14 @@ onBeforeUnmount(teardown)
         <UButton
           v-if="!running"
           icon="i-lucide-mic"
-          :label="t('asr.start')"
+          :label="t('speech.start')"
           color="primary"
           @click="start"
         />
         <UButton
           v-else
           icon="i-lucide-square"
-          :label="t('asr.stop')"
+          :label="t('speech.stop')"
           color="error"
           variant="subtle"
           @click="teardown"

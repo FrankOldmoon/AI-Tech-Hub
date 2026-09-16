@@ -17,6 +17,8 @@ import { pipeline } from 'node:stream/promises'
 // 仓库级下载（ModelScope → hf-mirror → huggingface 自动回退）与语音模型清单共用，
 // 手动预取入口见 scripts/fetch-models.mjs（pnpm models:fetch）
 import { SPEECH_REPOS, fetchModelRepo } from './model-fetch.mjs'
+// 远程来源清单（与 server/routes/model/[...].ts 的回退重定向共用同一事实来源）
+import { DOODLE_BASE, FACEAPI_BASES, MEDIAPIPE_BASE, MEDIAPIPE_MODELS, MEDIAPIPE_WASM, TFJS_MOBILENET_BASE, TFJS_SPEECH_BASE } from './model-sources'
 
 // 模型根目录：默认 <cwd>/.models，可用 MODELS_DIR 环境变量覆盖
 // （与 server/routes/model/[...].ts 的服务路径保持一致；
@@ -129,27 +131,8 @@ function readJson(filePath: string): any | null {
 // ============================================================
 async function downloadMediapipeModels(): Promise<void> {
   console.log('\n=== MediaPipe 模型 ===')
-  const MP = 'https://storage.googleapis.com/mediapipe-models'
-  const models: Record<string, string> = {
-    'face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite': 'mediapipe/models/blaze_face_short_range.tflite',
-    'face_landmarker/face_landmarker/float16/1/face_landmarker.task': 'mediapipe/models/face_landmarker.task',
-    'gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task': 'mediapipe/models/gesture_recognizer.task',
-    'hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task': 'mediapipe/models/hand_landmarker.task',
-    'holistic_landmarker/holistic_landmarker/float16/1/holistic_landmarker.task': 'mediapipe/models/holistic_landmarker.task',
-    'image_classifier/efficientnet_lite0/float32/1/efficientnet_lite0.tflite': 'mediapipe/models/efficientnet_lite0.tflite',
-    'image_embedder/mobilenet_v3_small/float32/1/mobilenet_v3_small.tflite': 'mediapipe/models/mobilenet_v3_small.tflite',
-    'image_segmenter/selfie_segmenter/float16/latest/selfie_segmenter.tflite': 'mediapipe/models/selfie_segmenter.tflite',
-    'image_segmenter/hair_segmenter/float32/1/hair_segmenter.tflite': 'mediapipe/models/hair_segmenter.tflite',
-    'interactive_segmenter_v2/magic_touch/int8/1/interactive_segmentation.task': 'mediapipe/models/interactive_segmentation.task',
-    'object_detector/efficientdet_lite0/float32/1/efficientdet_lite0.tflite': 'mediapipe/models/efficientdet_lite0.tflite',
-    'pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task': 'mediapipe/models/pose_landmarker_lite.task',
-    'audio_classifier/yamnet/float32/1/yamnet.tflite': 'mediapipe/models/yamnet.tflite',
-    'language_detector/language_detector/float32/1/language_detector.tflite': 'mediapipe/models/language_detector.tflite',
-    'text_classifier/bert_classifier/float32/1/bert_classifier.tflite': 'mediapipe/models/bert_classifier.tflite',
-    'text_embedder/universal_sentence_encoder/float32/1/universal_sentence_encoder.tflite': 'mediapipe/models/universal_sentence_encoder.tflite'
-  }
-  for (const [path, dest] of Object.entries(models)) {
-    await downloadFile(`${MP}/${path}`, join(BASE, dest))
+  for (const [path, dest] of Object.entries(MEDIAPIPE_MODELS)) {
+    await downloadFile(`${MEDIAPIPE_BASE}/${path}`, join(BASE, dest))
   }
 }
 
@@ -158,16 +141,11 @@ async function downloadMediapipeModels(): Promise<void> {
 // ============================================================
 async function downloadMediapipeWasm(): Promise<void> {
   console.log('\n=== MediaPipe WASM ===')
-  const packages: Record<string, [string, string]> = {
-    vision: ['@mediapipe/tasks-vision', '1.0.1'],
-    text: ['@mediapipe/tasks-text', '1.0.1'],
-    audio: ['@mediapipe/tasks-audio', '1.0.1']
-  }
-  for (const [name, [pkg, ver]] of Object.entries(packages)) {
+  for (const [name, entry] of Object.entries(MEDIAPIPE_WASM)) {
     console.log(`  --- ${name} ---`)
-    const files = await listJsdelivrFiles(pkg, ver)
+    const files = await listJsdelivrFiles(entry.pkg, entry.version)
     for (const f of files) {
-      const url = `https://cdn.jsdelivr.net/npm/${pkg}@${ver}/${f}`
+      const url = `https://cdn.jsdelivr.net/npm/${entry.pkg}@${entry.version}/${f}`
       const dest = join(BASE, 'mediapipe/wasm', name, basename(f))
       await downloadFile(url, dest)
     }
@@ -278,7 +256,7 @@ async function downloadTfjsModels(): Promise<void> {
   // storage.googleapis.com 旧路径已失效，改用 tfhub.dev 的 TF.js 模型端点
   // 注意：此端点对部分客户端（如 curl 的 UA）会返回 HTML 页面，
   // 但 Node fetch（undici，无自定义 UA）可正常返回二进制，下载器保持默认 fetch 即可
-  const mobilenetBase = 'https://tfhub.dev/google/tfjs-model/imagenet/mobilenet_v2_100_224/classification/2/default/1'
+  const mobilenetBase = TFJS_MOBILENET_BASE
   const mobilenetDir = join(BASE, 'tfjs/mobilenet')
   const mobilenetJson = join(mobilenetDir, 'model.json')
   // 删除可能已损坏的旧文件
@@ -297,7 +275,7 @@ async function downloadTfjsModels(): Promise<void> {
 
   // Speech Commands v0.5 browser_fft 18w
   console.log('  --- Speech Commands v0.5 ---')
-  const scBase = 'https://storage.googleapis.com/tfjs-models/tfjs/speech-commands/v0.5/browser_fft/18w'
+  const scBase = TFJS_SPEECH_BASE
   const scDir = join(BASE, 'tfjs/speech-commands')
   const scJson = join(scDir, 'model.json')
   await downloadFile(`${scBase}/model.json`, scJson)
@@ -325,12 +303,35 @@ async function downloadFaceApiModels(): Promise<void> {
     'face_recognition_model-weights_manifest.json',
     'face_recognition_model.bin'
   ]
-  const jsdelivr = 'https://cdn.jsdelivr.net/gh/vladmandic/face-api@master/model'
-  const raw = 'https://raw.githubusercontent.com/vladmandic/face-api/master/model'
+  const jsdelivr = FACEAPI_BASES[0]!
+  const raw = FACEAPI_BASES[1]!
   for (const f of files) {
     const dest = join(BASE, 'faceapi', f)
     const ok = await downloadFile(`${jsdelivr}/${f}`, dest)
     if (!ok) await downloadFile(`${raw}/${f}`, dest)
+  }
+}
+
+// ============================================================
+// 7. ml5 DoodleNet 简笔画模型（/vision/sketch）
+// ============================================================
+/**
+ * ml5 把 DoodleNet 的地址硬编码为 jsdelivr，且 345 个类别标签烘焙在 ml5 包内，
+ * 因此只本地化权重：前端把该地址重写到 /model/doodle/，此处负责把文件拉下来。
+ * 本地缺失时 /model/* 会 302 回退到 DOODLE_BASE（见 model-sources.ts）。
+ */
+async function downloadDoodleNet(): Promise<void> {
+  console.log('\n=== ml5 DoodleNet（简笔画） ===')
+  const dir = join(BASE, 'doodle')
+  const modelJson = join(dir, 'model.json')
+  const ok = await downloadFile(`${DOODLE_BASE}/model.json`, modelJson)
+  if (!ok) return
+  const data = readJson(modelJson)
+  if (!data) return
+  for (const group of data.weightsManifest || []) {
+    for (const path of group.paths || []) {
+      await downloadFile(`${DOODLE_BASE}/${path}`, join(dir, path))
+    }
   }
 }
 
@@ -370,6 +371,7 @@ export async function downloadAllModels(): Promise<void> {
     await downloadTfjsModels()
     await downloadWebllmModels()
     await downloadFaceApiModels()
+    await downloadDoodleNet()
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
     console.log(`\n[model-downloader] 下载完成，总大小 ${totalSizeMb(BASE).toFixed(1)} MB，耗时 ${elapsed}s`)
   } catch (e: any) {

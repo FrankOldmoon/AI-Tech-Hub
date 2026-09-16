@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import type { KnnClassifierLike } from '~/composables/useKnnTrainer'
 import { humanError, mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { isRemoteDeploy, REMOTE_TFJS } from '~/utils/remote-models'
@@ -14,14 +15,14 @@ const error = ref<string | null>(null)
 const running = ref(false) // 摄像头开启
 const predicting = ref(false) // 预测中
 const loadProgress = ref('')
-
-// 3 个类别（可改名）
-const classNames = ref(['Class A', 'Class B', 'Class C'])
-const sampleCounts = ref([0, 0, 0])
-// 预测结果
-const predictions = ref<Array<{ name: string, score: number }>>([])
-const topClass = ref<string>('')
 const inferenceTime = ref(0)
+
+// 类别名 / 样本数 / 预测结果 / 重命名迁移 / 清空 由共享层管理（与姿态、文本训练页同源）
+const {
+  classNames, sampleCounts, predictions, topClass,
+  classNameAt, totalSamples, syncCount, resetResults, applyPrediction,
+  renameClass, clearClass, clearAll
+} = useKnnTrainer()
 
 // 可调参数
 const specs = computed<ParamSpec[]>(() => [
@@ -49,11 +50,12 @@ const specs = computed<ParamSpec[]>(() => [
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
 let mobilenet: any = null
-let classifier: any = null
+let classifier: KnnClassifierLike | null = null
 let stream: MediaStream | null = null
 let rafId: number | null = null
 let captureTimer: number | null = null
-let trainingClass = -1 // 当前正在训练的类别索引
+// 当前正在训练的类别索引（-1 = 未在训练）。用 ref：模板要据此高亮对应卡片
+const trainingClass = ref(-1)
 
 async function loadModels() {
   if (mobilenet && classifier) return
@@ -95,12 +97,11 @@ async function startWebcam() {
 function stopWebcam() {
   stopPredicting()
   running.value = false
-  if (trainingClass >= 0) trainingClass = -1
+  trainingClass.value = -1
   if (captureTimer) { clearInterval(captureTimer); captureTimer = null }
   if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null }
   if (videoRef.value) videoRef.value.srcObject = null
-  predictions.value = []
-  topClass.value = ''
+  resetResults()
 }
 
 // 实时预测循环
@@ -121,21 +122,17 @@ function stopPredicting() {
 
 async function predict() {
   const video = videoRef.value
-  if (!video || !mobilenet || !classifier || classifier.getNumClasses() === 0) return
-  if (trainingClass >= 0) return // 训练中不预测
+  const clf = classifier
+  if (!video || !mobilenet || !clf || clf.getNumClasses() === 0) return
+  if (trainingClass.value >= 0) return // 训练中不预测
   const ts = performance.now()
   try {
     const logits = mobilenet.infer(video, true)
-    const res = await classifier.predictClass(logits, Number(params.value.topK))
+    const res = await clf.predictClass(logits, Number(params.value.topK))
     logits.dispose()
     inferenceTime.value = Math.round(performance.now() - ts)
-    // 构造预测列表
-    const confidences = res.confidences
-    const label = res.label
-    topClass.value = label
-    predictions.value = classNames.value
-      .map((name, i) => ({ name, score: confidences[name] ?? confidences[i] ?? 0 }))
-      .sort((a, b) => b.score - a.score)
+    // 本页不设置信度阈值：传 0 表示始终显示 top-1
+    applyPrediction(res, 0)
   } catch (e: any) {
     error.value = humanError(e, t)
   }
@@ -146,15 +143,16 @@ async function startTraining(idx: number) {
   if (!running.value || !mobilenet) return
   await loadModels()
   if (!mobilenet) return
-  trainingClass = idx
+  trainingClass.value = idx
   stopPredicting()
   const capture = async () => {
     const video = videoRef.value
-    if (!video) return
+    const clf = classifier
+    if (!video || !clf) return
     try {
       const logits = mobilenet.infer(video, true)
-      classifier.addExample(logits, classNames.value[idx])
-      sampleCounts.value[idx] = classifier.getClassExampleCount()[classNames.value[idx]] || 0
+      clf.addExample(logits, classNameAt(idx))
+      syncCount(idx, clf)
     } catch (e: any) {
       error.value = humanError(e, t)
     }
@@ -165,45 +163,22 @@ async function startTraining(idx: number) {
 
 function stopTraining() {
   if (captureTimer) { clearInterval(captureTimer); captureTimer = null }
-  if (trainingClass >= 0) {
-    trainingClass = -1
+  if (trainingClass.value >= 0) {
+    trainingClass.value = -1
     if (running.value) startPredicting()
   }
 }
 
-function clearClass(idx: number) {
-  if (!classifier) return
-  classifier.clearClass(classNames.value[idx])
-  sampleCounts.value[idx] = 0
-  predictions.value = []
-  topClass.value = ''
+function onRenameClass(idx: number, name: string) {
+  if (!renameClass(idx, name, classifier)) error.value = t('ml.renameAfterSamples')
 }
 
-function clearAll() {
-  if (!classifier) return
-  classifier.clearAllClasses()
-  sampleCounts.value = [0, 0, 0]
-  predictions.value = []
-  topClass.value = ''
+function onClearClass(idx: number) {
+  clearClass(idx, classifier)
 }
 
-function renameClass(idx: number, name: string) {
-  // 若已有样本，需在 KNN 中迁移标签
-  const oldName = classNames.value[idx]
-  if (classifier && oldName !== name) {
-    const count = classifier.getClassExampleCount()?.[oldName] || 0
-    if (count > 0) {
-      // 取出旧样本，以新标签重新加入
-      const dataset = classifier.getClassDatasetObject(oldName)
-      if (dataset) {
-        classifier.clearClass(oldName)
-        for (const tensor of Object.values(dataset)) {
-          classifier.addExample(tensor, name)
-        }
-      }
-    }
-  }
-  classNames.value[idx] = name
+function onClearAll() {
+  clearAll(classifier)
 }
 
 onBeforeUnmount(() => stopWebcam())
@@ -234,8 +209,8 @@ onBeforeUnmount(() => stopWebcam())
         :label="t('ml.clearAll')"
         color="neutral"
         variant="subtle"
-        :disabled="!sampleCounts.some(c => c > 0)"
-        @click="clearAll"
+        :disabled="totalSamples === 0"
+        @click="onClearAll"
       />
       <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
     </div>
@@ -258,49 +233,29 @@ onBeforeUnmount(() => stopWebcam())
     </div>
 
     <!-- 训练区：3 个类别 -->
-    <div class="grid sm:grid-cols-3 gap-4">
-      <UCard
-        v-for="(name, i) in classNames"
-        :key="i"
-        :class="trainingClass === i ? 'ring-2 ring-primary' : ''"
-      >
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <span class="size-3 rounded-full" :class="['bg-green-500', 'bg-purple-500', 'bg-orange-500'][i]" />
-            <input
-              :value="name"
-              class="flex-1 bg-transparent border-b border-default text-sm font-medium text-highlighted focus:border-primary outline-none py-1"
-              @change="renameClass(i, ($event.target as HTMLInputElement).value)"
-            >
-          </div>
-          <div class="text-3xl font-bold tabular-nums text-highlighted">{{ sampleCounts[i] }}</div>
-          <p class="text-xs text-muted">{{ t('ml.samples') }}</p>
-          <div class="flex gap-2">
-            <UButton
-              :label="trainingClass === i ? t('ml.recording') : t('ml.train')"
-              :color="trainingClass === i ? 'error' : 'primary'"
-              :variant="trainingClass === i ? 'solid' : 'subtle'"
-              size="sm"
-              :disabled="!running"
-              block
-              @mousedown="startTraining(i)"
-              @mouseup="stopTraining"
-              @mouseleave="stopTraining"
-              @touchstart.prevent="startTraining(i)"
-              @touchend.prevent="stopTraining"
-            />
-            <UButton
-              v-if="sampleCounts[i] > 0"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              @click="clearClass(i)"
-            />
-          </div>
-        </div>
-      </UCard>
-    </div>
+    <ClassTrainerGrid
+      :class-names="classNames"
+      :sample-counts="sampleCounts"
+      :active-index="trainingClass"
+      @rename="onRenameClass"
+      @clear="onClearClass"
+    >
+      <template #collect="{ index }">
+        <UButton
+          :label="trainingClass === index ? t('ml.recording') : t('ml.train')"
+          :color="trainingClass === index ? 'error' : 'primary'"
+          :variant="trainingClass === index ? 'solid' : 'subtle'"
+          size="sm"
+          :disabled="!running"
+          block
+          @mousedown="startTraining(index)"
+          @mouseup="stopTraining"
+          @mouseleave="stopTraining"
+          @touchstart.prevent="startTraining(index)"
+          @touchend.prevent="stopTraining"
+        />
+      </template>
+    </ClassTrainerGrid>
 
     <!-- 可调参数 -->
     <DemoParams v-model="params" :specs="specs" :running="trainingClass >= 0" />
@@ -313,17 +268,7 @@ onBeforeUnmount(() => stopWebcam())
           {{ t('demo.result') }}
         </div>
       </template>
-      <div class="space-y-3">
-        <div
-          v-for="(p, i) in predictions"
-          :key="i"
-          class="flex items-center gap-3"
-        >
-          <span class="text-sm font-medium w-24 shrink-0 truncate">{{ p.name }}</span>
-          <UProgress :model-value="Math.round(p.score * 100)" size="sm" class="flex-1" />
-          <span class="text-sm text-muted w-12 text-right tabular-nums">{{ Math.round(p.score * 100) }}%</span>
-        </div>
-      </div>
+      <PredictionBars :predictions="predictions" :top-class="topClass" />
     </UCard>
   </MediaDemoShell>
 </template>

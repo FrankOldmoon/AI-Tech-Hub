@@ -49,8 +49,8 @@ function loadScript(src: string): Promise<void> {
 }
 
 // ===== Monaco Editor =====
-const MONACO_VERSION = '0.52.2'
-const MONACO_BASE = `https://cdn.jsdelivr.net/npm/monaco-editor@${MONACO_VERSION}/min`
+// 本地托管：scripts/sync-runtime-libs.mjs 从 package.json 的 monaco-editor 依赖同步产物
+const MONACO_BASE = '/model/vendor/monaco/min'
 
 const editorContainer = ref<HTMLElement>()
 let editor: any = null
@@ -111,8 +111,8 @@ watch(monacoTheme, (theme) => {
 })
 
 // ===== Pyodide =====
-const PYODIDE_VERSION = '0.27.7'
-const PYODIDE_BASE = `https://cdn.jsdelivr.net/pyodide/v${PYODIDE_VERSION}/full`
+// 本地托管：scripts/sync-runtime-libs.mjs 从 package.json 的 pyodide 依赖同步产物
+const PYODIDE_BASE = '/model/vendor/pyodide'
 
 const pyodideLoading = ref(false)
 const pyodideReady = ref(false)

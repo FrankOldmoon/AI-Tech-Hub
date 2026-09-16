@@ -33,6 +33,32 @@
     "searchEmpty": "没有找到匹配的 demo",
     "classroomTitle": "课堂演示推荐",
     "classroomDesc": "经筛选的可靠 demo：加载快、效果好，适合在课堂上给全班演示（老师视角）",
+    "devcaps": {
+      "title": "本机能力",
+      "desc": "在你的浏览器里实时探测，不上报任何数据。超出本机能力的能力页可能很慢或不可用。",
+      "na": "不支持",
+      "noAdapter": "无可用适配器",
+      "available": "可用",
+      "unavailable": "不可用",
+      "unknown": "未知",
+      "mtOn": "已启用",
+      "mtOff": "未启用（需 COOP/COEP）",
+      "summary": {
+        "full": "能力齐备",
+        "slow": "可跑全部，GPU 加速受限",
+        "limited": "部分能力不可用"
+      },
+      "label": {
+        "webgpu": "WebGPU",
+        "threads": "多线程",
+        "simd": "WASM SIMD",
+        "cores": "CPU 核心",
+        "webgl2": "WebGL2",
+        "camera": "摄像头",
+        "memory": "内存",
+        "storage": "存储配额"
+      }
+    },
     "stats": {
       "demos": "演示数量",
       "categories": "技术分类",
@@ -63,6 +89,7 @@
     }
   },
   "demo": {
+    "crossListed": "来自其它分类",
     "status": {
       "ready": "可用",
       "planned": "规划中"
@@ -104,6 +131,24 @@
     "model": "模型",
     "modelNote": "网页端本地推理"
   },
+  "status": {
+    "title": "模型供给状态",
+    "desc": "自托管 / 内网部署自检：本地模型是否齐备，以及缺失项会不会回退到远程 CDN。",
+    "error": "读取模型状态失败 —— 接口可能不可用。",
+    "ready": "关键模型齐备",
+    "notReady": "缺失 {count} 个关键模型",
+    "dir": "目录",
+    "total": "合计",
+    "refresh": "刷新",
+    "group": "分组",
+    "files": "文件数",
+    "size": "体积",
+    "missingTitle": "缺失的关键文件",
+    "fallbackRemote": "回退远程",
+    "fallbackNone": "硬 404",
+    "missingHint": "标注「回退远程」的缺失文件会由 302 重定向到上游源；其余会直接 404。可在服务器上执行 `node scripts/sync-runtime-libs.mjs` 或 `pnpm models:fetch` 补齐。",
+    "allCritical": "没有缺失的关键文件。"
+  },
   "errors": {
     "network": "网络请求失败，请检查网络后重试。",
     "oom": "内存不足，请关闭其他标签页或降低输入大小后重试。",
@@ -130,6 +175,33 @@
     "useCamera": "使用摄像头",
     "capture": "拍照",
     "closeCamera": "关闭摄像头"
+  },
+  "nlp": {
+    "sections": {
+      "mediapipe": "MediaPipe",
+      "transformers": "Transformers.js",
+      "classify": "文本分类",
+      "langDetect": "语言检测",
+      "embed": "文本嵌入",
+      "extract": "信息抽取",
+      "summarize": "文本摘要",
+      "answer": "问答",
+      "fill": "完形填空"
+    },
+    "examples": {
+      "en": "英语",
+      "zh": "中文",
+      "ja": "日语",
+      "fr": "法语"
+    },
+    "tryExample": "试试示例",
+    "playground": {
+      "toolbox": "工具箱",
+      "run": "运行",
+      "ready": "已就绪",
+      "noResult": "尚无结果。填好输入后点「运行」，或先试一个示例。",
+      "elapsed": "耗时"
+    }
   },
   "textEmbedder": {
     "textA": "文本 A",
@@ -163,8 +235,19 @@
     "shapes": "形状图",
     "colorful": "彩色图",
     "speech": "语音",
+    "speechZh": "中文语音",
     "music": "音乐",
     "noisySpeech": "带噪语音",
+    "exNerPerson": "人物与地点",
+    "exNerNews": "机构与人物",
+    "exZsMovie": "影评情感",
+    "exZsNews": "新闻主题",
+    "exSummaryAI": "AI 综述",
+    "exSummaryEiffel": "埃菲尔铁塔",
+    "exQaEiffel": "建造时间",
+    "exQaMars": "红色星球",
+    "exMaskCapital": "法国首都",
+    "exMaskPlanets": "太阳系行星",
     "textDefault": "今天的天气很好，我很期待周末的到来。",
     "exSentimentPos": "积极情感示例",
     "exSentimentNeg": "消极情感示例",
@@ -254,7 +337,52 @@
     "analyzeFile": "分析音频",
     "noFile": "请先上传或选择音频文件",
     "fileHint": "整段音频将在浏览器本地逐段分析，数据不出浏览器。",
-    "fileDone": "文件分析完成"
+    "fileDone": "文件分析完成",
+    "start": "开始录音",
+    "stop": "停止录音",
+    "listening": "正在聆听",
+    "unsupported": "当前浏览器不支持该功能。",
+    "unsupportedRecognition": "当前浏览器不支持语音识别 (SpeechRecognition)。",
+    "recordStart": "开始录音",
+    "recordStop": "停止录音",
+    "cancel": "取消",
+    "downloadingModel": "下载模型中… {progress}%",
+    "playground": {
+      "toolbox": "工具箱",
+      "input": {
+        "file": "音频文件",
+        "text": "文本",
+        "live": "麦克风实时"
+      },
+      "run": "运行",
+      "noText": "请输入要合成的文本",
+      "ready": "已就绪",
+      "duration": "时长",
+      "textPlaceholder": "输入要朗读的文本…",
+      "liveHint": "点「开始录音」后对着麦克风说话；实时结果会逐条累积在下方。",
+      "loading": "加载模型",
+      "download": "下载",
+      "transcript": "识别结果",
+      "copy": "复制",
+      "copied": "已复制",
+      "history": "实时历史",
+      "noResult": "尚无结果。选好输入后点「运行」，实时工具则点「开始录音」。",
+      "elapsed": "耗时",
+      "backend": "后端"
+    },
+    "sections": {
+      "webSpeech": "Web Speech API",
+      "whisper": "Whisper",
+      "kokoro": "Kokoro",
+      "edge": "Edge TTS",
+      "mediapipe": "MediaPipe",
+      "transformers": "Transformers.js",
+      "transcribe": "语音转文字",
+      "translate": "语音翻译",
+      "synthesize": "语音合成",
+      "eventClassify": "音频事件分类",
+      "emotion": "语音情绪"
+    }
   },
   "vc": {
     "off": "原声",
@@ -1177,10 +1305,34 @@
     "format": "格式",
     "quality": "质量",
     "clickHint": "点击结果画布查看像素信息",
+    "promptHint": "点击图片放置提示点 —— 掩码会围绕该点计算",
+    "liveStart": "实时摄像头",
+    "liveStop": "停止实时",
+    "sketchTitle": "在此手绘",
+    "sketchHint": "白底 + 粗黑线 —— 简笔画模型正是按这种画风训练的",
+    "brush": "笔刷",
+    "clearCanvas": "清空",
+    "elapsed": "耗时",
+    "backend": "后端",
+    "firstLoadHint": "首次使用需要下载并初始化模型（体积可能较大），请稍候 —— 之后会快很多。",
     "secondImage": "第二张图",
     "secondImageHint": "点击或拖拽第二张图（特征匹配等双图工具使用）",
     "replaceSecond": "更换",
     "planned": "规划中",
+    "sections": {
+      "mediapipe": "MediaPipe",
+      "yolo": "YOLO",
+      "transformers": "Transformers.js",
+      "tfjs": "TensorFlow.js",
+      "pretrained": "预置模型",
+      "teach": "现场教学",
+      "face": "人脸",
+      "handsPose": "手部与姿态",
+      "detection": "检测与分类",
+      "segmentation": "分割与抠图",
+      "embedding": "嵌入",
+      "depth": "深度与描述"
+    },
     "faceStudio": {
       "addPhotos": "添加照片",
       "photosHint": "可一次选择多张；合影请点击缩略图选择要注册/识别的脸",
@@ -1253,7 +1405,8 @@
     "resizeDragS": "沿对角线等比缩放"
   },
   "footer": {
-    "builtWith": "基于 Nuxt UI 构建"
+    "builtWith": "基于 Nuxt UI 构建",
+    "modelStatus": "模型状态"
   },
   "robotArm": {
     "externalNote": "浏览器本地仿真无需额外环境；连实体机械臂需启动 rosbridge 并输入地址（ws://机械臂IP:9090）；LLM 对话暂未部署。",

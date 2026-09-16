@@ -45,11 +45,13 @@ async function processFile(file: File) {
     // 采样 ≤ 4000 点
     const total = w * h
     const step = Math.max(1, Math.floor(total / 4000))
-    const pts: number[][] = []
+    // 每个样本是 [r, g, b] 三元组：下面的距离与聚类都依赖这个定长形状
+    const pts: RGB[] = []
     for (let i = 0; i < total; i += step) {
       const idx = i * 4
-      if (data[idx + 3] < 128) continue // 跳过透明
-      pts.push([data[idx] / 255, data[idx + 1] / 255, data[idx + 2] / 255])
+      // i 遍历 [0, total)，data 是 w*h 个 RGBA 四通道，故 idx+3 仍在界内
+      if (data[idx + 3]! < 128) continue // 跳过透明
+      pts.push([data[idx]! / 255, data[idx + 1]! / 255, data[idx + 2]! / 255])
     }
     if (pts.length < 4) {
       error.value = t('ml.palette.noPixels')
@@ -64,43 +66,46 @@ async function processFile(file: File) {
   }
 }
 
-function dist2(a: number[], b: number[]): number {
+type RGB = [number, number, number]
+
+function dist2(a: RGB, b: RGB): number {
   return (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2 + (a[2] - b[2]) ** 2
 }
 
-function runKMeans(pts: number[][], kk: number): Array<{ hex: string, rgb: string, ratio: number }> {
-  // k-means++ 初始化
-  const centers: number[][] = [pts[Math.floor(Math.random() * pts.length)].slice()]
+function runKMeans(pts: RGB[], kk: number): Array<{ hex: string, rgb: string, ratio: number }> {
+  // k-means++ 初始化。pts 非空由调用方保证（少于 4 个点会提前 return）
+  const centers: RGB[] = [[...pts[Math.floor(Math.random() * pts.length)]!]]
   while (centers.length < kk) {
     const dists = pts.map(p => Math.min(...centers.map(c => dist2(p, c))))
     const total = dists.reduce((a, b) => a + b, 0) || 1
     let r = Math.random() * total
     let pick = pts.length - 1
     for (let i = 0; i < dists.length; i++) {
-      r -= dists[i]
+      r -= dists[i]!
       if (r <= 0) { pick = i; break }
     }
-    centers.push(pts[pick].slice())
+    centers.push([...pts[pick]!])
   }
   // Lloyd 迭代
   for (let iter = 0; iter < 20; iter++) {
-    const sums: number[][] = centers.map(() => [0, 0, 0])
+    const sums: RGB[] = centers.map<RGB>(() => [0, 0, 0])
     const counts: number[] = new Array(kk).fill(0)
     for (const p of pts) {
       let best = 0
       let bestD = Infinity
       for (let j = 0; j < kk; j++) {
-        const d = dist2(p, centers[j])
+        const d = dist2(p, centers[j]!)
         if (d < bestD) { bestD = d; best = j }
       }
-      sums[best][0] += p[0]; sums[best][1] += p[1]; sums[best][2] += p[2]
-      counts[best]++
+      // best ∈ [0, kk)，p 是定长 RGB
+      sums[best]![0] += p[0]; sums[best]![1] += p[1]; sums[best]![2] += p[2]
+      counts[best]!++
     }
     let moved = false
     for (let j = 0; j < kk; j++) {
       if (counts[j] === 0) continue
-      const nc = [sums[j][0] / counts[j], sums[j][1] / counts[j], sums[j][2] / counts[j]]
-      if (dist2(nc, centers[j]) > 1e-6) moved = true
+      const nc: RGB = [sums[j]![0] / counts[j]!, sums[j]![1] / counts[j]!, sums[j]![2] / counts[j]!]
+      if (dist2(nc, centers[j]!) > 1e-6) moved = true
       centers[j] = nc
     }
     if (!moved) break
@@ -111,10 +116,10 @@ function runKMeans(pts: number[][], kk: number): Array<{ hex: string, rgb: strin
     let best = 0
     let bestD = Infinity
     for (let j = 0; j < kk; j++) {
-      const d = dist2(p, centers[j])
+      const d = dist2(p, centers[j]!)
       if (d < bestD) { bestD = d; best = j }
     }
-    counts[best]++
+    counts[best]!++
   }
   const total = pts.length || 1
   return centers
@@ -123,7 +128,7 @@ function runKMeans(pts: number[][], kk: number): Array<{ hex: string, rgb: strin
       const g = Math.round(c[1] * 255)
       const b = Math.round(c[2] * 255)
       const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
-      return { hex, rgb: `${r}, ${g}, ${b}`, ratio: counts[i] / total }
+      return { hex, rgb: `${r}, ${g}, ${b}`, ratio: counts[i]! / total }
     })
     .sort((a, b) => b.ratio - a.ratio)
 }

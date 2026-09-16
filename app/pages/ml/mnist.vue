@@ -38,9 +38,10 @@ async function loadData() {
     const pixels = new Uint8Array(buf, 0, N * 784)
     const labels = new Uint8Array(buf, N * 784, N)
     xsData = new Float32Array(N * 784)
-    for (let i = 0; i < N * 784; i++) xsData[i] = pixels[i] / 255
+    // 循环上界与两个数据缓冲区的长度一致，故下标必在界内
+    for (let i = 0; i < N * 784; i++) xsData[i] = pixels[i]! / 255
     ysData = new Float32Array(N * 10)
-    for (let i = 0; i < N; i++) ysData[i * 10 + labels[i]] = 1
+    for (let i = 0; i < N; i++) ysData[i * 10 + labels[i]!] = 1
     labelsData = labels
     await buildModel()
     initDrawCanvas()
@@ -74,9 +75,10 @@ async function trainBatch() {
   for (let i = 0; i < BATCH; i++) idx.push(Math.floor(Math.random() * N))
   const x = new Float32Array(BATCH * 784)
   const y = new Float32Array(BATCH * 10)
+  // idx 恰好 push 了 BATCH 个样本号，故 b < BATCH 时下标必在界内
   for (let b = 0; b < BATCH; b++) {
-    const si = idx[b] * 784
-    const sj = idx[b] * 10
+    const si = idx[b]! * 784
+    const sj = idx[b]! * 10
     x.set(xsData.subarray(si, si + 784), b * 784)
     y.set(ysData.subarray(sj, sj + 10), b * 10)
   }
@@ -168,12 +170,14 @@ async function predictDigit() {
     tctx.drawImage(canvas, 0, 0, 28, 28)
     const data = tctx.getImageData(0, 0, 28, 28).data
     const vec = new Float32Array(784)
+    // i < 784 且 imageData 按 RGBA 四通道排列，故 i*4+2 必在界内
     for (let i = 0; i < 784; i++) {
-      vec[i] = (data[i * 4] + data[i * 4 + 1] + data[i * 4 + 2]) / 3 / 255
+      vec[i] = (data[i * 4]! + data[i * 4 + 1]! + data[i * 4 + 2]!) / 3 / 255
     }
     const t = tf.tensor2d([Array.from(vec)], [1, 784])
     const pred = await model.predict(t)
-    const arr = Array.from(pred.dataSync())
+    // 显式给出元素类型：pred 是 any，不写的话数组会被推成 unknown[]
+    const arr = Array.from<number>(pred.dataSync())
     t.dispose()
     predictions.value = arr
       .map((score, label) => ({ label, score }))

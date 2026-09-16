@@ -66,15 +66,15 @@ export function disposeYoloSessions() {
 }
 
 /**
- * 视频帧预处理：
+ * 帧预处理（通用）：source 可为 video / canvas / ImageBitmap 等任意可绘制源
  * - cls：短边缩放到 imgsz*256/224 再中心裁剪 imgsz
  * - 其余：等比缩放 + 灰边（letterbox）
- * 返回张量 + 视频坐标→模型坐标的 scale/dx/dy（用于后处理还原）
+ * 返回张量 + 源坐标→模型坐标的 scale/dx/dy（用于后处理还原）
  */
-export async function preprocess(video: HTMLVideoElement, imgsz: number, centerCrop: boolean):
-Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+export async function preprocessSource(
+  source: CanvasImageSource, vw: number, vh: number, imgsz: number, centerCrop: boolean
+): Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
   const ort = await getOrt()
-  const vw = video.videoWidth, vh = video.videoHeight
   const tmp = new OffscreenCanvas(imgsz, imgsz)
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!
   let scale: number, dx: number, dy: number
@@ -85,15 +85,15 @@ Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect>
     scale = rs
     tctx.fillStyle = '#000'
     tctx.fillRect(0, 0, imgsz, imgsz)
-    tctx.drawImage(video, -dx / rs, -dy / rs, sw / rs, sh / rs)
-    dx = -dx; dy = -dy // 视频坐标 -> 模型坐标偏移
+    tctx.drawImage(source, -dx / rs, -dy / rs, sw / rs, sh / rs)
+    dx = -dx; dy = -dy // 源坐标 -> 模型坐标偏移
   } else {
     scale = Math.min(imgsz / vw, imgsz / vh)
     const nw = vw * scale, nh = vh * scale
     dx = (imgsz - nw) / 2; dy = (imgsz - nh) / 2
     tctx.fillStyle = '#808080'
     tctx.fillRect(0, 0, imgsz, imgsz)
-    tctx.drawImage(video, dx, dy, nw, nh)
+    tctx.drawImage(source, dx, dy, nw, nh)
   }
   const data = tctx.getImageData(0, 0, imgsz, imgsz).data
   const plane = imgsz * imgsz
@@ -105,4 +105,19 @@ Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect>
     j++
   }
   return { tensor: new ort.Tensor('float32', chw, [1, 3, imgsz, imgsz]), scale, dx, dy }
+}
+
+/** 视频帧预处理（摄像头实时路径） */
+export function preprocess(video: HTMLVideoElement, imgsz: number, centerCrop: boolean):
+Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+  return preprocessSource(video, video.videoWidth, video.videoHeight, imgsz, centerCrop)
+}
+
+/** 静态图预处理（上传/示例/拍照单帧路径，与视频共用同一管线） */
+export function preprocessImageData(imageData: ImageData, imgsz: number, centerCrop: boolean):
+Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+  const canvas = new OffscreenCanvas(imageData.width, imageData.height)
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+  ctx.putImageData(imageData, 0, 0)
+  return preprocessSource(canvas, imageData.width, imageData.height, imgsz, centerCrop)
 }

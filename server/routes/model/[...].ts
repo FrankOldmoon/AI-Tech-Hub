@@ -33,6 +33,8 @@ import {
 const MODELS_DIR = process.env.MODELS_DIR || join(process.cwd(), '.models')
 
 // 常见文件扩展名 -> MIME（与 server/api/hf/[...].get.ts 保持一致）
+// 注：.models/vendor/ 下也托管从 npm 同步来的运行时库产物（js/mjs/css 等），
+// 浏览器按 Content-Type 决定是否执行/解析，故必须给出正确 MIME。
 const MIME: Record<string, string> = {
   onnx: 'application/octet-stream',
   bin: 'application/octet-stream',
@@ -40,7 +42,17 @@ const MIME: Record<string, string> = {
   ot: 'application/octet-stream',
   json: 'application/json',
   txt: 'text/plain',
-  wasm: 'application/wasm'
+  wasm: 'application/wasm',
+  js: 'text/javascript',
+  mjs: 'text/javascript',
+  css: 'text/css',
+  html: 'text/html',
+  svg: 'image/svg+xml',
+  map: 'application/json',
+  gz: 'application/gzip',
+  zip: 'application/zip',
+  woff2: 'font/woff2',
+  ttf: 'font/ttf'
 }
 
 export default defineEventHandler((event) => {
@@ -53,6 +65,16 @@ export default defineEventHandler((event) => {
   }
 
   if (!existsSync(filePath)) {
+    // 本地缺失 → 302 回退到登记过的远程来源（model-sources.ts）。
+    // 解决「自托管但模型不全」时直接 404（表现为白屏/报错）的问题；被墙环境改
+    // model-sources 里的常量即可切镜像。未登记远程来源的目录仍返回 404。
+    const fallback = remoteUrlFor(rel)
+    if (fallback) {
+      setResponseHeader(event, 'Cache-Control', 'no-cache')
+      setResponseHeader(event, 'Location', fallback)
+      setResponseStatus(event, 302)
+      return null
+    }
     throw createError({ statusCode: 404, statusMessage: `Model not found: ${rel || '(empty)'}` })
   }
   const stat = statSync(filePath)
@@ -63,8 +85,14 @@ export default defineEventHandler((event) => {
   const ext = rel.split('.').pop()?.toLowerCase() ?? ''
   setResponseHeader(event, 'Content-Type', MIME[ext] || 'application/octet-stream')
   setResponseHeader(event, 'Accept-Ranges', 'bytes')
-  // 模型文件为大文件且少变，长缓存；路径含版本/commit 时天然失效
-  setResponseHeader(event, 'Cache-Control', 'public, max-age=3600')
+  // 模型文件为大文件且少变：生产用长缓存（一周），避免学生每次上课重复下载；
+  // 开发用短缓存，否则改完模型/重新同步后仍读到旧文件。
+  // 注意不用 immutable：/model/vendor/ 下的 npm 产物会随依赖升级而变。
+  setResponseHeader(
+    event,
+    'Cache-Control',
+    process.env.NODE_ENV === 'production' ? 'public, max-age=604800' : 'public, max-age=60'
+  )
 
   const total = stat.size
   const range = getRequestHeaders(event).range

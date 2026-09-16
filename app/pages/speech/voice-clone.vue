@@ -2,6 +2,8 @@
 /** 语音克隆（0-shot）：录/传参考音 → 转说话人嵌入，ChatterboxModel 低层 API 生成语音，纯本端 */
 /* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
 import { mediaError } from '~/utils/errors'
+import { decodeToRate } from '~/utils/audio'
+import { encodeWav } from '~/utils/wav'
 import { setupTransformersEnv } from '~/utils/transformers'
 
 const { t } = useI18n()
@@ -11,16 +13,13 @@ const demo = computed(() => getDemo('speech', 'voice-clone')!)
 const text = ref('你好，这是一段用你的声音合成的语音。Hello, this is your cloned voice speaking.')
 const device = ref<'webgpu' | 'wasm'>('webgpu')
 
-// 参考音：录音 / 上传
-const recording = ref(false)
-const recordSeconds = ref(0)
-const refFile = ref<File | null>(null)
-const refUrl = ref('')
-const fileInput = ref<HTMLInputElement>()
-let mediaRecorder: MediaRecorder | null = null
-let recordStream: MediaStream | null = null
-let recordChunks: Blob[] = []
-let recordTimer: number | null = null
+// 参考音上传：文件 ref、objectURL、隐藏 input 交给 useAudioSource（本页没有示例音入口，故不传 defaultSampleUrl）
+const audioSource = useAudioSource()
+const refFile = audioSource.file
+const refUrl = audioSource.url
+const fileInput = audioSource.inputRef
+const pickFile = audioSource.pick
+const onFileChange = audioSource.onFileChange
 
 // 推理
 const loading = ref(false)
@@ -38,72 +37,34 @@ const DTYPE = {
   webgpu: { embed_tokens: 'fp32', speech_encoder: 'fp32', language_model: 'q4f16', conditional_decoder: 'fp32' }
 }
 
-function pickFile() { fileInput.value?.click() }
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (!f) return
-  setRef(f)
-}
-
-function setRef(f: File) {
-  refFile.value = f
-  if (refUrl.value) URL.revokeObjectURL(refUrl.value)
-  refUrl.value = URL.createObjectURL(f)
+// 换参考音后清空上一次的合成结果（原 setRef 的副作用），改挂在 file 的 watch 上，
+// setRef 本身则完全交给 useAudioSource。
+watch(refFile, () => {
   resultUrl.value = ''
   error.value = null
-}
+})
 
-async function startRecording() {
-  if (recording.value) return
+// 录音：采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」。
+const recorder = useRecorder({
+  namePrefix: 'ref',
+  onStop: audioSource.setFile,
+  onError: (e) => { error.value = mediaError(e, t) }
+})
+const recording = recorder.recording
+const recordSeconds = recorder.seconds
+
+function startRecording() {
   error.value = null
-  try {
-    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true })
-    mediaRecorder = new MediaRecorder(recordStream)
-    recordChunks = []
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recordChunks.push(e.data) }
-    mediaRecorder.onstop = () => {
-      const blob = new Blob(recordChunks, { type: mediaRecorder?.mimeType || 'audio/webm' })
-      setRef(new File([blob], `ref-${Date.now()}.webm`, { type: blob.type }))
-      recordSeconds.value = 0
-    }
-    mediaRecorder.start()
-    recording.value = true
-    recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
-  } catch (e: any) {
-    error.value = mediaError(e, t)
-  }
+  recorder.start()
 }
 
 function stopRecording() {
-  mediaRecorder?.stop()
-  recordStream?.getTracks().forEach(tr => tr.stop())
-  recordStream = null
-  mediaRecorder = null
-  recording.value = false
-  if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
+  recorder.stop()
 }
 
 // 参考音频 → 48kHz 单声道 Float32Array，再编码为说话人嵌入
 async function encodeSpeaker(file: File): Promise<{ encoder_hidden_states?: any } | any> {
-  const buf = await file.arrayBuffer()
-  const Ctor: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
-  const ctx = new Ctor()
-  let out: Float32Array
-  try {
-    const dec = await ctx.decodeAudioData(buf)
-    const src = dec.getChannelData(0)
-    const targetRate = 48000
-    if (dec.sampleRate === targetRate) out = src.slice()
-    else {
-      const ratio = dec.sampleRate / targetRate
-      out = new Float32Array(Math.floor(src.length / ratio))
-      for (let i = 0; i < out.length; i++) out[i] = src[Math.floor(i * ratio)] ?? 0
-    }
-  } finally {
-    ctx.close()
-  }
+  const out = await decodeToRate(file, 48000)
   const { Tensor } = await import('@huggingface/transformers')
   return await (model as any).encode_speech(new Tensor('float32', out, [1, out.length]))
 }
@@ -124,7 +85,7 @@ async function ensureModel() {
     if (!p) return
     if (p.status === 'progress' && p.total) {
       progress.value = Math.round((p.loaded / p.total) * 100)
-      statusText.value = t('emotion.downloading', { progress: progress.value })
+      statusText.value = t('speech.downloadingModel', { progress: progress.value })
     } else if (p.status === 'ready' || p.status === 'done') statusText.value = t('vcClone.loaded')
   }
   try {
@@ -136,19 +97,9 @@ async function ensureModel() {
   return model
 }
 
-/** Float32 音频 → WAV Blob */
+/** Float32 音频 → WAV Blob（编码实现见 utils/wav） */
 function samplesToWav(samples: Float32Array, sampleRate: number): Blob {
-  const buffer = new ArrayBuffer(44 + samples.length * 2)
-  const view = new DataView(buffer)
-  const wstr = (o: number, s: string) => { for (let i = 0; i < s.length; i++) view.setUint8(o + i, s.charCodeAt(i)) }
-  wstr(0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); wstr(8, 'WAVE')
-  wstr(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true)
-  view.setUint16(22, 1, true); view.setUint32(24, sampleRate, true)
-  view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true)
-  wstr(36, 'data'); view.setUint32(40, samples.length * 2, true)
-  let o = 44
-  for (let i = 0; i < samples.length; i++) { view.setInt16(o, Math.max(-1, Math.min(1, samples[i]!)) * 0x7fff, true); o += 2 }
-  return new Blob([buffer], { type: 'audio/wav' })
+  return encodeWav(samples, sampleRate)
 }
 
 async function synthesize() {
@@ -193,10 +144,9 @@ function download() {
   const a = document.createElement('a'); a.href = resultUrl.value; a.download = 'clone.wav'; a.click()
 }
 
+// 只终止在途推理与回收合成结果的 objectURL；参考音的采集流/输入 URL 已由两个 composable 接管。
 onBeforeUnmount(() => {
   cancelled = true
-  stopRecording()
-  if (refUrl.value) URL.revokeObjectURL(refUrl.value)
   if (resultUrl.value) URL.revokeObjectURL(resultUrl.value)
 })
 </script>
@@ -216,7 +166,7 @@ onBeforeUnmount(() => {
           <UButton
             v-if="!recording"
             icon="i-lucide-mic"
-            :label="t('emotion.recordStart')"
+            :label="t('speech.recordStart')"
             color="primary"
             variant="soft"
             @click="startRecording"
@@ -224,7 +174,7 @@ onBeforeUnmount(() => {
           <UButton
             v-else
             icon="i-lucide-square"
-            :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
+            :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
             color="error"
             variant="subtle"
             @click="stopRecording"
@@ -277,7 +227,7 @@ onBeforeUnmount(() => {
           <UButton
             v-if="generating"
             icon="i-lucide-x"
-            :label="t('emotion.cancel')"
+            :label="t('speech.cancel')"
             color="neutral"
             variant="subtle"
             @click="cancel"

@@ -28,6 +28,14 @@ export interface DemoRequirements {
 export interface Demo {
   slug: string
   category: DemoCategory
+  /**
+   * 跨分类归属：该 demo 还会出现在这些分类的**列表**里（不改 URL）。
+   *
+   * 用于「训练自己的分类器」这类横跨两个方向的演示：图像分类训练既属于机器学习，
+   * 也属于视觉。`category` 仍是**规范归属**（决定 `demoPath` 与 `getDemo` 的校验），
+   * `alsoIn` 只影响列表展示，因此不会产生第二个 URL、不需要 301。
+   */
+  alsoIn?: DemoCategory[]
   /** 子分组稳定键（仅 vision 分类使用，值为 visionGroupKeys 之一；其他分类缺省） */
   group?: string
   title: Localized
@@ -60,24 +68,20 @@ export interface LocalizedDemo extends Omit<Demo, 'title' | 'description' | 'how
 
 /** vision 分类的子分组（顺序即展示顺序） */
 export const visionGroupKeys = [
-  'image-workbench',
+  'workbench',
   'face',
-  'hand-pose',
-  'ai-object',
-  'segmentation',
-  'multimodal',
-  'embedding-ocr'
+  'capability',
+  'engine',
+  'lesson'
 ] as const
 export type VisionGroupKey = typeof visionGroupKeys[number]
 
 export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
-  'image-workbench': { zh: '图像处理工坊', en: 'Image Workbench' },
-  'face': { zh: '人脸视觉', en: 'Face Vision' },
-  'hand-pose': { zh: '手势与姿态', en: 'Hands & Pose' },
-  'ai-object': { zh: 'AI 检测与识别', en: 'AI Detection & Recognition' },
-  'segmentation': { zh: '图像分割与抠图', en: 'Segmentation & Matting' },
-  'multimodal': { zh: '深度与图像描述', en: 'Depth & Captioning' },
-  'embedding-ocr': { zh: '嵌入与文字识别', en: 'Embedding & OCR' }
+  workbench: { zh: '图像处理工坊', en: 'Image Workbench' },
+  face: { zh: '人脸', en: 'Face' },
+  capability: { zh: '能力对比', en: 'Capability Comparison' },
+  engine: { zh: '引擎全览', en: 'Engine Overview' },
+  lesson: { zh: '教学', en: 'Lessons' }
 }
 
 export const categories: Category[] = [
@@ -143,22 +147,33 @@ export const demos: Demo[] = [
     slug: 'tts',
     classroomSafe: true,
     category: 'speech',
-    title: { zh: '文本转语音 (TTS)', en: 'Text to Speech (TTS)' },
-    description: { zh: '文本转语音合成。', en: 'Text to speech synthesis.' },
-    howItWorks: { zh: '文本输入后，Kokoro 神经 TTS 模型在浏览器本地（WebGPU/WASM + ONNX q8）生成语音，数据不出设备，可即时播放或下载。', en: 'Type text and a Kokoro neural TTS model (ONNX q8, WebGPU/WASM) synthesizes speech directly in your browser — no server involved.' },
+    title: { zh: '语音合成 (TTS)', en: 'Text to Speech (TTS)' },
+    description: { zh: '同一段文本用两种引擎合成：本地 Kokoro 与服务端 Edge TTS。', en: 'Synthesize the same text with two engines: local Kokoro and server-side Edge TTS.' },
+    howItWorks: { zh: '「文本转语音」是一个任务，实现方式差别很大：Kokoro 是 82M 的神经 TTS，模型下载到浏览器本地用 WebGPU/WASM 推理，数据不出设备、首次要等下载；Edge TTS 走服务端合成，音色多、零下载，但文本会离开浏览器。左侧工具栏列出两种实现，可对同一句话横向对比音质与延迟——这正是「能力页」的价值。', en: 'Text to speech is one task with very different implementations: Kokoro is an 82M neural TTS running locally via WebGPU/WASM (nothing leaves your device, but the first run downloads the model), while Edge TTS synthesizes on a server (many voices, no download, but your text leaves the browser). The left toolbar lists both so you can compare quality and latency on the same sentence.' },
     icon: 'i-lucide-volume-2',
     status: 'ready',
     requirements: { modelSizeMB: 92 },
     featured: true,
-    tags: ['TTS', 'Kokoro', 'WebGPU', 'ONNX']
+    tags: ['TTS', 'Kokoro', 'Edge TTS', 'WebGPU', 'ONNX']
+  },
+  {
+    slug: 'kokoro',
+    category: 'speech',
+    title: { zh: 'Kokoro 引擎', en: 'Kokoro Engine' },
+    description: { zh: '本地神经 TTS（82M，ONNX q8，WebGPU/WASM），多语言音色。', en: 'Local neural TTS (82M, ONNX q8, WebGPU/WASM) with multilingual voices.' },
+    howItWorks: { zh: 'Kokoro 是一个 82M 参数的开源神经 TTS，导出为 ONNX 后在浏览器内推理。它把音色（voice）与文本编码成令牌序列，再由解码器生成 24kHz 波形，因此换音色不需要重新训练，只是换一组条件向量。', en: 'Kokoro is an 82M open-source neural TTS exported to ONNX and run in the browser. It encodes a voice preset plus text into token sequences and decodes them into a 24kHz waveform, so switching voices is just changing a conditioning vector — no retraining.' },
+    icon: 'i-lucide-volume-2',
+    status: 'ready',
+    requirements: { modelSizeMB: 92 },
+    tags: ['Kokoro', 'TTS', 'ONNX']
   },
   {
     slug: 'asr',
     classroomSafe: true,
     category: 'speech',
     title: { zh: '语音识别 (ASR)', en: 'Speech Recognition (ASR)' },
-    description: { zh: '语音识别转文字。', en: 'Speech to text recognition.' },
-    howItWorks: { zh: '上传/录制音频，Whisper 等声学模型识别语音并转成文字，可切换模型与语言。', en: 'Upload or record audio; a speech recognition model (e.g. Whisper) transcribes it into text.' },
+    description: { zh: '同一段语音用两种引擎转文字：浏览器内建 Web Speech API 与本地 Whisper。', en: 'Transcribe with two engines: the browser built-in Web Speech API and a local Whisper model.' },
+    howItWorks: { zh: '「语音转文字」有两个完全不同的实现谱系：Web Speech API 由浏览器/操作系统提供，零下载、要说麦克风实时说，但不上传参数、也不可控模型；Whisper 是 OpenAI 的开源声学模型，下载到本地推理，可对文件转写、可指定语言与模型档位、可导出带时间戳的 SRT。左侧工具栏列出两种实现——注意 Web Speech 只能实时输入，Whisper 只能文件输入，这个差异本身就是教学内容。', en: 'Speech to text has two distinct lineages: the Web Speech API is provided by the browser/OS — zero download, live microphone only, but no model control; Whisper is OpenAI\'s open acoustic model running locally — file-based, with language and size options and timestamped SRT export. The left toolbar lists both — note that Web Speech only accepts live input while Whisper only accepts files, and that difference is itself the lesson.' },
     icon: 'i-lucide-mic',
     status: 'ready',
     requirements: { mic: true, modelSizeMB: 150 },
@@ -166,27 +181,38 @@ export const demos: Demo[] = [
     tags: ['ASR', 'Web Speech API', 'Whisper']
   },
   {
-    slug: 'audio-classifier',
+    slug: 'whisper',
+    category: 'speech',
+    title: { zh: 'Whisper 引擎', en: 'Whisper Engine' },
+    description: { zh: 'OpenAI Whisper 本地推理：转写与翻译两个任务。', en: 'OpenAI Whisper running locally: transcription and translation tasks.' },
+    howItWorks: { zh: 'Whisper 是多任务模型：同一套权重既能按原语言转写（transcribe），也能直接翻译成英文（translate）——差别只在解码器的任务令牌。它按 30 秒分块、块间 5 秒重叠（stride）以避免切词，所以长音频也能连续转写。', en: 'Whisper is multitask: the same weights either transcribe in the source language or translate straight into English — the only difference is the decoder task token. It chunks audio into 30-second windows with a 5-second stride to avoid cutting words, so long clips transcribe continuously.' },
+    icon: 'i-lucide-mic',
+    status: 'ready',
+    requirements: { modelSizeMB: 150 },
+    tags: ['Whisper', 'ASR', 'Transformers.js']
+  },
+  {
+    slug: 'audio-classification',
     classroomSafe: true,
     category: 'speech',
-    title: { zh: '音频分类', en: 'Audio Classifier' },
-    description: { zh: '音频事件分类识别。', en: 'Audio event classification.' },
-    howItWorks: { zh: '输入音频片段，YAMNet 等分类模型逐帧判断声音类别（人声/乐器/环境声等）并给出置信度。', en: 'Feed an audio clip; a classifier like YAMNet tags each frame with a sound category and confidence.' },
+    title: { zh: '音频分类', en: 'Audio Classification' },
+    description: { zh: '同一段音频用两种引擎分类：环境音事件（YAMNet）与语音情绪（wav2vec2）。', en: 'Classify the same clip with two engines: audio events (YAMNet) and speech emotion (wav2vec2).' },
+    howItWorks: { zh: '「音频分类」是一个任务而非一个模型：MediaPipe 的 YAMNet 按 521 类 AudioSet 标注环境音事件，Transformers.js 的 wav2vec2 则判断说话人的情绪。左侧工具栏列出两种实现，可对同一段音频横向对比——注意它们标签空间不同，结果并不可比，这正是「能力页」要暴露的差异。', en: 'Audio classification is a task, not a model: MediaPipe YAMNet tags 521 AudioSet event classes, while Transformers.js wav2vec2 predicts speaker emotion. The left toolbar lists both implementations for the same clip — their label spaces differ, so results are not comparable, which is exactly the difference a capability page makes visible.' },
     icon: 'i-lucide-audio-waveform',
     status: 'ready',
     requirements: { mic: true },
-    tags: ['Audio', 'MediaPipe', 'YAMNet']
+    tags: ['Audio', 'MediaPipe', 'YAMNet', 'wav2vec2']
   },
   {
-    slug: 'emotion',
+    slug: 'yamnet',
     category: 'speech',
-    title: { zh: '语音情感识别 (SER)', en: 'Speech Emotion Recognition (SER)' },
-    description: { zh: '识别语音中的情绪（开心/生气/悲伤等）。', en: 'Recognize emotions in speech (happy, angry, sad...).' },
-    howItWorks: { zh: '输入语音，情绪识别模型从语调与能量特征判断开心/生气/中性等情绪。', en: 'Speech emotion recognition reads tone and energy to classify happy, angry, neutral and more.' },
-    icon: 'i-lucide-smile-plus',
+    title: { zh: 'YAMNet 引擎', en: 'YAMNet Engine' },
+    description: { zh: 'MediaPipe 的 YAMNet：521 类 AudioSet 环境音事件分类（文件 / 麦克风实时）。', en: 'MediaPipe YAMNet: 521-class AudioSet event classification (file or live mic).' },
+    howItWorks: { zh: 'YAMNet 是在 AudioSet 上训练的深度网络，输出 521 个声音事件类别的得分。它对「这是什么声音」回答得很好（狗叫、玻璃破碎、钢琴），但只给出帧级标签，不做说话人区分。', en: 'YAMNet is trained on AudioSet and scores 521 sound-event categories. It answers "what sound is this" well (dog bark, glass breaking, piano) but yields frame-level labels only, with no speaker separation.' },
+    icon: 'i-lucide-audio-waveform',
     status: 'ready',
     requirements: { mic: true },
-    tags: ['Emotion', 'wav2vec2', 'transformers.js']
+    tags: ['MediaPipe', 'YAMNet']
   },
   {
     slug: 'pitch-detector',
@@ -333,195 +359,194 @@ export const demos: Demo[] = [
     tags: ['TTS', 'Kokoro', 'Multi-voice']
   },
   {
-    slug: 'yolo-detection',
-    group: 'ai-object',
+    slug: 'yolo',
+    group: 'engine',
     classroomSafe: true,
     category: 'vision',
-    title: { zh: 'YOLO26 全任务实时检测', en: 'YOLO26 All-task Real-time' },
+    title: { zh: 'YOLO26 引擎页（7 个任务）', en: 'YOLO26 Engine (7 tasks)' },
     description: {
-      zh: '一个模型全家桶实时完成 7 种视觉任务：目标检测、实例/语义分割、深度估计、图像分类、姿态估计与有向检测（WebGPU 加速）。',
-      en: 'One model family runs 7 vision tasks live in your browser: detection, instance/semantic segmentation, depth, classification, pose and oriented boxes (WebGPU accelerated).'
+      zh: '一个模型库的完整清单：目标检测、实例分割、语义分割、深度估计、图像分类、姿态估计与有向检测。上传图片或开摄像头实时运行（WebGPU 加速）。',
+      en: 'The complete YOLO26 task list: detection, instance & semantic segmentation, depth, classification, pose and oriented boxes — on an uploaded image or live from the camera (WebGPU accelerated).'
     },
     howItWorks: {
-      zh: '开启摄像头后，ONNX Runtime 在浏览器内逐帧推理 YOLO26n 模型：目标检测/分割画框、深度给热度图、分类出 Top5。切换任务即换对应模型，数据不出浏览器。',
-      en: 'Turn on the camera and ONNX Runtime runs a YOLO26n model per frame in-browser: boxes/masks for detection, heatmaps for depth, Top5 for classification. Switching tasks swaps models — all local.'
+      zh: 'ONNX Runtime 在浏览器内推理 YOLO26n 系列模型：目标检测/分割画框、深度给热度图、分类出 Top5。切换任务即换对应模型，数据不出浏览器。想看某个任务跨引擎对比，去「能力对比」分组。',
+      en: 'ONNX Runtime runs the YOLO26n model family in-browser: boxes/masks for detection, heatmaps for depth, Top5 for classification. Switching tasks swaps models — all local. To compare one task across engines, see the Capability Comparison group.'
     },
     icon: 'i-lucide-box-select',
     status: 'ready',
     requirements: { camera: true, modelSizeMB: 80 },
     featured: true,
-    tags: ['YOLO26', 'Object Detection', 'ONNX Runtime', 'WebGPU']
+    tags: ['YOLO26', 'ONNX Runtime', 'WebGPU', 'Engine']
   },
+  // ===== vision 引擎页（一个模型库的全部任务）=====
   {
-    slug: 'face-detection',
-    group: 'face',
+    slug: 'mediapipe',
+    group: 'engine',
     classroomSafe: true,
     category: 'vision',
-    title: { zh: '人脸检测', en: 'Face Detector' },
-    description: { zh: '检测图像中的人脸。', en: 'Detect human faces in images.' },
-    howItWorks: { zh: '输入图像/摄像头，人脸检测模型定位人脸并画框（可调灵敏度）。', en: 'A face detector locates faces in an image or camera feed and draws boxes.' },
-    icon: 'i-lucide-scan-face',
+    title: { zh: 'MediaPipe 引擎页（11 个任务）', en: 'MediaPipe Engine (11 tasks)' },
+    description: {
+      zh: 'MediaPipe 任务全集：人脸检测/关键点、手部关键点、手势识别、全身姿态、整体检测、目标检测、图像分类、人像分割、交互式分割与图像嵌入。支持实时摄像头。',
+      en: 'Every MediaPipe task: face detection/landmarks, hand landmarks, gesture recognition, pose, holistic, object detection, image classification, person segmentation, interactive segmentation and image embedding. Live camera supported.'
+    },
+    howItWorks: {
+      zh: 'MediaPipe Tasks 在浏览器内运行（WebGL/WebGPU）：先开摄像头实时逐帧推理，或上传一张图做单帧推理。侧栏按任务族分组；想看某个任务跨引擎对比，去「能力对比」分组。',
+      en: 'MediaPipe Tasks runs in-browser (WebGL/WebGPU): run live frame-by-frame from the camera, or run a single frame on an uploaded image. The sidebar groups tasks by family; to compare one task across engines, see the Capability Comparison group.'
+    },
+    icon: 'i-lucide-eye',
     status: 'ready',
     requirements: { camera: true },
-    featured: true,
-    tags: ['MediaPipe', 'Face']
+    tags: ['MediaPipe', 'Engine']
   },
   {
-    slug: 'face-landmarker',
-    group: 'face',
+    slug: 'transformers',
+    group: 'engine',
     category: 'vision',
-    title: { zh: '人脸关键点', en: 'Face Landmarker' },
-    description: { zh: '检测人脸 478 个关键点。', en: 'Detect 478 face landmarks.' },
-    howItWorks: { zh: '输入人脸图像，关键点模型标出 468 个面部关键点/网格，支持表情追踪。', en: 'A landmarker plots 468 facial points and a mesh, enabling expression tracking.' },
-    icon: 'i-lucide-smile',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Face Mesh']
-  },
-  {
-    slug: 'hand-landmarker',
-    group: 'hand-pose',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '手势关键点', en: 'Hand Landmarker' },
-    description: { zh: '检测手部 21 个关键点。', en: 'Detect 21 hand landmarks.' },
-    howItWorks: { zh: '输入手势图像/摄像头，模型标出 21 个手部关键点并绘制骨骼连线。', en: 'A model plots 21 hand keypoints and draws the skeleton, live or on a photo.' },
-    icon: 'i-lucide-hand',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Hand']
-  },
-  {
-    slug: 'gesture-recognizer',
-    group: 'hand-pose',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '手势识别', en: 'Gesture Recognizer' },
-    description: { zh: '识别手部手势类别。', en: 'Recognize hand gesture categories.' },
-    howItWorks: { zh: '输入手势图像/摄像头，先检测手部关键点再识别手势类别（如竖大拇指）。', en: 'Hand keypoints are detected first, then the gesture is classified (e.g. thumbs up).' },
-    icon: 'i-lucide-hand-metal',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Gesture']
-  },
-  {
-    slug: 'pose-landmarker',
-    group: 'hand-pose',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '姿态估计', en: 'Pose Landmarker' },
-    description: { zh: '检测人体姿态关键点。', en: 'Detect body pose landmarks.' },
-    howItWorks: { zh: '输入人体图像/摄像头，姿态模型标出 33 个关键点，可测角度与动作。', en: 'A pose model plots 33 body keypoints, enabling angle and movement analysis.' },
-    icon: 'i-lucide-person-standing',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Pose']
-  },
-  {
-    slug: 'holistic-landmarker',
-    group: 'hand-pose',
-    category: 'vision',
-    title: { zh: '整体检测', en: 'Holistic Landmarker' },
-    description: { zh: '同时检测人脸、手部与姿态。', en: 'Detect face, hands and pose together.' },
-    howItWorks: { zh: '输入全身图像/摄像头，综合模型同时输出人脸、左右手与全身关键点。', en: 'A holistic model outputs face, both hands and full-body keypoints at once.' },
-    icon: 'i-lucide-move-3d',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Holistic']
-  },
-  {
-    slug: 'object-detector',
-    group: 'ai-object',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '目标检测', en: 'Object Detector' },
-    description: { zh: '检测图像中的目标并分类。', en: 'Detect and classify objects in images.' },
-    howItWorks: { zh: '输入图像，目标检测模型用框标出物体位置并给出类别与置信度。', en: 'An object detector draws boxes around objects with category and confidence.' },
-    icon: 'i-lucide-scan-eye',
-    status: 'ready',
-    tags: ['MediaPipe', 'Object']
-  },
-  {
-    slug: 'image-classifier',
-    group: 'ai-object',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '图像分类', en: 'Image Classifier' },
-    description: { zh: '对图像内容进行分类。', en: 'Classify image content.' },
-    howItWorks: { zh: '输入图像，分类模型输出最可能的 Top-K 类别与置信度。', en: 'An image classifier returns the top-K categories and their confidences.' },
-    icon: 'i-lucide-image',
-    status: 'ready',
-    tags: ['MediaPipe', 'Classification']
-  },
-  {
-    slug: 'image-embedder',
-    group: 'embedding-ocr',
-    category: 'vision',
-    title: { zh: '图像嵌入', en: 'Image Embedder' },
-    description: { zh: '计算图像相似度。', en: 'Compute image similarity.' },
-    howItWorks: { zh: '输入两张图，嵌入模型分别提取向量并计算余弦相似度（越接近 1 越相似）。', en: 'Two images are embedded into vectors; cosine similarity tells how alike they are.' },
+    title: { zh: 'Transformers.js 引擎页', en: 'Transformers.js Engine' },
+    description: {
+      zh: '走 Transformers.js 的视觉任务：图像描述（ViT-GPT2）、深度估计（Depth Anything）、MODNet 抠图与图像问答（Janus-Pro）。',
+      en: 'Vision tasks backed by Transformers.js: image captioning (ViT-GPT2), depth estimation (Depth Anything), MODNet matting and image QA (Janus-Pro).'
+    },
+    howItWorks: {
+      zh: 'Hugging Face Transformers.js 直接在浏览器加载 ONNX 模型并推理（模型首次使用需下载，之后走缓存）。',
+      en: 'Hugging Face Transformers.js loads ONNX models straight into the browser (first run downloads, later runs hit the cache).'
+    },
     icon: 'i-lucide-layers',
     status: 'ready',
-    tags: ['MediaPipe', 'Embedding']
+    tags: ['Transformers.js', 'Engine']
+  },
+  // ===== vision 能力页（同一任务的多引擎实现，供横向对比）=====
+  {
+    slug: 'detection',
+    group: 'capability',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '目标检测（能力对比）', en: 'Object Detection (by engine)' },
+    description: {
+      zh: '同一个「目标检测」任务，MediaPipe 与 YOLO 两个实现并排对比：换实现只换左侧一条，输入与操作完全一致。',
+      en: 'The same object-detection task across two engines — MediaPipe vs YOLO. Switching implementations is a single click, with identical input and controls.'
+    },
+    howItWorks: {
+      zh: '左侧按引擎分组（MediaPipe / YOLO），点不同条目即切换实现；同一张图、同一套参数，直接看框的差异。',
+      en: 'The sidebar groups tools by engine (MediaPipe / YOLO); click an entry to switch implementations and compare boxes on the same image with the same parameters.'
+    },
+    icon: 'i-lucide-scan-eye',
+    status: 'ready',
+    requirements: { camera: true },
+    tags: ['MediaPipe', 'YOLO', 'Compare']
   },
   {
-    slug: 'image-segmenter',
-    group: 'segmentation',
+    slug: 'classification',
+    group: 'capability',
+    classroomSafe: true,
     category: 'vision',
-    title: { zh: '图像分割', en: 'Image Segmenter' },
-    description: { zh: '分割图像前景。', en: 'Segment image foreground.' },
-    howItWorks: { zh: '输入图像，分割模型输出逐像素的前景/背景掩码（可选人体分割）。', en: 'A segmenter outputs a per-pixel foreground/background mask (person segmentation optional).' },
+    title: { zh: '图像分类（能力对比）', en: 'Image Classification (by engine)' },
+    description: {
+      zh: '图像分类的 MediaPipe 与 YOLO 两种实现并列，看 Top-K 类别与置信度的差异。',
+      en: 'Image classification via MediaPipe and YOLO side by side, comparing Top-K categories and confidences.'
+    },
+    howItWorks: { zh: '左侧按引擎分组，切一条即换实现，同一张图对比分类结果。', en: 'Sidebar grouped by engine; switch entries to compare classifications on the same image.' },
+    icon: 'i-lucide-image',
+    status: 'ready',
+    requirements: { camera: true },
+    tags: ['MediaPipe', 'YOLO', 'Compare']
+  },
+  {
+    slug: 'segmentation',
+    group: 'capability',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '图像分割（能力对比）', en: 'Image Segmentation (by engine)' },
+    description: {
+      zh: '人像分割（MediaPipe）、实例/语义分割（YOLO）与交互式点选分割并列，覆盖自动与手动两条路。',
+      en: 'Person segmentation (MediaPipe), instance/semantic segmentation (YOLO) and point-prompt interactive segmentation, covering both automatic and manual paths.'
+    },
+    howItWorks: { zh: '左侧按引擎分组；「交互式分割」点一下图片里的目标即可抠出该区域。', en: 'Sidebar grouped by engine; the interactive entry cuts out whatever you click.' },
     icon: 'i-lucide-scissors',
     status: 'ready',
     requirements: { camera: true },
-    tags: ['MediaPipe', 'Segmentation']
+    tags: ['MediaPipe', 'YOLO', 'Interactive']
   },
   {
-    slug: 'interactive-segmenter',
-    group: 'segmentation',
-    category: 'vision',
-    title: { zh: '交互式分割', en: 'Interactive Segmenter' },
-    description: { zh: '点击选取目标并分割。', en: 'Click to segment a target.' },
-    howItWorks: { zh: '点击图像上的目标，交互式分割模型一键抠出该目标区域。', en: 'Click a target and the interactive segmenter cuts it out instantly.' },
-    icon: 'i-lucide-mouse-pointer-click',
-    status: 'ready',
-    requirements: { camera: true },
-    tags: ['MediaPipe', 'Segmentation']
-  },
-  {
-    slug: 'depth-estimation',
-    group: 'multimodal',
+    slug: 'matting',
+    group: 'capability',
     classroomSafe: true,
     category: 'vision',
-    title: { zh: '深度估计', en: 'Depth Estimation' },
-    description: { zh: '估计图像中每个像素的深度。', en: 'Estimate per-pixel depth of an image.' },
-    howItWorks: { zh: '输入图像，深度估计模型为每个像素预测相对深度，生成灰度深度图。', en: 'A depth model predicts per-pixel relative depth and renders a grayscale depth map.' },
-    icon: 'i-lucide-box',
+    title: { zh: '抠图（能力对比）', en: 'Matting (by engine)' },
+    description: {
+      zh: '抠图的 MediaPipe selfie segmenter 与 MODNet 两种实现并列，均可导出透明背景 PNG。',
+      en: 'Matting via MediaPipe selfie segmenter vs MODNet, both exportable as transparent PNGs.'
+    },
+    howItWorks: { zh: '左侧按引擎分组，比较两种人像抠图的边缘质量；输出请下载 PNG 以保留透明通道。', en: 'Sidebar grouped by engine; compare edge quality. Download as PNG to keep transparency.' },
+    icon: 'i-lucide-sparkles',
     status: 'ready',
-    tags: ['Transformers.js', 'Depth']
+    featured: true,
+    tags: ['MODNet', 'MediaPipe', 'Compare']
   },
   {
-    slug: 'image-captioning',
-    group: 'multimodal',
+    slug: 'depth',
+    group: 'capability',
+    classroomSafe: true,
     category: 'vision',
-    title: { zh: '图像描述', en: 'Image Captioning' },
-    description: { zh: '生成图像内容的文字描述。', en: 'Generate a text description of an image.' },
-    howItWorks: { zh: '输入图像，视觉语言模型（如 ViT-GPT2）生成一句自然语言描述。', en: 'A vision-language model (e.g. ViT-GPT2) writes a natural-language caption for the image.' },
-    icon: 'i-lucide-text',
+    title: { zh: '深度估计（能力对比）', en: 'Depth Estimation (by engine)' },
+    description: {
+      zh: '深度估计的 YOLO 与 Depth Anything（Transformers.js）两种实现并列。',
+      en: 'Depth estimation via YOLO vs Depth Anything (Transformers.js).'
+    },
+    howItWorks: {
+      zh: '左侧按引擎分组，比较两种深度模型给出的灰度/热度图差异。注意：Depth Anything 实现在 WebGPU 下会抛 "null function"（onnxruntime JSEP 缺陷），故固定跑在 wasm 后端，其耗时与 YOLO 那条不具可比性 —— 结果区会标注实际后端。',
+      en: 'Sidebar grouped by engine; compare the grayscale/heatmap depth maps. Note: the Depth Anything implementation runs on the wasm backend because WebGPU throws "null function" (onnxruntime JSEP bug), so its timing is not comparable with the YOLO one — the result panel labels the actual backend.'
+    },
+    icon: 'i-lucide-box',
     status: 'ready',
-    tags: ['Transformers.js', 'Captioning']
+    requirements: { camera: true },
+    tags: ['YOLO', 'Transformers.js', 'Compare']
+  },
+  {
+    slug: 'pose',
+    group: 'capability',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '全身姿态（能力对比）', en: 'Full-body Pose (by engine)' },
+    description: {
+      zh: '全身关键点的 MediaPipe（33 点）与 YOLO（17 点）两种实现并列 —— 关键点类里唯一做了双模型对比的能力。',
+      en: 'Full-body keypoints via MediaPipe (33 points) vs YOLO (17 points) — the only keypoint capability compared across two engines.'
+    },
+    howItWorks: { zh: '左侧按引擎分组；同一张人体图切换实现，直接看关键点数量与密度的差异。', en: 'Sidebar grouped by engine; switch implementations on the same image to compare keypoint count and density.' },
+    icon: 'i-lucide-person-standing',
+    status: 'ready',
+    requirements: { camera: true },
+    tags: ['MediaPipe', 'YOLO', 'Compare']
+  },
+  {
+    slug: 'sketch',
+    group: 'capability',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '简笔画识别（能力对比）', en: 'Doodle Recognition (by approach)' },
+    description: {
+      zh: '画一笔简笔画就识别这是什么：DoodleNet 预置 345 类 vs MobileNet + KNN 现场教学，两条路线对比。',
+      en: 'Sketch a doodle and recognize it: DoodleNet with 345 preset classes vs MobileNet + KNN taught on the spot.'
+    },
+    howItWorks: {
+      zh: '左侧按方案分组：① DoodleNet —— 用 Google Quick, Draw! 数据集（5000 万张、345 类）训练的 CNN，白底粗黑线画一笔即出结果（首次使用需联网下载模型，标签为英文）；② 现场教学 —— MobileNet 提特征 + KNN，切到「采集样本」把当前画作归入自定义类别，切回「识别」立刻能预测，无训练循环。输入统一为手绘画布。',
+      en: 'Sidebar grouped by approach: ① DoodleNet — a CNN trained on Google Quick, Draw! (50M drawings, 345 classes); draw thick black lines on white and get a result (downloads on first run, labels in English). ② Teach on the spot — MobileNet features + KNN; switch to Teach to store the drawing under a custom class, switch back to Predict for instant results, no training loop. Input is a drawing canvas.'
+    },
+    icon: 'i-lucide-brush',
+    status: 'ready',
+    tags: ['Quick Draw', 'DoodleNet', 'KNN', 'Compare']
   },
   // ===== nlp (MediaPipe Text) =====
   {
     slug: 'text-classifier',
     category: 'nlp',
     title: { zh: '文本分类', en: 'Text Classifier' },
-    description: { zh: '文本情感分类。', en: 'Text sentiment classification.' },
-    howItWorks: { zh: '输入文本，分类模型输出情感/主题类别与置信度。', en: 'Feed in text; a classifier returns category and confidence (e.g. sentiment).' },
+    description: { zh: '同一段文本用两种引擎分类：MediaPipe Bert 与 Transformers.js 情感模型。', en: 'Classify the same text with two engines: MediaPipe Bert and a Transformers.js sentiment model.' },
+    howItWorks: { zh: '「文本分类」是一个任务，而不是一个模型。MediaPipe 侧用自托管的 bert_classifier.tflite（零下载、即点即用，标签集由模型文件固定）；Transformers.js 侧用 DistilBERT-SST2 —— 英文影评情感二分类（POSITIVE / NEGATIVE），首次使用需下载模型。左侧工具栏列出这两种实现，可对同一段文本横向对比；注意**两者标签空间不同，结果并不可直接比较**，而这正是「能力页」要暴露的差异。', en: 'Text classification is a task, not a model. MediaPipe runs a self-hosted bert_classifier.tflite (zero download, instant, with a label set fixed by the model file); Transformers.js runs DistilBERT-SST2 — binary English review sentiment (POSITIVE / NEGATIVE) that downloads on first use. The left toolbar lists both so you can compare on the same text; note their **label spaces differ, so results are not directly comparable** — exactly what a capability page exposes.' },
     icon: 'i-lucide-message-square',
     status: 'ready',
     featured: true,
-    tags: ['MediaPipe', 'Sentiment']
+    tags: ['MediaPipe', 'Transformers.js', 'Bert', 'DistilBERT', 'Sentiment']
   },
   {
     slug: 'language-detector',
@@ -597,6 +622,27 @@ export const demos: Demo[] = [
     icon: 'i-lucide-puzzle',
     status: 'ready',
     tags: ['Transformers.js', 'Mask']
+  },
+  // ===== nlp 引擎页（一个引擎 × 全部任务）=====
+  {
+    slug: 'mediapipe-text',
+    category: 'nlp',
+    title: { zh: 'MediaPipe Text 引擎', en: 'MediaPipe Text Engine' },
+    description: { zh: 'MediaPipe Tasks Text 的三个任务：文本分类、语言检测、文本嵌入。', en: 'Three MediaPipe Tasks Text tasks: classification, language detection and text embedding.' },
+    howItWorks: { zh: '一个引擎的三个任务。与 Transformers.js 引擎页对照，能看出两条技术路线的差别：MediaPipe 用固定的小 tflite 模型（随站点自托管、零下载、即点即用），Transformers.js 用 Hugging Face 上的 ONNX 模型（首次要下载、模型档位可换）。左侧工具栏按任务族分组。', en: 'Three tasks from one engine. Compared with the Transformers.js engine page, the two approaches differ: MediaPipe uses fixed small tflite models (self-hosted, zero download, instant) while Transformers.js uses ONNX models from Hugging Face (download on first use, swappable). The left toolbar groups by task family.' },
+    icon: 'i-lucide-languages',
+    status: 'ready',
+    tags: ['MediaPipe', 'TFLite', 'Text Classification', 'Language Detection', 'Embedding']
+  },
+  {
+    slug: 'transformers',
+    category: 'nlp',
+    title: { zh: 'Transformers.js 引擎', en: 'Transformers.js Engine' },
+    description: { zh: 'Transformers.js 的六个文本任务：情感、NER、零样本、摘要、问答、完形填空。', en: 'Six Transformers.js text tasks: sentiment, NER, zero-shot, summarization, QA and fill-mask.' },
+    howItWorks: { zh: '一个引擎的六个任务，全部在浏览器内用 ONNX Runtime 推理（优先 WebGPU，失败回退 WASM）。首次运行某个任务会下载对应模型，之后走 HTTP 缓存。左侧工具栏可在这六个任务之间直接切换 —— 这是「引擎页」的价值：同一套推理栈上的不同任务用法。注意零样本分类与前五个不同，它不需要训练、靠自然语言标签（MNLI 蕴含）判定。', en: 'Six tasks from one engine, all running ONNX Runtime in the browser (WebGPU first, WASM fallback). The first run of a task downloads its model, then HTTP-caches it. The left toolbar switches among the six tasks — the point of an engine page: different task usages on one inference stack. Note zero-shot differs from the rest: it needs no training and decides via natural-language labels (MNLI entailment).' },
+    icon: 'i-lucide-languages',
+    status: 'ready',
+    tags: ['Transformers.js', 'ONNX', 'WebGPU', 'Summarization', 'QA']
   },
   // ===== aigc (WebLLM) =====
   {
@@ -676,6 +722,7 @@ export const demos: Demo[] = [
   {
     slug: 'image-training',
     category: 'ml',
+    alsoIn: ['vision'],
     title: { zh: '图像训练', en: 'Image Training' },
     description: { zh: '采集摄像头样本训练自定义图像分类器。', en: 'Collect webcam samples to train a custom image classifier.' },
     howItWorks: { zh: '上传图片数据集，在浏览器训练图像分类器（迁移学习），可下载模型。', en: 'Train an image classifier in the browser via transfer learning, then export it.' },
@@ -687,6 +734,7 @@ export const demos: Demo[] = [
   {
     slug: 'audio-training',
     category: 'ml',
+    alsoIn: ['speech'],
     title: { zh: '声音训练', en: 'Audio Training' },
     description: { zh: '采集麦克风样本训练自定义声音分类器。', en: 'Collect microphone samples to train a custom audio classifier.' },
     howItWorks: { zh: '录制/上传音频样本，在浏览器训练声音分类器。', en: 'Record or upload audio samples to train a sound classifier in the browser.' },
@@ -697,6 +745,7 @@ export const demos: Demo[] = [
   {
     slug: 'pose-training',
     category: 'ml',
+    alsoIn: ['vision'],
     title: { zh: '姿态训练', en: 'Pose Training' },
     description: { zh: '采集身体姿态样本训练自定义动作分类器（迁移学习）。', en: 'Collect pose samples from the webcam to train a custom gesture classifier (transfer learning).' },
     howItWorks: { zh: '用摄像头采集动作样本，在浏览器训练姿态分类器（可玩小游戏）。', en: 'Collect pose samples from your camera and train a classifier in the browser.' },
@@ -708,6 +757,7 @@ export const demos: Demo[] = [
   {
     slug: 'text-training',
     category: 'ml',
+    alsoIn: ['nlp'],
     title: { zh: '文本训练', en: 'Text Training' },
     description: { zh: '输入文本样本训练自定义文本分类器（迁移学习）。', en: 'Train a custom text classifier with your own examples (transfer learning).' },
     howItWorks: { zh: '输入带标签的文本样本，在浏览器训练文本分类器。', en: 'Feed labeled text samples to train a text classifier in the browser.' },
@@ -950,19 +1000,6 @@ export const demos: Demo[] = [
     tags: ['A*', 'Dijkstra', 'Search Algorithm']
   },
   {
-    slug: 'bg-removal',
-    group: 'segmentation',
-    classroomSafe: true,
-    category: 'vision',
-    title: { zh: '智能抠图（背景移除）', en: 'Background Removal' },
-    description: { zh: '用 MODNet 在浏览器中一键抠出人像/主体，导出透明背景 PNG（数据不出浏览器）。', en: 'Cut out people/subjects in-browser with MODNet and export transparent PNGs (all local).' },
-    howItWorks: { zh: '输入人像照，分割模型抠出主体并输出透明背景 PNG，可换背景。', en: 'A segmentation model cuts the subject out of a portrait and exports a transparent PNG.' },
-    icon: 'i-lucide-scissors',
-    status: 'ready',
-    featured: true,
-    tags: ['MODNet', 'Transformers.js', 'WebGPU']
-  },
-  {
     slug: 'reasoning-chat',
     category: 'aigc',
     title: { zh: '推理对话（DeepSeek-R1 蒸馏）', en: 'Reasoning Chat (DeepSeek-R1 Distill)' },
@@ -1022,7 +1059,7 @@ export const demos: Demo[] = [
   // ===== vision 图像处理 Playground（viewer/transform/... 共 15 页）=====
   {
     slug: 'viewer',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '图像查看器', en: 'Image Viewer' },
     description: { zh: '图片信息、像素取色与格式转换下载。', en: 'Image info, pixel color picking, format conversion and download.' },
@@ -1033,7 +1070,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'transform',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '图像变换', en: 'Image Transform' },
     description: { zh: '缩放、裁剪、旋转、翻转、缩放比例、边距、透视与仿射变换。', en: 'Resize, crop, rotate, flip, scale, padding, perspective and affine transform.' },
@@ -1044,18 +1081,18 @@ export const demos: Demo[] = [
   },
   {
     slug: 'pixel',
-    group: 'image-workbench',
+    group: 'lesson',
     category: 'vision',
-    title: { zh: '像素处理', en: 'Pixel Processing' },
-    description: { zh: '读取像素、像素网格放大与像素级数学运算。', en: 'Read pixels, magnify the pixel grid and run pixel-level math.' },
-    howItWorks: { zh: '像素级工坊：通道提取、阈值、颜色量化、像素化等逐像素处理。', en: 'Pixel-level studio: channel ops, thresholding, color quantization, pixelation and more.' },
+    title: { zh: '像素原理（教学）', en: 'Pixel Fundamentals (Lesson)' },
+    description: { zh: '四节原理讲解与动手演示：像素如何存储、RGB 如何组成、图片大小怎么算、像素怎么画。', en: 'Four hands-on lessons: how pixels are stored, how RGB composes color, how image size is computed and how to draw pixels.' },
+    howItWorks: { zh: '教学页：左侧是章节导航（存储原理 → RGB 颜色 → 图片大小 → 像素绘制），右侧用可直接交互的画布演示每个概念，不是工具列表。', en: 'A lesson page: chapter navigation on the left (storage → RGB → size → drawing) with interactive canvases demonstrating each concept — not a tool list.' },
     icon: 'i-lucide-grid-3x3',
     status: 'ready',
-    tags: ['Canvas', 'ImageData']
+    tags: ['Lesson', 'ImageData', 'Basics']
   },
   {
     slug: 'color',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '颜色处理', en: 'Color Processing' },
     description: { zh: '灰度化、通道提取与合并、色彩空间、颜色替换与量化。', en: 'Grayscale, channel extraction & merge, color spaces, color replacement and quantization.' },
@@ -1066,7 +1103,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'adjustment',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '图像调整', en: 'Image Adjustment' },
     description: { zh: '亮度、对比度、伽马、饱和度、色相、曝光、白平衡与自动增强。', en: 'Brightness, contrast, gamma, saturation, hue, exposure, white balance and auto enhancement.' },
@@ -1077,7 +1114,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'filters',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '图像滤镜', en: 'Image Filters' },
     description: { zh: '模糊、锐化、浮雕、高通滤波等经典卷积滤镜。', en: 'Blur, sharpen, emboss, high-pass and other classic convolution filters.' },
@@ -1088,7 +1125,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'enhancement',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '噪声与增强', en: 'Noise & Enhancement' },
     description: { zh: '加噪、去噪、直方图均衡与图像增强。', en: 'Add noise, denoise, histogram equalization and enhancement.' },
@@ -1099,7 +1136,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'morphology',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '阈值与形态学', en: 'Threshold & Morphology' },
     description: { zh: '二值化、自适应阈值、腐蚀膨胀、开闭运算与形态学梯度。', en: 'Binary/adaptive/Otsu threshold, erosion, dilation, opening, closing and morphological gradient.' },
@@ -1110,7 +1147,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'edge',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '边缘与形状检测', en: 'Edge & Shape Detection' },
     description: { zh: 'Sobel、Canny、Harris 角点、Hough 直线与圆检测。', en: 'Sobel, Canny, Harris corners, Hough lines and circles.' },
@@ -1121,18 +1158,18 @@ export const demos: Demo[] = [
   },
   {
     slug: 'object',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
-    title: { zh: '颜色与物体检测', en: 'Color & Object Detection' },
-    description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition.' },
-    howItWorks: { zh: '颜色与物体检测：颜色分割、轮廓检测、物体计数与形状识别。', en: 'Color & object detection: color segmentation, contours, counting and shape recognition.' },
+    title: { zh: '颜色与轮廓检测', en: 'Color & Contours' },
+    description: { zh: '颜色分割、轮廓检测、物体计数、包围盒与形状识别（OpenCV.js）。', en: 'Color segmentation, contours, object counting, bounding boxes and shape recognition (OpenCV.js).' },
+    howItWorks: { zh: '经典 CV 工坊：HSV 颜色分割、轮廓/包围盒/质心、物体计数与形状识别 —— 与「目标检测（能力对比）」的 AI 路线互补。', en: 'Classic CV studio: HSV color segmentation, contours/bounding boxes/centroids, counting and shape recognition — complementary to the AI-based Detection capability page.' },
     icon: 'i-lucide-target',
     status: 'ready',
     tags: ['OpenCV.js', 'Contour']
   },
   {
     slug: 'features',
-    group: 'image-workbench',
+    group: 'workbench',
     category: 'vision',
     title: { zh: '特征检测', en: 'Feature Detection' },
     description: { zh: 'ORB/BRISK 关键点与特征匹配。', en: 'ORB/BRISK keypoints and feature matching.' },
@@ -1144,13 +1181,15 @@ export const demos: Demo[] = [
   {
     slug: 'face',
     group: 'face',
+    classroomSafe: true,
     category: 'vision',
-    title: { zh: '人脸视觉', en: 'Face Vision' },
-    description: { zh: '人脸检测、关键点、模糊、马赛克与双图验证（MediaPipe）。', en: 'Face detection, landmarks, blur, pixelation and two-image verification (MediaPipe).' },
-    howItWorks: { zh: '人脸工坊：检测/关键点/模糊/像素化/证件照等工具对图像做处理，参数即时生效。', en: 'Face studio: detection, landmarks, blur, pixelation, ID photo and more with live parameters.' },
+    title: { zh: '人脸工作室', en: 'Face Studio' },
+    description: { zh: '人脸检测、关键点、模糊、马赛克、证件照生成与 1:1 人脸比对（6 个工具，MediaPipe + face-api）。', en: 'Face detection, landmarks, blur, pixelation, ID-photo generation and 1:1 verification — 6 tools across MediaPipe and face-api.' },
+    howItWorks: { zh: '人脸工坊：检测/关键点/模糊/马赛克/证件照由 MediaPipe 驱动，人脸比对用 face-api 的 128 维人脸嵌入判同一人；参数即时生效。', en: 'Detection/landmarks/blur/pixelation/ID-photo run on MediaPipe; verification uses face-api 128-dim face embeddings. Parameters apply live.' },
     icon: 'i-lucide-scan-face',
     status: 'ready',
-    tags: ['MediaPipe', 'Face']
+    featured: true,
+    tags: ['MediaPipe', 'face-api', 'Face']
   },
   {
     slug: 'face-recognition',
@@ -1166,7 +1205,7 @@ export const demos: Demo[] = [
   },
   {
     slug: 'ocr',
-    group: 'embedding-ocr',
+    group: 'workbench',
     category: 'vision',
     title: { zh: 'OCR 与文档视觉', en: 'OCR & Document Vision' },
     description: { zh: '文字识别（Tesseract.js）与文档扫描校正（OpenCV.js）。', en: 'Text recognition (Tesseract.js) and document scanning (OpenCV.js).' },
@@ -1175,28 +1214,6 @@ export const demos: Demo[] = [
     status: 'ready',
     featured: true,
     tags: ['Tesseract.js', 'OCR']
-  },
-  {
-    slug: 'ai-vision',
-    group: 'ai-object',
-    category: 'vision',
-    title: { zh: 'AI 目标与图像视觉', en: 'AI Object & Image Vision' },
-    description: { zh: '图像分类、目标检测、分割、抠图、嵌入与相似度（MediaPipe）。', en: 'Classification, detection, segmentation, background removal, embedding and similarity (MediaPipe).' },
-    howItWorks: { zh: 'AI 视觉 6 合一：图像分类/目标检测/分割/抠图/嵌入/相似度对比。', en: 'AI vision in one: classification, detection, segmentation, matting, embedding and similarity.' },
-    icon: 'i-lucide-eye',
-    status: 'ready',
-    tags: ['MediaPipe', 'Transformers.js']
-  },
-  {
-    slug: 'multimodal',
-    group: 'multimodal',
-    category: 'vision',
-    title: { zh: 'AI 视觉与多模态', en: 'AI Vision & Multimodal' },
-    description: { zh: '图像描述与深度估计（Transformers.js），问答/修复/风格迁移见 AIGC。', en: 'Image captioning and depth estimation (Transformers.js); QA/inpainting/style transfer under AIGC.' },
-    howItWorks: { zh: '多模态视觉：图像描述、深度估计、图像问答与修复。', en: 'Multimodal vision: captioning, depth estimation, visual QA and inpainting.' },
-    icon: 'i-lucide-layers',
-    status: 'ready',
-    tags: ['Transformers.js', 'Multimodal']
   },
   {
     slug: 'rebot-arm',
@@ -1287,7 +1304,7 @@ export function categoryBySlug(slug: DemoCategory | string): Category | undefine
 }
 
 export function demosByCategory(slug: DemoCategory | string): Demo[] {
-  return demos.filter(d => d.category === slug)
+  return demos.filter(d => d.category === slug || d.alsoIn?.includes(slug as DemoCategory))
 }
 
 export function getDemo(category: DemoCategory | string, slug: string): Demo | undefined {

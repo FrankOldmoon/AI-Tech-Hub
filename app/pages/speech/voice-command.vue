@@ -1,13 +1,20 @@
 <script setup lang="ts">
-/* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
-/** 语音口令控制台：对着麦说口令（左/右/上/下/跳/转/变红…）控制角色动画 */
+/* eslint-disable @stylistic/max-statements-per-line */
+/**
+ * 语音口令控制台：对着麦说口令（左/右/上/下/跳/转/变红…）控制角色动画。
+ *
+ * Web Speech 样板（探测构造器 / 设 lang·continuous·interimResults / 遍历 resultIndex / 收 end·error）
+ * 改由 `useSpeechRecognition` 承担，本页只留下「关键词表 + 角色动画」和两条源页面特有的策略：
+ * 1) 命中后 600ms 内不重复触发同一句；
+ * 2) 识别被浏览器自行 onend 后要自动重启，但致命错误（权限/服务/采集）不能重启。
+ */
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'voice-command')!)
 
-const supported = ref(false)
+const { supported, listening, start: startRecognition, stop: stopRecognition } = useSpeechRecognition()
+
 const hydrated = ref(false)
-const listening = ref(false)
 const lastCmd = ref('')
 const error = ref<string | null>(null)
 
@@ -17,9 +24,16 @@ const angle = ref(0)
 const jump = ref(false)
 const color = ref('#f59e0b')
 
-let recognition: any = null
-/** 是否已进入不可恢复的错误态：为 true 时 onend 不再自动重启识别 */
+/** 是否已进入不可恢复的错误态：为 true 时 onEnd 不再自动重启识别 */
 let fatalError = false
+/** 用户是否还在「想听」：composable 的 onend 会先把 listening 置 false，不能拿它判断该不该重启 */
+let wantListening = false
+/** 上一事件已上报的最终文本长度：把 composable 的「累积 final」还原成源页面的「本次新增 final」 */
+let reportedFinal = 0
+/** 本次事件新增的最终文本，等 onInterim 到达后与中间文本拼成一条再匹配（源页面就是拼成一条匹配） */
+let pendingFinal = ''
+/** 上一句已命中的文本：短暂去重，避免同一次说话被反复触发 */
+let lastMatched = ''
 
 /** 这几类错误重启也没用（权限被拒 / 服务不可用 / 采不到音），必须停下来让用户处理 */
 const FATAL_ERRORS = ['not-allowed', 'service-not-allowed', 'audio-capture']
@@ -62,55 +76,68 @@ function interpret(text: string): string | null {
 }
 
 onMounted(() => {
+  // hydrated 只为 SSR 兜底：composable 的 supported 在挂载后才可信，服务端直接渲染「不支持」会与客户端不一致
   hydrated.value = true
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-  if (!SR) { supported.value = false; return }
-  supported.value = true
-  recognition = new SR()
-  recognition.continuous = true
-  recognition.interimResults = true
-  recognition.lang = 'zh-CN'
-  // 同时处理中间与最终结果，提升响应；命中即触发
-  let lastMatched = ''
-  recognition.onresult = (e: any) => {
-    let text = ''
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      text += e.results[i][0].transcript
-    }
-    const cmd = interpret(text)
-    if (cmd && text.trim() !== lastMatched) {
-      runCmd(cmd)
-      lastCmd.value = text.trim()
-      lastMatched = text.trim()
-      setTimeout(() => { lastMatched = '' }, 600)
-    }
-  }
-  recognition.onerror = (e: any) => {
-    error.value = e.error || 'error'
-    // 致命错误：置 listening=false 并标记，避免 onend 里无限重启（曾实测 8s 内触发上万次 error）
-    if (FATAL_ERRORS.includes(e.error)) {
-      fatalError = true
-      listening.value = false
-    }
-  }
-  recognition.onend = () => { if (listening.value && !fatalError) try { recognition.start() } catch { /* */ } }
 })
 
+function handleTranscript(text: string) {
+  const cmd = interpret(text)
+  if (cmd && text.trim() !== lastMatched) {
+    runCmd(cmd)
+    lastCmd.value = text.trim()
+    lastMatched = text.trim()
+    setTimeout(() => { lastMatched = '' }, 600)
+  }
+}
+
+function beginRecognition() {
+  // composable 每次 start 都新建识别器实例并清零累积文本，增量基线同步归零
+  reportedFinal = 0
+  pendingFinal = ''
+  startRecognition({
+    lang: 'zh-CN',
+    continuous: true,
+    interimResults: true,
+    onFinal: (text) => {
+      // composable 给的是「累积最终文本」，源页面只匹配本次新增的片段，取增量才对得上：
+      // 否则上一句已 final 的话会一直参与匹配（如先「左」后「右」会被误判成「左」）
+      pendingFinal = text.slice(reportedFinal)
+      reportedFinal = text.length
+    },
+    onInterim: (text) => {
+      handleTranscript(pendingFinal + text)
+      pendingFinal = ''
+    },
+    onError: (msg) => {
+      error.value = msg
+      // 致命错误：置 wantListening=false 并标记，避免 onEnd 里无限重启
+      // （曾实测 8s 内触发上万次 error）
+      if (FATAL_ERRORS.includes(msg)) {
+        fatalError = true
+        wantListening = false
+      }
+    },
+    onEnd: () => {
+      // continuous 识别会被浏览器自行结束（说完一句/网络抖动），只要用户还想听且非致命错误就续上
+      if (wantListening && !fatalError) beginRecognition()
+    }
+  })
+}
+
 function start() {
-  if (!recognition) return
+  if (!supported.value) return
   error.value = null
   fatalError = false
-  try { recognition.start(); listening.value = true } catch { /* */ }
+  wantListening = true
+  beginRecognition()
 }
 function stop() {
-  listening.value = false
-  try { recognition.stop() } catch { /* */ }
+  wantListening = false
+  stopRecognition()
 }
 function reset() {
   x.value = 0; y.value = 0; angle.value = 0; jump.value = false; color.value = '#f59e0b'; lastCmd.value = ''
 }
-
-onBeforeUnmount(stop)
 </script>
 
 <template>
@@ -120,7 +147,7 @@ onBeforeUnmount(stop)
         <UButton
           v-if="!listening"
           icon="i-lucide-mic"
-          :label="t('asr.start')"
+          :label="t('speech.start')"
           color="primary"
           :disabled="!supported"
           @click="start"
@@ -128,7 +155,7 @@ onBeforeUnmount(stop)
         <UButton
           v-else
           icon="i-lucide-square"
-          :label="t('asr.stop')"
+          :label="t('speech.stop')"
           color="error"
           variant="subtle"
           @click="stop"
@@ -143,7 +170,7 @@ onBeforeUnmount(stop)
         <span
           v-if="listening"
           class="text-sm text-muted"
-        >{{ t('asr.listening') }}…</span>
+        >{{ t('speech.listening') }}…</span>
       </div>
 
       <template v-if="hydrated && !supported">
@@ -151,7 +178,7 @@ onBeforeUnmount(stop)
           color="neutral"
           variant="subtle"
           icon="i-lucide-info"
-          :title="t('asr.unsupported')"
+          :title="t('speech.unsupportedRecognition')"
         />
       </template>
       <UAlert

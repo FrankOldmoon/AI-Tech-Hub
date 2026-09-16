@@ -108,6 +108,11 @@ const searchResults = computed(() => {
       </div>
 
       <template v-else>
+        <!-- 本机能力探测（课堂场景：先让学生知道这台机器能跑什么，避免点开才报错） -->
+        <div class="pb-2">
+          <DeviceCapabilities />
+        </div>
+
         <!-- 课堂演示推荐（老师视角，审计 P1-5） -->
         <div
           v-if="classroomDemos.length"

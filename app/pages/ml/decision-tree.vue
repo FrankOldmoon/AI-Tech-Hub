@@ -63,13 +63,16 @@ function buildNode(pts: TrainSample[], depth: number): TreeNode {
   let bestFeature: 0 | 1 = 0
   let bestThreshold = 0
   let bestGini = Infinity
+  // x 恒为 [x, y] 两元素、feature 只能取 0/1；首尾下标由上面 pts.length < 4 的提前返回保证存在
   for (const feature of [0, 1] as const) {
-    const sorted = [...pts].sort((a, b) => a.x[feature] - b.x[feature])
+    const sorted = [...pts].sort((a, b) => a.x[feature]! - b.x[feature]!)
     const candidates = 24
+    const lo = sorted[0]!.x[feature]!
+    const hi = sorted[sorted.length - 1]!.x[feature]!
     for (let c = 1; c <= candidates; c++) {
-      const threshold = sorted[0].x[feature] + (sorted[sorted.length - 1].x[feature] - sorted[0].x[feature]) * c / (candidates + 1)
-      const left = pts.filter(p => p.x[feature] < threshold)
-      const right = pts.filter(p => p.x[feature] >= threshold)
+      const threshold = lo + (hi - lo) * c / (candidates + 1)
+      const left = pts.filter(p => p.x[feature]! < threshold)
+      const right = pts.filter(p => p.x[feature]! >= threshold)
       if (!left.length || !right.length) continue
       const wg = (gini(left.map(p => p.y)) * left.length + gini(right.map(p => p.y)) * right.length) / pts.length
       if (wg < bestGini) {
@@ -86,8 +89,9 @@ function buildNode(pts: TrainSample[], depth: number): TreeNode {
   }
   node.feature = bestFeature
   node.threshold = bestThreshold
-  node.left = buildNode(pts.filter(p => p.x[bestFeature] < bestThreshold), depth + 1)
-  node.right = buildNode(pts.filter(p => p.x[bestFeature] >= bestThreshold), depth + 1)
+  // 同前：x 恒为两元素，bestFeature 只能取 0/1
+  node.left = buildNode(pts.filter(p => p.x[bestFeature]! < bestThreshold), depth + 1)
+  node.right = buildNode(pts.filter(p => p.x[bestFeature]! >= bestThreshold), depth + 1)
   return node
 }
 
@@ -113,7 +117,8 @@ function build() {
   walk(root)
   let correct = 0
   for (const p of data) {
-    if (classify(root, p.x[0], p.x[1]) === p.y) correct++
+    // 下标 0/1 由 generateData 恒产出 [x, y] 两元素保证
+    if (classify(root, p.x[0]!, p.x[1]!) === p.y) correct++
   }
   stats.value = { depth: maxD, leaves, accuracy: correct / data.length }
   draw()
@@ -151,7 +156,8 @@ function draw() {
   }
   for (const p of data) {
     ctx.beginPath()
-    ctx.arc(toCanvas(p.x[0]), toCanvas(p.x[1]), 4, 0, Math.PI * 2)
+    // 同前：x 恒为 [x, y] 两元素
+    ctx.arc(toCanvas(p.x[0]!), toCanvas(p.x[1]!), 4, 0, Math.PI * 2)
     ctx.fillStyle = p.y === 1 ? '#3B82F6' : '#F97316'
     ctx.fill()
   }

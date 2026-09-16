@@ -1,6 +1,9 @@
 <script setup lang="ts">
 /* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
 // 音频可视化：既支持上传文件（wavesurfer 波形 + 频谱），也支持麦克风实时
+import { humanError, mediaError } from '~/utils/errors'
+import { formatClock } from '~/utils/wav'
+
 const { t } = useI18n()
 const { getDemo } = useDemos()
 
@@ -8,8 +11,16 @@ const demo = computed(() => getDemo('speech', 'visualizer')!)
 
 const mode = ref<'file' | 'mic'>('file')
 const error = ref<string | null>(null)
-const audioFile = ref<File | null>(null)
-const audioUrl = ref('')
+
+// 文件/示例输入交给公共 composable：objectURL 的创建与回收不再由本页手工成对书写
+// （此前「选文件 / 加载示例 / 切模式 / 卸载」四处各写一遍 revoke，漏一处就泄漏一个 blob）。
+// 仍叫 audioUrl，因为 wavesurfer 与模板都把它当作「当前可播放的 URL」用，语义没有变。
+const { url: audioUrl, accept, setFile, onFileChange, useSample } = useAudioSource({
+  defaultSampleUrl: '/samples/audio/speech.wav',
+  // 示例下载失败（网络/断网）走统一错误分类，不再拼「加载示例失败:」这种硬编码中文串
+  onError: (e) => { error.value = humanError(e, t) }
+})
+
 const waveRef = ref<HTMLDivElement>()
 const specRef = ref<HTMLDivElement>()
 const playing = ref(false)
@@ -27,32 +38,6 @@ let micStream: MediaStream | null = null
 let micCtx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
 let micRaf: number | null = null
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (!f) return
-  audioFile.value = f
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  audioUrl.value = URL.createObjectURL(f)
-  error.value = null
-  void initFile(audioUrl.value)
-}
-
-async function useSample() {
-  try {
-    const res = await fetch('/samples/audio/speech.wav')
-    const blob = await res.blob()
-    const f = new File([blob], 'speech.wav', { type: 'audio/wav' })
-    audioFile.value = f
-    if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-    audioUrl.value = URL.createObjectURL(f)
-    error.value = null
-    await initFile(audioUrl.value)
-  } catch (e: any) {
-    error.value = `加载示例失败: ${e?.message || e}`
-  }
-}
 
 /** wavesurfer ESM 自托管在 public/vendor/wavesurfer（与 public/vendor/onnx 同一策略），
  *  避免运行时依赖 unpkg CDN —— 内网/离线部署时 CDN 不通会让「上传文件」模式直接失效 */
@@ -78,8 +63,9 @@ async function initFile(url: string) {
     surfer.registerPlugin(Spectrogram.create({ container: specRef.value, height: 120, labels: true }))
     wireEvents()
     surfer.on('ready', () => { duration.value = surfer?.getDuration?.() || 0 })
-  } catch (e: any) {
-    error.value = `wavesurfer 加载失败: ${e?.message || e}`
+  } catch (e) {
+    // 自托管资源缺失/CDN 兜底失败等：可能是网络类错误，交给统一分类器判断
+    error.value = humanError(e, t)
   }
 }
 
@@ -87,9 +73,8 @@ async function startMic() {
   if (starting.value) return
   starting.value = true
   error.value = null
-  // 切到麦克风时清除已选文件
-  if (audioUrl.value) { URL.revokeObjectURL(audioUrl.value); audioUrl.value = '' }
-  audioFile.value = null
+  // 切到麦克风时清除已选文件（objectURL 回收交给 composable）
+  setFile(null)
   destroySurfer()
   try {
     micStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
@@ -102,8 +87,9 @@ async function startMic() {
     freqData = new Uint8Array(analyser.frequencyBinCount)
     playing.value = true
     micRaf = requestAnimationFrame(micLoop)
-  } catch (e: any) {
-    error.value = `麦克风启动失败: ${e?.message || e}`
+  } catch (e) {
+    // 权限拒绝 / 无设备 / 设备被占用要给出不同指引，故用 mediaError 而非 humanError
+    error.value = mediaError(e, t)
     stopMic()
   } finally {
     starting.value = false
@@ -201,23 +187,21 @@ function destroySurfer() {
   duration.value = 0
 }
 
-function fmt(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-}
+// 输入源一变就重建 wavesurfer（选文件与「试用示例」原本各调一次 initFile，现在收敛成一条）
+watch(audioUrl, (next) => {
+  if (!next) return
+  error.value = null
+  void initFile(next)
+})
 
-// 切换来源时清理：停麦克风/销毁画布，并释放文件 URL
+// 切换来源时清理：停麦克风并销毁 wavesurfer；文件（含 objectURL）交给 composable 释放
 watch(mode, () => {
   destroySurfer()
-  if (audioUrl.value) { URL.revokeObjectURL(audioUrl.value); audioUrl.value = '' }
-  audioFile.value = null
+  setFile(null)
 })
 
-onBeforeUnmount(() => {
-  destroySurfer()
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-})
+// 只保留 wavesurfer / 麦克风的 teardown：objectURL 的回收已由 useAudioSource 注册
+onBeforeUnmount(destroySurfer)
 </script>
 
 <template>
@@ -237,7 +221,7 @@ onBeforeUnmount(() => {
           </p>
           <input
             type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
+            :accept="accept"
             class="block w-full text-sm text-muted file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-primary/10 file:text-primary file:cursor-pointer"
             @change="onFileChange"
           >
@@ -246,7 +230,7 @@ onBeforeUnmount(() => {
             icon="i-lucide-flask-conical"
             :label="t('samples.trySample')"
             variant="soft"
-            @click="useSample"
+            @click="useSample()"
           />
         </template>
 
@@ -290,7 +274,7 @@ onBeforeUnmount(() => {
             v-if="duration"
             class="text-sm text-muted tabular-nums"
           >
-            {{ fmt(currentTime) }} / {{ fmt(duration) }}
+            {{ formatClock(currentTime) }} / {{ formatClock(duration) }}
           </span>
         </template>
       </template>
