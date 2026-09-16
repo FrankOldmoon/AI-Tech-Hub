@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { humanError, mediaError } from '~/utils/errors'
 import { convertRecording, type ConvertTarget } from '~/utils/ffmpeg'
+import { transcribeToSrt, type SubtitleStage, type WhisperSubtitleModel } from '~/utils/whisper-subtitles'
 
 /**
  * 录制工具：摄像头 / 屏幕 / 摄像头+屏幕（画中画合成）。
@@ -15,7 +16,7 @@ import { convertRecording, type ConvertTarget } from '~/utils/ffmpeg'
 
 type RecordMode = 'camera' | 'screen' | 'both'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'recorder')!)
 
@@ -44,6 +45,15 @@ const convertedName = ref('')
 /** 这次录制的流里有没有音轨：没有（例如屏幕共享未勾选「分享音频」）就不提供 MP3 选项 */
 const hadAudio = ref(true)
 
+// 字幕（本地 Whisper，见 ~/utils/whisper-subtitles）
+const subtitleEnabled = ref(false)
+const whisperModel = ref<WhisperSubtitleModel>('Xenova/whisper-base')
+const subtitleBusy = ref(false)
+const subtitleStage = ref<SubtitleStage | ''>('')
+const subtitlePercent = ref(0)
+const srt = ref('')
+const srtSegments = ref(0)
+
 let liveStream: MediaStream | null = null
 let extraStreams: MediaStream[] = []
 let recorder: MediaRecorder | null = null
@@ -70,6 +80,23 @@ const targetOptions = computed(() => {
 })
 
 const currentIcon = computed(() => modeOptions.value.find(o => o.value === mode.value)?.icon ?? 'i-lucide-video')
+
+const whisperModelOptions = computed(() => [
+  { label: t('recorder.modelTiny'), value: 'Xenova/whisper-tiny' },
+  { label: t('recorder.modelBase'), value: 'Xenova/whisper-base' },
+  { label: t('recorder.modelSmall'), value: 'Xenova/whisper-small' }
+])
+
+/** 识别语言跟随界面语言（Whisper 用的是语言名而非 BCP-47） */
+const subtitleLanguage = computed(() => (locale.value.startsWith('zh') ? 'chinese' : 'english'))
+
+const stageText = computed(() => {
+  if (subtitleStage.value === 'decode') return t('recorder.subtitleStageDecode')
+  if (subtitleStage.value === 'load') return t('recorder.subtitleStageLoad')
+  if (subtitleStage.value === 'transcribe') return t('recorder.subtitleStageTranscribe')
+  return t('recorder.subtitleGenerate')
+})
+
 // 用显式三分支而不是拼 key：check:i18n 只校验字符串字面量的 key，动态拼接会被跳过
 const modeHint = computed(() => {
   if (mode.value === 'screen') return t('recorder.hintScreen')
@@ -165,6 +192,10 @@ function clearResult() {
   convertedName.value = ''
   convertRatio.value = 0
   convertLog.value = ''
+  srt.value = ''
+  srtSegments.value = 0
+  subtitleStage.value = ''
+  subtitlePercent.value = 0
   note.value = ''
 }
 
@@ -331,6 +362,8 @@ function finish(mime: string) {
   resultName.value = `recording-${stamp()}.${ext}`
   if (resultUrl.value) URL.revokeObjectURL(resultUrl.value)
   resultUrl.value = URL.createObjectURL(blob)
+  // 勾了「自动生成字幕」就直接跑：开关本身就是用户的同意，进度条会告诉他现在的阶段
+  if (subtitleEnabled.value && hadAudio.value) void generateSubtitles()
 }
 
 async function start() {
@@ -406,6 +439,47 @@ async function convert() {
   } finally {
     converting.value = false
   }
+}
+
+/** 用本地 Whisper 对「录制文件里的音轨」做识别并生成 SRT */
+async function generateSubtitles() {
+  const blob = resultBlob
+  if (!blob || subtitleBusy.value) return
+  if (!hadAudio.value) {
+    error.value = t('recorder.subtitleNoAudio')
+    return
+  }
+  subtitleBusy.value = true
+  error.value = null
+  srt.value = ''
+  srtSegments.value = 0
+  subtitlePercent.value = 0
+  try {
+    const out = await transcribeToSrt(
+      blob,
+      { model: whisperModel.value, language: subtitleLanguage.value },
+      {
+        onProgress: (percent) => { subtitlePercent.value = percent },
+        onStage: (stage) => { subtitleStage.value = stage }
+      }
+    )
+    srt.value = out.srt
+    srtSegments.value = out.segments.length
+    if (!out.srt) error.value = t('recorder.subtitleEmpty')
+  } catch (e: unknown) {
+    error.value = humanError(e, t)
+  } finally {
+    subtitleBusy.value = false
+    subtitleStage.value = ''
+  }
+}
+
+function downloadSrt() {
+  if (!srt.value) return
+  const blob = new Blob([srt.value], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  download(url, `${resultName.value.replace(/\.[^.]+$/, '')}.srt`)
+  setTimeout(() => URL.revokeObjectURL(url), 10000)
 }
 
 onBeforeUnmount(() => {
@@ -575,6 +649,64 @@ onBeforeUnmount(() => {
             class="max-h-24 overflow-auto rounded-lg bg-elevated/60 p-2 text-xs text-muted"
           >
             {{ convertLog }}
+          </pre>
+        </div>
+
+        <USeparator />
+
+        <!-- 字幕（本地 Whisper，数据不出设备） -->
+        <div class="space-y-3">
+          <p class="text-sm font-medium text-highlighted">
+            {{ t('recorder.subtitleTitle') }}
+          </p>
+          <div class="flex flex-wrap items-center gap-3">
+            <USwitch
+              v-model="subtitleEnabled"
+              :label="t('recorder.subtitleEnable')"
+              :disabled="subtitleBusy"
+            />
+            <USelect
+              v-model="whisperModel"
+              :items="whisperModelOptions"
+              class="w-64"
+              :disabled="subtitleBusy"
+            />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <UButton
+              icon="i-lucide-captions"
+              :label="subtitleBusy ? stageText : t('recorder.subtitleGenerate')"
+              color="primary"
+              variant="subtle"
+              :loading="subtitleBusy"
+              :disabled="!hadAudio"
+              @click="generateSubtitles"
+            />
+            <UButton
+              v-if="srt"
+              icon="i-lucide-download"
+              :label="t('recorder.subtitleDownload')"
+              color="neutral"
+              variant="subtle"
+              @click="downloadSrt"
+            />
+            <span v-if="srtSegments" class="text-xs text-muted">
+              {{ t('recorder.subtitleSegments') }}: {{ srtSegments }}
+            </span>
+          </div>
+          <UProgress
+            v-if="subtitleBusy && subtitleStage === 'load'"
+            :model-value="subtitlePercent"
+            size="sm"
+          />
+          <p class="text-xs text-muted">
+            {{ t('recorder.subtitleHint') }}
+          </p>
+          <pre
+            v-if="srt"
+            class="max-h-40 overflow-auto rounded-lg bg-elevated/60 p-2 text-xs text-muted"
+          >
+            {{ srt }}
           </pre>
         </div>
       </div>

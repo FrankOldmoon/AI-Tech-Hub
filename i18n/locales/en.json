@@ -1474,6 +1474,20 @@
     "noScreenAudio": "This share has no audio track. To capture system sound, share again and tick “Share audio” in the picker — on macOS that needs Chrome or Edge (Safari cannot).",
     "unsupported": "This browser cannot record video (MediaRecorder is unavailable). Please use Chrome or Edge.",
     "emptyRecording": "Nothing was recorded — the exported file came out empty. Please try again.",
-    "canvasMissing": "The composition canvas is not ready. Please reload the page and try again."
+    "canvasMissing": "The composition canvas is not ready. Please reload the page and try again.",
+    "subtitleTitle": "SRT subtitles (local Whisper)",
+    "subtitleEnable": "Generate subtitles after recording",
+    "modelTiny": "whisper-tiny · fastest (~75MB)",
+    "modelBase": "whisper-base · balanced (~145MB)",
+    "modelSmall": "whisper-small · more accurate (~460MB)",
+    "subtitleGenerate": "Generate subtitles",
+    "subtitleDownload": "Download SRT",
+    "subtitleSegments": "Cues",
+    "subtitleStageDecode": "Decoding the audio track…",
+    "subtitleStageLoad": "Loading the model…",
+    "subtitleStageTranscribe": "Transcribing…",
+    "subtitleHint": "Transcribes the audio inside the recording, entirely in your browser (the model is fetched once; nothing is uploaded). The recognition language follows the interface language.",
+    "subtitleNoAudio": "This recording has no audio track, so subtitles cannot be generated.",
+    "subtitleEmpty": "No speech was recognized, so no subtitle file was produced. Try a larger model if the audio is quiet."
   }
 }
