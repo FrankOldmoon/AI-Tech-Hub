@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { AUDIO_ACCEPT } from '~/utils/audio'
 import { formatBytes, formatTime } from '~/utils/format'
 
 /**
@@ -43,7 +44,7 @@ function onMeta(e: Event) {
     <div class="space-y-6">
       <MediaInput
         v-if="!file"
-        accept="audio/*"
+        :accept="AUDIO_ACCEPT"
         :hint="t('audioConvert.hint')"
         @select="select"
       />

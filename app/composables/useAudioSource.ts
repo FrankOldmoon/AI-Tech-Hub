@@ -17,8 +17,8 @@ export function useAudioSource(options: {
   const { defaultSampleUrl = '/samples/audio/speech.wav', onError } = options
 
   const file = ref<File | null>(null)
-  /** 供 <audio src> 播放的 object URL（随文件切换自动回收） */
-  const url = ref('')
+  /** 供 <audio src> 播放的 object URL（随文件切换自动回收；生命周期交给 useObjectUrl） */
+  const { url, set: setUrl } = useObjectUrl()
   const inputRef = ref<HTMLInputElement>()
   /** 最近一次解码得到的秒数（未解码时为 0） */
   const seconds = ref(0)
@@ -26,19 +26,11 @@ export function useAudioSource(options: {
   /** 已解码缓存：同一 File 只解一次（文件模式常常「先试听再分析」） */
   let decoded: { file: File, samples: Float32Array } | null = null
 
-  function revoke() {
-    if (url.value) {
-      URL.revokeObjectURL(url.value)
-      url.value = ''
-    }
-  }
-
   function setFile(next: File | null) {
-    revoke()
+    setUrl(next)
     decoded = null
     seconds.value = 0
     file.value = next
-    if (next) url.value = URL.createObjectURL(next)
   }
 
   function pick() {
@@ -72,7 +64,6 @@ export function useAudioSource(options: {
     return samples
   }
 
-  onBeforeUnmount(revoke)
-
+  // objectURL 的回收（含卸载兜底）由 useObjectUrl 负责，这里不再重复注册
   return { file, url, inputRef, seconds, accept: AUDIO_ACCEPT, setFile, pick, onFileChange, useSample, toSamples16k }
 }
