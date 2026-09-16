@@ -7,7 +7,9 @@ const { getCategory, byCategoryGrouped } = useDemos()
 
 const cat = computed(() => getCategory(props.category))
 const grouped = computed(() => byCategoryGrouped(props.category))
-const showGroupTitles = computed(() => grouped.value.filter(g => g.title).length >= 2)
+// 只要有 1 个带标题的组就显示标题：跨分类组（demo.crossListed）是唯一带标题的组时也必须显示，
+// 否则它会和本分类的「未分组」条目一样渲染成无标题网格，看不出是从别的分类借来的
+const showGroupTitles = computed(() => grouped.value.filter(g => g.title).length >= 1)
 </script>
 
 <template>

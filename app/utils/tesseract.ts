@@ -1,7 +1,12 @@
 /**
- * Tesseract.js 懒加载（CDN，与 highlight.js 同策略）。
- * 首次使用 OCR 时动态加载，之后复用；语言数据由 Tesseract 内部按需下载。
+ * Tesseract.js 懒加载 + 本地资源路径。
+ *
+ * 库脚本、worker、core wasm、语言数据全部从本地 `/model/vendor/tesseract/` 加载
+ * （由 scripts/sync-runtime-libs.mjs 从 package.json 的 npm 依赖同步而来），
+ * 不再依赖公网 CDN。
  */
+
+const TESSERACT_BASE = '/model/vendor/tesseract'
 
 let tesseractPromise: Promise<any> | null = null
 
@@ -14,7 +19,7 @@ export function loadTesseract(): Promise<any> {
   if (tesseractPromise) return tesseractPromise
   tesseractPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script')
-    script.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js'
+    script.src = `${TESSERACT_BASE}/tesseract.min.js`
     script.async = true
     script.onload = () => {
       if (w.Tesseract) resolve(w.Tesseract)
@@ -22,9 +27,23 @@ export function loadTesseract(): Promise<any> {
     }
     script.onerror = () => {
       tesseractPromise = null
-      reject(new Error('Failed to load tesseract.js from CDN (network required)'))
+      reject(new Error('Failed to load tesseract.js from /model/vendor — run `node scripts/sync-runtime-libs.mjs`'))
     }
     document.head.appendChild(script)
   })
   return tesseractPromise
+}
+
+/**
+ * createWorker 的本地资源选项：
+ * - workerPath：worker 主脚本
+ * - corePath：core 目录（内含 simd/lstm 各变体，Tesseract 按浏览器能力自选）
+ * - langPath：语言数据目录（eng.traineddata.gz / chi_sim.traineddata.gz）
+ */
+export function tesseractLocalOptions() {
+  return {
+    workerPath: `${TESSERACT_BASE}/worker.min.js`,
+    corePath: `${TESSERACT_BASE}/core`,
+    langPath: `${TESSERACT_BASE}/lang`
+  }
 }

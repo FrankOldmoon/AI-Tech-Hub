@@ -8,10 +8,10 @@
  * 工具全部来自 ~/utils/image-tools 注册表，本组件不包含任何算法逻辑。
  */
 import type { LocalizedDemo } from '~/utils/demos'
-import { humanError } from '~/utils/errors'
+import { humanError, mediaError } from '~/utils/errors'
 import type { ImageTool, ImageToolKind } from '~/utils/image-tools'
 import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
-import { buildParamSpecs, pickText } from '~/utils/image-tools'
+import { buildParamSpecs, pickText } from '~/utils/localized'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
 import * as alg from '~/utils/image-algorithms'
@@ -73,6 +73,9 @@ const resizeResultStyle = computed(() => {
  * - keep（保持宽高比）开启时 height 由 run 自动按宽度等比计算，面板禁用该滑块
  */
 const specs = computed(() => {
+  // MediaPipe 任务复用 visionTasks 的参数（label 走 i18n key），其余走 LocalizedParamSpec
+  const resolved = activeTool.value?.resolvedParams?.(t)
+  if (resolved) return resolved
   const base = buildParamSpecs(activeTool.value?.params, lang.value)
   if (activeTool.value?.id === 'resize' && original.value) {
     return base.map((s) => {
@@ -124,19 +127,170 @@ const kindLabels: Record<ImageToolKind, string> = {
   opencv: 'OpenCV.js',
   mediapipe: 'MediaPipe',
   transformers: 'Transformers.js',
-  tesseract: 'Tesseract'
+  tesseract: 'Tesseract',
+  yolo: 'YOLO',
+  tfjs: 'TensorFlow.js'
 }
 
 function kindLabel(kind: ImageToolKind): string {
   return kindLabels[kind]
 }
 
+// ===== 运行时可观测：单次耗时 + 实际后端 =====
+// 能力页的价值在于「同一任务多实现对比」，因此必须把耗时与后端显式呈现，
+// 否则学生会把「后端差距」误读成「模型差距」。
+
+const lastRunMs = ref<number | null>(null)
+const lastDevice = ref<string | null>(null)
+/** 本机是否支持 WebGPU（复用 utils/transformers 的判定；动态引入以免把推理库带进首屏） */
+const gpuOk = ref(false)
+
+onMounted(async () => {
+  applyDeepLink()
+  try {
+    const { hasWebGPU } = await import('~/utils/transformers')
+    gpuOk.value = hasWebGPU()
+  } catch { /* 探测失败即按不支持处理 */ }
+})
+
+/** 实际后端：工具报告优先，否则按 kind + 本机能力推断 */
+function effectiveDevice(res?: { device?: string } | null): string {
+  if (res?.device) return res.device
+  switch (activeTool.value?.kind) {
+    case 'transformers': return gpuOk.value ? 'webgpu' : 'wasm'
+    case 'mediapipe': return 'GPU'
+    case 'yolo': return gpuOk.value ? 'webgpu' : 'wasm'
+    case 'opencv':
+    case 'tesseract': return 'wasm'
+    default: return 'cpu'
+  }
+}
+
+/** canvas 类工具每帧重跑（<16ms），展示耗时与后端只会是噪声 */
+const showRunMeta = computed(() =>
+  activeTool.value?.kind !== 'canvas' && (lastRunMs.value !== null || lastDevice.value !== null)
+)
+
+/** 「耗时 38 ms · 后端 webgpu」——用 computed 拼串，避免模板里堆内联 template */
+const runMetaText = computed(() => {
+  const parts: string[] = []
+  if (lastRunMs.value !== null) parts.push(`${t('image.elapsed')} ${lastRunMs.value} ms`)
+  if (lastDevice.value) parts.push(`${t('image.backend')} ${lastDevice.value}`)
+  return parts.join(' · ')
+})
+
+// ===== 深链：URL ↔ 工具/参数 =====
+// 形如 /vision/detection?tool=yolo-detect&conf=0.4 —— 老师可把「指定工具 + 指定参数」
+// 的链接发给学生，点开即落在同一状态。参数按各自默认值的类型还原。
+
+const route = useRoute()
+const router = useRouter()
+
+function coerceQuery(defaultValue: unknown, raw: unknown): number | string | boolean | undefined {
+  if (typeof raw !== 'string' || raw === '') return undefined
+  if (typeof defaultValue === 'number') {
+    const n = Number(raw)
+    return Number.isFinite(n) ? n : undefined
+  }
+  if (typeof defaultValue === 'boolean') return raw === '1' || raw === 'true'
+  return raw
+}
+
+/** 从 URL 还原的参数（只取当前工具 spec 里存在的键，按各自默认值的类型转换） */
+function urlParams(): Record<string, number | string | boolean> {
+  const base = paramDefaults(specs.value)
+  const out: Record<string, number | string | boolean> = {}
+  for (const [key, def] of Object.entries(base)) {
+    const v = coerceQuery(def, route.query[key])
+    if (v !== undefined) out[key] = v
+  }
+  return out
+}
+
+/** 切工具时待还原的深链参数：由 activeToolId 的 watcher 消费
+ *（否则「切工具→重置默认值」会把 URL 里的参数覆盖掉） */
+let pendingParams: Record<string, number | string | boolean> | null = null
+
+/** 进入页面时按 URL 恢复工具与参数 */
+function applyDeepLink() {
+  const wanted = String(route.query.tool ?? '')
+  if (wanted !== '' && wanted !== activeToolId.value && props.tools.some(x => x.id === wanted)) {
+    pendingParams = urlParams()
+    activeToolId.value = wanted
+    return
+  }
+  paramValues.value = { ...paramDefaults(specs.value), ...urlParams() }
+}
+
+let urlTimer: ReturnType<typeof setTimeout> | null = null
+/** 上一次写进 URL 的参数键：切工具后据此清掉旧工具残留的 query */
+let writtenParams = new Set<string>()
+
+/** 状态变化写回 URL（防抖避免刷历史；只写偏离默认值的参数，链接保持简短） */
+function syncUrl() {
+  if (urlTimer) clearTimeout(urlTimer)
+  urlTimer = setTimeout(() => {
+    const defaults = paramDefaults(specs.value)
+    const query: Record<string, string> = {}
+    for (const [k, v] of Object.entries(route.query)) {
+      if (typeof v === 'string' && k !== 'tool' && !writtenParams.has(k)) query[k] = v
+    }
+    if (activeToolId.value) query.tool = activeToolId.value
+    const next = new Set<string>()
+    for (const [k, v] of Object.entries(paramValues.value)) {
+      if (v === undefined || v === null || v === '') continue
+      if (String(v) === String(defaults[k])) continue
+      query[k] = String(v)
+      next.add(k)
+    }
+    writtenParams = next
+    router.replace({ query })
+  }, 400)
+}
+
+watch([activeToolId, paramValues], syncUrl, { deep: true })
+
+// ===== 首次加载提示 =====
+// 模型首次下载 + 初始化期间界面只有转圈，容易被当成卡死；超过阈值就给一句说明。
+
+const slowHint = ref(false)
+let slowTimer: ReturnType<typeof setTimeout> | null = null
+
+function startSlowHint() {
+  if (isImmediateTool()) return
+  if (slowTimer) clearTimeout(slowTimer)
+  slowTimer = setTimeout(() => {
+    slowHint.value = true
+  }, 1200)
+}
+
+function stopSlowHint() {
+  if (slowTimer) {
+    clearTimeout(slowTimer)
+    slowTimer = null
+  }
+  slowHint.value = false
+}
+
+// 离开页面时取消挂起的写 URL / 慢加载提示，避免卸载后回写地址栏
+onUnmounted(() => {
+  if (urlTimer) clearTimeout(urlTimer)
+  if (slowTimer) clearTimeout(slowTimer)
+})
+
 // 左侧工具栏数据（共享 ToolSidebar 组件，样式集中在组件内）
+// section 按当前页面 slug 解析（能力页 = 实现引擎，引擎页 = 任务族），再经 i18n 取文案
+function sectionFor(tool: ImageTool): string | undefined {
+  const key = tool.section?.[props.demo.slug] ?? tool.section?.['*']
+  return key ? t(key) : undefined
+}
+
 const toolItems = computed<ToolSidebarItem[]>(() => props.tools.map(tool => ({
   id: tool.id,
   label: pickText(tool.name, lang.value),
   kind: kindLabel(tool.kind),
-  badge: tool.planned ? t('image.planned') : undefined
+  badge: tool.planned ? t('image.planned') : undefined,
+  section: sectionFor(tool)
 })))
 
 let timer: ReturnType<typeof setTimeout> | null = null
@@ -154,7 +308,10 @@ watch(() => props.tools, (list) => {
 
 watch(activeToolId, () => {
   resizeDisplayMode.value = null
-  paramValues.value = paramDefaults(specs.value)
+  // 深链切工具时合并 URL 参数；普通切工具则回到该工具的参数默认值
+  const merged = pendingParams ? { ...paramDefaults(specs.value), ...pendingParams } : paramDefaults(specs.value)
+  pendingParams = null
+  paramValues.value = merged
   // resize 工具：默认宽高跟随原图实际尺寸（不硬编码 800×600）
   if (activeTool.value?.id === 'resize' && original.value) {
     paramValues.value = {
@@ -179,8 +336,143 @@ watch(original, () => {
 })
 
 function selectTool(rawId: string | number) {
+  // 切工具即断开摄像头（避免多实例占轨道 / 指示灯不灭）
+  if (liveActive.value) stopLive()
   activeToolId.value = String(rawId)
   pulseResult(0.97)
+}
+
+// ===== 参数合并 =====
+
+/** 与参数默认值合并（避免首次运行缺键导致 NaN）；拖动 resize 把手时忽略 keep */
+function mergedParams(): Record<string, number | string | boolean> {
+  const merged: Record<string, number | string | boolean> = { ...paramDefaults(specs.value), ...paramValues.value }
+  if (activeTool.value?.id === 'resize' && resizeDragKeep.value) merged.keep = false
+  return merged
+}
+
+// ===== 交互式提示点（interactive: 'prompt'：点击坐标喂回推理）=====
+
+/** 提示点（归一化 0~1，相对结果画布）；未点击时为 null */
+const promptPoint = computed<{ x: number, y: number } | null>(() => {
+  const x = Number(paramValues.value.promptX)
+  const y = Number(paramValues.value.promptY)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+  return { x, y }
+})
+const promptTool = computed(() => activeTool.value?.interactive === 'prompt')
+
+function clearPrompt() {
+  const next = { ...paramValues.value }
+  delete next.promptX
+  delete next.promptY
+  paramValues.value = next
+}
+
+// ===== 实时模式（ImageTool.live：摄像头逐帧推理）=====
+
+const liveRequested = ref(false)
+const liveActive = ref(false)
+const liveStarting = ref(false)
+const liveVideo = ref<HTMLVideoElement>()
+let liveStream: MediaStream | null = null
+let liveRaf = 0
+let liveLastTime = -1
+let liveInferring = false
+
+const liveSupported = computed(() => Boolean(activeTool.value?.live))
+
+async function startLive() {
+  const tool = activeTool.value
+  if (!tool?.live || liveStarting.value) return
+  if (!navigator.mediaDevices?.getUserMedia) {
+    error.value = t('errors.insecureContext')
+    return
+  }
+  liveStarting.value = true
+  liveRequested.value = true
+  error.value = null
+  try {
+    await nextTick()
+    const video = liveVideo.value
+    if (!video) return
+    if (!liveStream) {
+      liveStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+    }
+    video.srcObject = liveStream
+    await video.play()
+    await tool.live.ensure()
+    liveLastTime = -1
+    liveActive.value = true
+    loopLive()
+  } catch (e) {
+    error.value = mediaError(e, t)
+    stopLive()
+  } finally {
+    liveStarting.value = false
+  }
+}
+
+/** 逐帧循环：runFrame 允许异步，用 liveInferring 守卫避免重入 */
+function loopLive() {
+  if (!liveActive.value) return
+  const video = liveVideo.value
+  const tool = activeTool.value
+  if (video && tool?.live && !liveInferring && video.readyState >= 2 && video.currentTime !== liveLastTime) {
+    liveLastTime = video.currentTime
+    liveInferring = true
+    Promise.resolve(tool.live.runFrame(video, performance.now(), mergedParams(), lang.value))
+      .then((res) => {
+        if (res && liveActive.value) {
+          if (res.imageData) result.value = res.imageData
+          resultInfo.value = res.info ?? []
+          // 实时为逐帧循环，单帧耗时不具可比性，只标注后端
+          lastRunMs.value = null
+          lastDevice.value = effectiveDevice(res)
+        }
+      })
+      .catch((e) => { error.value = humanError(e, t) })
+      .finally(() => { liveInferring = false })
+  }
+  liveRaf = requestAnimationFrame(loopLive)
+}
+
+function stopLive() {
+  liveActive.value = false
+  liveRequested.value = false
+  if (liveRaf) {
+    cancelAnimationFrame(liveRaf)
+    liveRaf = 0
+  }
+  liveInferring = false
+  liveLastTime = -1
+  if (liveStream) {
+    liveStream.getTracks().forEach(tr => tr.stop())
+    liveStream = null
+  }
+  if (liveVideo.value) liveVideo.value.srcObject = null
+  activeTool.value?.live?.dispose?.()
+}
+
+onBeforeUnmount(() => {
+  stopLive()
+})
+
+// ===== 手绘输入（needsDrawing 工具，如简笔画识别）=====
+
+const sketchBrush = ref(24)
+const sketchClearToken = ref(0)
+const needsDrawing = computed(() => Boolean(activeTool.value?.needsDrawing))
+
+/** 画布变化（每次笔画结束）→ 作为「原图」并立即重跑 */
+function onSketchChange(data: ImageData) {
+  original.value = data
+  fileName.value = 'sketch'
+  sourceBytes.value = data.width * data.height * 4
+  result.value = null
+  resultInfo.value = []
+  error.value = null
+  runLater()
 }
 
 // ===== 运行 =====
@@ -233,31 +525,33 @@ async function run(req = latestReq) {
   running.value = true
   error.value = null
   try {
-    // 防御：参数始终与默认值合并，避免首次运行缺键导致 NaN
-    const mergedParams = { ...paramDefaults(specs.value), ...paramValues.value }
-    // 把手拖动期间忽略 keep 等比（水平/垂直把手独立控制单边，等比把手自行等比）
-    if (activeTool.value?.id === 'resize' && resizeDragKeep.value) {
-      mergedParams.keep = false
-    }
-    // canvas 工具不改源图，直接传原图省一次 4MB 深拷贝（AI 工具保留防御性克隆）
+    const params = mergedParams()
     const src = isImmediateTool() ? original.value : alg.cloneImageData(original.value)
+    const t0 = performance.now()
+    startSlowHint()
     const res = await tool.run({
       imageData: src,
       original: original.value,
       secondImage: secondOriginal.value ?? undefined,
-      params: mergedParams,
+      params,
       lang: lang.value
     })
+    const elapsed = Math.round(performance.now() - t0)
     if (req === latestReq) {
       if (res.imageData) result.value = res.imageData
       resultInfo.value = res.info ?? []
+      lastRunMs.value = elapsed
+      lastDevice.value = effectiveDevice(res)
     }
   } catch (e) {
     if (req === latestReq) {
       error.value = humanError(e, t)
       resultInfo.value = []
+      lastRunMs.value = null
+      lastDevice.value = null
     }
   } finally {
+    stopSlowHint()
     running.value = false
     if (pending) {
       pending = false
@@ -276,7 +570,9 @@ function runNow() {
 }
 
 function reset() {
+  if (liveActive.value) stopLive()
   resizeDisplayMode.value = null
+  clearPrompt()
   paramValues.value = paramDefaults(specs.value)
   // resize 工具：恢复为原图尺寸（与默认跟随原图一致，而非 specs 硬编码 800×600）
   if (activeTool.value?.id === 'resize' && original.value) {
@@ -285,6 +581,11 @@ function reset() {
       width: original.value.width,
       height: original.value.height
     }
+  }
+  // 手绘工具：清空画布即可，画布的 change 事件会自动重跑
+  if (needsDrawing.value) {
+    sketchClearToken.value += 1
+    return
   }
   run()
 }
@@ -545,8 +846,8 @@ function previewResize() {
 }
 
 watch(result, (v) => {
-  // 慢工具（AI/OpenCV 等）出结果：轻微弹入提示更新（canvas 工具每帧重绘不弹）
-  if (v && !isImmediateTool() && !resizing.value) {
+  // 慢工具（AI/OpenCV 等）出结果：轻微弹入提示更新（canvas 工具每帧重绘不弹；实时逐帧不弹）
+  if (v && !isImmediateTool() && !resizing.value && !liveActive.value) {
     pulseResult(0.985)
   }
 })
@@ -701,17 +1002,30 @@ watch(secondOriginal, v => drawCanvas(secondCanvas.value, v), { flush: 'post' })
 function onResultClick(e: MouseEvent) {
   const tool = activeTool.value
   const canvas = resultCanvas.value
-  if (!tool?.onPick || !canvas || !result.value || !original.value) return
+  if (!tool || !canvas || !original.value) return
   const rect = canvas.getBoundingClientRect()
-  const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width))
-  const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height))
-  resultInfo.value = tool.onPick({
-    imageData: result.value,
-    original: original.value,
-    secondImage: secondOriginal.value ?? undefined,
-    params: paramValues.value,
-    lang: lang.value
-  }, x, y)
+  if (rect.width <= 0 || rect.height <= 0) return
+  // prompt：点击坐标（归一化）喂回推理，触发重跑（交互式分割）
+  if (tool.interactive === 'prompt') {
+    const nx = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+    const ny = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height))
+    paramValues.value = { ...paramValues.value, promptX: nx, promptY: ny }
+    if (liveActive.value) return
+    runNow()
+    return
+  }
+  // click：只读像素信息，不改变结果
+  if (tool.interactive === 'click' && tool.onPick && result.value) {
+    const x = Math.round((e.clientX - rect.left) * (canvas.width / rect.width))
+    const y = Math.round((e.clientY - rect.top) * (canvas.height / rect.height))
+    resultInfo.value = tool.onPick({
+      imageData: result.value,
+      original: original.value,
+      secondImage: secondOriginal.value ?? undefined,
+      params: paramValues.value,
+      lang: lang.value
+    }, x, y)
+  }
 }
 
 // ===== 下载 =====
@@ -770,9 +1084,61 @@ const modeText = computed(() => {
         :items="toolItems"
         @update:model-value="selectTool"
       >
+        <!-- 实时模式取帧源（不可见但保持播放；结果画布直接显示视频帧 + 叠加） -->
+        <video
+          v-show="liveRequested"
+          ref="liveVideo"
+          class="absolute w-px h-px opacity-0 pointer-events-none"
+          playsinline
+          muted
+          autoplay
+        />
+
+        <!-- 手绘输入（needsDrawing 工具）：白底粗黑线，快照即「原图」 -->
+        <div
+          v-if="needsDrawing"
+          class="rounded-xl border border-default p-3 space-y-3"
+        >
+          <div>
+            <p class="text-sm font-medium text-highlighted">
+              {{ t('image.sketchTitle') }}
+            </p>
+            <p class="mt-1 text-xs text-dimmed">
+              {{ t('image.sketchHint') }}
+            </p>
+          </div>
+          <SketchCanvas
+            :brush="sketchBrush"
+            :clear-token="sketchClearToken"
+            @change="onSketchChange"
+          />
+          <div class="flex flex-wrap items-center gap-3">
+            <span class="text-xs text-muted shrink-0">{{ t('image.brush') }}</span>
+            <input
+              v-model.number="sketchBrush"
+              type="range"
+              min="8"
+              max="48"
+              step="2"
+              class="flex-1 min-w-32"
+              :aria-label="t('image.brush')"
+            >
+            <span class="text-xs text-muted tabular-nums w-7">{{ sketchBrush }}</span>
+            <UButton
+              icon="i-lucide-rotate-ccw"
+              size="xs"
+              color="neutral"
+              variant="soft"
+              @click="sketchClearToken += 1"
+            >
+              {{ t('image.clearCanvas') }}
+            </UButton>
+          </div>
+        </div>
+
         <!-- 上传区 -->
         <div
-          v-if="!original"
+          v-if="!original && !needsDrawing"
           class="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors"
           :class="dragOver ? 'border-primary bg-primary/5' : 'border-default hover:border-primary/60'"
           @click="openFilePicker"
@@ -826,7 +1192,7 @@ const modeText = computed(() => {
           />
         </div>
         <button
-          v-if="!webcamOpen"
+          v-if="!webcamOpen && !needsDrawing"
           type="button"
           class="mt-3 mx-auto flex items-center gap-2 rounded-lg border border-default/70 bg-elevated/40 px-3 py-1.5 text-sm text-muted transition hover:border-primary/50 hover:text-highlighted"
           @click="webcamOpen = true"
@@ -886,6 +1252,17 @@ const modeText = computed(() => {
                 {{ t('image.run') }}
               </UButton>
               <UButton
+                v-if="liveSupported"
+                :icon="liveActive ? 'i-lucide-square' : 'i-lucide-video'"
+                :color="liveActive ? 'error' : 'primary'"
+                :variant="liveActive ? 'subtle' : 'soft'"
+                :loading="liveStarting"
+                :disabled="liveStarting"
+                @click="liveActive ? stopLive() : startLive()"
+              >
+                {{ liveActive ? t('image.liveStop') : t('image.liveStart') }}
+              </UButton>
+              <UButton
                 icon="i-lucide-rotate-ccw"
                 color="neutral"
                 variant="soft"
@@ -915,7 +1292,10 @@ const modeText = computed(() => {
 
           <!-- 原图 / 结果：两列对半，图像一样大 -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div class="space-y-2">
+            <div
+              v-if="!needsDrawing"
+              class="space-y-2"
+            >
               <p class="text-xs font-medium text-muted uppercase tracking-wide">
                 {{ t('image.original') }}
               </p>
@@ -997,19 +1377,33 @@ const modeText = computed(() => {
                 </div>
               </div>
             </div>
-            <div class="space-y-2">
-              <p class="text-xs font-medium text-muted uppercase tracking-wide">
-                {{ t('image.result') }}
-                <span
-                  v-if="running"
-                  class="text-primary normal-case tracking-normal ms-2"
+            <div :class="needsDrawing ? 'space-y-2 md:col-span-2' : 'space-y-2'">
+              <div class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <p class="text-xs font-medium text-muted uppercase tracking-wide">
+                  {{ t('image.result') }}
+                  <span
+                    v-if="running"
+                    class="text-primary normal-case tracking-normal ms-2"
+                  >
+                    <UIcon
+                      name="i-lucide-loader-circle"
+                      class="size-3.5 inline animate-spin align-[-2px]"
+                    />
+                    {{ t('image.processing') }}
+                  </span>
+                </p>
+                <p
+                  v-if="showRunMeta"
+                  class="text-xs text-dimmed tabular-nums"
                 >
-                  <UIcon
-                    name="i-lucide-loader-circle"
-                    class="size-3.5 inline animate-spin align-[-2px]"
-                  />
-                  {{ t('image.processing') }}
-                </span>
+                  {{ runMetaText }}
+                </p>
+              </div>
+              <p
+                v-if="slowHint"
+                class="text-xs text-dimmed"
+              >
+                {{ t('image.firstLoadHint') }}
               </p>
               <div class="overflow-auto rounded-lg border border-default">
                 <div
@@ -1019,9 +1413,15 @@ const modeText = computed(() => {
                   <canvas
                     ref="resultCanvas"
                     class="rounded-lg max-w-full h-auto"
-                    :class="activeTool?.interactive === 'click' ? 'cursor-crosshair' : ''"
+                    :class="activeTool?.interactive === 'click' || promptTool ? 'cursor-crosshair' : ''"
                     :style="resizeResultStyle"
                     @click="onResultClick"
+                  />
+                  <!-- 交互式提示点标记（interactive: 'prompt'） -->
+                  <span
+                    v-if="promptTool && promptPoint"
+                    class="absolute size-3 rounded-full bg-primary ring-2 ring-white pointer-events-none -translate-x-1/2 -translate-y-1/2"
+                    :style="{ left: `${promptPoint.x * 100}%`, top: `${promptPoint.y * 100}%` }"
                   />
                 </div>
               </div>
@@ -1030,6 +1430,12 @@ const modeText = computed(() => {
                 class="text-xs text-dimmed"
               >
                 {{ t('image.clickHint') }}
+              </p>
+              <p
+                v-if="promptTool"
+                class="text-xs text-dimmed"
+              >
+                {{ t('image.promptHint') }}
               </p>
             </div>
           </div>

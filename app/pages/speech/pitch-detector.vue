@@ -4,6 +4,7 @@ import type { ParamSpec } from '~/utils/params'
 import { mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { decodeTo16k } from '~/utils/audio'
+import { freqToNote, yinPitch } from '~/utils/pitch'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -11,7 +12,6 @@ const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'pitch-detector')!)
 
 const mode = ref<'mic' | 'file'>('mic')
-const running = ref(false)
 const error = ref<string | null>(null)
 const freq = ref(0)
 const note = ref('--')
@@ -34,71 +34,16 @@ const specs = computed<ParamSpec[]>(() => [
 ])
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
-let audioCtx: AudioContext | null = null
-let stream: MediaStream | null = null
-let processor: ScriptProcessorNode | null = null
+/**
+ * 采集改用公共 composable：getUserMedia + AudioContext + ScriptProcessor + 卸载 teardown
+ * 原先这段样板在 audio-classifier / emotion / hum-to-notes / 本页各有一份，现在只此一处。
+ * 采样率沿用 composable 默认的 16kHz：与本页文件模式（decodeTo16k）以及 hum-to-notes 同源，
+ * 因此下面 yinPitch 的 sampleRate 直接复用这个常量，不再从 AudioContext 上现取。
+ */
+const MIC_RATE = 16000
+const { running, start: startMic, stop: stopMic } = useMicStream()
+
 let rafId: number | null = null
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-
-/** YIN 基频检测（CMND + 抛物线插值），返回 { freq, clarity } 或 null */
-function yinPitch(buffer: Float32Array, sampleRate: number, threshold: number, minFreq: number, maxFreq: number): { freq: number, clarity: number } | null {
-  const len = buffer.length
-  const half = Math.floor(len / 2)
-  if (half < 4) return null
-  const cmnd = new Float32Array(half)
-  cmnd[0] = 1
-  let runningSum = 0
-  for (let tau = 1; tau < half; tau++) {
-    let diff = 0
-    for (let i = 0; i < half; i++) {
-      const d = buffer[i] - buffer[i + tau]
-      diff += d * d
-    }
-    runningSum += diff
-    cmnd[tau] = runningSum > 0 ? (diff * tau) / runningSum : 1
-  }
-  // 寻找第一个低于阈值的谷值
-  let tau = -1
-  for (let t = 2; t < half - 1; t++) {
-    if (cmnd[t] < threshold && cmnd[t] < cmnd[t - 1] && cmnd[t] < cmnd[t + 1]) {
-      tau = t
-      break
-    }
-  }
-  if (tau === -1) {
-    // 回退：全局最小值
-    let min = 1
-    for (let t = 2; t < half - 1; t++) {
-      if (cmnd[t] < min) { min = cmnd[t]; tau = t }
-    }
-    if (min > threshold) return null
-  }
-  // 抛物线插值精化周期
-  const s0 = cmnd[tau - 1]
-  const s1 = cmnd[tau]
-  const s2 = cmnd[tau + 1]
-  const denom = s0 - 2 * s1 + s2
-  const shift = denom !== 0 ? (s0 - s2) / (2 * denom) : 0
-  const period = tau + shift
-  const f = sampleRate / period
-  if (f < minFreq || f > maxFreq) return null
-  return { freq: f, clarity: Math.max(0, Math.min(1, 1 - s1)) }
-}
-
-function midiToNote(midi: number): { name: string, octave: number } {
-  const name = NOTE_NAMES[((Math.round(midi) % 12) + 12) % 12]
-  const octave = Math.floor(Math.round(midi) / 12) - 1
-  return { name, octave }
-}
-
-function freqToNote(f: number): { note: string, cents: number } {
-  const midi = 69 + 12 * Math.log2(f / 440)
-  const rounded = Math.round(midi)
-  const centsOffset = Math.round((midi - rounded) * 100)
-  const { name, octave } = midiToNote(rounded)
-  return { note: `${name}${octave}`, cents: centsOffset }
-}
 
 function render() {
   const canvas = canvasRef.value
@@ -139,16 +84,17 @@ function render() {
 
 function draw() {
   render()
-  rafId = requestAnimationFrame(draw)
+  // 只在采集期间续帧：停止后（含卸载时 composable 的自动停机）这一帧跑完就自然收尾，
+  // 页面不必再自己取消 requestAnimationFrame
+  rafId = running.value ? requestAnimationFrame(draw) : null
 }
 
-function processFrame(e: AudioProcessingEvent) {
-  const data = e.inputBuffer.getChannelData(0)
-  const sr = audioCtx?.sampleRate || 44100
+/** 逐帧回调：composable 已把麦克风切成 16kHz 单声道 4096 样本帧，这里只做音高检测与读数更新 */
+function onFrame(frame: Float32Array) {
   const threshold = Number(params.value.threshold)
   const minFreq = Number(params.value.minFreq)
   const maxFreq = Number(params.value.maxFreq)
-  const res = yinPitch(data, sr, threshold, minFreq, maxFreq)
+  const res = yinPitch(frame, MIC_RATE, threshold, minFreq, maxFreq)
   if (res && res.clarity > 0.5) {
     freq.value = Math.round(res.freq)
     clarity.value = Math.round(res.clarity * 100)
@@ -163,29 +109,24 @@ function processFrame(e: AudioProcessingEvent) {
 async function start() {
   if (running.value) return
   error.value = null
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
-    audioCtx = new AudioContext()
-    const source = audioCtx.createMediaStreamSource(stream)
-    processor = audioCtx.createScriptProcessor(4096, 1, 1)
-    processor.onaudioprocess = processFrame
-    source.connect(processor)
-    processor.connect(audioCtx.destination)
-    running.value = true
-    history.value = []
-    draw()
-  } catch (e: any) {
-    error.value = mediaError(e, t)
-  }
+  await startMic({
+    sampleRate: MIC_RATE,
+    onFrame,
+    // 采集链路失败（权限被拒/无设备）由 composable 回调，此时它已把流与 context 收干净
+    onError: (e) => { error.value = mediaError(e, t) }
+  })
+  if (!running.value) return
+  history.value = []
+  draw()
 }
 
+/** 停止采集并清空读数：关 processor / context / 流由 composable 负责，这里只管本页的显示状态 */
 function stop() {
-  running.value = false
-  if (rafId !== null) { cancelAnimationFrame(rafId); rafId = null }
-  if (processor) { processor.disconnect(); processor = null }
-  if (audioCtx) { audioCtx.close(); audioCtx = null }
-  stream?.getTracks().forEach(t => t.stop())
-  stream = null
+  stopMic()
+  if (rafId !== null) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
   freq.value = 0
   note.value = '--'
   cents.value = 0
@@ -289,12 +230,10 @@ function cancelAnalyze() {
   analyzing.value = false
 }
 
-// 切换到文件模式时停止麦克风
+// 切换到文件模式时停止麦克风（停机 + 卸载回收都由 useMicStream 负责，本页不再重复 teardown）
 watch(mode, (m) => {
   if (m === 'file') stop()
 })
-
-onBeforeUnmount(stop)
 </script>
 
 <template>
@@ -383,7 +322,7 @@ onBeforeUnmount(stop)
           <UButton
             v-if="analyzing"
             icon="i-lucide-x"
-            :label="t('emotion.cancel')"
+            :label="t('speech.cancel')"
             color="neutral"
             variant="subtle"
             @click="cancelAnalyze"

@@ -46,9 +46,10 @@ function generatePoints(kind: string): Pt[] {
   const rng = mulberry32(2026)
   const pts: Pt[] = []
   if (kind === 'blobs') {
-    const centers = [[-2.5, -2], [2.5, -2], [0, 3]]
+    const centers: Array<[number, number]> = [[-2.5, -2], [2.5, -2], [0, 3]]
     for (let i = 0; i < 180; i++) {
-      const c = centers[i % centers.length]
+      // 每项恒为 [x, y] 两元素，取模后下标必在界内
+      const c = centers[i % centers.length]!
       pts.push({ x: c[0] + gaussian(rng) * 1.2, y: c[1] + gaussian(rng) * 1.2 })
     }
   } else if (kind === 'moons') {
@@ -71,17 +72,18 @@ function dist2(a: Pt, b: Pt): number {
 }
 
 function kmeansInit(pts: Pt[], kk: number): Pt[] {
-  const cs: Pt[] = [pts[Math.floor(Math.random() * pts.length)]]
+  // pts 非空由调用方保证：reset 用 generatePoints 的 180 个点，onCanvasClick 也已先 push 过
+  const cs: Pt[] = [pts[Math.floor(Math.random() * pts.length)]!]
   while (cs.length < kk) {
     const dists = pts.map(p => Math.min(...cs.map(c => dist2(p, c))))
     const total = dists.reduce((a, b) => a + b, 0) || 1
     let r = Math.random() * total
     let pick = pts.length - 1
     for (let i = 0; i < dists.length; i++) {
-      r -= dists[i]
+      r -= dists[i]!
       if (r <= 0) { pick = i; break }
     }
-    cs.push(pts[pick])
+    cs.push(pts[pick]!)
   }
   return cs
 }
@@ -98,17 +100,20 @@ function step() {
     let best = 0
     let bestD = Infinity
     for (let j = 0; j < cs.length; j++) {
-      const d = dist2(pts[i], cs[j])
+      const d = dist2(pts[i]!, cs[j]!)
       if (d < bestD) { bestD = d; best = j }
     }
     lab[i] = best
-    sums[best].x += pts[i].x
-    sums[best].y += pts[i].y
-    counts[best]++
+    // best ∈ [0, cs.length)、i ∈ [0, pts.length)，故下标必在界内
+    sums[best]!.x += pts[i]!.x
+    sums[best]!.y += pts[i]!.y
+    counts[best]!++
     inert += bestD
   }
   labels.value = lab
-  centroids.value = cs.map((c, j) => counts[j] ? { x: sums[j].x / counts[j], y: sums[j].y / counts[j] } : c)
+  centroids.value = cs.map((c, j) => counts[j]
+    ? { x: sums[j]!.x / counts[j]!, y: sums[j]!.y / counts[j]! }
+    : c)
   inertia.value = inert / pts.length
   iteration.value++
   draw()
@@ -166,18 +171,20 @@ function draw() {
   }
   // 点
   for (let i = 0; i < points.value.length; i++) {
-    const p = points.value[i]
+    // i ∈ [0, length)，故下标必在界内
+    const p = points.value[i]!
     ctx.beginPath()
     ctx.arc(toCanvas(p.x), toCanvas(p.y), 4, 0, Math.PI * 2)
-    ctx.fillStyle = COLORS[labels.value[i] % COLORS.length] || '#888'
+    ctx.fillStyle = COLORS[labels.value[i]! % COLORS.length] || '#888'
     ctx.fill()
   }
   // 质心
   for (let j = 0; j < centroids.value.length; j++) {
-    const c = centroids.value[j]
+    // j ∈ [0, length)，故下标必在界内
+    const c = centroids.value[j]!
     ctx.beginPath()
     ctx.arc(toCanvas(c.x), toCanvas(c.y), 8, 0, Math.PI * 2)
-    ctx.fillStyle = COLORS[j % COLORS.length]
+    ctx.fillStyle = COLORS[j % COLORS.length]!
     ctx.fill()
     ctx.strokeStyle = '#FFFFFF'
     ctx.lineWidth = 3

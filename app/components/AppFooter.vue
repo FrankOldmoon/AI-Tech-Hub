@@ -11,6 +11,14 @@ const { t } = useI18n()
     </template>
     <template #right>
       <UButton
+        to="/status"
+        icon="i-lucide-database"
+        :label="t('footer.modelStatus')"
+        color="neutral"
+        variant="ghost"
+        size="sm"
+      />
+      <UButton
         to="https://github.com/FrankOldmoon/AI-Tech-Hub"
         target="_blank"
         icon="i-simple-icons-github"

@@ -57,7 +57,8 @@ function features(x: number): number[] {
 function predict(x: number): number {
   const f = features(x)
   let y = 0
-  for (let i = 0; i <= degree.value; i++) y += weights[i] * f[i]
+  // weights 与 features() 恒有 degree+1 项，故下标必在界内
+  for (let i = 0; i <= degree.value; i++) y += weights[i]! * f[i]!
   return y * RANGE
 }
 
@@ -65,16 +66,18 @@ function trainStep() {
   if (!points.value.length) return
   const batch = points.value.slice().sort(() => Math.random() - 0.5).slice(0, 32)
   let sumLoss = 0
-  const grads = new Array(weights.length).fill(0)
+  const grads: number[] = new Array(weights.length).fill(0)
   for (const p of batch) {
     const f = features(p.x)
-    const pred = f.reduce((s, v, i) => s + weights[i] * v, 0)
+    const pred = f.reduce((s, v, i) => s + weights[i]! * v, 0)
     const err = pred - p.y / RANGE
     sumLoss += err * err
-    for (let i = 0; i < weights.length; i++) grads[i] += 2 * err * f[i]
+    // 同上：复合赋值先读回 grads[i]，i < weights.length 保证其存在
+    for (let i = 0; i < weights.length; i++) grads[i] = grads[i]! + 2 * err * f[i]!
   }
   for (let i = 0; i < weights.length; i++) {
-    weights[i] -= learningRate.value * (grads[i] / batch.length)
+    // 复合赋值会先读回 weights[i]；i < weights.length 保证其存在
+    weights[i] = weights[i]! - learningRate.value * (grads[i]! / batch.length)
   }
   loss.value = sumLoss / batch.length
   epoch.value++

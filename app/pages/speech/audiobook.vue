@@ -9,6 +9,7 @@ import { paramDefaults } from '~/utils/params'
 import { humanError } from '~/utils/errors'
 import { kokoroVoices, kokoroSynthesize, loadKokoroModel, rawAudioToWavBlob, voiceOptionLabel, type KokoroProgress } from '~/utils/kokoro'
 import { VOICE_POOLS, assignVoices, collectRoles, concatChunks, parseScript } from '~/utils/audiobook'
+import { downloadBlob, formatClock } from '~/utils/wav'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
@@ -63,6 +64,8 @@ let cancelled = false
 
 // ===== 结果 =====
 const durations = ref<number[]>([])
+/** 拼接后的整本 WAV：既给 <audio> 用（resultUrl），也是下载的来源 */
+const resultBlob = ref<Blob | null>(null)
 const resultUrl = ref('')
 const resultSeconds = ref(0)
 const previewUrl = ref('')
@@ -92,6 +95,7 @@ async function generate() {
   progress.value = 0
   statusText.value = t('ab.loadingModel')
   durations.value = []
+  resultBlob.value = null
   resultUrl.value = revoke(resultUrl.value)
   previewUrl.value = revoke(previewUrl.value)
   resultSeconds.value = 0
@@ -121,7 +125,8 @@ async function generate() {
     const merged = concatChunks(chunks, rate, Number(params.value.gap) || 0)
     durations.value = durs
     resultSeconds.value = Math.round((merged.length / rate) * 10) / 10
-    resultUrl.value = URL.createObjectURL(rawAudioToWavBlob(merged, rate))
+    resultBlob.value = rawAudioToWavBlob(merged, rate)
+    resultUrl.value = URL.createObjectURL(resultBlob.value)
   } catch (e) {
     error.value = humanError(e, t)
   } finally {
@@ -156,18 +161,11 @@ async function preview(i: number) {
 
 function cancel() { cancelled = true; generating.value = false; loadingModel.value = false; statusText.value = '' }
 
+// 下载交给公共 downloadBlob：它自建 objectURL 并立即回收，
+// 于是「下载」不再依赖给 <audio> 用的那个常驻 URL（此前是手写 a.click() 样板）
 function download() {
-  if (!resultUrl.value) return
-  const a = document.createElement('a')
-  a.href = resultUrl.value
-  a.download = 'audiobook.wav'
-  a.click()
-}
-
-function fmt(sec: number): string {
-  const m = Math.floor(sec / 60)
-  const s = Math.floor(sec % 60)
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  if (!resultBlob.value) return
+  downloadBlob(resultBlob.value, 'audiobook.wav')
 }
 
 const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length, 0))
@@ -247,7 +245,7 @@ const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length
         <UButton
           v-if="generating || loadingModel"
           icon="i-lucide-x"
-          :label="t('emotion.cancel')"
+          :label="t('speech.cancel')"
           color="neutral"
           variant="subtle"
           @click="cancel"
@@ -280,7 +278,7 @@ const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length
             class="w-full"
           />
           <p class="text-xs text-dimmed">
-            {{ t('ab.totalDuration') }} {{ fmt(resultSeconds) }} ·
+            {{ t('ab.totalDuration') }} {{ formatClock(resultSeconds) }} ·
             {{ t('ab.chars', { n: totalChars }) }} · {{ t('vp.device') }} {{ device }}
             <template v-if="generating">
               · {{ t('ab.synthesizing', { i: currentLine, total: lines.length }) }}

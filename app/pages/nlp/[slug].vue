@@ -1,6 +1,16 @@
 <script setup lang="ts">
-import type { TextTaskConfig } from '~/utils/mediapipe-text'
-import type { TransformersTextTaskConfig } from '~/utils/transformers'
+/**
+ * NLP 通用页面（能力 × 引擎双轴统一分发）——与 vision/[slug].vue、speech/[slug].vue 同构。
+ *
+ * 改造前：这里用 `onMounted` + 动态 import 在**两份按 slug 索引的注册表**之间
+ * 「先查 MediaPipe、再查 Transformers」解析 slug，于是
+ *   1) 一个任务只能属于一个页面（双轴不成立）；
+ *   2) 结果渲染必须在页面里手写两个大 `#result` 模板（本文件曾有 193 行）。
+ * 现在归属由 `utils/nlp-tools` 的 `NlpTool.pages` 决定，渲染交给 `NlpPlayground`。
+ *
+ * slug 不在注册表内 -> 提示未找到。
+ */
+import { nlpToolsByPage } from '~/utils/nlp-tools'
 
 const route = useRoute()
 const { getDemo } = useDemos()
@@ -8,173 +18,16 @@ const { t } = useI18n()
 
 const slug = computed(() => route.params.slug as string)
 const demo = computed(() => getDemo('nlp', slug.value))
-
-// 两种任务类型：MediaPipe 文本 / transformers.js 文本
-type TaskKind = 'mediapipe' | 'transformers'
-const taskKind = ref<TaskKind | null>(null)
-const mpCfg = ref<TextTaskConfig | null>(null)
-const tfCfg = ref<TransformersTextTaskConfig | null>(null)
-
-onMounted(async () => {
-  // 先查 MediaPipe 文本任务
-  const mpMod = await import('~/utils/mediapipe-text')
-  const mp = mpMod.textTasks[slug.value]
-  if (mp) {
-    mpCfg.value = mp
-    taskKind.value = 'mediapipe'
-    return
-  }
-  // 再查 transformers.js 文本任务
-  const tfMod = await import('~/utils/transformers')
-  const tf = tfMod.transformersTextTasks[slug.value]
-  if (tf) {
-    tfCfg.value = tf
-    taskKind.value = 'transformers'
-  }
-})
-
-const createTask = computed(() => mpCfg.value?.create ?? null)
-const method = computed(() => mpCfg.value?.method ?? 'classify')
-
-// MediaPipe 文本任务示例（text-classifier / language-detector 共用的多语言例句）
-const textSamples = computed<Array<{ label: string, text: string }> | null>(() => {
-  if (taskKind.value !== 'mediapipe') return null
-  if (method.value === 'detect') {
-    return [
-      { label: 'EN', text: 'Artificial intelligence is changing the way we live and work every single day.' },
-      { label: '中文', text: '人工智能正在以惊人的速度改变我们的生活方式。' },
-      { label: '日本語', text: '人工知能は私たちの生活を急速に変えています。' },
-      { label: 'Français', text: 'L\'intelligence artificielle transforme rapidement notre quotidien.' }
-    ]
-  }
-  return [
-    { label: t('samples.exSentimentPos'), text: 'I absolutely love this new feature, it works perfectly and saves me so much time!' },
-    { label: t('samples.exSentimentNeg'), text: 'This was the worst experience ever, I am extremely disappointed with the service.' },
-    { label: t('samples.exTopicNews'), text: 'The government announced new policies to boost the economy and create more jobs.' }
-  ]
-})
+const tools = computed(() => nlpToolsByPage(slug.value))
 </script>
 
 <template>
-  <div v-if="demo">
+  <div v-if="demo && tools.length">
     <ClientOnly>
-      <!-- MediaPipe 文本任务 -->
-      <MediaDemoShell
-        v-if="taskKind === 'mediapipe' && createTask"
+      <NlpPlayground
         :demo="demo"
-      >
-        <MediaTextRunner
-          :create-task="createTask!"
-          :method="method"
-          :model="mpCfg?.model"
-          :samples="textSamples"
-        >
-          <template #result="{ result }">
-            <!-- 文本分类：classifications[0].categories -->
-            <div
-              v-if="result?.classifications?.[0]?.categories?.length"
-              class="space-y-2"
-            >
-              <div
-                v-for="(c, i) in result.classifications[0].categories"
-                :key="i"
-                class="flex items-center justify-between gap-4"
-              >
-                <span class="text-sm">{{ c.categoryName }}</span>
-                <div class="flex items-center gap-2 flex-1 max-w-xs">
-                  <UProgress
-                    :model-value="Math.round(c.score * 100)"
-                    size="sm"
-                  />
-                  <span class="text-sm text-muted w-12 text-right">{{ Math.round(c.score * 100) }}%</span>
-                </div>
-              </div>
-            </div>
-            <!-- 语言检测：languages -->
-            <div
-              v-else-if="result?.languages?.length"
-              class="space-y-2"
-            >
-              <div
-                v-for="(l, i) in result.languages"
-                :key="i"
-                class="flex items-center justify-between gap-4"
-              >
-                <span class="text-sm font-mono">{{ l.languageCode }}</span>
-                <div class="flex items-center gap-2 flex-1 max-w-xs">
-                  <UProgress
-                    :model-value="Math.round(l.probability * 100)"
-                    size="sm"
-                  />
-                  <span class="text-sm text-muted w-12 text-right">{{ Math.round(l.probability * 100) }}%</span>
-                </div>
-              </div>
-            </div>
-            <div
-              v-else
-              class="text-sm text-muted"
-            >
-              —
-            </div>
-          </template>
-        </MediaTextRunner>
-      </MediaDemoShell>
-
-      <!-- transformers.js 文本任务 -->
-      <MediaDemoShell
-        v-else-if="taskKind === 'transformers' && tfCfg"
-        :demo="demo"
-      >
-        <TransformersTextRunner
-          :config="tfCfg"
-        >
-          <template #result="{ result }">
-            <!-- 列表项形式（ner / zero-shot / qa / fill-mask） -->
-            <div
-              v-if="tfCfg?.parseItems && result"
-              class="space-y-2"
-            >
-              <div
-                v-for="(item, i) in tfCfg.parseItems(result)"
-                :key="i"
-                class="flex items-center justify-between gap-4"
-              >
-                <div class="min-w-0">
-                  <span class="text-sm font-medium">{{ item.label }}</span>
-                  <span
-                    v-if="item.value"
-                    class="text-sm text-muted ms-2 truncate"
-                  >{{ item.value }}</span>
-                </div>
-                <div
-                  v-if="item.score !== undefined"
-                  class="flex items-center gap-2 flex-1 max-w-xs"
-                >
-                  <UProgress
-                    :model-value="Math.round(item.score * 100)"
-                    size="sm"
-                  />
-                  <span class="text-sm text-muted w-12 text-right">{{ Math.round(item.score * 100) }}%</span>
-                </div>
-              </div>
-            </div>
-            <!-- 纯文本形式（summarization） -->
-            <div
-              v-else-if="tfCfg?.parseText && result"
-              class="text-sm leading-relaxed whitespace-pre-wrap"
-            >
-              {{ tfCfg.parseText(result) }}
-            </div>
-            <div
-              v-else
-              class="text-sm text-muted"
-            >
-              —
-            </div>
-          </template>
-        </TransformersTextRunner>
-      </MediaDemoShell>
-
+        :tools="tools"
+      />
       <template #fallback>
         <div class="py-20 flex items-center justify-center">
           <UIcon
@@ -185,9 +38,10 @@ const textSamples = computed<Array<{ label: string, text: string }> | null>(() =
       </template>
     </ClientOnly>
   </div>
-  <UContainer v-else>
-    <div class="py-20 text-center text-muted">
-      Demo not found.
-    </div>
+  <UContainer
+    v-else
+    class="py-20 text-center text-muted"
+  >
+    {{ t('demo.notFound') }}
   </UContainer>
 </template>

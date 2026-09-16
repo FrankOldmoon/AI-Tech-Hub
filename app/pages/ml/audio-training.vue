@@ -16,10 +16,10 @@ const predicting = ref(false) // 预测中
 const recording = ref(false) // 录制中
 const loadProgress = ref('')
 
-// 3 个类别
+// 3 个类别。音频走 speech-commands 的 transfer 头（不是 KNN），所以类别状态仍在本页维护，
+// 但卡片区与结果条复用与图像/姿态/文本训练页相同的组件。
 const classNames = ref(['Class A', 'Class B', 'Class C'])
 const sampleCounts = ref([0, 0, 0])
-// 预测结果
 const predictions = ref<Array<{ name: string, score: number }>>([])
 const topClass = ref<string>('')
 
@@ -68,6 +68,9 @@ const transfer = shallowRef<any>(null)
 const collecting = ref(false) // 是否在连续采集
 const collectClass = ref(-1)
 
+/** 类别名。idx 来自模板 v-for，恒在界内；`?? ''` 只是给类型收窄一个出口 */
+const classNameAt = (idx: number) => classNames.value[idx] ?? ''
+
 async function loadModels() {
   if (recognizer.value && transfer.value) return
   loading.value = true
@@ -83,7 +86,9 @@ async function loadModels() {
     const scBase = isRemoteDeploy() ? REMOTE_TFJS.speechCommandsBase : `${origin}/model/tfjs/speech-commands`
     recognizer.value = scMod.create(
       'BROWSER_FFT',
-      null, // 提供自定义 modelURL 时 vocabulary 必须为 null（词汇表在 metadata.json 中）
+      // 提供自定义 modelURL 时 vocabulary 必须为空。库内断言是 `vocabulary == null`
+      // （松散相等），且该分支不读取此参数，故传 undefined 与传 null 完全等价。
+      undefined,
       `${scBase}/model.json`,
       `${scBase}/metadata.json`
     )
@@ -108,8 +113,8 @@ async function startTraining(idx: number) {
   const collectLoop = async () => {
     if (!collecting.value || collectClass.value !== idx) return
     try {
-      await transfer.value.collectExample(classNames.value[idx])
-      sampleCounts.value[idx] = transfer.value.countExamples()?.[classNames.value[idx]] || 0
+      await transfer.value.collectExample(classNameAt(idx))
+      sampleCounts.value[idx] = transfer.value.countExamples()?.[classNameAt(idx)] || 0
     } catch (e: any) {
       error.value = humanError(e, t)
       collecting.value = false
@@ -133,7 +138,7 @@ function clearClass(idx: number) {
   // speech-commands transfer 模型没有 clearClass，需清空所有并重建
   // 简化处理：清除该类别样本需重建 transfer
   const counts = transfer.value.countExamples() || {}
-  const name = classNames.value[idx]
+  const name = classNameAt(idx)
   if (counts[name]) {
     // 移除该类别的所有样本
     try {
@@ -195,9 +200,8 @@ async function startPredict() {
       if (!labels || !scores) return
       predictions.value = labels.map((name: string, i: number) => ({ name, score: scores[i] ?? 0 }))
         .sort((a: any, b: any) => b.score - a.score)
-      topClass.value = predictions.value[0]?.score >= Number(params.value.probabilityThreshold)
-        ? predictions.value[0]?.name
-        : ''
+      const best = predictions.value[0]
+      topClass.value = best && best.score >= Number(params.value.probabilityThreshold) ? best.name : ''
     }, {
       overlapFactor: Number(params.value.overlapFactor),
       invokeCallbackOnNoiseAndUnknown: true,
@@ -220,9 +224,9 @@ function stopPredict() {
 }
 
 function renameClass(idx: number, name: string) {
-  const oldName = classNames.value[idx]
+  const oldName = classNameAt(idx)
   if (oldName === name) return
-  if (transfer.value && sampleCounts.value[idx] > 0) {
+  if (transfer.value && (sampleCounts.value[idx] ?? 0) > 0) {
     // speech-commands 不支持重命名，需先清除旧标签
     error.value = t('ml.renameAfterSamples')
     return
@@ -308,49 +312,29 @@ onBeforeUnmount(() => {
     </UCard>
 
     <!-- 训练区：3 个类别 -->
-    <div class="grid sm:grid-cols-3 gap-4">
-      <UCard
-        v-for="(name, i) in classNames"
-        :key="i"
-        :class="collectClass === i ? 'ring-2 ring-primary' : ''"
-      >
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <span class="size-3 rounded-full" :class="['bg-green-500', 'bg-purple-500', 'bg-orange-500'][i]" />
-            <input
-              :value="name"
-              class="flex-1 bg-transparent border-b border-default text-sm font-medium text-highlighted focus:border-primary outline-none py-1"
-              @change="renameClass(i, ($event.target as HTMLInputElement).value)"
-            >
-          </div>
-          <div class="text-3xl font-bold tabular-nums text-highlighted">{{ sampleCounts[i] }}</div>
-          <p class="text-xs text-muted">{{ t('ml.samples') }}</p>
-          <div class="flex gap-2">
-            <UButton
-              :label="collectClass === i ? t('ml.recording') : t('ml.record')"
-              :color="collectClass === i ? 'error' : 'primary'"
-              :variant="collectClass === i ? 'solid' : 'subtle'"
-              size="sm"
-              :disabled="!recognizer || training || predicting"
-              block
-              @mousedown="startTraining(i)"
-              @mouseup="stopTraining"
-              @mouseleave="stopTraining"
-              @touchstart.prevent="startTraining(i)"
-              @touchend.prevent="stopTraining"
-            />
-            <UButton
-              v-if="sampleCounts[i] > 0"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              @click="clearClass(i)"
-            />
-          </div>
-        </div>
-      </UCard>
-    </div>
+    <ClassTrainerGrid
+      :class-names="classNames"
+      :sample-counts="sampleCounts"
+      :active-index="collectClass"
+      @rename="renameClass"
+      @clear="clearClass"
+    >
+      <template #collect="{ index }">
+        <UButton
+          :label="collectClass === index ? t('ml.recording') : t('ml.record')"
+          :color="collectClass === index ? 'error' : 'primary'"
+          :variant="collectClass === index ? 'solid' : 'subtle'"
+          size="sm"
+          :disabled="!recognizer || training || predicting"
+          block
+          @mousedown="startTraining(index)"
+          @mouseup="stopTraining"
+          @mouseleave="stopTraining"
+          @touchstart.prevent="startTraining(index)"
+          @touchend.prevent="stopTraining"
+        />
+      </template>
+    </ClassTrainerGrid>
 
     <!-- 可调参数 -->
     <DemoParams v-model="params" :specs="specs" :running="training || predicting || recording" />
@@ -363,17 +347,7 @@ onBeforeUnmount(() => {
           {{ t('demo.result') }}
         </div>
       </template>
-      <div class="space-y-3">
-        <div
-          v-for="(p, i) in predictions"
-          :key="i"
-          class="flex items-center gap-3"
-        >
-          <span class="text-sm font-medium w-24 shrink-0 truncate">{{ p.name }}</span>
-          <UProgress :model-value="Math.round(p.score * 100)" size="sm" class="flex-1" />
-          <span class="text-sm text-muted w-12 text-right tabular-nums">{{ Math.round(p.score * 100) }}%</span>
-        </div>
-      </div>
+      <PredictionBars :predictions="predictions" :top-class="topClass" />
     </UCard>
   </MediaDemoShell>
 </template>

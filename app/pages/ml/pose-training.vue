@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ParamSpec } from '~/utils/params'
+import type { KnnClassifierLike } from '~/composables/useKnnTrainer'
 import { humanError, mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
 import { mediapipeWasm, mediapipeModels } from '~/utils/mediapipe'
@@ -15,14 +16,14 @@ const error = ref<string | null>(null)
 const running = ref(false)
 const predicting = ref(false)
 const loadProgress = ref('')
-
-// 3 个类别（可改名）
-const classNames = ref(['Class A', 'Class B', 'Class C'])
-const sampleCounts = ref([0, 0, 0])
-// 预测结果
-const predictions = ref<Array<{ name: string, score: number }>>([])
-const topClass = ref('')
 const inferenceTime = ref(0)
+
+// 类别名 / 样本数 / 预测结果 / 重命名迁移 / 清空 由共享层管理（与图像、文本训练页同源）
+const {
+  classNames, sampleCounts, predictions, topClass,
+  classNameAt, totalSamples, syncCount, resetResults, applyPrediction,
+  renameClass, clearClass, clearAll
+} = useKnnTrainer()
 
 // 可调参数
 const specs = computed<ParamSpec[]>(() => [
@@ -60,11 +61,12 @@ const specs = computed<ParamSpec[]>(() => [
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
 let poseLandmarker: any = null
-let classifier: any = null
+let classifier: KnnClassifierLike | null = null
 let stream: MediaStream | null = null
 let rafId: number | null = null
 let captureTimer: number | null = null
-let trainingClass = -1 // 当前正在训练的分类下标
+// 当前正在训练的类别下标（-1 = 未在训练）。用 ref：模板要据此高亮对应卡片
+const trainingClass = ref(-1)
 let lastVideoTime = -1
 
 async function loadModels() {
@@ -161,12 +163,11 @@ async function startWebcam() {
 function stopWebcam() {
   stopPredicting()
   running.value = false
-  if (trainingClass >= 0) trainingClass = -1
+  trainingClass.value = -1
   if (captureTimer) { clearInterval(captureTimer); captureTimer = null }
   if (stream) { stream.getTracks().forEach(track => track.stop()); stream = null }
   if (videoRef.value) videoRef.value.srcObject = null
-  predictions.value = []
-  topClass.value = ''
+  resetResults()
   const canvas = canvasRef.value
   if (canvas) {
     const ctx = canvas.getContext('2d')
@@ -192,12 +193,14 @@ function stopPredicting() {
 
 async function detect() {
   const video = videoRef.value
-  if (!video || !poseLandmarker || !classifier || video.readyState < 2) return
+  const landmarker = poseLandmarker
+  const clf = classifier
+  if (!video || !landmarker || !clf || video.readyState < 2) return
   if (video.currentTime === lastVideoTime) return
   lastVideoTime = video.currentTime
   const ts = performance.now()
   try {
-    const result = poseLandmarker.detectForVideo(video, ts)
+    const result = landmarker.detectForVideo(video, ts)
     const landmarks = result.poseLandmarks?.[0]
     // 绘制骨架
     const canvas = canvasRef.value
@@ -206,21 +209,16 @@ async function detect() {
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       drawSkeleton(ctx, landmarks)
     }
-    if (trainingClass >= 0 || classifier.getNumClasses() === 0) return
+    if (trainingClass.value >= 0 || clf.getNumClasses() === 0) return
     const feat = extractFeature(landmarks)
     if (!feat) return
     const t0 = performance.now()
     const tf = await import('@tensorflow/tfjs')
     const tensor = tf.tensor2d([feat], [1, feat.length])
-    const res = await classifier.predictClass(tensor, Number(params.value.topK))
+    const res = await clf.predictClass(tensor, Number(params.value.topK))
     tensor.dispose()
     inferenceTime.value = Math.round(performance.now() - t0)
-    const confidences = res.confidences
-    const label = res.label
-    topClass.value = (confidences[label] ?? 0) >= Number(params.value.probabilityThreshold) ? label : ''
-    predictions.value = classNames.value
-      .map((name, i) => ({ name, score: confidences[name] ?? confidences[i] ?? 0 }))
-      .sort((a, b) => b.score - a.score)
+    applyPrediction(res, Number(params.value.probabilityThreshold))
   } catch (e: any) {
     error.value = humanError(e, t)
   }
@@ -229,11 +227,13 @@ async function detect() {
 // 按住训练：定时采集姿态样本
 async function startTraining(idx: number) {
   if (!running.value || !poseLandmarker) return
-  trainingClass = idx
+  trainingClass.value = idx
   const capture = async () => {
     const video = videoRef.value
-    if (!video || !poseLandmarker || !classifier) return
-    const result = poseLandmarker.detectForVideo(video, performance.now())
+    const landmarker = poseLandmarker
+    const clf = classifier
+    if (!video || !landmarker || !clf) return
+    const result = landmarker.detectForVideo(video, performance.now())
     const landmarks = result.poseLandmarks?.[0]
     if (!landmarks) return
     const feat = extractFeature(landmarks)
@@ -241,8 +241,8 @@ async function startTraining(idx: number) {
     try {
       const tf = await import('@tensorflow/tfjs')
       const tensor = tf.tensor2d([feat], [1, feat.length])
-      classifier.addExample(tensor, classNames.value[idx])
-      sampleCounts.value[idx] = classifier.getClassExampleCount()[classNames.value[idx]] || 0
+      clf.addExample(tensor, classNameAt(idx))
+      syncCount(idx, clf)
     } catch (e: any) {
       error.value = humanError(e, t)
     }
@@ -253,41 +253,19 @@ async function startTraining(idx: number) {
 
 function stopTraining() {
   if (captureTimer) { clearInterval(captureTimer); captureTimer = null }
-  if (trainingClass >= 0) trainingClass = -1
+  trainingClass.value = -1
 }
 
-function clearClass(idx: number) {
-  if (!classifier) return
-  classifier.clearClass(classNames.value[idx])
-  sampleCounts.value[idx] = 0
-  predictions.value = []
-  topClass.value = ''
+function onRenameClass(idx: number, name: string) {
+  if (!renameClass(idx, name, classifier)) error.value = t('ml.renameAfterSamples')
 }
 
-function clearAll() {
-  if (!classifier) return
-  classifier.clearAllClasses()
-  sampleCounts.value = [0, 0, 0]
-  predictions.value = []
-  topClass.value = ''
+function onClearClass(idx: number) {
+  clearClass(idx, classifier)
 }
 
-function renameClass(idx: number, name: string) {
-  const oldName = classNames.value[idx]
-  if (classifier && oldName !== name) {
-    const count = classifier.getClassExampleCount()?.[oldName] || 0
-    if (count > 0) {
-      // 取出旧样本，以新标签重新加入
-      const dataset = classifier.getClassDatasetObject(oldName)
-      if (dataset) {
-        classifier.clearClass(oldName)
-        for (const tensor of Object.values(dataset)) {
-          classifier.addExample(tensor, name)
-        }
-      }
-    }
-  }
-  classNames.value[idx] = name
+function onClearAll() {
+  clearAll(classifier)
 }
 
 onBeforeUnmount(() => stopWebcam())
@@ -318,8 +296,8 @@ onBeforeUnmount(() => stopWebcam())
         :label="t('ml.clearAll')"
         color="neutral"
         variant="subtle"
-        :disabled="!sampleCounts.some(c => c > 0)"
-        @click="clearAll"
+        :disabled="totalSamples === 0"
+        @click="onClearAll"
       />
       <span v-if="inferenceTime" class="text-sm text-muted ms-2">{{ inferenceTime }} ms</span>
     </div>
@@ -347,49 +325,29 @@ onBeforeUnmount(() => stopWebcam())
     </div>
 
     <!-- 训练区：3 个类别 -->
-    <div class="grid sm:grid-cols-3 gap-4">
-      <UCard
-        v-for="(name, i) in classNames"
-        :key="i"
-        :class="trainingClass === i ? 'ring-2 ring-primary' : ''"
-      >
-        <div class="space-y-3">
-          <div class="flex items-center gap-2">
-            <span class="size-3 rounded-full" :class="['bg-green-500', 'bg-purple-500', 'bg-orange-500'][i]" />
-            <input
-              :value="name"
-              class="flex-1 bg-transparent border-b border-default text-sm font-medium text-highlighted focus:border-primary outline-none py-1"
-              @change="renameClass(i, ($event.target as HTMLInputElement).value)"
-            >
-          </div>
-          <div class="text-3xl font-bold tabular-nums text-highlighted">{{ sampleCounts[i] }}</div>
-          <p class="text-xs text-muted">{{ t('ml.samples') }}</p>
-          <div class="flex gap-2">
-            <UButton
-              :label="trainingClass === i ? t('ml.recording') : t('ml.train')"
-              :color="trainingClass === i ? 'error' : 'primary'"
-              :variant="trainingClass === i ? 'solid' : 'subtle'"
-              size="sm"
-              :disabled="!running"
-              block
-              @mousedown="startTraining(i)"
-              @mouseup="stopTraining"
-              @mouseleave="stopTraining"
-              @touchstart.prevent="startTraining(i)"
-              @touchend.prevent="stopTraining"
-            />
-            <UButton
-              v-if="sampleCounts[i] > 0"
-              icon="i-lucide-x"
-              color="neutral"
-              variant="ghost"
-              size="sm"
-              @click="clearClass(i)"
-            />
-          </div>
-        </div>
-      </UCard>
-    </div>
+    <ClassTrainerGrid
+      :class-names="classNames"
+      :sample-counts="sampleCounts"
+      :active-index="trainingClass"
+      @rename="onRenameClass"
+      @clear="onClearClass"
+    >
+      <template #collect="{ index }">
+        <UButton
+          :label="trainingClass === index ? t('ml.recording') : t('ml.train')"
+          :color="trainingClass === index ? 'error' : 'primary'"
+          :variant="trainingClass === index ? 'solid' : 'subtle'"
+          size="sm"
+          :disabled="!running"
+          block
+          @mousedown="startTraining(index)"
+          @mouseup="stopTraining"
+          @mouseleave="stopTraining"
+          @touchstart.prevent="startTraining(index)"
+          @touchend.prevent="stopTraining"
+        />
+      </template>
+    </ClassTrainerGrid>
 
     <!-- 可调参数 -->
     <DemoParams v-model="params" :specs="specs" :running="trainingClass >= 0" />
@@ -402,17 +360,7 @@ onBeforeUnmount(() => stopWebcam())
           {{ t('demo.result') }}
         </div>
       </template>
-      <div class="space-y-3">
-        <div
-          v-for="(p, i) in predictions"
-          :key="i"
-          class="flex items-center gap-3"
-        >
-          <span class="text-sm font-medium w-24 shrink-0 truncate">{{ p.name }}</span>
-          <UProgress :model-value="Math.round(p.score * 100)" size="sm" class="flex-1" />
-          <span class="text-sm text-muted w-12 text-right tabular-nums">{{ Math.round(p.score * 100) }}%</span>
-        </div>
-      </div>
+      <PredictionBars :predictions="predictions" :top-class="topClass" />
     </UCard>
   </MediaDemoShell>
 </template>

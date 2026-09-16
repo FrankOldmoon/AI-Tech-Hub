@@ -1,25 +1,33 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * 图像工坊（Image Lab）工具注册表。
  *
  * 与 vision/[slug].vue 的 visionTasks 注册表同构：新增工具 = 注册一条记录 + 实现 run。
  * kind 决定实现层：
  *   - canvas      : 纯浏览器 ImageData 运算（本文件内直接调用 image-algorithms）
- *   - opencv      : OpenCV.js（08-11 页，P3 引入）
- *   - mediapipe   : MediaPipe Tasks（12/14 页）
- *   - transformers: Transformers.js（14/15 页）
- *   - tesseract   : Tesseract.js（13 页）
+ *   - opencv      : OpenCV.js（经典算子）
+ *   - mediapipe   : MediaPipe Tasks
+ *   - transformers: Transformers.js
+ *   - tesseract   : Tesseract.js
+ *   - yolo        : ONNX Runtime + YOLO26 模型（utils/yolo/tools.ts 映射）
+ *
+ * 页面归属：单页工具写 `page`；需要同时出现在能力页与引擎页的工具写 `pages`（多对多）。
  */
 
 import type { ParamSpec } from '~/utils/params'
+import { pickText, buildParamSpecs } from '~/utils/localized'
 import * as alg from '~/utils/image-algorithms'
-import { loadOpenCv, imageDataToMat, matToImageData, withCvMat } from '~/utils/opencv'
+import { imageDataToMat, matToImageData, withCvMat } from '~/utils/opencv'
 import * as ai from '~/utils/image-ai'
-import { loadTesseract } from '~/utils/tesseract'
+import { loadTesseract, tesseractLocalOptions } from '~/utils/tesseract'
+import { yoloTools } from '~/utils/yolo/tools'
+import { mediaPipeTools } from '~/utils/mediapipe-tools'
+import { sketchTools } from '~/utils/sketch-tools'
 
 export type ImagePageSlug =
+  // 图像工坊：经典算法与文档
   | 'viewer'
   | 'transform'
-  | 'pixel'
   | 'color'
   | 'adjustment'
   | 'filters'
@@ -30,26 +38,24 @@ export type ImagePageSlug =
   | 'features'
   | 'face'
   | 'ocr'
-  | 'ai-vision'
-  | 'multimodal'
+  // 引擎页：一个模型库的全部任务
+  | 'mediapipe'
+  | 'yolo'
+  | 'transformers'
+  // 能力页：同一任务的多引擎实现
+  | 'detection'
+  | 'classification'
+  | 'segmentation'
+  | 'matting'
+  | 'depth'
+  | 'pose'
+  | 'sketch'
 
-export type ImageToolKind = 'canvas' | 'opencv' | 'mediapipe' | 'transformers' | 'tesseract'
+export type ImageToolKind = 'canvas' | 'opencv' | 'mediapipe' | 'transformers' | 'tesseract' | 'yolo' | 'tfjs'
 
-export interface LocalizedText {
-  zh: string
-  en: string
-}
-
-export interface LocalizedParamOption {
-  label: LocalizedText
-  value: string | number | boolean
-}
-
-export interface LocalizedParamSpec extends Omit<ParamSpec, 'label' | 'help' | 'options'> {
-  label: LocalizedText
-  help?: LocalizedText
-  options?: LocalizedParamOption[]
-}
+// 本地化文案 / 参数规范类型已抽到 utils/localized（语音侧 audio-tools 共用同一套数据模型）。
+// 注意：这里**不再 re-export**——Nuxt 的自动导入会把两个模块的同名导出都收进来并报
+// "Duplicated imports" 警告。需要这些类型的文件请直接从 ~/utils/localized 引入。
 
 export interface ImageToolContext {
   /** 当前工作图像（与原始图像同尺寸，供工具做像素运算） */
@@ -65,43 +71,50 @@ export interface ImageToolResult {
   imageData?: ImageData
   /** 附加信息行（如取色值、尺寸、模式） */
   info?: { label: string; value: string }[]
+  /** 本次推理实际使用的后端（webgpu / wasm / GPU…）。工具自己能确定时填这里；
+   *  不填则由 ImagePlayground 按 kind + 本机能力推断，用于运行时标注与能力页对比。 */
+  device?: string
 }
 
 export interface ImageTool {
   id: string
-  page: ImagePageSlug
+  /** 主归属页（单页工具写这个） */
+  page?: ImagePageSlug
+  /** 多归属页：工具同时出现在这些页面（能力页 × 引擎页多对多）；设置后覆盖 page */
+  pages?: ImagePageSlug[]
   name: LocalizedText
   description?: LocalizedText
   kind: ImageToolKind
-  /** 交互模式：click = 点击结果画布触发 onPick；crop = 原图上可拖拽的裁剪选区框 */
-  interactive?: 'click' | 'crop'
+  /** 交互模式：click = 点击结果画布只读像素信息；crop = 原图上可拖拽的裁剪选区框；prompt = 点击坐标喂回推理（交互式分割） */
+  interactive?: 'click' | 'crop' | 'prompt'
   /** 需要上传第二张图 */
   needsSecondImage?: boolean
   /** 规划中：仅展示说明，不执行（重型模型/依赖未就绪） */
   planned?: boolean
+  /** 需要「手绘画布」作为输入源（简笔画识别类工具）；开启后隐藏上传/示例/拍照入口 */
+  needsDrawing?: boolean
+  /** 侧栏小节标题（i18n key），按页面给出：能力页按实现引擎分组（MediaPipe / YOLO），引擎页按任务族分组。
+   *  键为页面 slug，`*` 为所有页面的默认值。 */
+  section?: Record<string, string>
+  /** 实时模式：摄像头逐帧推理入口（存在时才显示「实时」开关） */
+  live?: {
+    /** 创建/预热检测器（首次开启实时时调用） */
+    ensure: () => Promise<void>
+    /** 逐帧推理（可为异步：调用方会用 busy 守卫避免重入）；返回 null 表示本帧跳过 */
+    runFrame: (
+      video: HTMLVideoElement,
+      ts: number,
+      params: Record<string, number | string | boolean>,
+      lang: 'zh' | 'en'
+    ) => ImageToolResult | null | Promise<ImageToolResult | null>
+    /** 释放检测器（关闭实时 / 切换工具 / 卸载） */
+    dispose?: () => void
+  }
   params?: LocalizedParamSpec[]
+  /** 已本地化的参数提供者（MediaPipe 任务直接复用 visionTasks 的 i18n key 解析）；优先于 params */
+  resolvedParams?: (t: (key: string) => string) => ParamSpec[]
   run: (ctx: ImageToolContext) => ImageToolResult | Promise<ImageToolResult>
   onPick?: (ctx: ImageToolContext, x: number, y: number) => { label: string; value: string }[]
-}
-
-export function pickText(t: LocalizedText, lang: 'zh' | 'en'): string {
-  return t[lang] ?? t.en
-}
-
-export function buildParamSpecs(specs: LocalizedParamSpec[] | undefined, lang: 'zh' | 'en'): ParamSpec[] {
-  if (!specs) return []
-  return specs.map(s => ({
-    key: s.key,
-    label: pickText(s.label, lang),
-    type: s.type,
-    default: s.default,
-    min: s.min,
-    max: s.max,
-    step: s.step,
-    options: s.options?.map(o => ({ label: pickText(o.label, lang), value: o.value })),
-    help: s.help ? pickText(s.help, lang) : undefined,
-    disableWhileRunning: s.disableWhileRunning
-  }))
 }
 
 // ===== 小工具 =====
@@ -163,6 +176,76 @@ const viewerTools: ImageTool[] = [
     interactive: 'click',
     run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
     onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
+  },
+  {
+    id: 'pixel-grid',
+    page: 'viewer',
+    name: { zh: '像素网格 Pixel Grid', en: 'Pixel Grid' },
+    description: { zh: '把中心区域放大为像素格子，观察单个像素。', en: 'Magnify the center region into a pixel grid.' },
+    kind: 'canvas',
+    params: [
+      { key: 'zoom', label: { zh: '放大倍数', en: 'Zoom' }, type: 'slider', default: 8, min: 2, max: 24, step: 1 },
+      { key: 'cx', label: { zh: '中心 X', en: 'Center X' }, type: 'slider', default: 0.5, min: 0, max: 1, step: 0.01 },
+      { key: 'cy', label: { zh: '中心 Y', en: 'Center Y' }, type: 'slider', default: 0.5, min: 0, max: 1, step: 0.01 },
+      { key: 'grid', label: { zh: '显示网格线', en: 'Show grid' }, type: 'switch', default: true }
+    ],
+    run: ({ imageData, params }) => ({
+      imageData: alg.pixelGrid(
+        imageData,
+        Number(params.cx) * imageData.width,
+        Number(params.cy) * imageData.height,
+        Number(params.zoom),
+        Boolean(params.grid)
+      )
+    })
+  },
+  {
+    id: 'pixel-math',
+    page: 'viewer',
+    name: { zh: '像素运算 Pixel Math', en: 'Pixel Math' },
+    description: { zh: '对每个像素做加减乘除运算（含归一化/钳制）。', en: 'Add, subtract, multiply or divide every pixel (clamped).' },
+    kind: 'canvas',
+    params: [
+      {
+        key: 'op',
+        label: { zh: '运算', en: 'Operation' },
+        type: 'select',
+        default: 'add',
+        options: [
+          { label: { zh: '加 Add', en: 'Add' }, value: 'add' },
+          { label: { zh: '减 Subtract', en: 'Subtract' }, value: 'subtract' },
+          { label: { zh: '乘 Multiply', en: 'Multiply' }, value: 'multiply' },
+          { label: { zh: '除 Divide', en: 'Divide' }, value: 'divide' }
+        ]
+      },
+      {
+        key: 'value',
+        label: { zh: '数值', en: 'Value' },
+        type: 'slider',
+        default: 30,
+        min: -100,
+        max: 100,
+        step: 1,
+        help: {
+          zh: '加/减：直接作为像素偏移；乘/除：作为百分比（1 + v/100）因子。',
+          en: 'Add/Subtract: pixel offset. Multiply/Divide: percent factor (1 + v/100).'
+        }
+      }
+    ],
+    run: ({ imageData, params }) => {
+      const op = String(params.op)
+      const v = Number(params.value)
+      return {
+        imageData: alg.applyPixelOp(imageData, (r, g, b, a) => {
+          if (op === 'add') return [r + v, g + v, b + v, a]
+          if (op === 'subtract') return [r - v, g - v, b - v, a]
+          const f = 1 + v / 100
+          if (op === 'multiply') return [r * f, g * f, b * f, a]
+          const d = f <= 0.05 ? 1 : f
+          return [r / d, g / d, b / d, a]
+        })
+      }
+    }
   }
 ]
 
@@ -382,91 +465,6 @@ const transformTools: ImageTool[] = [
   }
 ]
 
-// ===== 03 Pixel Processing =====
-
-const pixelTools: ImageTool[] = [
-  {
-    id: 'read-pixel',
-    page: 'pixel',
-    name: { zh: '读取像素 Read Pixel', en: 'Read Pixel' },
-    description: { zh: '点击画布读取像素的 RGB(A) 值。', en: 'Click the canvas to read pixel RGBA values.' },
-    kind: 'canvas',
-    interactive: 'click',
-    run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
-    onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
-  },
-  {
-    id: 'pixel-grid',
-    page: 'pixel',
-    name: { zh: '像素网格 Pixel Grid', en: 'Pixel Grid' },
-    description: { zh: '把中心区域放大为像素格子，观察单个像素。', en: 'Magnify the center region into a pixel grid.' },
-    kind: 'canvas',
-    params: [
-      { key: 'zoom', label: { zh: '放大倍数', en: 'Zoom' }, type: 'slider', default: 8, min: 2, max: 24, step: 1 },
-      { key: 'cx', label: { zh: '中心 X', en: 'Center X' }, type: 'slider', default: 0.5, min: 0, max: 1, step: 0.01 },
-      { key: 'cy', label: { zh: '中心 Y', en: 'Center Y' }, type: 'slider', default: 0.5, min: 0, max: 1, step: 0.01 },
-      { key: 'grid', label: { zh: '显示网格线', en: 'Show grid' }, type: 'switch', default: true }
-    ],
-    run: ({ imageData, params }) => ({
-      imageData: alg.pixelGrid(
-        imageData,
-        Number(params.cx) * imageData.width,
-        Number(params.cy) * imageData.height,
-        Number(params.zoom),
-        Boolean(params.grid)
-      )
-    })
-  },
-  {
-    id: 'pixel-math',
-    page: 'pixel',
-    name: { zh: '像素运算 Pixel Math', en: 'Pixel Math' },
-    description: { zh: '对每个像素做加减乘除运算（含归一化/钳制）。', en: 'Add, subtract, multiply or divide every pixel (clamped).' },
-    kind: 'canvas',
-    params: [
-      {
-        key: 'op',
-        label: { zh: '运算', en: 'Operation' },
-        type: 'select',
-        default: 'add',
-        options: [
-          { label: { zh: '加 Add', en: 'Add' }, value: 'add' },
-          { label: { zh: '减 Subtract', en: 'Subtract' }, value: 'subtract' },
-          { label: { zh: '乘 Multiply', en: 'Multiply' }, value: 'multiply' },
-          { label: { zh: '除 Divide', en: 'Divide' }, value: 'divide' }
-        ]
-      },
-      {
-        key: 'value',
-        label: { zh: '数值', en: 'Value' },
-        type: 'slider',
-        default: 30,
-        min: -100,
-        max: 100,
-        step: 1,
-        help: {
-          zh: '加/减：直接作为像素偏移；乘/除：作为百分比（1 + v/100）因子。',
-          en: 'Add/Subtract: pixel offset. Multiply/Divide: percent factor (1 + v/100).'
-        }
-      }
-    ],
-    run: ({ imageData, params }) => {
-      const op = String(params.op)
-      const v = Number(params.value)
-      return {
-        imageData: alg.applyPixelOp(imageData, (r, g, b, a) => {
-          if (op === 'add') return [r + v, g + v, b + v, a]
-          if (op === 'subtract') return [r - v, g - v, b - v, a]
-          const f = 1 + v / 100
-          if (op === 'multiply') return [r * f, g * f, b * f, a]
-          const d = f <= 0.05 ? 1 : f
-          return [r / d, g / d, b / d, a]
-        })
-      }
-    }
-  }
-]
-
 // ===== 04 Color Processing =====
 
 const channelOptions = [
@@ -552,16 +550,6 @@ const colorTools: ImageTool[] = [
       { key: 'k', label: { zh: '颜色数量 k', en: 'Color count k' }, type: 'slider', default: 8, min: 2, max: 16, step: 1 }
     ],
     run: ({ imageData, params }) => ({ imageData: alg.colorQuantize(imageData, Number(params.k)) })
-  },
-  {
-    id: 'color-space-info',
-    page: 'color',
-    name: { zh: '色彩空间 Color Space', en: 'Color Space' },
-    description: { zh: '点击画布查看像素在 RGB/HSV/HSL/Lab 下的值。', en: 'Click the canvas to see pixel values in RGB/HSV/HSL/Lab.' },
-    kind: 'canvas',
-    interactive: 'click',
-    run: ({ imageData, lang }) => ({ imageData, info: hint(lang) }),
-    onPick: (ctx, x, y) => alg.pixelInfoRows(alg.pixelInfo(ctx.imageData, x, y), ctx.lang)
   }
 ]
 
@@ -654,6 +642,26 @@ const adjustmentTools: ImageTool[] = [
     description: { zh: '把平均亮度自动调整到中灰。', en: 'Shift the mean luminance to mid-gray automatically.' },
     kind: 'canvas',
     run: ({ imageData }) => ({ imageData: alg.autoBrightness(imageData) })
+  },
+  {
+    id: 'levels',
+    page: 'adjustment',
+    name: { zh: '色阶 Levels', en: 'Levels' },
+    description: { zh: '重映射输入黑/白点并做 gamma 校正（Photoshop 色阶的经典三滑块）。', en: 'Remap input black/white points with gamma correction (the classic Levels triad).' },
+    kind: 'canvas',
+    params: [
+      { key: 'black', label: { zh: '输入黑点', en: 'Input black' }, type: 'slider', default: 0, min: 0, max: 254, step: 1 },
+      { key: 'white', label: { zh: '输入白点', en: 'Input white' }, type: 'slider', default: 255, min: 1, max: 255, step: 1 },
+      { key: 'gamma', label: { zh: 'Gamma（>1 变亮）', en: 'Gamma (>1 brighter)' }, type: 'slider', default: 1, min: 0.2, max: 3, step: 0.05 }
+    ],
+    run: ({ imageData, params }) => ({
+      imageData: alg.colorLevels(
+        imageData,
+        Number(params.black ?? 0),
+        Number(params.white ?? 255),
+        Number(params.gamma ?? 1)
+      )
+    })
   }
 ]
 
@@ -750,6 +758,26 @@ const filterTools: ImageTool[] = [
     name: { zh: '高通滤波 High-pass', en: 'High-pass Filter' },
     kind: 'canvas',
     run: ({ imageData }) => ({ imageData: alg.highPass(imageData) })
+  },
+  {
+    id: 'bilateral',
+    page: 'filters',
+    name: { zh: '双边滤波 Bilateral', en: 'Bilateral Filter' },
+    description: { zh: '空间核 × 值域核的保边平滑：磨平噪声但保留边缘（半径越大越慢）。', en: 'Edge-preserving smoothing with a spatial × range kernel; larger radius is slower.' },
+    kind: 'canvas',
+    params: [
+      { key: 'radius', label: { zh: '半径', en: 'Radius' }, type: 'slider', default: 3, min: 1, max: 8, step: 1 },
+      { key: 'sigmaColor', label: { zh: '值域 Sigma', en: 'Range sigma' }, type: 'slider', default: 40, min: 5, max: 120, step: 5 },
+      { key: 'sigmaSpace', label: { zh: '空间 Sigma', en: 'Spatial sigma' }, type: 'slider', default: 3, min: 1, max: 10, step: 0.5 }
+    ],
+    run: ({ imageData, params }) => ({
+      imageData: alg.bilateralFilter(
+        imageData,
+        Number(params.radius ?? 3),
+        Number(params.sigmaColor ?? 40),
+        Number(params.sigmaSpace ?? 3)
+      )
+    })
   }
 ]
 
@@ -851,6 +879,26 @@ const enhancementTools: ImageTool[] = [
       const scale = Number(params.scale)
       const up = alg.resize(imageData, imageData.width * scale, imageData.height * scale)
       return { imageData: Number(params.amount) > 0 ? alg.unsharpMask(up, 2, Number(params.amount)) : up }
+    }
+  },
+  {
+    id: 'histogram-match',
+    page: 'enhancement',
+    name: { zh: '直方图匹配 Histogram Matching', en: 'Histogram Matching' },
+    description: { zh: '把本图亮度分布对齐到参考图；上传第二张图作为参考，不传则对齐到均匀分布（规定化）。', en: 'Align this image’s luminance distribution to a reference image; without one it matches a uniform distribution.' },
+    kind: 'canvas',
+    needsSecondImage: true,
+    run: ({ imageData, secondImage, lang }) => {
+      const refMissing = !secondImage
+      return {
+        imageData: alg.histogramMatch(imageData, secondImage ?? undefined),
+        info: [{
+          label: lang === 'zh' ? '参考分布' : 'Reference',
+          value: refMissing
+            ? (lang === 'zh' ? '均匀分布（未提供第二张图）' : 'Uniform (no second image)')
+            : (lang === 'zh' ? '第二张图的直方图' : 'Histogram of the second image')
+        }]
+      }
     }
   }
 ]
@@ -970,6 +1018,42 @@ const morphologyTools: ImageTool[] = [
       { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions }
     ],
     run: ({ imageData, params }) => ({ imageData: alg.morphGradient(imageData, Number(params.size)) })
+  },
+  {
+    id: 'morph-shape',
+    page: 'morphology',
+    name: { zh: '顶帽 / 黑帽 Top-hat & Black-hat', en: 'Top-hat & Black-hat' },
+    description: { zh: '顶帽 = 原图 − 开运算（提亮细节）；黑帽 = 闭运算 − 原图（提暗细节）。', en: 'Top-hat = source − opening (bright details); black-hat = closing − source (dark details).' },
+    kind: 'canvas',
+    params: [
+      {
+        key: 'mode',
+        label: { zh: '模式', en: 'Mode' },
+        type: 'select',
+        default: 'top',
+        options: [
+          { label: { zh: '顶帽（亮细节）', en: 'Top-hat (bright)' }, value: 'top' },
+          { label: { zh: '黑帽（暗细节）', en: 'Black-hat (dark)' }, value: 'black' }
+        ]
+      },
+      { key: 'size', label: { zh: '结构元素大小', en: 'Kernel size' }, type: 'select', default: 3, options: morphSizeOptions }
+    ],
+    run: ({ imageData, params }) => ({
+      imageData: String(params.mode) === 'black'
+        ? alg.blackHat(imageData, Number(params.size))
+        : alg.topHat(imageData, Number(params.size))
+    })
+  },
+  {
+    id: 'skeletonize',
+    page: 'morphology',
+    name: { zh: '骨架化 Skeletonize', en: 'Skeletonize' },
+    description: { zh: '先按阈值二值化，再做 Zhang-Suen 细化，得到单像素宽骨架（前景黑线、背景白）。', en: 'Binarize by threshold, then Zhang-Suen thinning to a one-pixel skeleton (black lines on white).' },
+    kind: 'canvas',
+    params: [
+      { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 }
+    ],
+    run: ({ imageData, params }) => ({ imageData: alg.skeletonize(imageData, Number(params.thresh ?? 128)) })
   }
 ]
 
@@ -1154,36 +1238,49 @@ const edgeTools: ImageTool[] = [
     })
   },
   {
-    id: 'polygon-detect',
+    id: 'fit-ellipse',
     page: 'edge',
-    name: { zh: '多边形检测 Polygon', en: 'Polygon Detection' },
+    name: { zh: '椭圆拟合 Fit Ellipse', en: 'Ellipse Fitting' },
+    description: { zh: '提取轮廓后最小二乘拟合椭圆（OpenCV.js 未提供 HoughEllipse，拟合更稳且参数更少）。', en: 'Fit ellipses on contours via least squares (OpenCV.js has no HoughEllipse; fitting is more stable).' },
     kind: 'opencv',
     params: [
-      { key: 'epsilon', label: { zh: '近似精度 ε（%）', en: 'Approx epsilon (%)' }, type: 'slider', default: 2, min: 0.5, max: 10, step: 0.5 }
+      { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 128, min: 0, max: 255, step: 1 },
+      { key: 'minArea', label: { zh: '最小面积（px²）', en: 'Min area (px²)' }, type: 'slider', default: 300, min: 30, max: 5000, step: 10 }
     ],
     run: async ({ imageData, params, lang }) => withCvMat(imageData, (cv, bgr) => {
       const gray = cvGray(cv, bgr)
-      const edges = new cv.Mat()
-      cv.Canny(gray, edges, 80, 200)
+      const binary = new cv.Mat()
+      cv.threshold(gray, binary, Number(params.thresh), 255, cv.THRESH_BINARY)
       const contours = new cv.MatVector()
       const hierarchy = new cv.Mat()
-      cv.findContours(edges, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+      cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
       const out = cvCopy(cv, bgr)
-      let polys = 0
+      let count = 0
       for (let i = 0; i < contours.size(); i++) {
         const c = contours.get(i)
-        const area = cv.contourArea(c)
-        if (area < 50) continue
-        const approx = new cv.Mat()
-        cv.approxPolyDP(c, approx, cv.arcLength(c, true) * Number(params.epsilon) / 100, true)
-        cv.polylines(out, [approx], true, new cv.Scalar(0, 255, 0), 2)
-        polys++
-        approx.delete()
+        // fitEllipse 要求至少 5 个点
+        if (c.rows < 5) continue
+        if (cv.contourArea(c) < Number(params.minArea)) continue
+        const e = cv.fitEllipse(c)
+        cv.ellipse(
+          out,
+          e.center,
+          new cv.Size(e.size.width / 2, e.size.height / 2),
+          e.angle,
+          0,
+          360,
+          new cv.Scalar(0, 255, 0),
+          2
+        )
+        count++
       }
-      gray.delete(); edges.delete(); contours.delete(); hierarchy.delete()
+      gray.delete()
+      binary.delete()
+      contours.delete()
+      hierarchy.delete()
       return {
         imageData: matToImageData(cv, out),
-        info: [{ label: lang === 'zh' ? '多边形数' : 'Polygons', value: `${polys}` }]
+        info: [{ label: lang === 'zh' ? '椭圆数' : 'Ellipses', value: `${count}` }]
       }
     })
   }
@@ -1567,6 +1664,188 @@ const featureTools: ImageTool[] = [
         }
       })
     }
+  },
+  {
+    id: 'template-match',
+    page: 'features',
+    name: { zh: '模板匹配 Template Matching', en: 'Template Matching' },
+    description: { zh: '在原图里搜索第二张图（模板）出现的位置（TM_CCOEFF_NORMED + 阈值去重）。', en: 'Find where the second image (template) appears in the first, via TM_CCOEFF_NORMED with thresholding.' },
+    kind: 'opencv',
+    needsSecondImage: true,
+    params: [
+      { key: 'thresh', label: { zh: '匹配阈值（0~1）', en: 'Match threshold (0~1)' }, type: 'slider', default: 0.7, min: 0.3, max: 0.99, step: 0.01 }
+    ],
+    run: async ({ imageData, secondImage, params, lang }) => {
+      if (!secondImage) {
+        return { imageData, info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '请先上传第二张图作为模板' : 'Upload a second image to use as the template' }] }
+      }
+      return withCvMat(imageData, (cv, bgr) => {
+        const tmpl = imageDataToMat(cv, secondImage)
+        cv.cvtColor(tmpl, tmpl, cv.COLOR_RGBA2BGR)
+        try {
+          if (tmpl.cols > bgr.cols || tmpl.rows > bgr.rows) {
+            return { imageData, info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '模板比原图大，无法匹配' : 'Template is larger than the source image' }] }
+          }
+          const res = new cv.Mat()
+          cv.matchTemplate(bgr, tmpl, res, cv.TM_CCOEFF_NORMED)
+          // matchTemplate 输出 CV_32F，需先阈值化再转 8U 才能 findContours 去重
+          const hitsF = new cv.Mat()
+          cv.threshold(res, hitsF, Number(params.thresh ?? 0.7), 255, cv.THRESH_BINARY)
+          const hits = new cv.Mat()
+          hitsF.convertTo(hits, cv.CV_8U)
+          const contours = new cv.MatVector()
+          const hierarchy = new cv.Mat()
+          cv.findContours(hits, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+          const out = cvCopy(cv, bgr)
+          let count = 0
+          for (let i = 0; i < contours.size(); i++) {
+            const r = cv.boundingRect(contours.get(i))
+            const cx = r.x + Math.floor(r.width / 2)
+            const cy = r.y + Math.floor(r.height / 2)
+            const score = res.floatAt(cy, cx)
+            cv.rectangle(out, new cv.Point(r.x, r.y), new cv.Point(r.x + tmpl.cols, r.y + tmpl.rows), new cv.Scalar(0, 255, 0), 2)
+            cv.putText(out, score.toFixed(2), new cv.Point(r.x, Math.max(12, r.y - 4)), cv.FONT_HERSHEY_SIMPLEX, 0.5, new cv.Scalar(0, 0, 255), 1)
+            count++
+          }
+          res.delete()
+          hitsF.delete()
+          hits.delete()
+          contours.delete()
+          hierarchy.delete()
+          return {
+            imageData: matToImageData(cv, out),
+            info: [{ label: lang === 'zh' ? '匹配数量' : 'Matches', value: `${count}` }]
+          }
+        } finally {
+          tmpl.delete()
+        }
+      })
+    }
+  },
+  {
+    id: 'image-stitch',
+    page: 'features',
+    name: { zh: '图像拼接 Stitching', en: 'Image Stitching' },
+    description: { zh: 'ORB 特征 + 单应矩阵把第二张图对齐拼到第一张图上（全景示意，需两张图有重叠）。', en: 'ORB features + homography align the second image onto the first (panorama sketch; images must overlap).' },
+    kind: 'opencv',
+    needsSecondImage: true,
+    params: [
+      { key: 'max', label: { zh: '最大关键点', en: 'Max keypoints' }, type: 'slider', default: 1000, min: 200, max: 3000, step: 100 },
+      { key: 'ratio', label: { zh: 'Lowe 比率', en: 'Lowe ratio' }, type: 'slider', default: 0.75, min: 0.5, max: 0.95, step: 0.01 }
+    ],
+    run: async ({ imageData, secondImage, params, lang }) => {
+      if (!secondImage) {
+        return { imageData, info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '请先上传第二张图（同一场景的另一视角）' : 'Upload a second image (another view of the same scene)' }] }
+      }
+      return withCvMat(imageData, (cv, bgr) => {
+        const bgr2 = imageDataToMat(cv, secondImage)
+        cv.cvtColor(bgr2, bgr2, cv.COLOR_RGBA2BGR)
+        const orb = new cv.ORB(Number(params.max ?? 1000))
+        const kp1 = new cv.KeyPointVector()
+        const kp2 = new cv.KeyPointVector()
+        const d1 = new cv.Mat()
+        const d2 = new cv.Mat()
+        orb.detectAndCompute(bgr, new cv.Mat(), kp1, d1)
+        orb.detectAndCompute(bgr2, new cv.Mat(), kp2, d2)
+        const matches = new cv.DMatchVectorVector()
+        const bf = new cv.BFMatcher(cv.NORM_HAMMING, false)
+        // 以第二张图为 query、第一张为 train，求「第二张 → 第一张」的单应
+        bf.knnMatch(d2, d1, matches, 2)
+        const srcPts: number[] = []
+        const dstPts: number[] = []
+        const ratio = Number(params.ratio ?? 0.75)
+        for (let i = 0; i < matches.size(); i++) {
+          const pair = matches.get(i)
+          if (pair.size() >= 2) {
+            const a = pair.get(0)
+            const b = pair.get(1)
+            if (a.distance < ratio * b.distance) {
+              const p2 = kp2.get(a.queryIdx).pt
+              const p1 = kp1.get(a.trainIdx).pt
+              srcPts.push(p2.x, p2.y)
+              dstPts.push(p1.x, p1.y)
+            }
+          }
+        }
+        orb.delete()
+        bf.delete()
+        kp1.delete()
+        kp2.delete()
+        d1.delete()
+        d2.delete()
+        matches.delete()
+        try {
+          if (srcPts.length < 8) {
+            return { imageData, info: [{ label: lang === 'zh' ? '状态' : 'Status', value: lang === 'zh' ? '匹配点不足（建议两张图重叠 30% 以上）' : 'Not enough matches (aim for 30%+ overlap)' }] }
+          }
+          const n = srcPts.length / 2
+          const srcMat = cv.matFromArray(n, 1, cv.CV_32FC2, srcPts)
+          const dstMat = cv.matFromArray(n, 1, cv.CV_32FC2, dstPts)
+          const H = cv.findHomography(srcMat, dstMat, cv.RANSAC, 5)
+          srcMat.delete()
+          dstMat.delete()
+          if (!H || H.empty()) {
+            if (H) H.delete()
+            return { imageData, info: [{ label: lang === 'zh' ? '状态' : 'Status', value: lang === 'zh' ? '单应矩阵求解失败' : 'Homography failed' }] }
+          }
+          const is64 = H.type() === cv.CV_64F
+          const h: number[] = []
+          for (let i = 0; i < 9; i++) h.push(is64 ? H.data64F[i] : H.data32F[i])
+          H.delete()
+          // 把第二张图的四角变换到第一张图坐标系，求并集包围盒
+          const corners = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, bgr2.cols, 0, bgr2.cols, bgr2.rows, 0, bgr2.rows])
+          const Hmat = cv.matFromArray(3, 3, cv.CV_64FC1, h)
+          const warpedCorners = new cv.Mat()
+          cv.perspectiveTransform(corners, warpedCorners, Hmat)
+          let minX = 0
+          let minY = 0
+          let maxX = bgr.cols
+          let maxY = bgr.rows
+          for (let i = 0; i < 4; i++) {
+            const px = warpedCorners.data32F[i * 2]
+            const py = warpedCorners.data32F[i * 2 + 1]
+            minX = Math.min(minX, px)
+            minY = Math.min(minY, py)
+            maxX = Math.max(maxX, px)
+            maxY = Math.max(maxY, py)
+          }
+          corners.delete()
+          warpedCorners.delete()
+          const W = Math.max(1, Math.round(maxX - minX))
+          const Hh = Math.max(1, Math.round(maxY - minY))
+          // 平移量并入单应矩阵：T·H 只需修改第三列（H 的 [2] 与 [5]）
+          h[2] = h[2] + (-minX)
+          h[5] = h[5] + (-minY)
+          const TH = cv.matFromArray(3, 3, cv.CV_64FC1, h)
+          Hmat.delete()
+          const out = new cv.Mat(Hh, W, cv.CV_8UC3, new cv.Scalar(0, 0, 0))
+          const roi = out.roi(new cv.Rect(Math.round(-minX), Math.round(-minY), bgr.cols, bgr.rows))
+          bgr.copyTo(roi)
+          roi.delete()
+          const warped = new cv.Mat()
+          cv.warpPerspective(bgr2, warped, TH, new cv.Size(W, Hh))
+          // 用「非黑像素」作 mask 覆盖重叠区（简化版，不做多频段融合）
+          const grayWarp = new cv.Mat()
+          cv.cvtColor(warped, grayWarp, cv.COLOR_BGR2GRAY)
+          const mask = new cv.Mat()
+          cv.threshold(grayWarp, mask, 1, 255, cv.THRESH_BINARY)
+          warped.copyTo(out, mask)
+          TH.delete()
+          warped.delete()
+          grayWarp.delete()
+          mask.delete()
+          return {
+            imageData: matToImageData(cv, out),
+            info: [
+              { label: lang === 'zh' ? '全景尺寸' : 'Canvas size', value: `${W}×${Hh}` },
+              { label: lang === 'zh' ? '参与内点数' : 'Inliers', value: `${n}` }
+            ]
+          }
+        } finally {
+          bgr2.delete()
+        }
+      })
+    }
   }
 ]
 
@@ -1601,46 +1880,11 @@ const confidenceParam: LocalizedParamSpec = {
 
 const faceTools: ImageTool[] = [
   {
-    id: 'face-detect',
-    page: 'face',
-    name: { zh: '人脸检测 Face Detection', en: 'Face Detection' },
-    kind: 'mediapipe',
-    params: [confidenceParam],
-    run: async ({ imageData, params, lang }) => {
-      const { visionTasks } = await import('~/utils/mediapipe-vision')
-      const cfg = visionTasks['face-detection']
-      const { imageData: out, result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, cfg.draw, {
-        minDetectionConfidence: Number(params.confidence)
-      })
-      return {
-        imageData: out,
-        info: [{ label: lang === 'zh' ? '检测到人脸' : 'Faces detected', value: `${result.detections?.length ?? 0}` }]
-      }
-    }
-  },
-  {
-    id: 'face-landmark',
-    page: 'face',
-    name: { zh: '人脸关键点 Face Landmark', en: 'Face Landmark' },
-    kind: 'mediapipe',
-    params: [confidenceParam],
-    run: async ({ imageData, params, lang }) => {
-      const { visionTasks } = await import('~/utils/mediapipe-vision')
-      const cfg = visionTasks['face-landmarker']
-      const { imageData: out, result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, cfg.draw, {
-        minDetectionConfidence: Number(params.confidence)
-      })
-      return {
-        imageData: out,
-        info: [{ label: lang === 'zh' ? '人脸数' : 'Faces', value: `${result.faceLandmarks?.length ?? 0}` }]
-      }
-    }
-  },
-  {
     id: 'face-blur',
     page: 'face',
     name: { zh: '人脸模糊 Face Blur', en: 'Face Blur' },
     kind: 'mediapipe',
+    section: { face: 'image.sections.mediapipe' },
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1674,6 +1918,7 @@ const faceTools: ImageTool[] = [
     page: 'face',
     name: { zh: '人脸马赛克 Face Pixelation', en: 'Face Pixelation' },
     kind: 'mediapipe',
+    section: { face: 'image.sections.mediapipe' },
     params: [confidenceParam],
     run: async ({ imageData, params, lang }) => {
       const { visionTasks } = await import('~/utils/mediapipe-vision')
@@ -1717,6 +1962,142 @@ const faceTools: ImageTool[] = [
         info: [{ label: lang === 'zh' ? '已马赛克人脸' : 'Faces pixelated', value: `${dets.length}` }]
       }
     }
+  },
+  {
+    id: 'face-id-photo',
+    page: 'face',
+    name: { zh: '证件照生成', en: 'ID Photo' },
+    description: {
+      zh: '检测人脸后按证件照比例裁切，并填充纯色背景（一寸 3:4 / 二寸 35:49 / 方形 1:1）。',
+      en: 'Detect the face, crop to an ID-photo ratio and fill a solid background (1-inch 3:4 / 2-inch 35:49 / square 1:1).'
+    },
+    kind: 'mediapipe',
+    section: { face: 'image.sections.mediapipe' },
+    params: [
+      {
+        key: 'ratio',
+        label: { zh: '比例', en: 'Aspect ratio' },
+        type: 'select',
+        default: '3:4',
+        options: [
+          { label: { zh: '一寸（3:4）', en: '1 inch (3:4)' }, value: '3:4' },
+          { label: { zh: '二寸（35:49）', en: '2 inch (35:49)' }, value: '35:49' },
+          { label: { zh: '方形（1:1）', en: 'Square (1:1)' }, value: '1:1' }
+        ]
+      },
+      {
+        key: 'bg',
+        label: { zh: '背景色', en: 'Background' },
+        type: 'select',
+        default: 'white',
+        options: [
+          { label: { zh: '白色', en: 'White' }, value: 'white' },
+          { label: { zh: '蓝色', en: 'Blue' }, value: 'blue' },
+          { label: { zh: '红色', en: 'Red' }, value: 'red' }
+        ]
+      },
+      confidenceParam
+    ],
+    run: async ({ imageData, params, lang }) => {
+      const zh = lang === 'zh'
+      const { visionTasks } = await import('~/utils/mediapipe-vision')
+      const cfg = visionTasks['face-detection']!
+      const { result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, undefined, {
+        minDetectionConfidence: Number(params.confidence)
+      })
+      const bb = result.detections?.[0]?.boundingBox
+      if (!bb) {
+        return { imageData, info: [{ label: zh ? '状态' : 'Status', value: zh ? '未检测到人脸' : 'No face detected' }] }
+      }
+      const ratioKey = String(params.ratio || '3:4')
+      const [rw, rh] = ratioKey === '1:1' ? [1, 1] : ratioKey === '35:49' ? [35, 49] : [3, 4]
+      // 以人脸框中心为基准：裁切高度取人脸高 ×4（留出发际与肩部），再按比例定宽
+      const ch = Math.max(64, Math.min(imageData.height, Math.round(bb.height * 4)))
+      const cw = Math.max(16, Math.round(ch * (rw / rh)))
+      const cx = bb.originX + bb.width / 2
+      const cy = bb.originY + bb.height * 0.55
+      const x0 = Math.round(cx - cw / 2)
+      const y0 = Math.round(cy - ch * 0.42)
+      const bgColors: Record<string, [number, number, number]> = {
+        white: [255, 255, 255],
+        blue: [67, 142, 219],
+        red: [208, 32, 32]
+      }
+      const [br, bgc, bbc] = bgColors[String(params.bg || 'white')] ?? bgColors.white!
+      const out = new ImageData(cw, ch)
+      const od = out.data
+      for (let i = 0; i < od.length; i += 4) {
+        od[i] = br
+        od[i + 1] = bgc
+        od[i + 2] = bbc
+        od[i + 3] = 255
+      }
+      const sd = imageData.data
+      for (let yy = 0; yy < ch; yy++) {
+        const sy = y0 + yy
+        if (sy < 0 || sy >= imageData.height) continue
+        for (let xx = 0; xx < cw; xx++) {
+          const sx = x0 + xx
+          if (sx < 0 || sx >= imageData.width) continue
+          const si = (sy * imageData.width + sx) * 4
+          const di = (yy * cw + xx) * 4
+          od[di] = sd[si]!
+          od[di + 1] = sd[si + 1]!
+          od[di + 2] = sd[si + 2]!
+        }
+      }
+      return {
+        imageData: out,
+        info: [
+          { label: zh ? '输出尺寸' : 'Output size', value: `${cw}×${ch}` },
+          { label: zh ? '人脸框' : 'Face box', value: `${Math.round(bb.width)}×${Math.round(bb.height)}` }
+        ]
+      }
+    }
+  },
+  {
+    id: 'face-compare',
+    page: 'face',
+    name: { zh: '人脸比对（1:1）', en: 'Face Verification (1:1)' },
+    description: {
+      zh: '两张图各取一张人脸，比较 128 维人脸嵌入的余弦相似度，判断是否为同一人。',
+      en: 'Extract one face from each image and compare the 128-dim face embeddings by cosine similarity.'
+    },
+    kind: 'tfjs',
+    section: { face: 'image.sections.tfjs' },
+    needsSecondImage: true,
+    run: async ({ imageData, secondImage, lang }) => {
+      const zh = lang === 'zh'
+      if (!secondImage) {
+        return {
+          imageData,
+          info: [{ label: zh ? '提示' : 'Hint', value: zh ? '请先上传第二张图（证件照 vs 本人）' : 'Add a second image (ID photo vs selfie)' }]
+        }
+      }
+      const fs = await import('~/utils/face-studio')
+      await fs.ensureFaceApiLoaded()
+      const [a, b] = await Promise.all([
+        fs.extractFaces(toCanvasLocal(imageData)),
+        fs.extractFaces(toCanvasLocal(secondImage))
+      ])
+      if (!a.length || !b.length) {
+        return {
+          imageData,
+          info: [{ label: zh ? '状态' : 'Status', value: zh ? '两张图都需要检测到人脸' : 'Both images need a detectable face' }]
+        }
+      }
+      const sim = fs.cosineSimilarity(a[0]!.descriptor, b[0]!.descriptor)
+      const threshold = fs.descriptorDistanceThreshold()
+      const same = sim >= threshold
+      return {
+        imageData,
+        info: [
+          { label: zh ? '余弦相似度' : 'Cosine similarity', value: sim.toFixed(4) },
+          { label: zh ? '判定阈值' : 'Threshold', value: threshold.toFixed(2) },
+          { label: zh ? '判定结果' : 'Verdict', value: same ? (zh ? '同一人' : 'Same person') : (zh ? '不同人' : 'Different people') }
+        ]
+      }
+    }
   }
 ]
 
@@ -1743,7 +2124,7 @@ const ocrTools: ImageTool[] = [
     ],
     run: async ({ imageData, params, lang }) => {
       const Tesseract = await loadTesseract()
-      const worker = await Tesseract.createWorker(String(params.lang))
+      const worker = await Tesseract.createWorker(String(params.lang), undefined, tesseractLocalOptions())
       try {
         const { data } = await worker.recognize(toCanvasLocal(imageData))
         const text = (data.text || '').trim()
@@ -1815,136 +2196,162 @@ const ocrTools: ImageTool[] = [
         info: [{ label: lang === 'zh' ? '文档' : 'Document', value: best ? `${out.cols}×${out.rows}` : (lang === 'zh' ? '未检测到文档轮廓' : 'no document quad found') }]
       }
     })
-  }
-]
-
-// ===== 14 AI Object & Image Vision =====
-
-const aiVisionTools: ImageTool[] = [
+  },
   {
-    id: 'image-classify',
-    page: 'ai-vision',
-    name: { zh: '图像分类 Image Classification', en: 'Image Classification' },
-    kind: 'mediapipe',
-    params: [{
-      key: 'max',
-      label: { zh: '结果数量', en: 'Top K' },
-      type: 'slider',
-      default: 5,
-      min: 1,
-      max: 10,
-      step: 1
-    }],
-    run: async ({ imageData, params, lang }) => {
-      const { visionTasks } = await import('~/utils/mediapipe-vision')
-      const cfg = visionTasks['image-classifier']
-      const { imageData: out, result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, undefined, {
-        maxResults: Number(params.max)
-      })
-      const cats = result.classifications?.[0]?.categories ?? []
-      return {
-        imageData: out,
-        info: cats.slice(0, 10).map(c => ({
-          label: c.categoryName || '?',
-          value: `${Math.round((c.score || 0) * 100)}%`
-        }))
+    id: 'table-structure',
+    page: 'ocr',
+    name: { zh: '表格结构识别 Table Structure', en: 'Table Structure' },
+    description: { zh: '形态学提取横竖线并求交点还原表格网格（经典路数，适合扫描件的深色表格线）。', en: 'Extract horizontal/vertical rules by morphology and detect crossings to recover the table grid (classic approach; works on dark table rules in scans).' },
+    kind: 'opencv',
+    params: [
+      { key: 'scale', label: { zh: '线长比例（%）', en: 'Line length (%)' }, type: 'slider', default: 2, min: 1, max: 8, step: 1 },
+      { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 180, min: 0, max: 255, step: 1 }
+    ],
+    run: async ({ imageData, params, lang }) => withCvMat(imageData, (cv, bgr) => {
+      const gray = cvGray(cv, bgr)
+      const binary = new cv.Mat()
+      // 反相二值化：让「深色线条」变成前景白
+      cv.threshold(gray, binary, Number(params.thresh ?? 180), 255, cv.THRESH_BINARY_INV)
+      const hSize = Math.max(5, Math.round((gray.cols * Number(params.scale ?? 2)) / 100))
+      const vSize = Math.max(5, Math.round((gray.rows * Number(params.scale ?? 2)) / 100))
+      const hKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(hSize, 1))
+      const vKernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(1, vSize))
+      const hLines = new cv.Mat()
+      const vLines = new cv.Mat()
+      // 开运算只留「比核更长」的横线/竖线
+      cv.morphologyEx(binary, hLines, cv.MORPH_OPEN, hKernel)
+      cv.morphologyEx(binary, vLines, cv.MORPH_OPEN, vKernel)
+      const intersect = new cv.Mat()
+      cv.bitwise_and(hLines, vLines, intersect)
+      const out = cvCopy(cv, bgr)
+      const hContours = new cv.MatVector()
+      const hHier = new cv.Mat()
+      cv.findContours(hLines, hContours, hHier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+      let hCount = 0
+      for (let i = 0; i < hContours.size(); i++) {
+        const r = cv.boundingRect(hContours.get(i))
+        if (r.width < hSize * 0.6) continue
+        cv.rectangle(out, new cv.Point(r.x, r.y), new cv.Point(r.x + r.width, r.y + r.height), new cv.Scalar(0, 255, 0), 1)
+        hCount++
       }
-    }
-  },
-  {
-    id: 'object-detect',
-    page: 'ai-vision',
-    name: { zh: '目标检测 Object Detection', en: 'Object Detection' },
-    kind: 'mediapipe',
-    params: [{
-      key: 'max',
-      label: { zh: '最多目标', en: 'Max objects' },
-      type: 'slider',
-      default: 5,
-      min: 1,
-      max: 20,
-      step: 1
-    }],
-    run: async ({ imageData, params, lang }) => {
-      const { visionTasks } = await import('~/utils/mediapipe-vision')
-      const cfg = visionTasks['object-detector']
-      const { imageData: out, result } = await ai.mediaPipeImageResult(imageData, cfg.create, cfg.method, cfg.draw, {
-        maxResults: Number(params.max)
-      })
-      const dets = result.detections ?? []
-      return {
-        imageData: out,
-        info: dets.slice(0, 10).map((d: any) => ({
-          label: d.categories?.[0]?.categoryName || 'object',
-          value: `${Math.round((d.categories?.[0]?.score || 0) * 100)}%`
-        }))
+      const vContours = new cv.MatVector()
+      const vHier = new cv.Mat()
+      cv.findContours(vLines, vContours, vHier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+      let vCount = 0
+      for (let i = 0; i < vContours.size(); i++) {
+        const r = cv.boundingRect(vContours.get(i))
+        if (r.height < vSize * 0.6) continue
+        cv.rectangle(out, new cv.Point(r.x, r.y), new cv.Point(r.x + r.width, r.y + r.height), new cv.Scalar(255, 128, 0), 1)
+        vCount++
       }
-    }
-  },
-  {
-    id: 'image-segment',
-    page: 'ai-vision',
-    name: { zh: '图像分割 Image Segmentation', en: 'Image Segmentation' },
-    kind: 'mediapipe',
-    run: async ({ imageData }) => ({ imageData: await ai.segmentImage(imageData, 'overlay') })
-  },
-  {
-    id: 'background-removal',
-    page: 'ai-vision',
-    name: { zh: '背景移除 Background Removal', en: 'Background Removal' },
-    kind: 'mediapipe',
-    run: async ({ imageData, lang }) => ({
-      imageData: await ai.segmentImage(imageData, 'background-removal'),
-      info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '下载 PNG 保留透明背景' : 'Download as PNG to keep transparency' }]
+      const iContours = new cv.MatVector()
+      const iHier = new cv.Mat()
+      cv.findContours(intersect, iContours, iHier, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+      let crossings = 0
+      for (let i = 0; i < iContours.size(); i++) {
+        const m = cv.moments(iContours.get(i))
+        if (m.m00 === 0) continue
+        cv.circle(out, new cv.Point(m.m10 / m.m00, m.m01 / m.m00), 4, new cv.Scalar(0, 0, 255), -1)
+        crossings++
+      }
+      gray.delete()
+      binary.delete()
+      hKernel.delete()
+      vKernel.delete()
+      hLines.delete()
+      vLines.delete()
+      intersect.delete()
+      hContours.delete()
+      hHier.delete()
+      vContours.delete()
+      vHier.delete()
+      iContours.delete()
+      iHier.delete()
+      return {
+        imageData: matToImageData(cv, out),
+        info: [
+          { label: lang === 'zh' ? '横线' : 'H lines', value: `${hCount}` },
+          { label: lang === 'zh' ? '竖线' : 'V lines', value: `${vCount}` },
+          { label: lang === 'zh' ? '交点（≈网格顶点）' : 'Crossings (grid nodes)', value: `${crossings}` }
+        ]
+      }
     })
   },
   {
-    id: 'image-embed',
-    page: 'ai-vision',
-    name: { zh: '图像嵌入 Image Embedding', en: 'Image Embedding' },
-    kind: 'mediapipe',
-    run: async ({ imageData, lang }) => {
-      const vec = await ai.imageEmbedding(imageData)
-      const head = Array.from(vec.slice(0, 6)).map(v => v.toFixed(3)).join(', ')
-      return {
-        imageData,
-        info: [
-          { label: lang === 'zh' ? '向量维度' : 'Dimension', value: `${vec.length}` },
-          { label: lang === 'zh' ? '前 6 维' : 'First 6 values', value: `[${head}, …]` }
+    id: 'handwriting-ocr',
+    page: 'ocr',
+    name: { zh: '手写识别 Handwriting OCR', en: 'Handwriting OCR' },
+    description: { zh: '先二值化增强笔画，再用 Tesseract 单行/单块模式识别。手写准确率有限，仅作演示与对照。', en: 'Binarize to strengthen strokes, then run Tesseract in single-line/block mode. Handwriting accuracy is limited — demo and comparison only.' },
+    kind: 'tesseract',
+    params: [
+      { key: 'thresh', label: { zh: '二值化阈值', en: 'Threshold' }, type: 'slider', default: 150, min: 0, max: 255, step: 1 },
+      {
+        key: 'lang',
+        label: { zh: '语言', en: 'Language' },
+        type: 'select',
+        default: 'eng',
+        options: [
+          { label: { zh: '英文', en: 'English' }, value: 'eng' },
+          { label: { zh: '简体中文', en: 'Chinese (simplified)' }, value: 'chi_sim' }
+        ]
+      },
+      {
+        key: 'psm',
+        label: { zh: '版面模式', en: 'Page segmentation' },
+        type: 'select',
+        default: '7',
+        options: [
+          { label: { zh: '单行（7）', en: 'Single line (7)' }, value: '7' },
+          { label: { zh: '单块（6）', en: 'Single block (6)' }, value: '6' },
+          { label: { zh: '稀疏文本（11）', en: 'Sparse text (11)' }, value: '11' }
         ]
       }
-    }
-  },
-  {
-    id: 'image-similarity',
-    page: 'ai-vision',
-    name: { zh: '图像相似度 Image Similarity', en: 'Image Similarity' },
-    description: { zh: '计算两张图的余弦相似度（上传第二张图）。', en: 'Cosine similarity between two images (upload a second image).' },
-    kind: 'mediapipe',
-    needsSecondImage: true,
-    run: async ({ imageData, secondImage, lang }) => {
-      if (!secondImage) {
+    ],
+    run: async ({ imageData, params, lang }) => {
+      const canvas = toCanvasLocal(imageData)
+      const ctx = canvas.getContext('2d')
+      const th = Number(params.thresh ?? 150)
+      if (ctx) {
+        const d = ctx.getImageData(0, 0, canvas.width, canvas.height)
+        for (let i = 0; i < d.data.length; i += 4) {
+          const lum = 0.299 * d.data[i]! + 0.587 * d.data[i + 1]! + 0.114 * d.data[i + 2]!
+          const v = lum >= th ? 255 : 0
+          d.data[i] = v
+          d.data[i + 1] = v
+          d.data[i + 2] = v
+        }
+        ctx.putImageData(d, 0, 0)
+      }
+      const Tesseract = await loadTesseract()
+      const worker = await Tesseract.createWorker(String(params.lang || 'eng'), undefined, tesseractLocalOptions())
+      try {
+        await worker.setParameters({ tessedit_pageseg_mode: String(params.psm || '7') })
+        const { data } = await worker.recognize(canvas)
+        const text = (data.text || '').trim()
         return {
           imageData,
-          info: [{ label: lang === 'zh' ? '提示' : 'Hint', value: lang === 'zh' ? '请先上传第二张图' : 'Upload a second image first' }]
+          info: [{
+            label: lang === 'zh' ? '识别文本' : 'Recognized text',
+            value: text || (lang === 'zh' ? '（未识别到文字）' : '(no text found)')
+          }]
         }
-      }
-      const [v1, v2] = await Promise.all([ai.imageEmbedding(imageData), ai.imageEmbedding(secondImage)])
-      const sim = ai.cosineSimilarity(v1, v2)
-      return {
-        imageData,
-        info: [{ label: lang === 'zh' ? '余弦相似度' : 'Cosine similarity', value: sim.toFixed(4) }]
+      } finally {
+        await worker.terminate()
       }
     }
   }
 ]
 
-// ===== 15 AI Vision & Multimodal =====
+// ===== 14 Transformers.js（引擎页 + 深度 / 抠图能力页）=====
 
-const multimodalTools: ImageTool[] = [
+/** MODNet 模型/处理器缓存（约 25MB，避免每次抠图重新加载） */
+const modnetCache: { model?: any, processor?: any } = {}
+
+const transformersTools: ImageTool[] = [
   {
     id: 'image-caption',
-    page: 'multimodal',
+    pages: ['transformers'],
+    section: { '*': 'image.sections.depth' },
     name: { zh: '图像描述 Image Captioning', en: 'Image Captioning' },
     kind: 'transformers',
     params: [{
@@ -1966,7 +2373,8 @@ const multimodalTools: ImageTool[] = [
         const arr = Array.isArray(out) ? out : [out]
         return {
           imageData,
-          info: [{ label: lang === 'zh' ? '图像描述' : 'Caption', value: arr[0]?.generated_text || '' }]
+          info: [{ label: lang === 'zh' ? '图像描述' : 'Caption', value: arr[0]?.generated_text || '' }],
+          device: preferredDevice()
         }
       } finally {
         try { await p.dispose() } catch { /* ignore */ }
@@ -1975,7 +2383,8 @@ const multimodalTools: ImageTool[] = [
   },
   {
     id: 'depth-map',
-    page: 'multimodal',
+    pages: ['depth', 'transformers'],
+    section: { depth: 'image.sections.transformers', transformers: 'image.sections.depth' },
     name: { zh: '深度估计 Depth Map', en: 'Depth Estimation' },
     kind: 'transformers',
     run: async ({ imageData, lang }) => {
@@ -1999,7 +2408,8 @@ const multimodalTools: ImageTool[] = [
         }
         return {
           imageData: imgData,
-          info: [{ label: lang === 'zh' ? '深度图尺寸' : 'Depth size', value: `${depth.width}×${depth.height}` }]
+          info: [{ label: lang === 'zh' ? '深度图尺寸' : 'Depth size', value: `${depth.width}×${depth.height}` }],
+          device: 'wasm'
         }
       } finally {
         try { await p.dispose() } catch { /* ignore */ }
@@ -2008,7 +2418,8 @@ const multimodalTools: ImageTool[] = [
   },
   {
     id: 'image-qa',
-    page: 'multimodal',
+    pages: ['transformers'],
+    section: { '*': 'image.sections.depth' },
     name: { zh: '图像问答 Image QA', en: 'Image Question Answering' },
     description: { zh: '基于 Janus-Pro 的图像理解问答（模型 ~1.2GB，首次需下载）。', en: 'Image understanding QA with Janus-Pro (~1.2GB model, first run downloads).' },
     kind: 'transformers',
@@ -2026,7 +2437,8 @@ const multimodalTools: ImageTool[] = [
   },
   {
     id: 'inpainting',
-    page: 'multimodal',
+    pages: ['transformers'],
+    section: { '*': 'image.sections.depth' },
     name: { zh: '图像修复 Inpainting', en: 'Image Inpainting' },
     description: { zh: 'Moebius 涂抹修复（交互复杂，规划中，可先体验 /aigc/inpainting）。', en: 'Moebius paint-over inpainting (planned; try /aigc/inpainting).' },
     kind: 'transformers',
@@ -2035,6 +2447,58 @@ const multimodalTools: ImageTool[] = [
       imageData,
       info: [{ label: lang === 'zh' ? '状态' : 'Status', value: lang === 'zh' ? '规划中：可先体验 /aigc/inpainting' : 'Planned: try /aigc/inpainting' }]
     })
+  },
+  {
+    id: 'modnet-matting',
+    pages: ['matting', 'transformers'],
+    section: { matting: 'image.sections.transformers', transformers: 'image.sections.segmentation' },
+    name: { zh: 'MODNet 抠图', en: 'MODNet Matting' },
+    description: {
+      zh: 'Xenova/modnet 人像抠图（约 25MB），输出带透明通道的结果。',
+      en: 'Xenova/modnet person matting (~25MB) producing an alpha channel.'
+    },
+    kind: 'transformers',
+    params: [{
+      key: 'alphaThreshold',
+      label: { zh: 'Alpha 阈值', en: 'Alpha threshold' },
+      type: 'slider',
+      default: 64,
+      min: 0,
+      max: 255,
+      step: 1
+    }],
+    run: async ({ imageData, params, lang }) => {
+      const { setupTransformersEnv, preferredDevice } = await import('~/utils/transformers')
+      await setupTransformersEnv()
+      const { AutoModel, AutoProcessor, RawImage } = await import('@huggingface/transformers')
+      const modelId = 'Xenova/modnet'
+      if (!modnetCache.model || !modnetCache.processor) {
+        modnetCache.processor = await AutoProcessor.from_pretrained(modelId)
+        modnetCache.model = await AutoModel.from_pretrained(modelId, {
+          dtype: 'fp32',
+          device: preferredDevice()
+        } as any)
+      }
+      const img = await RawImage.fromURL(toDataUrl(imageData))
+      const { pixel_values } = await modnetCache.processor(img)
+      const { output } = await modnetCache.model({ input: pixel_values })
+      // output: [1, 1, H, W] 的 alpha matte，先转 uint8 再缩放到原图尺寸
+      const maskData = (
+        await RawImage.fromTensor(output[0].mul(255).to('uint8')).resize(img.width, img.height)
+      ).data
+      const out = new ImageData(new Uint8ClampedArray(imageData.data), imageData.width, imageData.height)
+      const th = Number(params.alphaThreshold ?? 64)
+      for (let i = 0; i < maskData.length; i++) {
+        // 阈值 + 平滑过渡，避免硬边
+        const m = maskData[i] as number
+        out.data[4 * i + 3] = m <= th ? 0 : Math.min(255, Math.round(((m - th) / Math.max(1, 255 - th)) * 255))
+      }
+      return {
+        imageData: out,
+        info: [{ label: lang === 'zh' ? '输出' : 'Output', value: lang === 'zh' ? '透明背景（下载 PNG 保留）' : 'Transparent (download as PNG)' }],
+        device: preferredDevice()
+      }
+    }
   }
 ]
 
@@ -2043,7 +2507,6 @@ const multimodalTools: ImageTool[] = [
 export const imageTools: ImageTool[] = [
   ...viewerTools,
   ...transformTools,
-  ...pixelTools,
   ...colorTools,
   ...adjustmentTools,
   ...filterTools,
@@ -2052,28 +2515,14 @@ export const imageTools: ImageTool[] = [
   ...edgeTools,
   ...objectTools,
   ...featureTools,
-  ...faceTools,
   ...ocrTools,
-  ...aiVisionTools,
-  ...multimodalTools
-]
-
-export const imagePages: { slug: ImagePageSlug; tools: ImageTool[] }[] = [
-  { slug: 'viewer', tools: viewerTools },
-  { slug: 'transform', tools: transformTools },
-  { slug: 'pixel', tools: pixelTools },
-  { slug: 'color', tools: colorTools },
-  { slug: 'adjustment', tools: adjustmentTools },
-  { slug: 'filters', tools: filterTools },
-  { slug: 'enhancement', tools: enhancementTools },
-  { slug: 'morphology', tools: morphologyTools },
-  { slug: 'edge', tools: edgeTools },
-  { slug: 'object', tools: objectTools },
-  { slug: 'features', tools: featureTools },
-  { slug: 'face', tools: faceTools },
-  { slug: 'ocr', tools: ocrTools },
-  { slug: 'ai-vision', tools: aiVisionTools },
-  { slug: 'multimodal', tools: multimodalTools }
+  // 能力页里 MediaPipe 实现排在前（模型小、出结果快）
+  ...mediaPipeTools,
+  ...faceTools,
+  // YOLO 实现在能力页里排第二
+  ...yoloTools,
+  ...transformersTools,
+  ...sketchTools
 ]
 
 /**
@@ -2088,75 +2537,108 @@ export type ImagePageSample = {
 }
 
 export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>> = {
-  'viewer': [
+  viewer: [
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
-  'transform': [
+  transform: [
     // 用户要求：transform 页示例图用 face.jpg（人脸照，便于观察缩放/裁剪效果）
     { labelKey: 'samples.face', url: '/samples/images/face.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
-  'pixel': [
-    { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
-    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
-  ],
-  'color': [
+  color: [
     { labelKey: 'samples.colorful', url: '/samples/images/colorful.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
-  'adjustment': [
+  adjustment: [
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
   ],
-  'filters': [
+  filters: [
     { labelKey: 'samples.texture', url: '/samples/images/texture.jpg' },
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
-  'enhancement': [
+  enhancement: [
     { labelKey: 'samples.noisy', url: '/samples/images/noisy.jpg' },
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
   ],
-  'morphology': [
+  morphology: [
     { labelKey: 'samples.text', url: '/samples/images/text.jpg' },
     { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
   ],
-  'edge': [
+  edge: [
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
     { labelKey: 'samples.shapes', url: '/samples/images/shapes.jpg' }
   ],
-  'object': [
+  object: [
     { labelKey: 'samples.objects', url: '/samples/images/objects.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
-  'features': [
+  features: [
     { labelKey: 'samples.tajPair', url: '/samples/images/taj-a.jpg', secondUrl: '/samples/images/taj-b.jpg' },
     { labelKey: 'samples.checkerboard', url: '/samples/images/checkerboard.jpg' },
     { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
   ],
-  'face': [
-    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
+  face: [
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' },
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg', secondUrl: '/samples/images/face.jpg' }
   ],
-  'ocr': [
+  ocr: [
     { labelKey: 'samples.document', url: '/samples/images/document.jpg' }
   ],
-  'ai-vision': [
+  mediapipe: [
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' },
+    { labelKey: 'samples.hand', url: '/samples/images/hand.jpg' },
+    { labelKey: 'samples.pose', url: '/samples/images/pose.jpg' }
+  ],
+  yolo: [
+    { labelKey: 'samples.person', url: '/samples/images/group.jpg' },
+    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg' },
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' }
+  ],
+  transformers: [
+    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
+    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg' },
+    { labelKey: 'samples.pose', url: '/samples/images/pose.jpg' }
+  ],
+  detection: [
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
+  ],
+  classification: [
+    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg' },
+    { labelKey: 'samples.bird', url: '/samples/images/bird.jpg' },
+    { labelKey: 'samples.cat', url: '/samples/images/cat.jpg' }
+  ],
+  segmentation: [
     { labelKey: 'samples.personPhoto', url: '/samples/images/person.jpg' },
-    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg', secondUrl: '/samples/images/cat.jpg' },
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' },
+    { labelKey: 'samples.desk', url: '/samples/images/desk.jpg' }
+  ],
+  matting: [
+    { labelKey: 'samples.pose', url: '/samples/images/pose.jpg' },
+    { labelKey: 'samples.face', url: '/samples/images/portrait.jpg' }
+  ],
+  depth: [
+    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
     { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' }
   ],
-  'multimodal': [
-    { labelKey: 'samples.landscape', url: '/samples/images/urban-street.jpg' },
-    { labelKey: 'samples.street', url: '/samples/images/street.jpg' },
-    { labelKey: 'samples.dog', url: '/samples/images/dog.jpg' }
+  pose: [
+    { labelKey: 'samples.pose', url: '/samples/images/pose.jpg' },
+    { labelKey: 'samples.group', url: '/samples/images/group.jpg' }
   ]
 }
 
+/** 工具归属的页面列表：设置了 pages 以 pages 为准，否则回落单值 page */
+export function toolPages(tool: ImageTool): string[] {
+  return tool.pages ?? (tool.page ? [tool.page] : [])
+}
+
 export function imageToolsByPage(slug: string): ImageTool[] {
-  return imageTools.filter(t => t.page === slug)
+  return imageTools.filter(t => toolPages(t).includes(slug))
 }
 
 export function getImageTool(page: string, toolId: string): ImageTool | undefined {
-  return imageTools.find(t => t.page === page && t.id === toolId)
+  return imageTools.find(t => toolPages(t).includes(page) && t.id === toolId)
 }

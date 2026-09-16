@@ -34,7 +34,46 @@ export default defineNuxtConfig({
   // 注：Nitro 2.13.4 的 prerender 在生产构建报错（本地 createRequire('file:///_entry.js')、
   // Vercel Maximum call stack size exceeded），且这些页面均为 ClientOnly/SPA 组件，
   // prerender 非必需——改为运行时渲染（SSR on-demand / SPA fallback）。
-  routeRules: {},
+  //
+  // 视觉信息架构重构（能力 × 引擎双轴）：旧入口 301 到新能力页/引擎页，避免外链与收藏 404。
+  // 必须与删除旧 slug 的改动同时上线，否则中间态 404。
+  routeRules: {
+    // 跨域隔离（默认关闭，构建时开关 NUXT_ENABLE_CROSS_ORIGIN_ISOLATION=true）：
+    // 打开后才有 SharedArrayBuffer → onnxruntime-web / MediaPipe / Tesseract / Pyodide
+    // 可启用多线程 WASM（WASM SIMD+MT 相对单线程有数倍差距）。
+    // ⚠️ 打开前必须：① 真机验证「模型缺失 → 302 回退 CDN」「站内 iframe 子应用」
+    //    「统计脚本」三条链路仍可加载；② 在生产 nginx 同步同名响应头。
+    // 用 credentialless 而非 require-corp：对无凭据的跨域子资源更宽容，且不支持的
+    // 浏览器会忽略该值（退化为非隔离），不会硬失败。
+    ...(process.env.NUXT_ENABLE_CROSS_ORIGIN_ISOLATION === 'true'
+      ? {
+          '/**': {
+            headers: {
+              'Cross-Origin-Opener-Policy': 'same-origin',
+              'Cross-Origin-Embedder-Policy': 'credentialless'
+            }
+          }
+        }
+      : {}),
+    // 语音侧信息架构重构（能力 × 引擎双轴）：被吸收进能力页/引擎页的旧 slug 301 迁移。
+    // audio-classifier 顺带修掉 "-er" 的别扭命名；emotion 并入 audio-classification 能力页
+    // （情绪识别是「音频分类」任务的一种标签空间，不再单独成页）。
+    '/speech/audio-classifier': { redirect: { to: '/speech/audio-classification', statusCode: 301 } },
+    '/speech/emotion': { redirect: { to: '/speech/audio-classification', statusCode: 301 } },
+    '/vision/face-detection': { redirect: { to: '/vision/face', statusCode: 301 } },
+    '/vision/face-landmarker': { redirect: { to: '/vision/face', statusCode: 301 } },
+    '/vision/object-detector': { redirect: { to: '/vision/detection', statusCode: 301 } },
+    '/vision/image-classifier': { redirect: { to: '/vision/classification', statusCode: 301 } },
+    '/vision/image-segmenter': { redirect: { to: '/vision/segmentation', statusCode: 301 } },
+    '/vision/interactive-segmenter': { redirect: { to: '/vision/segmentation', statusCode: 301 } },
+    '/vision/bg-removal': { redirect: { to: '/vision/matting', statusCode: 301 } },
+    '/vision/depth-estimation': { redirect: { to: '/vision/depth', statusCode: 301 } },
+    '/vision/image-captioning': { redirect: { to: '/vision/transformers', statusCode: 301 } },
+    '/vision/image-embedder': { redirect: { to: '/vision/mediapipe', statusCode: 301 } },
+    '/vision/multimodal': { redirect: { to: '/vision/transformers', statusCode: 301 } },
+    '/vision/ai-vision': { redirect: { to: '/vision/detection', statusCode: 301 } },
+    '/vision/yolo-detection': { redirect: { to: '/vision/yolo', statusCode: 301 } }
+  },
 
   compatibilityDate: '2026-06-30',
 

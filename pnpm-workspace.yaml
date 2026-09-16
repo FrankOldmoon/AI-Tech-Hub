@@ -1,11 +1,30 @@
 packages:
   - '.'
+# 供应链策略：新发布的版本先隔离 24h 才允许安装（pnpm 11 默认值，此处显式化，
+# 使下面的唯一例外有明确锚点；若默认值变化，例外的语义不会漂移）
+minimumReleaseAge: 1440
+# 唯一例外：ml5 的传递依赖链会引入 brace-expansion@1.1.21
+#   ml5 → @tensorflow-models/* → rimraf@3 → glob@7 → minimatch@3 → brace-expansion@1.1.21
+# 该版本于 2026-09-14T21:59 发布（同一时刻 1.x/2.x/3.x/5.x 全部维护线被协调打补丁，
+# 特征上像安全回补），落在隔离窗口内会被拒绝。由于锁定的 minimatch@3 只能吃 ^1.1.7，
+# 降级到更旧的 1.x 会重新引入该漏洞，故只对这**一个版本**开例外，而非放开整个包。
+# 注意：若将来 1.x 线再发新版并在隔离窗口内被解析进来，CI 会再次拦截，属预期行为。
+minimumReleaseAgeExclude:
+  - brace-expansion@1.1.21
 allowBuilds:
   '@parcel/watcher': true
   core-js: true
   esbuild: true
+  # ml5 的 postinstall 会跑 `patch-package`（消费方环境通常没有该 bin，必然失败）；
+  # 其产物无需构建脚本，显式禁止执行。
+  ml5: false
   onnxruntime-node: true
+  # preact@8（ml5 传递依赖）的 postinstall 只是打印捐赠信息，无产物需要构建
+  preact: false
   protobufjs: true
   sharp: true
+  # tesseract.js 的 postinstall 是 `opencollective-postinstall || true`（捐赠提示），
+  # 其运行时文件由 scripts/sync-runtime-libs.mjs 从 npm 包 dist 同步，不依赖构建脚本
+  tesseract.js: false
   unrs-resolver: true
   vue-demi: true

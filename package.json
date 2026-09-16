@@ -11,7 +11,7 @@
     "check:i18n": "node scripts/check-i18n.mjs",
     "models:fetch": "node scripts/fetch-models.mjs",
     "models:list": "node scripts/fetch-models.mjs --list",
-    "postinstall": "nuxt prepare",
+    "postinstall": "nuxt prepare && node scripts/sync-runtime-libs.mjs",
     "lint": "eslint .",
     "typecheck": "nuxt typecheck",
     "test": "vitest run"
@@ -32,9 +32,13 @@
     "@tensorflow/tfjs": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "kokoro-js": "^1.2.1",
+    "ml5": "1.4.0",
+    "monaco-editor": "0.52.2",
     "nuxt": "^4.5.2",
     "onnxruntime-web": "^1.27.0",
-    "tailwindcss": "^4.3.3"
+    "pyodide": "0.27.7",
+    "tailwindcss": "^4.3.3",
+    "tesseract.js": "5.1.1"
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.16.0",
@@ -44,6 +48,11 @@
     "vitest": "^4.1.10",
     "vue": "^3.5.41",
     "vue-tsc": "^3.3.9"
+  },
+  "pnpm": {
+    "neverBuiltDependencies": [
+      "ml5"
+    ]
   },
   "packageManager": "pnpm@11.18.0"
 }

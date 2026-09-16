@@ -73,9 +73,10 @@ async function runEpisode() {
   let done = false
   while (!done) {
     const t = tf.tensor2d([[x, v, theta, omega]], [1, 4])
-    const probs = Array.from((await model.predict(t)).dataSync())
+    const probs = Array.from<number>((await model.predict(t)).dataSync())
     t.dispose()
-    const action = Math.random() < probs[1] ? 1 : 0
+    // 网络输出 2 个动作的 softmax 概率，下标 1 恒存在
+    const action = Math.random() < probs[1]! ? 1 : 0
     episodeStates.push([x, v, theta, omega])
     episodeActions.push(action)
     done = step(action)
@@ -88,7 +89,8 @@ async function runEpisode() {
   const returns: number[] = []
   let acc = 0
   for (let i = episodeRewards.length - 1; i >= 0; i--) {
-    acc = episodeRewards[i] + gamma * acc
+    // 循环从 length-1 起、i>=0 止，下标必在界内
+    acc = episodeRewards[i]! + gamma * acc
     returns.push(acc)
   }
   returns.reverse()

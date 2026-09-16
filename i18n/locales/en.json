@@ -33,6 +33,32 @@
     "searchEmpty": "No matching demos found",
     "classroomTitle": "Classroom Picks",
     "classroomDesc": "Curated reliable demos: fast to load, great results — ideal for whole-class demos (teacher view)",
+    "devcaps": {
+      "title": "This machine",
+      "desc": "Probed live in your browser — nothing is uploaded. Demos exceeding this machine may be slow or unavailable.",
+      "na": "unsupported",
+      "noAdapter": "no adapter",
+      "available": "available",
+      "unavailable": "unavailable",
+      "unknown": "unknown",
+      "mtOn": "on",
+      "mtOff": "off (needs COOP/COEP)",
+      "summary": {
+        "full": "All capabilities available",
+        "slow": "All available, GPU acceleration limited",
+        "limited": "Some capabilities unavailable"
+      },
+      "label": {
+        "webgpu": "WebGPU",
+        "threads": "Multithread",
+        "simd": "WASM SIMD",
+        "cores": "CPU cores",
+        "webgl2": "WebGL2",
+        "camera": "Camera",
+        "memory": "Memory",
+        "storage": "Storage quota"
+      }
+    },
     "stats": {
       "demos": "Demos",
       "categories": "Categories",
@@ -63,6 +89,7 @@
     }
   },
   "demo": {
+    "crossListed": "From other categories",
     "status": {
       "ready": "Ready",
       "planned": "Planned"
@@ -104,6 +131,24 @@
     "model": "Model",
     "modelNote": "runs locally in the browser"
   },
+  "status": {
+    "title": "Model supply status",
+    "desc": "Self-hosted / intranet check: whether local models are complete, and whether missing ones fall back to the remote CDN.",
+    "error": "Failed to read model status — the API may be unavailable.",
+    "ready": "All critical models present",
+    "notReady": "{count} critical model(s) missing",
+    "dir": "Directory",
+    "total": "Total",
+    "refresh": "Refresh",
+    "group": "Group",
+    "files": "Files",
+    "size": "Size",
+    "missingTitle": "Missing critical files",
+    "fallbackRemote": "falls back to remote",
+    "fallbackNone": "hard 404",
+    "missingHint": "Files marked “falls back to remote” are served via a 302 redirect to the upstream source; the rest return 404. Run `node scripts/sync-runtime-libs.mjs` or `pnpm models:fetch` on the server to fill them in.",
+    "allCritical": "No missing critical files."
+  },
   "errors": {
     "network": "Network request failed. Please check your connection and try again.",
     "oom": "Out of memory. Please close other tabs or reduce the input size.",
@@ -130,6 +175,33 @@
     "useCamera": "Use camera",
     "capture": "Capture",
     "closeCamera": "Close camera"
+  },
+  "nlp": {
+    "sections": {
+      "mediapipe": "MediaPipe",
+      "transformers": "Transformers.js",
+      "classify": "Text classification",
+      "langDetect": "Language detection",
+      "embed": "Text embedding",
+      "extract": "Information extraction",
+      "summarize": "Summarization",
+      "answer": "Question answering",
+      "fill": "Fill in the blank"
+    },
+    "examples": {
+      "en": "English",
+      "zh": "Chinese",
+      "ja": "Japanese",
+      "fr": "French"
+    },
+    "tryExample": "Try an example",
+    "playground": {
+      "toolbox": "Toolbox",
+      "run": "Run",
+      "ready": "Ready",
+      "noResult": "No result yet. Fill in the inputs and press Run — or try an example first.",
+      "elapsed": "Elapsed"
+    }
   },
   "textEmbedder": {
     "textA": "Text A",
@@ -163,8 +235,19 @@
     "shapes": "Shapes",
     "colorful": "Colorful",
     "speech": "Speech",
+    "speechZh": "Chinese speech",
     "music": "Music",
     "noisySpeech": "Noisy speech",
+    "exNerPerson": "Person & place",
+    "exNerNews": "Org & person",
+    "exZsMovie": "Movie review",
+    "exZsNews": "News topics",
+    "exSummaryAI": "AI overview",
+    "exSummaryEiffel": "Eiffel Tower",
+    "exQaEiffel": "Built when?",
+    "exQaMars": "Red Planet",
+    "exMaskCapital": "Capital of France",
+    "exMaskPlanets": "Planet count",
     "textDefault": "The weather is nice today. I am looking forward to the weekend.",
     "exSentimentPos": "Positive sentiment example",
     "exSentimentNeg": "Negative sentiment example",
@@ -254,7 +337,52 @@
     "analyzeFile": "Analyze",
     "noFile": "Upload or select an audio file first",
     "fileHint": "The whole clip is analyzed locally in segments; nothing leaves your browser.",
-    "fileDone": "File analyzed"
+    "fileDone": "File analyzed",
+    "start": "Start recording",
+    "stop": "Stop recording",
+    "listening": "Listening",
+    "unsupported": "This feature is not supported by your current browser.",
+    "unsupportedRecognition": "This browser does not support SpeechRecognition.",
+    "recordStart": "Start recording",
+    "recordStop": "Stop recording",
+    "cancel": "Cancel",
+    "downloadingModel": "Downloading model… {progress}%",
+    "playground": {
+      "toolbox": "Toolbox",
+      "input": {
+        "file": "Audio file",
+        "text": "Text",
+        "live": "Live microphone"
+      },
+      "run": "Run",
+      "noText": "Type the text to synthesize first",
+      "ready": "Ready",
+      "duration": "Duration",
+      "textPlaceholder": "Type the text to read aloud…",
+      "liveHint": "Press Start recording, then speak into the microphone. Live results accumulate below.",
+      "loading": "Loading model",
+      "download": "Download",
+      "transcript": "Transcript",
+      "copy": "Copy",
+      "copied": "Copied",
+      "history": "Live history",
+      "noResult": "No result yet. Choose an input and press Run — or Start recording for live tools.",
+      "elapsed": "Elapsed",
+      "backend": "Backend"
+    },
+    "sections": {
+      "webSpeech": "Web Speech API",
+      "whisper": "Whisper",
+      "kokoro": "Kokoro",
+      "edge": "Edge TTS",
+      "mediapipe": "MediaPipe",
+      "transformers": "Transformers.js",
+      "transcribe": "Transcription",
+      "translate": "Speech translation",
+      "synthesize": "Speech synthesis",
+      "eventClassify": "Audio event classification",
+      "emotion": "Speech emotion"
+    }
   },
   "vc": {
     "off": "Original",
@@ -1177,10 +1305,34 @@
     "format": "Format",
     "quality": "Quality",
     "clickHint": "Click the result canvas to inspect pixels",
+    "promptHint": "Click the image to place a hint point — the mask is computed around it",
+    "liveStart": "Live camera",
+    "liveStop": "Stop live",
+    "sketchTitle": "Draw here",
+    "sketchHint": "White background with thick black lines — doodle models are trained on exactly this style",
+    "brush": "Brush",
+    "clearCanvas": "Clear",
+    "elapsed": "Elapsed",
+    "backend": "Backend",
+    "firstLoadHint": "First run downloads and initializes the model (can be large) — later runs are much faster.",
     "secondImage": "Second Image",
     "secondImageHint": "Click or drag a second image (used by two-image tools like feature matching)",
     "replaceSecond": "Replace",
     "planned": "Planned",
+    "sections": {
+      "mediapipe": "MediaPipe",
+      "yolo": "YOLO",
+      "transformers": "Transformers.js",
+      "tfjs": "TensorFlow.js",
+      "pretrained": "Pretrained model",
+      "teach": "Teach on the spot",
+      "face": "Face",
+      "handsPose": "Hands & Pose",
+      "detection": "Detection & Classification",
+      "segmentation": "Segmentation & Matting",
+      "embedding": "Embedding",
+      "depth": "Depth & Captioning"
+    },
     "faceStudio": {
       "addPhotos": "Add photos",
       "photosHint": "Select multiple at once; for group photos click a face thumbnail to choose which face to use",
@@ -1253,7 +1405,8 @@
     "resizeDragS": "Drag diagonally to scale proportionally"
   },
   "footer": {
-    "builtWith": "Built with Nuxt UI"
+    "builtWith": "Built with Nuxt UI",
+    "modelStatus": "Model status"
   },
   "robotArm": {
     "externalNote": "Local simulation needs nothing extra; to connect a real arm, run rosbridge and enter its address (ws://ARM_IP:9090); LLM chat is not deployed yet.",

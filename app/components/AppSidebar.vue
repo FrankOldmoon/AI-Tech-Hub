@@ -5,6 +5,10 @@
  * - 子级：分类下的各功能页面
  * - 当前路由所在分类自动展开，当前页面高亮
  * - embedded 模式：用于 Slideover/Drawer 内部，去掉固定定位
+ *
+ * 注意链接一律用 `demoPath(demo)`（取 demo 的**规范分类**），不能用 `/${cat.slug}/${demo.slug}`：
+ * `byCategory` 会带出通过 `alsoIn` 跨分类归属到本分类的 demo（如 ml 的训练页也出现在 vision 列表里），
+ * 用当前分类拼 URL 会生成 `/vision/image-training` 这种不存在的路径 —— 页面只显示「不存在」却仍返回 200。
  */
 const props = withDefaults(defineProps<{
   embedded?: boolean
@@ -33,8 +37,8 @@ function isExpanded(slug: string) {
   return expanded.value.has(slug)
 }
 
-function isDemoActive(catSlug: string, demoSlug: string) {
-  return route.path === `/${catSlug}/${demoSlug}`
+function isDemoActive(demo: { slug: string, category: string }) {
+  return route.path === demoPath(demo)
 }
 </script>
 
@@ -78,9 +82,9 @@ function isDemoActive(catSlug: string, demoSlug: string) {
           <NuxtLink
             v-for="demo in byCategory(cat.slug)"
             :key="demo.slug"
-            :to="`/${cat.slug}/${demo.slug}`"
+            :to="demoPath(demo)"
             class="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm min-w-0"
-            :class="isDemoActive(cat.slug, demo.slug)
+            :class="isDemoActive(demo)
               ? 'bg-primary/10 text-primary font-medium'
               : 'text-muted hover:bg-elevated/60 hover:text-highlighted'"
           >

@@ -8,7 +8,7 @@ import {
  * 标题/描述已根据 locale 取值为字符串，组件可直接展示
  */
 export function useDemos() {
-  const { locale } = useI18n()
+  const { t, locale } = useI18n()
   const lang = computed(() => locale.value as 'zh' | 'en')
   const pick = (obj?: Localized) => obj?.[lang.value] ?? obj?.en ?? ''
 
@@ -29,9 +29,10 @@ export function useDemos() {
     }))
   )
 
+  /** 列表 = 规范归属本分类的 + 通过 alsoIn 跨分类归属到本分类的（后者 URL 仍指向其规范分类） */
   const byCategory = (slug: DemoCategory | string) =>
     localizedDemos.value
-      .filter(d => d.category === slug)
+      .filter(d => d.category === slug || d.alsoIn?.includes(slug as DemoCategory))
       .slice()
       .sort((a, b) => a.title.localeCompare(b.title, lang.value))
 
@@ -47,7 +48,14 @@ export function useDemos() {
     const groups: { key?: string, title: string, demos: LocalizedDemo[] }[] = []
     const unordered = new Map<string, LocalizedDemo[]>()
     const remaining: LocalizedDemo[] = []
+    const cross: LocalizedDemo[] = []
     for (const d of list) {
+      // 跨分类归属的项单独成组放在最后：它们同时出现在两个分类的列表里，
+      // 与「本分类自己的」条目混在一个网格里会让人以为是本分类独有的能力
+      if (d.category !== slug) {
+        cross.push(d)
+        continue
+      }
       if (d.group && d.group in visionGroupLabels) {
         const arr = unordered.get(d.group) ?? []
         arr.push(d)
@@ -61,6 +69,7 @@ export function useDemos() {
       if (arr?.length) groups.push({ key, title: groupTitle(key), demos: arr })
     }
     if (remaining.length) groups.push({ key: undefined, title: '', demos: remaining })
+    if (cross.length) groups.push({ key: 'cross', title: t('demo.crossListed'), demos: cross })
     return groups
   }
 

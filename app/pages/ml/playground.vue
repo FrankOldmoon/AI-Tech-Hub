@@ -91,17 +91,18 @@ function draw() {
       ctx.fillRect(gx * cell, gy * cell, cell + 1, cell + 1)
     }
   }
-  // 数据集点
+  // 数据点
   for (const s of data) {
     ctx.beginPath()
-    ctx.arc(toCanvas(s.x[0]), toCanvas(s.x[1]), 4, 0, Math.PI * 2)
+    // x 恒为 [x, y] 两元素（generateData 与自定义点都按此构造）
+    ctx.arc(toCanvas(s.x[0]!), toCanvas(s.x[1]!), 4, 0, Math.PI * 2)
     ctx.fillStyle = s.y === 1 ? '#3B82F6' : '#F97316'
     ctx.fill()
   }
   // 自定义点（白描边）
   for (const s of customPoints.value) {
     ctx.beginPath()
-    ctx.arc(toCanvas(s.x[0]), toCanvas(s.x[1]), 5, 0, Math.PI * 2)
+    ctx.arc(toCanvas(s.x[0]!), toCanvas(s.x[1]!), 5, 0, Math.PI * 2)
     ctx.fillStyle = s.y === 1 ? '#3B82F6' : '#F97316'
     ctx.fill()
     ctx.strokeStyle = '#FFFFFF'
@@ -117,7 +118,8 @@ function runBatch() {
   let sum = 0
   for (let k = 0; k < 10; k++) {
     const i = Math.floor(Math.random() * all.length)
-    sum += net.trainStep(all[i].x, all[i].y, learningRate.value)
+    // i ∈ [0, all.length)，上面已判空，故下标必在界内
+    sum += net.trainStep(all[i]!.x, all[i]!.y, learningRate.value)
   }
   epoch.value += 1
   loss.value = sum / 10

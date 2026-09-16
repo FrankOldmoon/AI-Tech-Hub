@@ -81,13 +81,14 @@ function evolve() {
   bestScore.value = Math.max(bestScore.value, genBest.value)
   const elites = sorted.slice(0, 4).map(b => b.net.clone())
   const next: Bird[] = []
+  // elites 固定有 4 项（POP=30 只鸟取前 4），故下面两个循环的下标必在界内
   // 保留前 2 名精英原样（不变异，保证不退化）
   for (let i = 0; i < 2; i++) {
-    next.push({ net: elites[i].clone(), y: H / 2, vy: -2, alive: true, score: 0, steps: 0, passed: new Set() })
+    next.push({ net: elites[i]!.clone(), y: H / 2, vy: -2, alive: true, score: 0, steps: 0, passed: new Set() })
   }
   // 其余由精英变异产生
   for (let i = 2; i < POP; i++) {
-    const child = elites[i % elites.length].clone()
+    const child = elites[i % elites.length]!.clone()
     child.mutate(0.3, 0.8)
     next.push({ net: child, y: H / 2, vy: -2, alive: true, score: 0, steps: 0, passed: new Set() })
   }
@@ -99,12 +100,13 @@ function evolve() {
 function step() {
   // 管道移动
   for (const p of pipes) p.x -= PIPE_SPEED
-  if (pipes.length && pipes[0].x < -PIPE_W) pipes.shift()
+  if (pipes.length && pipes[0]!.x < -PIPE_W) pipes.shift()
   const last = pipes[pipes.length - 1]
   if (!last || last.x < W - PIPE_SPACING) {
     pipes.push({ x: (last ? last.x + PIPE_SPACING : W + 100), gapY: 90 + Math.random() * (H - 180), id: ++pipeId })
   }
-  const nextPipe = pipes.find(p => p.x + PIPE_W >= BIRD_X) || pipes[pipes.length - 1]
+  // 上面的分支在 pipes 为空时必定 push，故 nextPipe（find 命中项或末项）一定存在
+  const nextPipe = (pipes.find(p => p.x + PIPE_W >= BIRD_X) || pipes[pipes.length - 1])!
 
   for (const b of birds) {
     if (!b.alive) continue

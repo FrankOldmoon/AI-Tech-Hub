@@ -13,7 +13,6 @@ const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'hum-to-notes')!)
 
 const source = ref<'mic' | 'file'>('mic')
-const recording = ref(false)
 const recordSeconds = ref(0)
 const audioFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement>()
@@ -63,15 +62,50 @@ async function analyze() {
 }
 
 // ---- 麦克风实时识别（边哼边出简谱）----
-let audioCtx: AudioContext | null = null
-let liveStream: MediaStream | null = null
-let processor: ScriptProcessorNode | null = null
+// 采集链（getUserMedia + AudioContext + ScriptProcessor + 卸载 teardown）改用公共 composable：
+// 原先 audio-classifier / emotion / pitch-detector / 本页各有一份逐行相同的样板。
+// 它的 running 正是模板里的「录音中」标志，直接改名复用，避免再维护一份会被写乱的本地状态。
+const { running: recording, start: startMic, stop: stopMic } = useMicStream()
+
 let recordTimer: number | null = null
-/** 录音开始时的 context 时钟，用于换算相对时间 */
-let liveStartCtx = 0
+/** 录音起始时刻（挂钟毫秒），用于把帧换算成相对时间 */
+let liveStartMs = 0
 /** 连续静音帧数（静音超过阈值则闭合当前音符） */
 let silentFrames = 0
 const LIVE_WIN = 2048
+
+/**
+ * 逐帧回调：composable 已切好 16kHz 单声道 4096 样本帧，算法一行不动。
+ * 原实现用 AudioProcessingEvent.playbackTime 减 context 起始时刻来标记帧时间，而 composable
+ * 的帧回调只给样本、不带时间戳，所以这里改用挂钟时间（并以第一帧为零点，等价于原实现
+ * 「建完 context 才取 currentTime」）。音符起止时间只用于相对比较与回放排期，相差在毫秒级，
+ * 简谱切分结果不受影响。
+ */
+function onFrame(frame: Float32Array) {
+  if (liveStartMs === 0) liveStartMs = performance.now()
+  const t = Math.max(0, (performance.now() - liveStartMs) / 1000)
+  const res = yinPitch(frame.subarray(0, LIVE_WIN) as Float32Array, 16000, 0.15, 70, 900)
+  const last = notes.value[notes.value.length - 1]
+  if (res && res.clarity > 0.5) {
+    silentFrames = 0
+    liveFreq.value = Math.round(res.freq)
+    const n = freqToName(res.freq)
+    liveNoteName.value = `${n.syll} (${n.name})`
+    if (last && last.name === n.name) {
+      last.end = t
+    } else {
+      // 上一音已静音闭合，或直接开新音
+      notes.value.push({ freq: res.freq, name: n.name, syll: n.syll, start: t, end: t })
+    }
+  } else if (last) {
+    silentFrames++
+    if (silentFrames >= 6) {
+      last.end = t
+      silentFrames = 0
+      liveNoteName.value = ''
+    }
+  }
+}
 
 async function startRecording() {
   if (recording.value) return
@@ -81,51 +115,21 @@ async function startRecording() {
   liveNoteName.value = ''
   played.value = false
   silentFrames = 0
-  try {
-    liveStream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1 } })
-    audioCtx = new AudioContext({ sampleRate: 16000 })
-    liveStartCtx = audioCtx.currentTime
-    const source = audioCtx.createMediaStreamSource(liveStream)
-    processor = audioCtx.createScriptProcessor(4096, 1, 1)
-    processor.onaudioprocess = (e: AudioProcessingEvent) => {
-      const data = e.inputBuffer.getChannelData(0)
-      const t = Math.max(0, e.playbackTime - liveStartCtx)
-      const res = yinPitch(data.subarray(0, LIVE_WIN) as Float32Array, 16000, 0.15, 70, 900)
-      const last = notes.value[notes.value.length - 1]
-      if (res && res.clarity > 0.5) {
-        silentFrames = 0
-        liveFreq.value = Math.round(res.freq)
-        const n = freqToName(res.freq)
-        liveNoteName.value = `${n.syll} (${n.name})`
-        if (last && last.name === n.name) {
-          last.end = t
-        } else {
-          // 上一音已静音闭合，或直接开新音
-          notes.value.push({ freq: res.freq, name: n.name, syll: n.syll, start: t, end: t })
-        }
-      } else if (last) {
-        silentFrames++
-        if (silentFrames >= 6) {
-          last.end = t
-          silentFrames = 0
-          liveNoteName.value = ''
-        }
-      }
-    }
-    source.connect(processor)
-    processor.connect(audioCtx.destination)
-    recording.value = true
-    recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
-  } catch (e: any) {
-    error.value = mediaError(e, t)
-  }
+  liveStartMs = 0
+  await startMic({
+    // 显式 16kHz：本页吃的是 YIN 在 70–900Hz 的分析结果，与文件模式的 decodeTo16k 同源
+    sampleRate: 16000,
+    onFrame,
+    // 采集失败（权限/设备）由 composable 回调，此时它已停掉流、关掉 context
+    onError: (e) => { error.value = mediaError(e, t) }
+  })
+  if (!recording.value) return
+  recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
 }
 
+/** 结束录音：采集链的 teardown 由 composable 负责，这里只收本页自己的秒表与显示状态 */
 function stopRecording() {
-  if (processor) { processor.disconnect(); processor = null }
-  if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null }
-  if (liveStream) { liveStream.getTracks().forEach(t => t.stop()); liveStream = null }
-  recording.value = false
+  stopMic()
   if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
   recordSeconds.value = 0
   liveFreq.value = 0
@@ -193,7 +197,10 @@ function stopPlay() {
 }
 
 onBeforeUnmount(() => {
-  stopRecording(); stopPlay()
+  // 采集链的 teardown 由 useMicStream 的卸载钩子自行完成（此处不再重复停流/关 context）；
+  // 只收拾本页自己的三样东西：秒表（不清会留下一直在跑的 setInterval）、回放、objectURL
+  if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
+  stopPlay()
   if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
 })
 </script>
@@ -246,7 +253,7 @@ onBeforeUnmount(() => {
         <UButton
           v-if="!recording"
           icon="i-lucide-mic"
-          :label="t('emotion.recordStart')"
+          :label="t('speech.recordStart')"
           color="primary"
           variant="soft"
           @click="startRecording"
@@ -254,7 +261,7 @@ onBeforeUnmount(() => {
         <UButton
           v-else
           icon="i-lucide-square"
-          :label="`${t('emotion.recordStop')} (${recordSeconds}s)`"
+          :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
           color="error"
           variant="subtle"
           @click="stopRecording"

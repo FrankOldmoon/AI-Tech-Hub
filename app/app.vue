@@ -3,10 +3,15 @@ const { t, locale } = useI18n()
 
 useHead({
   meta: [
-    { name: 'viewport', content: 'width=device-width, initial-scale=1' }
+    { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+    // 安装成 PWA 后浏览器窗口着色：跟随系统明暗，避免浅色界面配深色标题栏
+    { name: 'theme-color', content: '#ffffff', media: '(prefers-color-scheme: light)' },
+    { name: 'theme-color', content: '#0b1220', media: '(prefers-color-scheme: dark)' }
   ],
   link: [
-    { rel: 'icon', href: '/favicon.ico' }
+    { rel: 'icon', href: '/favicon.ico' },
+    { rel: 'apple-touch-icon', href: '/icon-192.png' },
+    { rel: 'manifest', href: '/manifest.webmanifest' }
   ],
   htmlAttrs: {
     lang: computed(() => (locale.value === 'zh' ? 'zh' : 'en'))
