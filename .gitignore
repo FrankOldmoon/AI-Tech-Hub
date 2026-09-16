@@ -77,7 +77,10 @@ output/
 .workbuddy/
 
 # 独立应用模型/大数据（不入库，部署时上传）
-# 学生人脸识别小工具：含学生名单（姓名/班级）与人脸特征记录等个人信息，
-# 本仓库为公开仓库，因此不收录（另注：其 models/*.bin 已被上面的 *.bin 规则忽略，
-# 即使提交也无法从新克隆直接运行）
-public/face/
+# 学生人脸识别小工具（public/face/）：**代码入库，个人信息不入库** ——
+#   students-*.json         学生姓名/班级与人脸特征记录（个人信息，公开仓库不收录）
+#   calibration-report.json 由上述数据生成的标定报告
+#   models/                 模型权重（遵守全站「模型文件不入库」约定；*.bin 另被上面的规则忽略）
+public/face/students-*.json
+public/face/calibration-report.json
+public/face/models/
