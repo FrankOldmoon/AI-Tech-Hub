@@ -1,12 +1,13 @@
 /**
- * ffmpeg.wasm 懒加载（CDN）+ 媒体转码：录制产物、用户导入的音视频与图片都走这里。
+ * ffmpeg.wasm 懒加载（自托管）+ 媒体转码：录制产物、用户导入的音视频与图片都走这里。
  *
- * 为什么用单线程核心（`@ffmpeg/core` 的 umd 构建）：多线程核心依赖 SharedArrayBuffer，
+ * 为什么用单线程核心（`@ffmpeg/core`）：多线程核心依赖 SharedArrayBuffer，
  * 而本项目的 COOP/COEP 默认关闭（见 nuxt.config.ts 的 NUXT_ENABLE_CROSS_ORIGIN_ISOLATION），
  * 没有 SAB 就跑不起来。单线程版不依赖 SAB，代价是慢——长视频转码要等。
  *
  * 加载方式沿用 app/utils/tesseract.ts：脚本注入 + 缓存 Promise + 集中一个 BASE 常量。
- * 若以后内网部署无法访问公网，把 CDN_BASE 换成自托管目录即可（例如 /model/vendor/ffmpeg）。
+ * 资源全部自托管（不再走公网 CDN）：npm 依赖经 scripts/sync-runtime-libs.mjs 同步到
+ * .models/vendor/ffmpeg/，由 /model/* 路由以正确的 MIME 与 Range 提供 —— 内网部署同样可用。
  */
 
 export type ConvertTarget = 'mp4' | 'gif' | 'mp3' | 'wav' | 'ogg' | 'm4a' | 'flac' | 'png' | 'jpg' | 'webp' | 'bmp'
@@ -45,7 +46,7 @@ export interface FfmpegProgressEvent {
   time: number
 }
 
-/** @ffmpeg/ffmpeg 实例的最小接口（脚本从 CDN 注入，拿不到官方类型） */
+/** @ffmpeg/ffmpeg 实例的最小接口（UMD 脚本注入后挂在 globalThis，拿不到官方类型） */
 export interface FfmpegLike {
   load(options: { coreURL: string, wasmURL: string, classWorkerURL?: string }): Promise<void>
   writeFile(path: string, data: Uint8Array): Promise<boolean>
@@ -59,14 +60,21 @@ export interface FfmpegLike {
 
 interface FfmpegGlobals {
   FFmpegWASM?: { FFmpeg: new () => FfmpegLike }
-  FFmpegUtil?: { toBlobURL: (url: string, mime: string) => Promise<string> }
 }
 
-const CDN_BASE = 'https://cdn.jsdelivr.net/npm'
-const FFMPEG_VERSION = '0.12.10'
-const UTIL_VERSION = '0.12.1'
-/** 单线程核心：不依赖 SharedArrayBuffer（多线程版是 @ffmpeg/core-mt） */
-const CORE_VERSION = '0.12.6'
+/** 本地资源基址：由 scripts/sync-runtime-libs.mjs 从 npm 依赖同步到 .models/vendor/ */
+const VENDOR_BASE = '/model/vendor/ffmpeg'
+
+/**
+ * vendor 路径 → 绝对 URL。
+ * classWorkerURL 必须带 origin：库内部是
+ * `new Worker(new URL(classWorkerURL, "file:///…/classes.js"), { type: "module" })`，
+ * 纯路径（/model/…）会以那个 file:// 基址解析成 `file:///model/…` 而直接加载失败。
+ * （CDN 时代传的是 blob: URL，自带 scheme 所以没暴露这个问题。）
+ */
+function vendorUrl(file: string): string {
+  return new URL(`${VENDOR_BASE}/${file}`, window.location.href).href
+}
 
 let ffmpegPromise: Promise<FfmpegLike> | null = null
 let logSink: ((message: string) => void) | null = null
@@ -90,16 +98,16 @@ export function loadFfmpeg(): Promise<FfmpegLike> {
   if (ffmpegPromise) return ffmpegPromise
   ffmpegPromise = (async () => {
     const g = globalThis as unknown as FfmpegGlobals
-    if (!g.FFmpegWASM || !g.FFmpegUtil) {
-      await Promise.all([
-        injectScript(`${CDN_BASE}/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/umd/ffmpeg.js`),
-        injectScript(`${CDN_BASE}/@ffmpeg/util@${UTIL_VERSION}/dist/umd/index.js`)
-      ])
+    if (!g.FFmpegWASM) {
+      try {
+        await injectScript(`${VENDOR_BASE}/ffmpeg.js`)
+      } catch {
+        throw new Error('ffmpeg.wasm 本地资源缺失，请先运行 `node scripts/sync-runtime-libs.mjs`')
+      }
     }
     const Ctor = g.FFmpegWASM?.FFmpeg
-    const toBlobURL = g.FFmpegUtil?.toBlobURL
-    if (!Ctor || !toBlobURL) {
-      throw new Error('ffmpeg CDN 脚本已加载，但全局对象缺失')
+    if (!Ctor) {
+      throw new Error('ffmpeg.wasm 脚本已加载，但全局对象缺失')
     }
     const instance = new Ctor()
     instance.on('log', (e) => {
@@ -108,16 +116,15 @@ export function loadFfmpeg(): Promise<FfmpegLike> {
     instance.on('progress', (e) => {
       progressSink?.(e.progress)
     })
-    // core 必须用 esm 版：库的 worker 是 module worker，它用 (await import(coreURL)).default
-    // 取 core，UMD 版只挂全局变量、没有 default 导出（实测会报 "failed to import ffmpeg-core.js"）
-    const core = `${CDN_BASE}/@ffmpeg/core@${CORE_VERSION}/dist/esm`
-    const umd = `${CDN_BASE}/@ffmpeg/ffmpeg@${FFMPEG_VERSION}/dist/umd`
-    // 三处都要用 blob URL 包一层：core 与库自身的 worker（814.ffmpeg.js）都会以 URL 构造
-    // Worker，而 Worker 不接受跨域脚本（实测不包会报 "cannot be accessed from origin"）。
+    // 三个 URL 都同源，但一律给绝对 URL：
+    // - Worker 只接受同源脚本，同源绝对 URL 满足（CDN 时代才需要包成 blob URL）
+    // - 库的 worker 是 module worker，用 (await import(coreURL)).default 取 core，
+    //   因此 core 必须是 esm 版（UMD 版没有 default 导出）
+    // - wasm 有 32MB，省掉「取回 → 包 blob → 再取一次」能少一次完整内存拷贝
     await instance.load({
-      coreURL: await toBlobURL(`${core}/ffmpeg-core.js`, 'text/javascript'),
-      wasmURL: await toBlobURL(`${core}/ffmpeg-core.wasm`, 'application/wasm'),
-      classWorkerURL: await toBlobURL(`${umd}/814.ffmpeg.js`, 'text/javascript')
+      coreURL: vendorUrl('ffmpeg-core.js'),
+      wasmURL: vendorUrl('ffmpeg-core.wasm'),
+      classWorkerURL: vendorUrl('814.ffmpeg.js')
     })
     return instance
   })()

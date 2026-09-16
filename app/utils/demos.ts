@@ -367,7 +367,7 @@ export const demos: Demo[] = [
     category: 'speech',
     title: { zh: '录音工具', en: 'Audio Recorder' },
     description: { zh: '用麦克风录音并实时显示输入电平；录完可试听、下载，也能在浏览器内转成 MP3 / WAV / OGG / M4A / FLAC。', en: 'Record from the microphone with a live input level meter; play back, download, and convert to MP3 / WAV / OGG / M4A / FLAC in the browser.' },
-    howItWorks: { zh: 'MediaRecorder 直接采集麦克风并用浏览器原生编码（Chrome 为 webm/Opus，Safari 为 m4a/AAC），音频不经过服务器。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，转换全在本地完成。电平表由 WebAudio 分析节点驱动。', en: 'MediaRecorder captures the microphone with the browser’s native codec (webm/Opus on Chrome, m4a/AAC on Safari); audio never touches a server. Conversion uses ffmpeg.wasm, lazily loaded from a CDN with the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here): ~32MB on first use, all on-device. A WebAudio analyser node drives the level meter.' },
+    howItWorks: { zh: 'MediaRecorder 直接采集麦克风并用浏览器原生编码（Chrome 为 webm/Opus，Safari 为 m4a/AAC），音频不经过服务器。转格式交给 ffmpeg.wasm：单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭）随站点自托管，首次加载约 32MB，转换全在本地完成。电平表由 WebAudio 分析节点驱动。', en: 'MediaRecorder captures the microphone with the browser’s native codec (webm/Opus on Chrome, m4a/AAC on Safari); audio never touches a server. Conversion uses ffmpeg.wasm with the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here), self-hosted with the site: ~32MB on first use, all on-device. A WebAudio analyser node drives the level meter.' },
     icon: 'i-lucide-mic',
     status: 'ready',
     requirements: { mic: true },
@@ -379,7 +379,7 @@ export const demos: Demo[] = [
     category: 'speech',
     title: { zh: '音频格式转换', en: 'Audio Format Converter' },
     description: { zh: '在 MP3 / WAV / OGG / M4A / FLAC 之间互转，可调码率，并对比转换前后的体积。', en: 'Convert between MP3 / WAV / OGG / M4A / FLAC, adjust the bitrate, and compare the file size before and after.' },
-    howItWorks: { zh: '导入音频后选目标格式与码率：有损格式（MP3/OGG/M4A）可按 kbps 调，WAV/FLAC 是无损、无需码率。转换由 ffmpeg.wasm 完成（从 CDN 懒加载单线程核心），音频不上传。', en: 'Pick a target format and bitrate: lossy formats (MP3/OGG/M4A) take a kbps setting, while WAV/FLAC are lossless and need none. Conversion runs in ffmpeg.wasm (single-thread core fetched from a CDN) and audio never leaves the device.' },
+    howItWorks: { zh: '导入音频后选目标格式与码率：有损格式（MP3/OGG/M4A）可按 kbps 调，WAV/FLAC 是无损、无需码率。转换由 ffmpeg.wasm 完成（单线程核心随站点自托管，首次加载约 32MB），音频不上传。', en: 'Pick a target format and bitrate: lossy formats (MP3/OGG/M4A) take a kbps setting, while WAV/FLAC are lossless and need none. Conversion runs in ffmpeg.wasm (single-thread core self-hosted with the site, ~32MB on first load) and audio never leaves the device.' },
     icon: 'i-lucide-file-audio',
     status: 'ready',
     tags: ['MP3', 'WAV', 'FLAC', 'ffmpeg.wasm']
@@ -1284,8 +1284,8 @@ export const demos: Demo[] = [
       en: 'Record from the camera, the screen, or both (picture-in-picture). Camera mode captures audio too. Download the result, convert it to MP4 / GIF / MP3, or generate an SRT subtitle file in the browser; camera mode can also snap a still as JPG.'
     },
     howItWorks: {
-      zh: '用 MediaRecorder 录制：屏幕走 getDisplayMedia，摄像头走 getUserMedia（含麦克风）。「摄像头+屏幕」把两路画进 canvas（屏幕铺底、摄像头右下角画中画）后录 canvas.captureStream()，音频用 WebAudio 混成一路。转格式交给 ffmpeg.wasm：从 CDN 懒加载单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭），首次约 32MB，全部在本地完成、不上传。「拍照」则是把当前帧画进 canvas 直接导成 JPG（摄像头模式抓预览帧，画中画模式抓合成画布）。',
-      en: 'Recording uses MediaRecorder: getDisplayMedia for the screen, getUserMedia for the camera (with mic). The combined mode draws both into a canvas (screen plus a camera picture-in-picture) and records canvas.captureStream(), with audio mixed via WebAudio. Format conversion runs ffmpeg.wasm, lazily loaded from a CDN using the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here). ~32MB on first use, and everything stays on-device. "Take photo" simply draws the current frame into a canvas and exports it as JPG (the camera preview in camera mode, the composed canvas in picture-in-picture mode).'
+      zh: '用 MediaRecorder 录制：屏幕走 getDisplayMedia，摄像头走 getUserMedia（含麦克风）。「摄像头+屏幕」把两路画进 canvas（屏幕铺底、摄像头右下角画中画）后录 canvas.captureStream()，音频用 WebAudio 混成一路。转格式交给 ffmpeg.wasm：单线程核心（多线程版需要 SharedArrayBuffer，本项目 COOP/COEP 默认关闭）随站点自托管，首次加载约 32MB，全部在本地完成、不上传。「拍照」则是把当前帧画进 canvas 直接导成 JPG（摄像头模式抓预览帧，画中画模式抓合成画布）。',
+      en: 'Recording uses MediaRecorder: getDisplayMedia for the screen, getUserMedia for the camera (with mic). The combined mode draws both into a canvas (screen plus a camera picture-in-picture) and records canvas.captureStream(), with audio mixed via WebAudio. Format conversion runs ffmpeg.wasm with the single-thread core (the multithread build needs SharedArrayBuffer, and COOP/COEP is off by default here), self-hosted with the site: ~32MB on first use, and everything stays on-device. "Take photo" simply draws the current frame into a canvas and exports it as JPG (the camera preview in camera mode, the composed canvas in picture-in-picture mode).'
     },
     icon: 'i-lucide-circle-dot',
     status: 'ready',
@@ -1303,8 +1303,8 @@ export const demos: Demo[] = [
       en: 'Convert between PNG / JPEG / WebP / BMP, adjust quality, and compare the file size before and after.'
     },
     howItWorks: {
-      zh: '上传或拖入图片，选目标格式后本地转码：由 ffmpeg.wasm 完成（从 CDN 懒加载单线程核心），图片不上传；完成后并排展示原始与结果体积，方便挑「够用又最小」的格式。',
-      en: 'Drop an image in, pick a target format and convert locally: ffmpeg.wasm does the work (single-thread core fetched from a CDN) and the file never leaves the device. Before/after sizes sit side by side so the smallest acceptable format is easy to pick.'
+      zh: '上传或拖入图片，选目标格式后本地转码：由 ffmpeg.wasm 完成（单线程核心随站点自托管，首次加载约 32MB），图片不上传；完成后并排展示原始与结果体积，方便挑「够用又最小」的格式。',
+      en: 'Drop an image in, pick a target format and convert locally: ffmpeg.wasm does the work (single-thread core self-hosted with the site, ~32MB on first load) and the file never leaves the device. Before/after sizes sit side by side so the smallest acceptable format is easy to pick.'
     },
     icon: 'i-lucide-file-image',
     status: 'ready',
