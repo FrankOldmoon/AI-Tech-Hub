@@ -1,8 +1,9 @@
 <script setup lang="ts">
 /**
- * 通用媒体上传组件：拖拽 / 点击 / 示例图三合一。
+ * 通用媒体上传组件：拖拽 / 点击 / 示例图 / 摄像头四合一。
  * - 通过 v-model / emit('select', file) 暴露选中的文件
  * - optional samples 渲染「试试示例」按钮，emit('sample', url)
+ * - optional camera 提供摄像头拍照（仅图片场景），拍照结果同样走 emit('select')
  * - 统一尺寸校验与错误提示，避免各页面重复实现
  */
 const props = defineProps<{
@@ -15,6 +16,8 @@ const props = defineProps<{
   /** 最大文件大小（字节），默认 30MB */
   maxSize?: number
   disabled?: boolean
+  /** 是否提供摄像头拍照入口（图片输入） */
+  camera?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +29,7 @@ const { t } = useI18n()
 const fileInput = ref<HTMLInputElement>()
 const dragOver = ref(false)
 const error = ref<string | null>(null)
+const cameraOpen = ref(false)
 
 function openPicker() {
   if (props.disabled) return
@@ -59,6 +63,11 @@ function onDrop(e: DragEvent) {
 function onSample(s: { url: string }) {
   if (props.disabled) return
   emit('sample', s.url)
+}
+
+function onCameraCapture(file: File) {
+  cameraOpen.value = false
+  validateAndEmit(file)
 }
 
 const resolved = computed(() => ({
@@ -126,5 +135,27 @@ const resolved = computed(() => ({
       icon="i-lucide-alert-triangle"
       :title="error"
     />
+
+    <!-- 摄像头拍照（仅图片场景） -->
+    <template v-if="camera">
+      <WebcamCapture
+        v-if="cameraOpen"
+        @capture="onCameraCapture"
+        @close="cameraOpen = false"
+      />
+      <button
+        v-else
+        type="button"
+        class="mx-auto flex items-center gap-2 rounded-lg border border-default/70 bg-elevated/40 px-3 py-1.5 text-sm text-muted transition hover:border-primary/50 hover:text-highlighted disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="disabled"
+        @click="cameraOpen = true"
+      >
+        <UIcon
+          name="i-lucide-video"
+          class="size-4"
+        />
+        {{ t('webcam.useCamera') }}
+      </button>
+    </template>
   </div>
 </template>
