@@ -17,7 +17,7 @@
  * 不算失败（见 support/console.ts 的降级名单）。
  */
 import { expect, test } from '@playwright/test'
-import { blockingConsoleErrors, describeIssues, requestTail, watchPage } from './support/console'
+import { blockingConsoleErrors, describeIssues, requestTail, serverErrorTail, watchPage } from './support/console'
 import { readyDemos, routeOf } from './support/routes'
 
 /** 只有这三类的页面由注册表驱动的工具栏承载 */
@@ -107,7 +107,9 @@ for (const demo of playgrounds) {
       const newConsole = blockingConsoleErrors(issues).slice(consoleBefore)
       expect(
         newConsole,
-        describeIssues(`选中/运行「${name}」后出现控制台错误（${path}）`, newConsole) + requestTail(issues)
+        describeIssues(`选中/运行「${name}」后出现控制台错误（${path}）`, newConsole)
+        + requestTail(issues)
+        + serverErrorTail(issues)
       ).toEqual([])
     }
 

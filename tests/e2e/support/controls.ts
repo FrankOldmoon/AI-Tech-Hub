@@ -5,7 +5,7 @@
  * 一次枚举出来的下标会漂移。用「标签 + 已点集合」做去重，比按 index 点稳得多。
  */
 import { expect, type Locator, type Page, type TestInfo } from '@playwright/test'
-import { blockingConsoleErrors, describeIssues, requestTail, type PageIssues } from './console'
+import { blockingConsoleErrors, describeIssues, requestTail, serverErrorTail, type PageIssues } from './console'
 
 /** 不点的控件：会触发浏览器下载（容易把用例挂住），也不是「功能」本身 */
 const SKIP_TEXT = [/下载/, /download/i]
@@ -143,7 +143,9 @@ export async function clickThrough(
     const newConsole = blockingConsoleErrors(issues).slice(consoleBefore)
     expect(
       newConsole,
-      describeIssues(`点「${next.label}」后出现控制台错误（${route}）`, newConsole) + requestTail(issues)
+      describeIssues(`点「${next.label}」后出现控制台错误（${route}）`, newConsole)
+      + requestTail(issues)
+      + serverErrorTail(issues)
     ).toEqual([])
   }
 
