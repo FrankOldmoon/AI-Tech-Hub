@@ -34,7 +34,6 @@ useSeoMeta({
   ogDescription: () => props.demo.description || ''
 })
 
-const fileInput = ref<HTMLInputElement>()
 const origCanvas = ref<HTMLCanvasElement>()
 const resultCanvas = ref<HTMLCanvasElement>()
 const secondFileInput = ref<HTMLInputElement>()
@@ -49,8 +48,6 @@ const secondFileName = ref('')
 const sourceBytes = ref(0)
 const running = ref(false)
 const error = ref<string | null>(null)
-const dragOver = ref(false)
-const webcamOpen = ref(false)
 
 const activeToolId = ref('')
 const activeTool = computed<ImageTool | undefined>(() => props.tools.find(t => t.id === activeToolId.value) || props.tools[0])
@@ -951,24 +948,10 @@ async function loadSecondFile(file: File) {
   }
 }
 
-function openFilePicker() {
-  fileInput.value?.click()
-}
-
-function onFileChange(e: Event) {
-  const f = (e.target as HTMLInputElement).files?.[0]
-  if (f) loadFile(f)
-}
-
-function onDrop(e: DragEvent) {
-  dragOver.value = false
-  const f = e.dataTransfer?.files?.[0]
-  if (f) loadFile(f)
-}
-
-function onCamCapture(file: File) {
-  loadFile(file)
-  webcamOpen.value = false
+/** 通用输入组件只回传 url，这里按 url 找回本页的示例条目（可能带 secondUrl 配对图） */
+function onSample(url: string) {
+  const s = sampleImages.value.find(x => x.url === url)
+  if (s) void useSample(s)
 }
 
 function openSecondFilePicker() {
@@ -1137,73 +1120,15 @@ const modeText = computed(() => {
           </div>
         </div>
 
-        <!-- 上传区 -->
-        <div
+        <!-- 上传区 / 示例 / 摄像头：统一走通用图片输入组件（拖拽 + 示例 + 拍照） -->
+        <MediaInput
           v-if="!original && !needsDrawing"
-          class="border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors"
-          :class="dragOver ? 'border-primary bg-primary/5' : 'border-default hover:border-primary/60'"
-          @click="openFilePicker"
-          @dragover.prevent="dragOver = true"
-          @dragleave="dragOver = false"
-          @drop.prevent="onDrop"
-        >
-          <UIcon
-            name="i-lucide-image-plus"
-            class="size-10 text-muted mx-auto"
-          />
-          <p class="mt-3 text-sm font-medium text-highlighted">
-            {{ t('image.upload') }}
-          </p>
-          <p class="mt-1 text-xs text-dimmed">
-            {{ t('image.uploadHint') }}
-          </p>
-          <div
-            class="mt-4 flex flex-wrap justify-center items-center gap-2"
-            @click.stop
-          >
-            <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
-            <UButton
-              v-for="s in sampleImages"
-              :key="s.url"
-              :label="s.label"
-              icon="i-lucide-image"
-              size="xs"
-              color="neutral"
-              variant="soft"
-              @click="useSample(s)"
-            />
-          </div>
-        </div>
-        <input
-          ref="fileInput"
-          type="file"
           accept="image/*"
-          class="hidden"
-          @change="onFileChange"
-        >
-
-        <!-- 摄像头取帧 -->
-        <div
-          v-if="webcamOpen"
-          class="mt-4"
-        >
-          <WebcamCapture
-            @capture="onCamCapture"
-            @close="webcamOpen = false"
-          />
-        </div>
-        <button
-          v-if="!webcamOpen && !needsDrawing"
-          type="button"
-          class="mt-3 mx-auto flex items-center gap-2 rounded-lg border border-default/70 bg-elevated/40 px-3 py-1.5 text-sm text-muted transition hover:border-primary/50 hover:text-highlighted"
-          @click="webcamOpen = true"
-        >
-          <UIcon
-            name="i-lucide-video"
-            class="size-4"
-          />
-          {{ t('webcam.useCamera') }}
-        </button>
+          camera
+          :samples="sampleImages"
+          @select="loadFile"
+          @sample="onSample"
+        />
 
         <template v-if="original">
           <!-- 图片信息 -->

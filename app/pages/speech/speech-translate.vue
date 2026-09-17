@@ -30,19 +30,25 @@ const dirItems = computed(() => [
 ])
 
 // ===== 输入 =====
-const source = ref<'mic' | 'file'>('mic')
-
-// 上传/示例：文件 ref、objectURL、隐藏 input、解码缓存全交给 useAudioSource，
-// objectURL 的创建与回收也随之移出本页。
-const audioSource = useAudioSource({
+// 上传 / 示例 / 录音统一走 useAudioInput：文件 ref、objectURL、隐藏 input、解码缓存、
+// 录音状态与秒表都在它内部（本页不再出现 URL.createObjectURL / revokeObjectURL）。
+const {
+  mode: source,
+  file: audioFile,
+  url: audioUrl,
+  setFile,
+  useSample,
+  toSamples16k,
+  recording,
+  recordSeconds,
+  startRecord,
+  stopRecord
+} = useAudioInput({
   defaultSampleUrl: '/samples/audio/speech-zh.wav',
-  onError: (e) => { error.value = humanError(e, t) }
+  namePrefix: 'speech',
+  initialMode: 'record',
+  onError: (e) => { error.value = mediaError(e, t) }
 })
-const audioFile = audioSource.file
-const audioUrl = audioSource.url
-const fileInput = audioSource.inputRef
-const pickFile = audioSource.pick
-const onFileChange = audioSource.onFileChange
 
 // ===== 参数 =====
 const specs = computed<ParamSpec[]>(() => [
@@ -83,7 +89,7 @@ function revokeResult() {
 }
 
 // 换输入后清空上一次的三段结果。原 setFile 的这些副作用改挂在 file 的 watch 上，
-// 以便 setFile 本身完全由 useAudioSource 提供（否则又要包一层重复实现）。
+// 以便 setFile 本身完全由 useAudioInput 提供（否则又要包一层重复实现）。
 watch(audioFile, () => {
   sourceText.value = ''
   translatedText.value = ''
@@ -92,27 +98,20 @@ watch(audioFile, () => {
   error.value = null
 })
 
-async function useSample() {
-  // 中文方向用中文示例音，反之用英文示例音（示例机由 useAudioSource 负责）
-  await audioSource.useSample(dir.value === 'zh-en' ? '/samples/audio/speech-zh.wav' : '/samples/audio/speech.wav')
-}
+/** 「试用示例」按钮由 AudioInput 渲染：中文方向用中文示例音，反之用英文示例音 */
+const samples = computed(() => [{
+  label: t('samples.trySample'),
+  url: dir.value === 'zh-en' ? '/samples/audio/speech-zh.wav' : '/samples/audio/speech.wav'
+}])
 
-// 录音：采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」。
-const recorder = useRecorder({
-  namePrefix: 'speech',
-  onStop: audioSource.setFile,
-  onError: (e) => { error.value = mediaError(e, t) }
-})
-const recording = recorder.recording
-const recordSeconds = recorder.seconds
-
+// 录音：采集、chunk 累积、秒表、卸载关流都在 useAudioInput 里，页面只保留「开始前清错误」。
 function startRecording() {
   error.value = null
-  recorder.start()
+  void startRecord()
 }
 
 function stopRecording() {
-  recorder.stop()
+  stopRecord()
 }
 
 function onKokoroProgress(p: KokoroProgress) {
@@ -201,8 +200,8 @@ async function run() {
   running.value = true
   cancelled = false
   try {
-    // 16kHz 单声道样本由 useAudioSource 解码并缓存（Whisper 期望输入），本页不再自己解码
-    const samples = await audioSource.toSamples16k()
+    // 16kHz 单声道样本由 useAudioInput 解码并缓存（Whisper 期望输入），本页不再自己解码
+    const samples = await toSamples16k()
     if (cancelled) return
 
     const t0 = performance.now()
@@ -251,7 +250,7 @@ watch(dir, () => {
   timings.value = null
 })
 
-// 只终止在途流水线与回收合成结果的 objectURL；输入流/输入 URL 已由 useRecorder / useAudioSource 接管。
+// 只终止在途流水线与回收合成结果的 objectURL；输入流/输入 URL 已由 useAudioInput 接管。
 onBeforeUnmount(() => {
   cancelled = true
   revokeResult()
@@ -298,75 +297,30 @@ const stepLabel = computed(() => ({
           {{ t('st.hint') }}
         </p>
 
-        <AudioSourceToggle v-model="source" />
-
-        <div class="mt-4 space-y-3">
-          <template v-if="source === 'mic'">
-            <div class="flex flex-wrap items-center gap-2">
-              <UButton
-                v-if="!recording"
-                icon="i-lucide-mic"
-                :label="t('speech.recordStart')"
-                color="primary"
-                variant="soft"
-                :disabled="running"
-                @click="startRecording"
-              />
-              <UButton
-                v-else
-                icon="i-lucide-square"
-                :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
-                color="error"
-                variant="subtle"
-                @click="stopRecording"
-              />
-              <span
-                v-if="audioFile"
-                class="text-sm text-dimmed"
-              >{{ audioFile.name }}</span>
-            </div>
+        <AudioInput
+          v-model:mode="source"
+          class="mt-4"
+          :modes="['record', 'file']"
+          :samples="samples"
+          :file-name="audioFile?.name"
+          :file-url="audioUrl"
+          :disabled="running"
+          :active="recording"
+          :seconds="recordSeconds"
+          @select="setFile"
+          @sample="useSample"
+          @start="startRecording"
+          @stop="stopRecording"
+        >
+          <template #extra>
+            <DemoParams
+              v-model="params"
+              :specs="specs"
+              :running="running"
+              :title="t('params.title')"
+            />
           </template>
-
-          <template v-else>
-            <div class="flex flex-wrap items-center gap-2">
-              <input
-                ref="fileInput"
-                type="file"
-                accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-                class="hidden"
-                @change="onFileChange"
-              >
-              <UButton
-                icon="i-lucide-upload"
-                :label="audioFile ? audioFile.name : t('speech.uploadAudio')"
-                variant="outline"
-                :disabled="running"
-                @click="pickFile"
-              />
-              <UButton
-                icon="i-lucide-flask-conical"
-                :label="t('samples.trySample')"
-                variant="soft"
-                :disabled="running"
-                @click="useSample"
-              />
-            </div>
-          </template>
-
-          <audio
-            v-if="audioUrl"
-            :src="audioUrl"
-            controls
-            class="w-full max-w-md"
-          />
-
-          <DemoParams
-            v-model="params"
-            :specs="specs"
-            :running="running"
-            :title="t('params.title')"
-          />
-        </div>
+        </AudioInput>
       </template>
 
       <!-- 控件 -->

@@ -333,6 +333,7 @@
   "speech": {
     "sourceMic": "麦克风",
     "sourceFile": "上传文件",
+    "sourceRecord": "录音",
     "uploadAudio": "上传音频",
     "analyzeFile": "分析音频",
     "noFile": "请先上传或选择音频文件",

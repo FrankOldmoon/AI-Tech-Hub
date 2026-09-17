@@ -1,9 +1,13 @@
 <script setup lang="ts">
+/* eslint-disable @stylistic/max-statements-per-line, @typescript-eslint/no-explicit-any */
 /**
- * 摄像头拍照组件。
- * - 默认：实时预览（镜像），点「拍照」把当前帧导出为 JPEG File 并 emit 'capture'。
- * - live 模式：每次打开即连续做 face-api 实时识别，在画面叠加人脸框与人名（无需逐帧拍照）。
- * 内置 getUserMedia 权限/设备/繁忙友好错误提示；卸载时自动停止媒体轨道。
+ * 人脸摄像头：在通用取帧组件 WebcamCapture 之上只加「face-api 实时识别叠加」这一层。
+ *
+ * 取流、镜像预览、拍照导出 JPEG、权限/设备错误提示、卸载停轨这些都在 WebcamCapture 里，
+ * 本组件不再自己写一遍 getUserMedia（以前两份逐行重复，改一处漏一处）。
+ *
+ * - 默认（live=false）：纯取帧，点「拍照」把当前帧交给上层。
+ * - live：预览就绪后按节流间隔识别人脸，在画布上叠加人脸框与人名。
  */
 import { mediaError } from '~/utils/errors'
 import { extractFaces, getRegistry, recognizeDescriptor, ensureFaceApiLoaded } from '~/utils/face-studio'
@@ -12,57 +16,35 @@ const { t } = useI18n()
 const props = withDefaults(defineProps<{ live?: boolean }>(), { live: false })
 const emit = defineEmits<{ capture: [file: File], close: [] }>()
 
-const videoEl = ref<HTMLVideoElement>()
 const overlayEl = ref<HTMLCanvasElement>()
-const active = ref(false)
-const busy = ref(false)
-const cameraError = ref('')
+/** 由 WebcamCapture 的 ready 事件交过来的预览 video 元素 */
+const videoEl = ref<HTMLVideoElement | null>(null)
 const liveReady = ref(false)
+const detectionError = ref('')
 
-let stream: MediaStream | null = null
 let rafId = 0
 let detectionBusy = false
-let detectionError = ''
 let lastTick = 0
 /** 实时识别更新间隔（毫秒）；face-api 逐帧太耗性能，做节流 */
 const LIVE_INTERVAL = 450
 
-async function open() {
-  if (active.value) return
-  cameraError.value = ''
-  busy.value = true
-  stream = null
-  try {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      cameraError.value = t('errors.unsupported')
-      return
-    }
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false })
-    active.value = true
-    await nextTick()
-    if (videoEl.value) {
-      videoEl.value.srcObject = stream
-      // 自动播放：iOS/部分浏览器需要 usesinnet / muted / playsinline
-      videoEl.value.muted = true
-      videoEl.value.playsInline = true
-      await videoEl.value.play().catch(() => { /* 忽略自动播放拦截 */ })
-    }
-    if (props.live) startLiveLoop()
-  } catch (e: any) {
-    cameraError.value = mediaError(e, t)
-  } finally {
-    busy.value = false
-  }
+function onCapture(file: File) {
+  emit('capture', file)
 }
 
-/** 实时识别主循环：按节流间隔从视频帧取人脸，叠加画框与人名。 */
+/** 预览就绪：拿到 video 元素，live 模式下随即开跑识别循环 */
+function onReady(video: HTMLVideoElement) {
+  videoEl.value = video
+  if (props.live) void startLiveLoop()
+}
+
 async function startLiveLoop() {
   liveReady.value = false
   try {
     await ensureFaceApiLoaded()
     liveReady.value = true
   } catch (e: any) {
-    cameraError.value = mediaError(e, t)
+    detectionError.value = mediaError(e, t)
     return
   }
   cancelLiveLoop()
@@ -74,8 +56,9 @@ function cancelLiveLoop() {
   detectionBusy = false
 }
 
+/** 实时识别主循环：按节流间隔从视频帧取人脸，叠加画框与人名。 */
 async function tick() {
-  if (!active.value || !props.live) return
+  if (!props.live || !videoEl.value) return
   rafId = requestAnimationFrame(tick)
   const now = performance.now()
   if (detectionBusy || now - lastTick < LIVE_INTERVAL) return
@@ -117,77 +100,64 @@ async function tick() {
       ctx.fillStyle = '#fff'
       ctx.fillText(label, x + 4, y - 4)
     }
+    detectionError.value = ''
   } catch (e: any) {
-    detectionError = humanized(e)
+    // 识别失败（模型/资源）走统一错误分类；取流本身的错误由 WebcamCapture 自己报
+    if (props.live) detectionError.value = mediaError(e, t)
   } finally {
     detectionBusy = false
     lastTick = performance.now()
   }
 }
 
-function humanized(e: any): string {
-  if (!props.live) return ''
-  try { return mediaError(e, t) } catch { return '' }
-}
-
-function capture() {
-  const video = videoEl.value
-  if (!video || !video.videoWidth) {
-    cameraError.value = t('errors.unknown')
-    return
-  }
-  const canvas = document.createElement('canvas')
-  canvas.width = video.videoWidth
-  canvas.height = video.videoHeight
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.drawImage(video, 0, 0)
-  canvas.toBlob((blob) => {
-    if (blob) emit('capture', new File([blob], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' }))
-  }, 'image/jpeg', 0.85)
-}
-
-function stop() {
+/** 关闭：停掉本层的识别循环，停流/停轨交给 WebcamCapture 的卸载钩子 */
+function onClose() {
   cancelLiveLoop()
-  stream?.getTracks().forEach(track => track.stop())
-  stream = null
-  active.value = false
-  if (videoEl.value) videoEl.value.srcObject = null
-}
-
-function close() {
-  stop()
+  videoEl.value = null
+  liveReady.value = false
+  detectionError.value = ''
   emit('close')
 }
 
-onBeforeUnmount(() => stop())
+onBeforeUnmount(cancelLiveLoop)
 </script>
 
 <template>
-  <div class="rounded-xl border border-default/70 bg-elevated/40 p-3">
-    <div v-if="!active" class="flex flex-wrap items-center gap-2">
-      <UButton icon="i-lucide-video" :label="t('image.faceStudio.useCamera')" color="secondary" variant="subtle" :loading="busy" @click="open" />
-    </div>
-    <div v-else class="space-y-2">
-      <div class="relative overflow-hidden rounded-lg bg-black">
-        <video ref="videoEl" class="block w-full scale-x-[-1]" muted playsinline />
+  <div>
+    <WebcamCapture
+      :open-label="t('image.faceStudio.useCamera')"
+      :capture-label="t('image.faceStudio.cameraCapture')"
+      :close-label="t('image.faceStudio.closeCamera')"
+      @capture="onCapture"
+      @close="onClose"
+      @ready="onReady"
+    >
+      <template #overlay>
         <canvas
           v-if="props.live"
           ref="overlayEl"
           class="absolute inset-0 h-full w-full"
           :class="liveReady ? 'opacity-100' : 'opacity-0'"
         />
-        <div v-if="props.live" class="pointer-events-none absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white">
-          <UIcon name="i-lucide-scan-face" class="size-3.5" />
+        <div
+          v-if="props.live"
+          class="pointer-events-none absolute left-2 top-2 rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-white"
+        >
+          <UIcon
+            name="i-lucide-scan-face"
+            class="size-3.5"
+          />
           {{ liveReady ? t('image.faceStudio.liveRecognition') : t('image.faceStudio.analyzing') }}
         </div>
-      </div>
-      <div v-if="props.live" class="text-xs text-muted">{{ t('image.faceStudio.liveHint') }}</div>
-      <div class="flex flex-wrap items-center gap-2">
-        <UButton icon="i-lucide-camera" :label="t('image.faceStudio.cameraCapture')" color="primary" @click="capture" />
-        <UButton icon="i-lucide-x" size="sm" color="neutral" variant="ghost" :label="t('image.faceStudio.closeCamera')" @click="close" />
-      </div>
-    </div>
-    <UAlert v-if="cameraError" class="mt-2" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="cameraError" />
+      </template>
+      <template #footer>
+        <div
+          v-if="props.live"
+          class="text-xs text-muted"
+        >
+          {{ t('image.faceStudio.liveHint') }}
+        </div>
+      </template>
+    </WebcamCapture>
   </div>
 </template>

@@ -5,20 +5,40 @@
  * 边哼边出简谱），或上传文件整段分析（纯 WebAudio 本端）
  */
 import { humanError, mediaError } from '~/utils/errors'
-import { decodeTo16k } from '~/utils/audio'
 import { freqToName, mergeLivePitch, yinPitch, type PitchNote } from '~/utils/pitch'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'hum-to-notes')!)
 
-const source = ref<'mic' | 'file'>('mic')
-const recordSeconds = ref(0)
-const audioFile = ref<File | null>(null)
-const fileInput = ref<HTMLInputElement>()
-const audioUrl = ref('')
 const analyzing = ref(false)
 const error = ref<string | null>(null)
+
+// 上传 / 示例 / 麦克风实时统一走 useAudioInput：文件 ref、objectURL、隐藏 input、解码缓存
+// 与采集链（getUserMedia + AudioContext + teardown）都在它内部；本页只留「哼唱分音」的算法状态。
+const {
+  mode: source,
+  file: audioFile,
+  url: audioUrl,
+  setFile,
+  useSample,
+  micRunning: recording,
+  startMic: startMicInput,
+  stopMic: stopMicInput,
+  toSamples16k
+} = useAudioInput({
+  defaultSampleUrl: '/samples/audio/speech.wav',
+  // 显式 16kHz：本页吃的是 YIN 在 70–900Hz 的分析结果，与文件模式的解码同源
+  sampleRate: 16000,
+  initialMode: 'mic',
+  onFrame,
+  onError: (e) => { error.value = mediaError(e, t) }
+})
+
+/** 「试用示例」按钮由 AudioInput 渲染，点一下回调 useSample */
+const samples = computed(() => [{ label: t('samples.trySample'), url: '/samples/audio/speech.wav' }])
+
+const recordSeconds = ref(0)
 
 const notes = ref<PitchNote[]>([])
 /** 实时模式下当前检测到的音高（用于边哼边反馈） */
@@ -52,8 +72,8 @@ async function analyze() {
   played.value = false
   analyzing.value = true
   try {
-    const samples = await decodeTo16k(audioFile.value)
-    notes.value = extractNotes(samples as Float32Array)
+    const pcm = await toSamples16k()
+    notes.value = extractNotes(pcm)
   } catch (e: any) {
     error.value = humanError(e, t)
   } finally {
@@ -62,11 +82,8 @@ async function analyze() {
 }
 
 // ---- 麦克风实时识别（边哼边出简谱）----
-// 采集链（getUserMedia + AudioContext + ScriptProcessor + 卸载 teardown）改用公共 composable：
-// 原先 audio-classifier / emotion / pitch-detector / 本页各有一份逐行相同的样板。
-// 它的 running 正是模板里的「录音中」标志，直接改名复用，避免再维护一份会被写乱的本地状态。
-const { running: recording, start: startMic, stop: stopMic } = useMicStream()
-
+// 采集链在 useAudioInput 里（useMicStream 负责 getUserMedia + AudioContext + teardown），
+// 它的 micRunning 正是模板里的「录音中」标志，直接改名复用，避免再维护一份会被写乱的本地状态。
 let recordTimer: number | null = null
 /** 录音起始时刻（挂钟毫秒），用于把帧换算成相对时间 */
 let liveStartMs = 0
@@ -116,20 +133,15 @@ async function startRecording() {
   played.value = false
   silentFrames = 0
   liveStartMs = 0
-  await startMic({
-    // 显式 16kHz：本页吃的是 YIN 在 70–900Hz 的分析结果，与文件模式的 decodeTo16k 同源
-    sampleRate: 16000,
-    onFrame,
-    // 采集失败（权限/设备）由 composable 回调，此时它已停掉流、关掉 context
-    onError: (e) => { error.value = mediaError(e, t) }
-  })
+  // 采样率/逐帧回调/错误出口都在 useAudioInput 的构造参数里；采集失败时它已停流并关掉 context
+  await startMicInput()
   if (!recording.value) return
   recordTimer = window.setInterval(() => { recordSeconds.value++ }, 1000)
 }
 
 /** 结束录音：采集链的 teardown 由 composable 负责，这里只收本页自己的秒表与显示状态 */
 function stopRecording() {
-  stopMic()
+  stopMicInput()
   if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
   recordSeconds.value = 0
   liveFreq.value = 0
@@ -138,30 +150,11 @@ function stopRecording() {
   notes.value = notes.value.filter(n => n.end - n.start > 0.12)
 }
 
-function setFile(f: File) {
-  audioFile.value = f
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
-  audioUrl.value = URL.createObjectURL(f)
+// 换文件后清掉上一个文件的识别结果（objectURL 的回收已由 useAudioInput 负责）
+watch(audioFile, () => {
   notes.value = []
   played.value = false
-}
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (f) setFile(f)
-}
-
-async function useSample() {
-  try {
-    const res = await fetch('/samples/audio/speech.wav')
-    setFile(new File([await res.blob()], 'speech.wav', { type: 'audio/wav' }))
-  } catch (e: any) {
-    error.value = humanError(e, t)
-  }
-}
-
-function pickFile() { fileInput.value?.click() }
+})
 
 // ---- 回放（三角波逐音播放）----
 let playCtx: AudioContext | null = null
@@ -197,89 +190,51 @@ function stopPlay() {
 }
 
 onBeforeUnmount(() => {
-  // 采集链的 teardown 由 useMicStream 的卸载钩子自行完成（此处不再重复停流/关 context）；
-  // 只收拾本页自己的三样东西：秒表（不清会留下一直在跑的 setInterval）、回放、objectURL
+  // 采集链的 teardown 与 objectURL 的回收都已在 useAudioInput 内部注册；
+  // 这里只收拾本页自己的两样东西：秒表（不清会留下一直在跑的 setInterval）与回放
   if (recordTimer !== null) { clearInterval(recordTimer); recordTimer = null }
   stopPlay()
-  if (audioUrl.value) URL.revokeObjectURL(audioUrl.value)
 })
 </script>
 
 <template>
   <MediaDemoShell :demo="demo">
     <div class="space-y-4">
-      <!-- 来源 -->
-      <AudioSourceToggle v-model="source" />
-
-      <!-- 文件/示例 -->
-      <div
-        v-if="source === 'file'"
-        class="flex flex-wrap items-center gap-2"
+      <!-- 来源：上传文件 / 麦克风实时（统一输入组件） -->
+      <AudioInput
+        v-model:mode="source"
+        :modes="['mic', 'file']"
+        :samples="samples"
+        :file-name="audioFile?.name"
+        :file-url="audioUrl"
+        :active="recording"
+        :seconds="recordSeconds"
+        @select="setFile"
+        @sample="useSample"
+        @start="startRecording"
+        @stop="stopRecording"
       >
-        <input
-          ref="fileInput"
-          type="file"
-          accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-          class="hidden"
-          @change="onFileChange"
-        >
-        <UButton
-          icon="i-lucide-upload"
-          :label="audioFile ? audioFile.name : t('speech.uploadAudio')"
-          variant="outline"
-          @click="pickFile"
-        />
-        <UButton
-          icon="i-lucide-flask-conical"
-          :label="t('samples.trySample')"
-          variant="soft"
-          @click="useSample"
-        />
-        <UButton
-          icon="i-lucide-wand-sparkles"
-          :label="t('speech.analyzeFile')"
-          color="primary"
-          :loading="analyzing"
-          :disabled="!audioFile"
-          @click="analyze"
-        />
-      </div>
+        <template #status>
+          <span
+            v-if="recording"
+            class="text-sm text-muted"
+          >
+            {{ liveNoteName ? t('hum.livePitch', { note: liveNoteName }) : t('hum.liveListening') }}
+          </span>
+        </template>
+        <template #actions>
+          <UButton
+            v-if="source === 'file'"
+            icon="i-lucide-wand-sparkles"
+            :label="t('speech.analyzeFile')"
+            color="primary"
+            :loading="analyzing"
+            :disabled="!audioFile"
+            @click="analyze"
+          />
+        </template>
+      </AudioInput>
 
-      <!-- 录音（麦克风，实时识别） -->
-      <div
-        v-else
-        class="flex flex-wrap items-center gap-2"
-      >
-        <UButton
-          v-if="!recording"
-          icon="i-lucide-mic"
-          :label="t('speech.recordStart')"
-          color="primary"
-          variant="soft"
-          @click="startRecording"
-        />
-        <UButton
-          v-else
-          icon="i-lucide-square"
-          :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
-          color="error"
-          variant="subtle"
-          @click="stopRecording"
-        />
-        <span
-          v-if="recording"
-          class="text-sm text-muted"
-        >
-          {{ liveNoteName ? t('hum.livePitch', { note: liveNoteName }) : t('hum.liveListening') }}
-        </span>
-      </div>
-
-      <audio
-        v-if="audioUrl && source === 'file'"
-        :src="audioUrl"
-        controls
-        class="w-full max-w-md"
-      />
       <UAlert
         v-if="error"
         color="error"
