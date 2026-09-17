@@ -1,57 +1,56 @@
-console.log("===== PART 23: collection chip collapse (increment 12) =====");
+console.log('===== PART 23: collection chip collapse (increment 12) =====')
 function mkScene(id, items, repr) {
-  return { chars: [{ id: id, name: "bag", value: repr, type: "list",
-                     avatar: "X", numeric: null, bar: 100, items: items, itemsTruncated: false }], output: "" };
+  return { chars: [{ id: id, name: 'bag', value: repr, type: 'list',
+    avatar: 'X', numeric: null, bar: 100, items: items, itemsTruncated: false }], output: '' }
 }
-var wide = mkScene("c1", ["1", "2", "3", "4"], "[1, 2, 3, 4]");
-var narrow = mkScene("c1", ["1"], "[1]");
-resetWorld();
-syncArena(wide, null, "instant");
-var n = actorNodes.get("c1");
-eq(n.chips.length + "/" + n.chips[3].style.display + "/" + n.bagOn, "4//true", "CC1. four chips created and visible");
-eq(n.chips[0].animations.length, 0, "CC2. instant mode does not pop chips on first paint");
-syncArena(narrow, wide, "tween");
-eq(n.chips[0].style.display, "", "CC3. surviving chip stays visible");
-eq(n.chips[1].style.display, "", "CC4. removed chip is still in flow while collapsing");
-var collapse1 = n.chips[1].animations[n.chips[1].animations.length - 1];
-eq(collapse1 ? "animating" : "none", "animating", "CC5. removed chip gets a collapse animation");
-eq(n.chips[1]._hiding === collapse1 ? "tracked" : "untracked", "tracked", "CC6. the collapse animation is tracked on the chip");
-collapse1.settle();
-eq(n.chips[1].style.display, "none", "CC7. after the animation the chip is hidden");
-eq(n.chips[1]._hiding === null ? "cleared" : "stuck", "cleared", "CC8. hiding flag cleared");
+var wide = mkScene('c1', ['1', '2', '3', '4'], '[1, 2, 3, 4]')
+var narrow = mkScene('c1', ['1'], '[1]')
+resetWorld()
+syncArena(wide, null, 'instant')
+var n = actorNodes.get('c1')
+eq(n.chips.length + '/' + n.chips[3].style.display + '/' + n.bagOn, '4//true', 'CC1. four chips created and visible')
+eq(n.chips[0].animations.length, 0, 'CC2. instant mode does not pop chips on first paint')
+syncArena(narrow, wide, 'tween')
+eq(n.chips[0].style.display, '', 'CC3. surviving chip stays visible')
+eq(n.chips[1].style.display, '', 'CC4. removed chip is still in flow while collapsing')
+var collapse1 = n.chips[1].animations[n.chips[1].animations.length - 1]
+eq(collapse1 ? 'animating' : 'none', 'animating', 'CC5. removed chip gets a collapse animation')
+eq(n.chips[1]._hiding === collapse1 ? 'tracked' : 'untracked', 'tracked', 'CC6. the collapse animation is tracked on the chip')
+collapse1.settle()
+eq(n.chips[1].style.display, 'none', 'CC7. after the animation the chip is hidden')
+eq(n.chips[1]._hiding === null ? 'cleared' : 'stuck', 'cleared', 'CC8. hiding flag cleared')
 
-resetWorld();
-syncArena(wide, null, "instant");
-var n2 = actorNodes.get("c1");
-syncArena(narrow, wide, "tween");
-var collapse2 = n2.chips[1]._hiding;
-eq(collapse2 ? "collapsing" : "idle", "collapsing", "CC9. chip 1 is collapsing");
-syncArena(wide, narrow, "tween");
-eq(n2.chips[1].style.display, "", "CC10. re-growing mid-collapse shows the chip again");
-eq(n2.chips[1]._hiding === null ? "cancelled" : "stuck", "cancelled", "CC11. the collapse is cancelled");
-eq(collapse2.cancelled ? "cancelled" : "live", "cancelled", "CC12. and the animation object itself is cancelled");
-eq(n2.chips[1]._t, "2", "CC13. the chip shows the right item again");
-collapse2.settle();
-eq(n2.chips[1].style.display, "", "CC14. a cancelled animation never hides the chip (no race)");
+resetWorld()
+syncArena(wide, null, 'instant')
+var n2 = actorNodes.get('c1')
+syncArena(narrow, wide, 'tween')
+var collapse2 = n2.chips[1]._hiding
+eq(collapse2 ? 'collapsing' : 'idle', 'collapsing', 'CC9. chip 1 is collapsing')
+syncArena(wide, narrow, 'tween')
+eq(n2.chips[1].style.display, '', 'CC10. re-growing mid-collapse shows the chip again')
+eq(n2.chips[1]._hiding === null ? 'cancelled' : 'stuck', 'cancelled', 'CC11. the collapse is cancelled')
+eq(collapse2.cancelled ? 'cancelled' : 'live', 'cancelled', 'CC12. and the animation object itself is cancelled')
+eq(n2.chips[1]._t, '2', 'CC13. the chip shows the right item again')
+collapse2.settle()
+eq(n2.chips[1].style.display, '', 'CC14. a cancelled animation never hides the chip (no race)')
 
-resetWorld();
-syncArena(wide, null, "instant");
-var n3 = actorNodes.get("c1");
-var before3 = n3.chips[1].animations.length;
-syncArena(narrow, wide, "instant");
-eq(n3.chips[1].style.display, "none", "CC15. instant mode hides immediately");
-eq(n3.chips[1].animations.length, before3, "CC16. instant mode creates no collapse animation");
+resetWorld()
+syncArena(wide, null, 'instant')
+var n3 = actorNodes.get('c1')
+var before3 = n3.chips[1].animations.length
+syncArena(narrow, wide, 'instant')
+eq(n3.chips[1].style.display, 'none', 'CC15. instant mode hides immediately')
+eq(n3.chips[1].animations.length, before3, 'CC16. instant mode creates no collapse animation')
 
-resetWorld();
-var over = mkScene("c2", ["1","2","3","4","5","6","7","8"], "[1, 2, 3, 4, 5, 6, 7, 8]");
-var small = mkScene("c2", ["1"], "[1]");
-syncArena(over, null, "instant");
-var n4 = actorNodes.get("c2");
-eq(n4.chips[6]._t, "+2", "CC17. overflow chip label");
-syncArena(small, over, "tween");
-eq(n4.chips[1]._hiding ? "collapsing" : "instant-hidden", "collapsing", "CC18. overflow chip collapses instead of vanishing");
-n4.chips[1]._hiding.settle();
-eq(n4.chips[1].style.display, "none", "CC19. overflow chip hidden after collapse");
-eq(n4.chips[6]._hiding ? "collapsing" : "instant-hidden", "collapsing", "CC20. the old overflow chip collapses too");
-console.log(fails === 0 ? "INCREMENT-12 TESTS PASSED" : ("INCREMENT-12 FAILURES: " + fails));
-
+resetWorld()
+var over = mkScene('c2', ['1', '2', '3', '4', '5', '6', '7', '8'], '[1, 2, 3, 4, 5, 6, 7, 8]')
+var small = mkScene('c2', ['1'], '[1]')
+syncArena(over, null, 'instant')
+var n4 = actorNodes.get('c2')
+eq(n4.chips[6]._t, '+2', 'CC17. overflow chip label')
+syncArena(small, over, 'tween')
+eq(n4.chips[1]._hiding ? 'collapsing' : 'instant-hidden', 'collapsing', 'CC18. overflow chip collapses instead of vanishing')
+n4.chips[1]._hiding.settle()
+eq(n4.chips[1].style.display, 'none', 'CC19. overflow chip hidden after collapse')
+eq(n4.chips[6]._hiding ? 'collapsing' : 'instant-hidden', 'collapsing', 'CC20. the old overflow chip collapses too')
+console.log(fails === 0 ? 'INCREMENT-12 TESTS PASSED' : ('INCREMENT-12 FAILURES: ' + fails))
