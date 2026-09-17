@@ -1283,6 +1283,18 @@ export const demos: Demo[] = [
     tags: ['Tesseract.js', 'OCR']
   },
   {
+    slug: 'pipeline',
+    group: 'workbench',
+    category: 'vision',
+    title: { zh: '图像处理流水线（教学）', en: 'Image Processing Pipeline (Lesson)' },
+    description: { zh: '把经典算子串成一条链：灰度 → 降噪 → 增强 → 特征强化。每一步都能看到中间产物、改参数、停用、换算子、调顺序，最后下载结果。', en: 'Chain classic operators: grayscale → denoise → enhance → feature emphasis. Inspect every intermediate result, tune parameters, disable or reorder steps, then download.' },
+    howItWorks: { zh: '每一步的输入是上一步的输出，所以「顺序」本身就是算法的一部分（先降维、先降噪、再提特征）。算子全部复用图像处理工坊的注册表（Canvas 与 OpenCV），不另写算法；每步的产物、耗时与缩略图都留在页面上，可以逐步回看对比。', en: 'Each step consumes the previous step’s output, so the order is itself part of the algorithm (reduce dimensions, denoise, then extract features). All operators are reused from the image workbench registry (Canvas and OpenCV) — no new algorithms; every intermediate result, timing and thumbnail stays on the page for step-by-step comparison.' },
+    icon: 'i-lucide-git-branch',
+    status: 'ready',
+    classroomSafe: true,
+    tags: ['Canvas', 'OpenCV', 'Pipeline', 'Lesson']
+  },
+  {
     slug: 'recorder',
     group: 'media',
     category: 'vision',
