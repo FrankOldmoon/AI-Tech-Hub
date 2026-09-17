@@ -71,7 +71,7 @@
     pointer-events:none;
   }
   #card{
-    flex:1; min-width:0; pointer-events:auto;
+    flex:1; min-width:0; max-width:560px; pointer-events:auto;
     background:rgba(255,255,255,.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
     border-radius:14px; padding:12px 14px; box-shadow:0 6px 24px rgba(0,0,0,.22);
     border-left:4px solid var(--sub); transition:border-color .15s;
@@ -118,17 +118,15 @@
   }
   #perf.show{ opacity:1; }
 
-  /* ---------- portrait only ---------- */
-  #rotate{
-    position:fixed; inset:0; z-index:60; background:#fff;
-    display:none; flex-direction:column; align-items:center; justify-content:center; gap:16px;
-    padding:24px; text-align:center;
+  /* ---------- 桌面端（鼠标）适配 ---------- */
+  /* 非移动端也能用：没有双指，滚轮就是缩放；hover 态让按钮看得出可点 */
+  @media (hover: hover){
+    #stage{ cursor:zoom-in; }
+    .iconbtn:hover{ background:rgba(15,23,42,.62); }
+    .choice:hover{ border-color:var(--accent); background:#f8fafc; }
+    .choice.primary:hover{ background:#1d4ed8; border-color:#1d4ed8; }
+    #shutter:hover{ background:#1d4ed8; }
   }
-  #rotate svg{ width:52px; height:52px; color:var(--accent); animation:tilt 2s ease-in-out infinite; }
-  #rotate b{ font-size:17px; font-weight:620; }
-  #rotate span{ font-size:13.5px; color:var(--sub); }
-  @keyframes tilt{ 0%,45%,100%{ transform:rotate(0) } 60%,85%{ transform:rotate(-90deg) } }
-  @media (orientation: landscape){ #rotate{ display:flex !important; } }
 
   /* ---------- intro ---------- */
   #intro{
@@ -199,14 +197,6 @@
 <div id="zoomBadge"></div>
 
 <div id="perf"></div>
-
-<div id="rotate">
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-    <rect x="6" y="2.5" width="12" height="19" rx="2.6"/><path d="M10.5 5.2h3"/>
-  </svg>
-  <b>Rotate your device</b>
-  <span>This app works in portrait only.</span>
-</div>
 
 <div id="intro">
   <h1>Face Recognition</h1>
@@ -586,6 +576,21 @@ stage.addEventListener('pointerup', dropPointer);
 stage.addEventListener('pointercancel', dropPointer);
 stage.addEventListener('pointerleave', dropPointer);
 
+// 桌面端没有双指：滚轮就是缩放，锚点是光标位置（与捏合同一套 setZoom 路径，
+// 所以「滚到哪里放大哪里」和捏合的行为一致）。preventDefault 同时挡掉浏览器整页缩放。
+stage.addEventListener('wheel', (e) => {
+  if (!mode) return;
+  e.preventDefault();
+  // deltaY 一格约 ±100：每格约 16%，触控板的连续小量也顺滑
+  setZoom(zoom * Math.exp(-e.deltaY * 0.0015), { x: e.clientX, y: e.clientY });
+}, { passive: false });
+// 双击回到 1×（桌面端把画面放得太大后，一键还原）
+stage.addEventListener('dblclick', (e) => {
+  if (!mode || zoom === ZOOM_MIN) return;
+  e.preventDefault();
+  setZoom(ZOOM_MIN, { x: stage.clientWidth / 2, y: stage.clientHeight / 2 });
+});
+
 // ---------- result card ----------
 function showCard(dets){
   if (!dets.length){
@@ -722,8 +727,6 @@ async function openCamera(){
   stage.insertBefore(video, overlay);
   media = video;
   await video.play();
-  // Best effort orientation lock (only honoured on Android / when fullscreen). iOS ignores it.
-  try { screen.orientation.lock('portrait').catch(() => {}); } catch (_) {}
   sizeOverlay();
   startLoop();
 }
@@ -737,8 +740,6 @@ function startLoop(){
   stopLoop();
   const tick = async () => {
     if (mode !== 'camera' || !media) return;
-    // Portrait only — don't burn battery detecting behind the rotate hint.
-    if (window.innerWidth > window.innerHeight) { loopId = setTimeout(tick, 500); return; }
     if (!busy && media.readyState >= 2 && media.videoWidth){
       busy = true;
       try {
@@ -791,7 +792,6 @@ btnExit.onclick = () => {
 
 function resetMedia(){
   stopLoop();
-  try { screen.orientation.unlock(); } catch (_) {}
   if (stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
   if (media && media.tagName === 'VIDEO'){ media.srcObject = null; }
   if (media && media.parentNode) media.parentNode.removeChild(media);
@@ -822,6 +822,10 @@ document.addEventListener('visibilitychange', () => {
   else if (mode === 'camera') startLoop();
 });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+// 桌面端习惯：Esc = 退出返回首屏
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') btnExit.click();
+});
 </script>
 </body>
 </html>
