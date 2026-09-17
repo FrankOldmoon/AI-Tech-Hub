@@ -1,24 +1,24 @@
 <script setup lang="ts">
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /**
- * 图像处理流水线（教学页）：上传一张图，把它串进一条算子链，
- * **每一步的输入是上一步的输出**，因此可以一步步看清图像是怎么被改造的。
+ * 图像处理入门（教学页，与「像素原理」同组）。
  *
- * 与「图像处理工坊」的区别：工坊里一个算子一张卡，都作用在原图上；
- * 这里是链式处理 —— 灰度 → 降噪 → 增强 → 细节强化（默认链），
- * 每一步的产物都留档，可以点回去看，也可以改参数、停用、换算子、调顺序。
+ * 一条固定的六步演示，点着往下走，同一张图逐步被改造：
+ *   1 输入 → 2 灰度化 → 3 降噪 → 4 增强 → 5 特征强调 → 6 处理结果
+ * 每一步的输入都是上一步的输出 —— 这正是「图像处理是 AI 视觉第一步」的具体含义。
  *
- * 数据模型与执行器在 ~/utils/image-pipeline（纯 ImageData 运算，Node 里可直接测），
- * 算子全部复用 ~/utils/image-tools 的注册表 —— 这里不新写任何图像算法。
+ * 刻意不做成流水线搭建器：这里是课堂演示，链是固定的、顺序是要讲清的知识点，
+ * 不给学生一个几十个算子的目录去挑。每一步背后的算子都来自图像处理工坊注册表
+ * （页面会标出对应算子名，方便课后去工坊里单独试）。
+ *
+ * 逐步推进：学生点到第几步就算到第几步，因此第 5 步的 OpenCV（约 10MB）
+ * 只在真正点到那一步时才加载。
  */
 import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
-import type { PipelinePreset, PipelineStage, PipelineStep } from '~/utils/image-pipeline'
+import type { PipelineStage, PipelineStep } from '~/utils/image-pipeline'
 import { humanError } from '~/utils/errors'
 import { loadImageData } from '~/utils/image'
-import {
-  buildStep, buildStepsFromPreset, defaultPreset, pipelineCatalog,
-  pipelinePresets, pipelineTool, runPipeline
-} from '~/utils/image-pipeline'
+import { buildLessonSteps, pipelineTool, runSegment } from '~/utils/image-pipeline'
 import { buildParamSpecs, pickText } from '~/utils/localized'
 
 const { t, locale } = useI18n()
@@ -29,281 +29,188 @@ type L = { zh: string, en: string }
 const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
 const pick = (o: L) => (lang.value === 'zh' ? o.zh : o.en)
 
-/** 处理尺寸上限：链上可能串十几个算子，原图直接跑会明显卡顿（工坊页也是同样的取舍） */
-const MAX_EDGE = 1600
+/** 处理尺寸上限：课堂演示要即时出结果，原图直接跑会明显卡顿（工坊页也是同样的取舍） */
+const MAX_EDGE = 1280
+
+// ===== 六步定义（顺序即讲解顺序）=====
+interface LessonStep {
+  /** 'input' | 'result' | 算子下标字符串 */
+  id: string
+  icon: string
+  /** 侧栏第一行：课堂上的叫法 */
+  title: L
+  /** 侧栏第二行：对应的工坊算子与引擎 */
+  kind: string
+  /** 这一步到底做了什么（一句话讲清） */
+  note: L
+}
+
+/** 四条算子步骤：参数与开关都是可改的，所以是 ref 而不是 computed */
+const steps = ref<PipelineStep[]>(buildLessonSteps())
+
+const lesson: LessonStep[] = [
+  {
+    id: 'input',
+    icon: 'i-lucide-image',
+    title: { zh: '1 输入', en: '1 Input' },
+    kind: 'ORIGINAL',
+    note: { zh: '原始图片：AI 拿到的第一手数据。可以先看看它的像素与色彩。', en: 'The raw image: the very first data AI receives. Start by looking at its pixels and colors.' }
+  },
+  {
+    id: '0',
+    icon: 'i-lucide-contrast',
+    title: { zh: '2 灰度化', en: '2 Grayscale' },
+    kind: 'CANVAS · GRAYSCALE',
+    note: { zh: '把三个颜色通道压成一个亮度值：数据量降到三分之一，后续运算更快，也让只关心形状的任务不再受颜色干扰。', en: 'Collapses three color channels into one brightness value: a third of the data, faster math, and no color distraction for shape-only tasks.' }
+  },
+  {
+    id: '1',
+    icon: 'i-lucide-eraser',
+    title: { zh: '3 降噪', en: '3 Noise Reduction' },
+    kind: 'CANVAS · DENOISE',
+    note: { zh: '噪声是随机的高频跳变，用邻域平均把它抹平。这一步必须在增强之前做 —— 否则噪声会被一起放大，再也去不掉。', en: 'Noise is random high-frequency jitter; neighborhood averaging smooths it out. This must come before enhancement, or the noise gets amplified and can never be removed.' }
+  },
+  {
+    id: '2',
+    icon: 'i-lucide-sun-medium',
+    title: { zh: '4 增强', en: '4 Enhancement' },
+    kind: 'CANVAS · ENHANCE',
+    note: { zh: '重新分配灰度范围，把过暗过亮的细节拉开，让明暗对比更清楚。注意它同样会放大残留的噪声，所以顺序不能反。', en: 'Redistributes the gray range so details in dark or bright areas become visible. It also amplifies any remaining noise, which is why the order cannot be swapped.' }
+  },
+  {
+    id: '3',
+    icon: 'i-lucide-pen-tool',
+    title: { zh: '5 特征强调', en: '5 Feature Emphasis' },
+    kind: 'OPENCV · SOBEL',
+    note: { zh: 'Sobel 计算亮度梯度，把「变化剧烈的地方」——边缘与轮廓——留成亮线。这才是 AI 真正拿去判断的信息。首次运行需要加载 OpenCV（约 10MB）。', en: 'Sobel computes the brightness gradient and keeps the places that change sharply — edges and contours — as bright lines. This is what AI actually uses to decide. The first run loads OpenCV (~10MB).' }
+  },
+  {
+    id: 'result',
+    icon: 'i-lucide-check-check',
+    title: { zh: '6 处理结果', en: '6 Processed' },
+    kind: 'RESULT',
+    note: { zh: '整条链的产物。和原图对比一下：质量更好了、关键信息被突出了，这就是图像处理交给 AI 的东西。', en: 'The output of the whole chain. Compare it with the original: better quality, key information highlighted — this is what image processing hands over to AI.' }
+  }
+]
+const active = ref(0)
+
+const sidebarItems = computed<ToolSidebarItem[]>(() => lesson.map(s => ({
+  id: s.title.zh,
+  label: pick(s.title),
+  kind: s.kind,
+  icon: s.icon
+})))
+const activeId = computed(() => lesson[active.value]?.title.zh ?? '')
+function setActive(id: string | number) {
+  const index = lesson.findIndex(s => s.title.zh === id)
+  if (index >= 0) active.value = index
+}
 
 // ===== 状态 =====
-/** 当前链。初始化放在 setup 里（纯函数），这样 SSR 就能渲染出步骤列表 */
-const steps = ref<PipelineStep[]>(buildStepsFromPreset(defaultPreset, 'zh'))
-const presetId = ref(defaultPreset.id)
 const source = ref<ImageData | null>(null)
 const sourceLabel = ref('')
 const stages = ref<PipelineStage[]>([])
-const selected = ref<'input' | 'result' | number>('result')
 const running = ref(false)
-const totalMs = ref(0)
-const skipped = ref<string[]>([])
 const errorMsg = ref('')
+const skipped = ref<string[]>([])
 const downloadFormat = ref<'png' | 'jpeg' | 'webp'>('png')
 const quality = ref(0.92)
-const thumbs = ref<Record<string, string>>({})
 
 const client = ref(false)
-/** 已加载图片后是否仍展开上传区（否则只剩示例，没法换自己的图） */
-const showInput = ref(false)
 let rerunTimer: ReturnType<typeof setTimeout> | null = null
-let dirty = false
 
-// ===== 算子目录（左侧）=====
-const catalogItems = computed<ToolSidebarItem[]>(() => pipelineCatalog().flatMap(group => group.tools.map(tool => ({
-  id: tool.id,
-  label: pickText(tool.name, lang.value),
-  kind: tool.kind === 'opencv' ? 'OpenCV' : 'Canvas',
-  section: pickText(group.label, lang.value)
-}))))
-const activeCatalog = ref('grayscale')
-const catalogCount = computed(() => catalogItems.value.length)
+/** 看第 active 步需要算完几个算子（第 1 步原图不用算，第 6 步结果等于算完全部） */
+const needed = computed(() => Math.min(lesson.length - 2, Math.max(0, active.value)))
+/** 链上最后一个产物的图像（第 6 步「处理结果」就是它；一个算子都没跑时就是原图） */
+const resultImage = computed<ImageData | null>(() => stages.value[stages.value.length - 1]?.image ?? null)
 
-/** 算子目录点击 → 追加到链尾（ToolSidebar 的 id 可能是 string | number） */
-function addStep(raw: string | number) {
-  const toolId = String(raw)
-  const step = buildStep(toolId, lang.value)
-  if (!step) return
-  steps.value = [...steps.value, step]
-  selected.value = steps.value.length - 1
-  activeCatalog.value = toolId
-}
-
-// ===== 参数与步骤操作 =====
-const selectedIndex = computed(() => (typeof selected.value === 'number' ? selected.value : -1))
-const selectedStep = computed(() => steps.value[selectedIndex.value] ?? null)
-/** 该步的参数规范（按当前语言解析标签）；参数值仍是步骤自己那份 */
-const selectedSpecs = computed(() => buildParamSpecsSafe(selectedStep.value))
-function buildParamSpecsSafe(step: PipelineStep | null) {
-  const tool = step ? pipelineTool(step.toolId) : undefined
-  if (!tool) return []
-  return buildParamSpecs(tool.params, lang.value)
-}
-
-function toolName(toolId: string): string {
-  const tool = pipelineTool(toolId)
-  return tool ? pickText(tool.name, lang.value) : toolId
-}
-function engineLabel(toolId: string): string {
-  const tool = pipelineTool(toolId)
-  return tool?.kind === 'opencv' ? 'OpenCV' : 'Canvas'
-}
-
-function patchStep(index: number, patch: Partial<PipelineStep>) {
-  const next = steps.value.slice()
-  const step = next[index]
-  if (!step) return
-  next[index] = { ...step, ...patch }
-  steps.value = next
-}
-/** 事件处理器统一收 unknown 再自己收窄，避免和 Nuxt UI 的 emit 类型打架 */
-function setStepEnabled(index: number, value: unknown) {
-  patchStep(index, { enabled: Boolean(value) })
-}
-function setStepParams(index: number, value: unknown) {
-  patchStep(index, { params: (value ?? {}) as Record<string, number | string | boolean> })
-}
-function moveStep(index: number, delta: number) {
-  const target = index + delta
-  if (target < 0 || target >= steps.value.length) return
-  const next = steps.value.slice()
-  const [item] = next.splice(index, 1)
-  if (!item) return
-  next.splice(target, 0, item)
-  steps.value = next
-  if (typeof selected.value === 'number') selected.value = target
-}
-function removeStep(index: number) {
-  steps.value = steps.value.filter((_, i) => i !== index)
-  if (typeof selected.value === 'number' && selected.value >= steps.value.length) selected.value = 'result'
-}
-function resetStepParams(index: number) {
-  const step = steps.value[index]
-  if (!step) return
-  const fresh = buildStep(step.toolId, lang.value)
-  if (fresh) patchStep(index, { params: fresh.params })
-}
-
-const activePreset = computed<PipelinePreset | undefined>(() => pipelinePresets.find(p => p.id === presetId.value))
-function applyPreset(raw: unknown) {
-  const id = String(raw)
-  const preset = pipelinePresets.find(p => p.id === id)
-  if (!preset) return
-  presetId.value = id
-  steps.value = buildStepsFromPreset(preset, lang.value)
-  selected.value = 'result'
-}
-
-// ===== 执行 =====
-function scheduleRun(delay = 140) {
-  if (rerunTimer) clearTimeout(rerunTimer)
-  rerunTimer = setTimeout(() => {
-    void execute()
-  }, delay)
-}
-
-async function execute() {
+/** 当前步骤对应的产物 */
+const currentStage = computed<PipelineStage | undefined>(() => {
+  const id = lesson[active.value]?.id
+  if (!id) return undefined
+  // 第 6 步没有独立的 stages 条目：它就是最后一个算子的产物
+  if (id === 'result') {
+    const image = resultImage.value
+    return image ? { id: 'result', image, toolId: null, ms: null } : undefined
+  }
+  return stages.value.find(s => s.id === id)
+})
+const currentStep = computed<PipelineStep | null>(() => {
+  const index = active.value - 1
+  return index >= 0 && index < steps.value.length ? steps.value[index] ?? null : null
+})
+const currentTool = computed(() => (currentStep.value ? pipelineTool(currentStep.value.toolId) : undefined))
+const currentSpecs = computed(() => buildParamSpecs(currentTool.value?.params, lang.value))
+/** 当前这一步是否被跳过（停用 / 算子失败） */
+const currentSkipped = computed(() => Boolean(currentStep.value && skipped.value.includes(currentStep.value.toolId)))
+const stepMs = computed(() => {
+  const ms = currentStage.value?.ms
+  return typeof ms === 'number' && ms > 0 ? ms : null
+})
+// ===== 逐步推进 =====
+/**
+ * 走到第 stepIndex 步。执行本身全在 runSegment 里（可单测），这里只管状态：
+ * 学生点到第几步就算到第几步，所以第 5 步的 OpenCV 只在真正点到时才加载。
+ * 正在运行时先把目标记在 active 上，跑完再补一次 —— 否则快速连点会丢掉中间的步。
+ */
+async function go(stepIndex: number) {
+  active.value = Math.max(0, Math.min(lesson.length - 1, stepIndex))
   const image = source.value
   if (!image || !client.value) return
-  // 运行中又来了新改动：记一笔，跑完后再补一次（否则最后那次修改会被丢掉）
   if (running.value) {
-    dirty = true
+    if (rerunTimer) clearTimeout(rerunTimer)
+    rerunTimer = setTimeout(() => {
+      void go(active.value)
+    }, 120)
     return
   }
   running.value = true
   try {
-    const run = await runPipeline(image, steps.value, lang.value)
-    stages.value = run.stages
-    totalMs.value = run.totalMs
-    skipped.value = run.skipped
-    thumbs.value = buildThumbs(run.stages)
+    const segment = await runSegment(image, stages.value, steps.value, needed.value, lang.value)
+    stages.value = segment.stages
+    skipped.value = segment.skipped
     errorMsg.value = ''
   } catch (e: any) {
     errorMsg.value = humanError(e, t)
   } finally {
     running.value = false
-    if (dirty) {
-      dirty = false
-      void execute()
+    if (active.value > needed.value) {
+      rerunTimer = setTimeout(() => {
+        void go(active.value)
+      }, 0)
     }
   }
 }
 
-/** 每步产物的缩略图（dataURL）：挂在列表里当「这一步长什么样」的证据 */
-function buildThumbs(list: PipelineStage[]): Record<string, string> {
-  const out: Record<string, string> = {}
-  for (const stage of list) out[stage.id] = makeThumb(stage.image)
-  return out
-}
-function makeThumb(image: ImageData, maxW = 128): string {
-  const scale = Math.min(1, maxW / image.width)
-  const w = Math.max(1, Math.round(image.width * scale))
-  const h = Math.max(1, Math.round(image.height * scale))
-  const full = document.createElement('canvas')
-  full.width = image.width
-  full.height = image.height
-  const fullCtx = full.getContext('2d')
-  if (!fullCtx) return ''
-  fullCtx.putImageData(image, 0, 0)
-  const small = document.createElement('canvas')
-  small.width = w
-  small.height = h
-  const smallCtx = small.getContext('2d')
-  if (!smallCtx) return ''
-  smallCtx.drawImage(full, 0, 0, w, h)
-  return small.toDataURL('image/jpeg', 0.72)
+/** 改了第 i 个算子的参数 / 开关：它之后的产物全部作废，再补算到当前看到的这一步 */
+function invalidateFrom(operatorIndex: number) {
+  stages.value = stages.value.filter(s => s.id === 'input' || (s.id !== 'result' && Number(s.id) < operatorIndex))
+  if (rerunTimer) clearTimeout(rerunTimer)
+  rerunTimer = setTimeout(() => {
+    void go(active.value)
+  }, 160)
 }
 
-// ===== 流水线行（原图 / 各步 / 结果）=====
-interface Row {
-  key: string
-  kind: 'input' | 'step' | 'result'
-  title: string
-  meta: string
-  stageId: string
-  stepIndex: number
-  enabled: boolean
-  image: ImageData | null
+function setStepParams(value: unknown) {
+  const index = active.value - 1
+  const step = steps.value[index]
+  if (!step) return
+  const next = steps.value.slice()
+  next[index] = { ...step, params: (value ?? {}) as Record<string, number | string | boolean> }
+  steps.value = next
+  invalidateFrom(index)
 }
 
-const rows = computed<Row[]>(() => {
-  const list: Row[] = [{
-    key: 'input',
-    kind: 'input',
-    title: t('image.original'),
-    meta: source.value ? `${source.value.width}×${source.value.height}` : '',
-    stageId: 'input',
-    stepIndex: -1,
-    enabled: true,
-    image: source.value
-  }]
-  steps.value.forEach((step, index) => {
-    const stage = stages.value.find(s => s.id === String(index))
-    list.push({
-      key: `step-${index}`,
-      kind: 'step',
-      title: `${index + 1}. ${toolName(step.toolId)}`,
-      meta: step.enabled
-        ? [
-            engineLabel(step.toolId),
-            stage?.ms !== undefined && stage?.ms !== null ? `${Math.round(stage.ms)} ms` : ''
-          ].filter(Boolean).join(' · ')
-        : pick({ zh: '已停用', en: 'Disabled' }),
-      stageId: String(index),
-      stepIndex: index,
-      enabled: step.enabled,
-      image: stage?.image ?? null
-    })
-  })
-  const result = stages.value.find(s => s.id === 'result')
-  list.push({
-    key: 'result',
-    kind: 'result',
-    title: t('image.result'),
-    meta: result ? `${result.image.width}×${result.image.height} · ${Math.round(totalMs.value)} ms` : '',
-    stageId: 'result',
-    stepIndex: -1,
-    enabled: true,
-    image: result?.image ?? null
-  })
-  return list
-})
-
-function rowSelected(row: Row): boolean {
-  if (row.kind === 'input') return selected.value === 'input'
-  if (row.kind === 'result') return selected.value === 'result'
-  return selected.value === row.stepIndex
+/** 跳过 / 恢复某一步：让学生亲眼看到「少了这一步会怎样」 */
+function setStepEnabled(value: unknown) {
+  const index = active.value - 1
+  const step = steps.value[index]
+  if (!step) return
+  const next = steps.value.slice()
+  next[index] = { ...step, enabled: Boolean(value) }
+  steps.value = next
+  invalidateFrom(index)
 }
-function selectRow(row: Row) {
-  if (row.kind === 'input') selected.value = 'input'
-  else if (row.kind === 'result') selected.value = 'result'
-  else selected.value = row.stepIndex
-}
-
-// ===== 详情区 =====
-/** 步骤前后的对照图（步骤 i 的输入 = 阶段序列里前一个产物） */
-const beforeAfter = computed(() => {
-  const index = selectedIndex.value
-  if (index < 0) return null
-  const after = stages.value.find(s => s.id === String(index)) ?? null
-  const position = stages.value.findIndex(s => s.id === String(index))
-  const before = position > 0 ? stages.value[position - 1] ?? null : stages.value[0] ?? null
-  return { before, after }
-})
-const detailImage = computed<ImageData | null>(() => {
-  if (selected.value === 'input') return source.value
-  if (selected.value === 'result') return stages.value.find(s => s.id === 'result')?.image ?? null
-  return beforeAfter.value?.after?.image ?? null
-})
-
-const origCanvas = ref<HTMLCanvasElement>()
-const beforeCanvas = ref<HTMLCanvasElement>()
-const afterCanvas = ref<HTMLCanvasElement>()
-const resultCanvas = ref<HTMLCanvasElement>()
-
-function drawTo(canvas: HTMLCanvasElement | undefined, image: ImageData | null | undefined) {
-  if (!canvas || !image) return
-  if (canvas.width !== image.width) canvas.width = image.width
-  if (canvas.height !== image.height) canvas.height = image.height
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return
-  ctx.putImageData(image, 0, 0)
-}
-
-watch([detailImage, selected], () => {
-  const image = detailImage.value
-  if (selected.value === 'input') drawTo(origCanvas.value, image)
-  else if (selected.value === 'result') drawTo(resultCanvas.value, image)
-  else {
-    drawTo(beforeCanvas.value, beforeAfter.value?.before?.image)
-    drawTo(afterCanvas.value, beforeAfter.value?.after?.image)
-  }
-}, { flush: 'post' })
 
 // ===== 输入 =====
 const samples = computed(() => [
@@ -312,172 +219,138 @@ const samples = computed(() => [
   { label: t('samples.face'), url: '/samples/images/portrait.jpg' }
 ])
 
-async function loadSource(input: File | string, label: string) {
+async function useSample(url: string, label: string) {
   try {
     errorMsg.value = ''
-    source.value = await loadImageData(input, MAX_EDGE)
+    source.value = await loadImageData(url, MAX_EDGE)
     sourceLabel.value = label
-    selected.value = 'result'
-    showInput.value = false
-    // 执行交给 watch([steps, source]) 统一触发，避免这里再跑一遍（重复执行一遍整条链）
+    resetStages()
   } catch (e: any) {
     errorMsg.value = humanError(e, t)
   }
 }
 function onFile(file: File) {
-  void loadSource(file, file.name)
+  void (async () => {
+    try {
+      errorMsg.value = ''
+      source.value = await loadImageData(file, MAX_EDGE)
+      sourceLabel.value = file.name
+      resetStages()
+    } catch (e: any) {
+      errorMsg.value = humanError(e, t)
+    }
+  })()
 }
-function onSample(url: string, label: string) {
-  void loadSource(url, label)
+
+function resetStages() {
+  const image = source.value
+  stages.value = image ? [{ id: 'input', image, toolId: null, ms: null }] : []
+  skipped.value = []
+  if (rerunTimer) clearTimeout(rerunTimer)
+  rerunTimer = setTimeout(() => {
+    void go(active.value)
+  }, 60)
 }
+
+// ===== 画布 =====
+const mainCanvas = ref<HTMLCanvasElement>()
+const compareOrigCanvas = ref<HTMLCanvasElement>()
+const resultCanvas = ref<HTMLCanvasElement>()
+
+function drawTo(target: HTMLCanvasElement | undefined, image: ImageData | null | undefined) {
+  if (!target || !image) return
+  if (target.width !== image.width) target.width = image.width
+  if (target.height !== image.height) target.height = image.height
+  const ctx = target.getContext('2d')
+  if (!ctx) return
+  ctx.putImageData(image, 0, 0)
+}
+
+watch([currentStage, active, stages], () => {
+  drawTo(mainCanvas.value, currentStage.value?.image)
+  if (active.value === lesson.length - 1) {
+    drawTo(compareOrigCanvas.value, stages.value[0]?.image)
+    drawTo(resultCanvas.value, resultImage.value)
+  }
+}, { flush: 'post' })
 
 // ===== 下载 =====
 function download() {
-  const image = stages.value.find(s => s.id === 'result')?.image
+  const image = resultImage.value
   if (!image) return
   const fmt = downloadFormat.value
   const mime = fmt === 'jpeg' ? 'image/jpeg' : fmt === 'webp' ? 'image/webp' : 'image/png'
-  const canvas = document.createElement('canvas')
-  canvas.width = image.width
-  canvas.height = image.height
-  const ctx = canvas.getContext('2d')
+  const target = document.createElement('canvas')
+  target.width = image.width
+  target.height = image.height
+  const ctx = target.getContext('2d')
   if (!ctx) return
   // JPEG 不支持透明：不铺白底的话透明区会变黑
   if (fmt === 'jpeg') {
     ctx.fillStyle = '#fff'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+    ctx.fillRect(0, 0, target.width, target.height)
   }
   ctx.putImageData(image, 0, 0)
-  canvas.toBlob((blob) => {
+  target.toBlob((blob) => {
     if (!blob) return
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
-    a.download = `pipeline-result.${fmt === 'jpeg' ? 'jpg' : fmt}`
+    a.download = `image-processing.${fmt === 'jpeg' ? 'jpg' : fmt}`
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }, mime, quality.value)
 }
 
-// ===== 生命周期 =====
-watch([steps, source], () => scheduleRun(), { deep: true })
-watch(lang, () => {
-  // 语言切换只影响标签，不必重跑算法；但如果步骤是空的（极端情况）补一次默认链
-  if (steps.value.length === 0) steps.value = buildStepsFromPreset(defaultPreset, lang.value)
-})
+// ===== 教学卡片（对应演示页的三段说明）=====
+const whyCards = [
+  { icon: '📈', title: { zh: '更准', en: 'Improves accuracy' }, text: { zh: '图更好，AI 的预测就更准。', en: 'Better images mean more accurate predictions.' } },
+  { icon: '👁️', title: { zh: '更少出错', en: 'Reduces errors' }, text: { zh: '干净的输入，模型犯的错更少。', en: 'Cleaner input means fewer mistakes.' } },
+  { icon: '⚡', title: { zh: '更快', en: 'Speeds up processing' }, text: { zh: '更简单清晰的图，算得更快。', en: 'Simpler, clearer images compute faster.' } },
+  { icon: '🎯', title: { zh: '突出关键', en: 'Highlights key info' }, text: { zh: '把注意力集中在关键特征上，忽略干扰。', en: 'Focuses on key features and ignores distractions.' } }
+]
+const whereUsed = [
+  { icon: '📱', label: { zh: '人脸解锁', en: 'Face unlock' } },
+  { icon: '🩻', label: { zh: '医学影像', en: 'Medical imaging' } },
+  { icon: '🚗', label: { zh: '自动驾驶', en: 'Self-driving cars' } },
+  { icon: '📷', label: { zh: '照片增强', en: 'Photo enhancement' } },
+  { icon: '📄', label: { zh: '文档扫描', en: 'Document scanning' } },
+  { icon: '🛰️', label: { zh: '安防与无人机', en: 'Security cameras & drones' } }
+]
 
 onMounted(() => {
   client.value = true
-  const preset = activePreset.value ?? defaultPreset
-  steps.value = buildStepsFromPreset(preset, lang.value)
-  // 开箱可玩：默认用「噪点照」，正好能看出降噪与增强的作用
-  void onSample(samples.value[0]?.url ?? '', pick({ zh: '噪点示例', en: 'Noisy sample' }))
+  // 开箱可玩：默认用「噪点照」，正好能看出降噪与增强在做什么
+  void useSample(samples.value[0]?.url ?? '', pick({ zh: '噪点示例', en: 'Noisy sample' }))
 })
 </script>
 
 <template>
   <MediaDemoShell :demo="demo">
     <ToolSidebar
-      v-model="activeCatalog"
-      :title="pick({ zh: '算子目录', en: 'Operator catalog' })"
-      title-icon="i-lucide-blend"
-      :items="catalogItems"
-      @update:model-value="addStep"
+      :model-value="activeId"
+      :title="pick({ zh: '六个步骤', en: 'Six steps' })"
+      title-icon="i-lucide-list-ordered"
+      :items="sidebarItems"
+      @update:model-value="setActive"
     >
       <div class="space-y-4">
-        <!-- 输入 -->
-        <UCard>
-          <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                <UIcon
-                  name="i-lucide-image-plus"
-                  class="size-4 text-primary"
-                />
-                <span>{{ pick({ zh: '输入图片', en: 'Input image' }) }}</span>
-              </div>
-              <div
-                v-if="source"
-                class="text-xs text-dimmed"
-              >
-                {{ sourceLabel }} · {{ source.width }}×{{ source.height }}
-                <span v-if="Math.max(source.width, source.height) >= MAX_EDGE">{{ pick({ zh: `（已缩到最长边 ${MAX_EDGE}px）`, en: ` (scaled to ${MAX_EDGE}px)` }) }}</span>
-              </div>
-            </div>
-          </template>
-          <MediaInput
-            v-if="!source || showInput"
-            accept="image/*"
-            :samples="samples"
-            @select="onFile"
-            @sample="(url: string) => onSample(url, samples.find(s => s.url === url)?.label ?? '')"
-          />
-          <div
-            v-else
-            class="flex flex-wrap items-center gap-3"
-          >
-            <img
-              v-if="thumbs.input"
-              :src="thumbs.input"
-              :alt="t('image.original')"
-              class="h-20 w-auto rounded border border-default object-contain"
-            >
-            <div class="flex flex-wrap gap-2">
-              <UButton
-                v-for="s in samples"
-                :key="s.url"
-                size="xs"
-                color="neutral"
-                variant="subtle"
-                @click="onSample(s.url, s.label)"
-              >
-                {{ s.label }}
-              </UButton>
-              <UButton
-                icon="i-lucide-upload"
-                size="xs"
-                color="primary"
-                variant="subtle"
-                @click="showInput = true"
-              >
-                {{ t('image.upload') }}
-              </UButton>
-            </div>
-          </div>
-        </UCard>
-
-        <UAlert
-          v-if="errorMsg"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
-          :title="errorMsg"
-        />
-
-        <!-- 流水线 -->
+        <!-- 这一步的画面 -->
         <UCard>
           <template #header>
             <div class="flex flex-wrap items-center justify-between gap-3">
               <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
                 <UIcon
-                  name="i-lucide-git-branch"
+                  :name="lesson[active]?.icon ?? 'i-lucide-image'"
                   class="size-4 text-primary"
                 />
-                <span>{{ pick({ zh: '处理流水线', en: 'Processing pipeline' }) }}</span>
+                <span>{{ pick(lesson[active]?.title ?? { zh: '', en: '' }) }}</span>
                 <UBadge
                   color="neutral"
                   variant="subtle"
                   size="xs"
                 >
-                  {{ steps.length }} {{ pick({ zh: '步', en: 'steps' }) }}
+                  {{ lesson[active]?.kind }}
                 </UBadge>
-              </div>
-              <div class="flex items-center gap-2">
-                <USelect
-                  :model-value="presetId"
-                  :items="pipelinePresets.map(p => ({ label: pickText(p.label, lang), value: p.id }))"
-                  size="xs"
-                  @update:model-value="applyPreset($event)"
-                />
                 <UBadge
                   v-if="running"
                   color="info"
@@ -487,304 +360,262 @@ onMounted(() => {
                   {{ t('image.processing') }}
                 </UBadge>
                 <UBadge
-                  v-else-if="totalMs > 0"
+                  v-else-if="stepMs !== null"
                   color="neutral"
                   variant="subtle"
                   size="xs"
                 >
-                  {{ Math.round(totalMs) }} ms
+                  {{ Math.round(stepMs) }} ms
                 </UBadge>
               </div>
-            </div>
-          </template>
-
-          <p class="text-xs text-muted mb-3">
-            {{ pick({
-              zh: '每一步的输入是上一步的输出。点任意一行查看它产出的图像；左侧算子目录里点一下就会追加到最后。',
-              en: 'Each step takes the previous step’s output as its input. Click any row to inspect what it produced; clicking an operator in the left catalog appends it to the end.'
-            }) }}
-          </p>
-
-          <ol class="space-y-2">
-            <li
-              v-for="row in rows"
-              :key="row.key"
-            >
-              <div
-                data-slot="pipeline-row"
-                :data-step="row.kind === 'step' ? row.stepIndex : row.kind"
-                :data-enabled="row.enabled"
-                class="flex items-center gap-3 rounded-lg border p-2 transition cursor-pointer"
-                :class="rowSelected(row) ? 'border-primary ring-1 ring-primary/40 bg-primary/5' : 'border-default hover:bg-elevated/60'"
-                @click="selectRow(row)"
-              >
-                <span
-                  class="w-6 shrink-0 text-center text-xs font-mono"
-                  :class="row.kind === 'step' ? 'text-muted' : 'text-primary'"
-                >
-                  {{ row.kind === 'input' ? '·' : row.kind === 'result' ? '=' : row.stepIndex + 1 }}
-                </span>
-
-                <img
-                  v-if="thumbs[row.stageId]"
-                  :src="thumbs[row.stageId]"
-                  :alt="row.title"
-                  class="h-10 w-auto rounded border border-default object-contain"
-                  :class="row.enabled ? '' : 'opacity-40'"
-                >
-                <div
-                  v-else
-                  class="h-10 w-14 rounded border border-default bg-elevated/60"
-                />
-
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm truncate text-highlighted">
-                    {{ row.title }}
-                  </p>
-                  <p class="text-[11px] text-dimmed truncate">
-                    {{ row.meta }}
-                  </p>
-                </div>
-
-                <div
-                  v-if="row.kind === 'step'"
-                  class="flex items-center gap-1 shrink-0"
-                  @click.stop
-                >
-                  <USwitch
-                    :model-value="row.enabled"
-                    size="xs"
-                    @update:model-value="setStepEnabled(row.stepIndex, $event)"
-                  />
-                  <UButton
-                    icon="i-lucide-arrow-up"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="row.stepIndex === 0"
-                    @click="moveStep(row.stepIndex, -1)"
-                  />
-                  <UButton
-                    icon="i-lucide-arrow-down"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    :disabled="row.stepIndex === steps.length - 1"
-                    @click="moveStep(row.stepIndex, 1)"
-                  />
-                  <UButton
-                    icon="i-lucide-x"
-                    size="xs"
-                    color="neutral"
-                    variant="ghost"
-                    @click="removeStep(row.stepIndex)"
-                  />
-                </div>
-              </div>
-            </li>
-          </ol>
-
-          <p
-            v-if="skipped.length"
-            class="mt-3 text-xs text-warning"
-          >
-            {{ pick({ zh: '跳过的步骤：', en: 'Skipped steps: ' }) }}{{ skipped.join(', ') }}
-          </p>
-        </UCard>
-
-        <!-- 详情 -->
-        <UCard>
-          <template #header>
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
-                <UIcon
-                  name="i-lucide-scan-eye"
-                  class="size-4 text-primary"
-                />
-                <span v-if="selected === 'input'">{{ t('image.original') }}</span>
-                <span v-else-if="selected === 'result'">{{ t('image.result') }}</span>
-                <span v-else>
-                  {{ selectedIndex + 1 }} · {{ selectedStep ? toolName(selectedStep.toolId) : '' }}
-                </span>
-                <UBadge
-                  v-if="selectedStep"
-                  color="neutral"
-                  variant="subtle"
-                  size="xs"
-                >
-                  {{ engineLabel(selectedStep.toolId) }}
-                </UBadge>
-              </div>
-              <div
-                v-if="selectedStep"
-                class="flex items-center gap-2"
-              >
+              <div class="flex items-center gap-1">
                 <UButton
-                  icon="i-lucide-rotate-ccw"
+                  icon="i-lucide-chevron-left"
                   size="xs"
                   color="neutral"
                   variant="subtle"
-                  @click="resetStepParams(selectedIndex)"
+                  :disabled="active === 0 || running"
+                  @click="go(active - 1)"
                 >
-                  {{ pick({ zh: '恢复默认参数', en: 'Reset params' }) }}
+                  {{ pick({ zh: '上一步', en: 'Previous' }) }}
+                </UButton>
+                <UButton
+                  icon="i-lucide-chevron-right"
+                  size="xs"
+                  color="primary"
+                  variant="subtle"
+                  :trailing="true"
+                  :disabled="active === lesson.length - 1 || running"
+                  @click="go(active + 1)"
+                >
+                  {{ pick({ zh: '下一步', en: 'Next' }) }}
                 </UButton>
               </div>
             </div>
           </template>
 
-          <!-- 原图 -->
-          <div v-if="selected === 'input'">
+          <UAlert
+            v-if="errorMsg"
+            color="error"
+            variant="subtle"
+            icon="i-lucide-triangle-alert"
+            :title="errorMsg"
+            class="mb-3"
+          />
+
+          <!-- 第 1 步：输入（上传 / 示例） -->
+          <div
+            v-if="active === 0"
+            class="space-y-4"
+          >
+            <MediaInput
+              accept="image/*"
+              :samples="samples"
+              @select="onFile"
+              @sample="(url: string) => useSample(url, samples.find(s => s.url === url)?.label ?? '')"
+            />
+          </div>
+
+          <!-- 画面：第 1 步是原图，第 2~5 步是这一步的产物，第 6 步是最终结果 -->
+          <div class="relative mt-4">
             <canvas
-              v-if="source"
-              ref="origCanvas"
-              data-slot="stage-input"
-              class="max-w-full rounded border border-default"
+              v-if="currentStage"
+              ref="mainCanvas"
+              data-slot="stage-main"
+              class="w-full rounded border border-default"
             />
             <p
               v-else
-              class="text-sm text-muted"
+              class="rounded border border-dashed border-default p-8 text-center text-sm text-muted"
             >
               {{ pick({ zh: '先在上面选一张图。', en: 'Pick an image above first.' }) }}
             </p>
+            <p
+              v-if="running"
+              class="absolute inset-0 flex items-center justify-center rounded bg-black/40 text-sm text-white"
+            >
+              {{ t('image.processing') }}
+            </p>
           </div>
-
-          <!-- 某一步：参数 + 前后对照 -->
-          <div
-            v-else-if="selectedStep"
-            class="space-y-4"
+          <p
+            v-if="active === 0 && source"
+            class="mt-2 text-xs text-dimmed"
           >
+            {{ sourceLabel }} · {{ source.width }}×{{ source.height }}
+            <span v-if="Math.max(source.width, source.height) >= MAX_EDGE">{{ pick({ zh: `（已缩到最长边 ${MAX_EDGE}px）`, en: ` (scaled to ${MAX_EDGE}px)` }) }}</span>
+          </p>
+
+          <!-- 第 2~5 步：参数 + 「跳过这一步」 -->
+          <template v-if="active > 0 && active < lesson.length - 1">
             <DemoParams
-              v-if="selectedSpecs.length"
-              :model-value="selectedStep.params"
-              :specs="selectedSpecs"
+              v-if="currentSpecs.length"
+              class="mt-4"
+              :model-value="currentStep?.params ?? {}"
+              :specs="currentSpecs"
               :running="running"
-              :title="pick({ zh: '本步参数', en: 'Step parameters' })"
-              @update:model-value="setStepParams(selectedIndex, $event)"
+              :title="pick({ zh: '这一步的参数', en: 'Parameters for this step' })"
+              @update:model-value="setStepParams($event)"
             />
-            <p
-              v-else
-              class="text-sm text-muted"
-            >
-              {{ pick({ zh: '这一步没有可调参数。', en: 'This step has no parameters.' }) }}
-            </p>
+            <div class="mt-4 flex items-center gap-3 rounded-lg border border-default p-3">
+              <USwitch
+                :model-value="currentStep?.enabled ?? true"
+                size="sm"
+                @update:model-value="setStepEnabled($event)"
+              />
+              <div>
+                <p class="text-sm text-highlighted">
+                  {{ pick({ zh: '跳过这一步', en: 'Skip this step' }) }}
+                </p>
+                <p class="text-xs text-dimmed">
+                  {{ pick({ zh: '关掉它，看后面的结果有什么不同 —— 顺序为什么不能反，一眼就看出来了。', en: 'Turn it off and compare the later steps — it shows at a glance why the order matters.' }) }}
+                </p>
+              </div>
+            </div>
+          </template>
 
-            <div class="grid sm:grid-cols-2 gap-4">
-              <div>
-                <p class="text-xs text-muted mb-1">
-                  {{ pick({ zh: '上一步的输出（本步的输入）', en: 'Previous output (this step’s input)' }) }}
-                </p>
-                <canvas
-                  ref="beforeCanvas"
-                  data-slot="stage-before"
-                  class="w-full rounded border border-default"
-                />
-              </div>
-              <div>
-                <p class="text-xs text-muted mb-1">
-                  {{ pick({ zh: '本步的输出', en: 'This step’s output' }) }}
-                </p>
-                <canvas
-                  ref="afterCanvas"
-                  data-slot="stage-after"
-                  class="w-full rounded border border-default"
-                />
-              </div>
+          <p class="mt-3 text-sm text-muted">
+            {{ pick(lesson[active]?.note ?? { zh: '', en: '' }) }}
+          </p>
+          <p
+            v-if="currentSkipped"
+            class="mt-2 text-xs text-warning"
+          >
+            {{ pick({ zh: '这一步已跳过：上图显示的是上一步的产物。', en: 'This step is skipped: the image above is the previous step’s output.' }) }}
+          </p>
+          <p
+            v-if="currentTool"
+            class="mt-1 text-xs text-dimmed"
+          >
+            {{ pick({ zh: '对应工坊算子：', en: 'Workbench operator: ' }) }}{{ pickText(currentTool.name, lang) }}
+          </p>
+        </UCard>
+
+        <!-- 第 6 步：与第 5 步同屏对比 + 下载 -->
+        <UCard v-if="active === lesson.length - 1">
+          <template #header>
+            <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon
+                name="i-lucide-git-compare"
+                class="size-4 text-primary"
+              />
+              <span>{{ pick({ zh: '原图 vs 处理结果', en: 'Original vs processed' }) }}</span>
+            </div>
+          </template>
+          <div class="grid sm:grid-cols-2 gap-4">
+            <div>
+              <p class="text-xs text-muted mb-1">
+                {{ t('image.original') }}
+              </p>
+              <canvas
+                ref="compareOrigCanvas"
+                data-slot="stage-original"
+                class="w-full rounded border border-default"
+              />
+            </div>
+            <div>
+              <p class="text-xs text-muted mb-1">
+                {{ t('image.result') }}
+              </p>
+              <canvas
+                ref="resultCanvas"
+                data-slot="stage-result"
+                class="w-full rounded border border-default"
+              />
             </div>
           </div>
-
-          <!-- 结果 + 下载 -->
-          <div
-            v-else
-            class="space-y-4"
-          >
-            <canvas
-              v-if="detailImage"
-              ref="resultCanvas"
-              data-slot="stage-result"
-              class="max-w-full rounded border border-default"
-            />
-            <p
-              v-else
-              class="text-sm text-muted"
-            >
-              {{ pick({ zh: '还没有结果 —— 先选一张图。', en: 'No result yet — pick an image first.' }) }}
-            </p>
-
-            <div
-              v-if="detailImage"
-              class="flex flex-wrap items-end gap-3"
-            >
-              <div>
-                <p class="text-xs text-muted mb-1">
-                  {{ t('image.format') }}
-                </p>
-                <USelect
-                  v-model="downloadFormat"
-                  :items="[{ label: 'PNG', value: 'png' }, { label: 'JPEG', value: 'jpeg' }, { label: 'WebP', value: 'webp' }]"
-                />
-              </div>
-              <div v-if="downloadFormat !== 'png'">
-                <p class="text-xs text-muted mb-1">
-                  {{ t('image.quality') }} · {{ Math.round(quality * 100) }}%
-                </p>
-                <input
-                  v-model.number="quality"
-                  type="range"
-                  min="0.3"
-                  max="1"
-                  step="0.02"
-                  class="w-40 accent-primary"
-                >
-              </div>
-              <UButton
-                icon="i-lucide-download"
-                color="primary"
-                @click="download"
-              >
-                {{ t('image.download') }}
-              </UButton>
-              <p class="text-xs text-dimmed">
-                {{ detailImage.width }}×{{ detailImage.height }} · {{ steps.filter(s => s.enabled).length }}
-                {{ pick({ zh: '步生效', en: 'steps active' }) }}
+          <div class="mt-4 flex flex-wrap items-end gap-3">
+            <div>
+              <p class="text-xs text-muted mb-1">
+                {{ t('image.format') }}
               </p>
+              <USelect
+                v-model="downloadFormat"
+                :items="[{ label: 'PNG', value: 'png' }, { label: 'JPEG', value: 'jpeg' }, { label: 'WebP', value: 'webp' }]"
+              />
             </div>
+            <div v-if="downloadFormat !== 'png'">
+              <p class="text-xs text-muted mb-1">
+                {{ t('image.quality') }} · {{ Math.round(quality * 100) }}%
+              </p>
+              <input
+                v-model.number="quality"
+                type="range"
+                min="0.3"
+                max="1"
+                step="0.02"
+                class="w-40 accent-primary"
+              >
+            </div>
+            <UButton
+              icon="i-lucide-download"
+              color="primary"
+              :disabled="!resultImage"
+              @click="download"
+            >
+              {{ t('image.download') }}
+            </UButton>
           </div>
         </UCard>
 
-        <!-- 教学说明 -->
+        <!-- 三段教学说明（对应演示页的 Why / Where / Think） -->
         <UCard>
           <template #header>
             <div class="flex items-center gap-2 text-sm font-medium text-highlighted">
               <UIcon
-                name="i-lucide-lightbulb"
+                name="i-lucide-graduation-cap"
                 class="size-4 text-primary"
               />
-              <span>{{ pick({ zh: '为什么这样串', en: 'Why this order' }) }}</span>
+              <span>{{ pick({ zh: '为什么图像处理是 AI 视觉的第一步', en: 'Why image processing comes first' }) }}</span>
             </div>
           </template>
-          <div class="space-y-3 text-sm text-muted">
-            <p v-if="activePreset">
-              <span class="text-highlighted font-medium">{{ pickText(activePreset.label, lang) }}</span> —— {{ pickText(activePreset.hint, lang) }}
-            </p>
-            <ul class="space-y-2">
-              <li>
-                <span class="text-highlighted">{{ pick({ zh: '① 先降维再处理', en: '① Reduce first' }) }}</span> ——
-                {{ pick({ zh: '灰度化把 3 个通道压成 1 个，后面的运算量直接降到三分之一，也让「只关心形状」的任务不再受颜色干扰。', en: 'Grayscale collapses three channels into one, cutting the work to a third and removing color distractions when only shape matters.' }) }}
-              </li>
-              <li>
-                <span class="text-highlighted">{{ pick({ zh: '② 先降噪再增强', en: '② Denoise before enhancing' }) }}</span> ——
-                {{ pick({ zh: '顺序反了会把噪点一起放大：增强和锐化都是放大局部差异的算子，噪声先被放大就再也去不掉了。', en: 'Reverse the order and you amplify noise: enhancement and sharpening both boost local differences, and once noise is boosted it can never be removed.' }) }}
-              </li>
-              <li>
-                <span class="text-highlighted">{{ pick({ zh: '③ 特征强化放最后', en: '③ Feature emphasis last' }) }}</span> ——
-                {{ pick({ zh: '边缘/锐化是「提纯」步骤，应该在图像已经干净之后再提取结构，否则提取到的多半是噪声的轮廓。', en: 'Edges and sharpening are refinement steps; run them on an already-clean image, otherwise you mostly outline the noise.' }) }}
-              </li>
-            </ul>
-            <p class="text-xs text-dimmed">
-              {{ pick({
-                zh: `一句话：流水线里每一步的输入都是上一步的输出，所以「顺序」本身就是算法的一部分 —— 这也正是把 ${catalogCount} 个算子串起来演示的意义。`,
-                en: `In short: every step consumes the previous step’s output, so the order itself is part of the algorithm — which is exactly why chaining the ${catalogCount} operators is worth demonstrating.`
-              }) }}
+          <div class="space-y-5">
+            <div>
+              <p class="text-sm font-medium text-highlighted mb-2">
+                ⭐ {{ pick({ zh: '为什么重要', en: 'Why it matters' }) }}
+              </p>
+              <ul class="grid sm:grid-cols-2 gap-2">
+                <li
+                  v-for="c in whyCards"
+                  :key="c.title.en"
+                  class="flex gap-2 text-sm text-muted"
+                >
+                  <span>{{ c.icon }}</span>
+                  <span><span class="text-highlighted">{{ pick(c.title) }}</span> —— {{ pick(c.text) }}</span>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-highlighted mb-2">
+                🌍 {{ pick({ zh: '用在哪里', en: 'Where it is used' }) }}
+              </p>
+              <div class="flex flex-wrap gap-2">
+                <UBadge
+                  v-for="w in whereUsed"
+                  :key="w.label.en"
+                  color="neutral"
+                  variant="subtle"
+                  size="sm"
+                >
+                  {{ w.icon }} {{ pick(w.label) }}
+                </UBadge>
+              </div>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-highlighted mb-2">
+                💡 {{ pick({ zh: '想一想', en: 'Think about it' }) }}
+              </p>
+              <p class="text-sm text-muted">
+                {{ pick({
+                  zh: '如果图很模糊或者太暗，AI 会遇到什么麻烦？把第 3 步（降噪）关掉再看第 5 步的边缘，会出现什么变化？',
+                  en: 'What trouble does a blurry or too-dark image cause for AI? Turn step 3 (denoise) off and look at step 5’s edges again — what changes?'
+                }) }}
+              </p>
+            </div>
+            <p
+              v-if="skipped.length"
+              class="text-xs text-warning"
+            >
+              {{ pick({ zh: '跳过的步骤：', en: 'Skipped steps: ' }) }}{{ skipped.join(', ') }}
             </p>
           </div>
         </UCard>
