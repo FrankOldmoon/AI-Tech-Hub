@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Program World - test harness (real DOM, real modules)</title>
+<link rel="stylesheet" href="../../app/program-world/css/base.css">
+<link rel="stylesheet" href="../../app/program-world/css/layout.css">
+<link rel="stylesheet" href="../../app/program-world/css/execution.css">
+<link rel="stylesheet" href="../../app/program-world/css/stage.css">
+<link rel="stylesheet" href="../../app/program-world/css/combat.css">
+</head>
+<body>
+
+<div class="program-world">
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <h1>Program World</h1>
+      <span class="tag">PYTHON EXECUTION · CHARACTER EDITION</span>
+    </div>
+    <span class="status" id="status"><span class="dot"></span><span id="statusText">Runtime not loaded</span></span>
+    <div class="spacer"></div>
+    <button class="btn primary" id="btnRun">Run</button>
+    <button class="btn" id="btnStep" disabled>Step</button>
+    <button class="btn" id="btnPlay" disabled>Play</button>
+    <button class="btn ghost" id="btnSound" title="Toggle sound">Sound off</button>
+    <button class="btn ghost" id="btnReset" disabled>Clear</button>
+  </header>
+
+  <main id="main">
+    <section class="pane left">
+      <div class="pane-head">
+        <span class="file">main.py</span>
+        <span class="title">Monaco Editor</span>
+        <div class="spacer"></div>
+        <select class="pick" id="examplePick"><option value="">Examples&hellip;</option></select>
+        <button class="btn ghost" id="btnShare" style="padding:4px 10px;font-size:12px">Share link</button>
+      </div>
+      <div id="editor"></div>
+
+      <div class="hsplit" id="hsplit" title="Drag to resize · double-click to expand/collapse"></div>
+
+      <div class="drawer" id="drawer">
+        <button class="drawer-head" id="drawerHead" aria-expanded="false">
+          <span class="chev">&#9654;</span>
+          <span class="dtitle">Execution</span>
+          <span class="dmeta" id="drawerMeta">step 0 / 0</span>
+          <span class="dhint">click to expand &mdash; variables, call stack, output</span>
+        </button>
+        <div class="drawer-body" id="drawerBody">
+          <div class="card now wide">
+            <div class="card-head">Now executing</div>
+            <div class="card-body">
+              <div class="line"><span class="ln" id="nowLn">&ndash;</span><code id="nowCode">Press Run to trace this program.</code></div>
+              <div class="meta" id="nowMeta"></div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-head">Variables <span class="count" id="varCount"></span></div>
+            <div class="card-body"><div class="vars" id="vars"></div></div>
+          </div>
+          <div class="card">
+            <div class="card-head">Call stack</div>
+            <div class="card-body"><div class="frames" id="frames"></div></div>
+          </div>
+          <div class="card wide">
+            <div class="card-head">Standard output</div>
+            <pre class="out" id="stdout"></pre>
+            <div id="errBox"></div>
+          </div>
+          <div class="stale" id="stale">Code changed since the last run &mdash; press <b>Run</b> to re-trace.</div>
+        </div>
+      </div>
+    </section>
+
+    <div class="splitter" id="splitter" title="Drag to resize · double-click to reset"></div>
+
+    <section class="pane">
+      <div class="stage-bar">
+        <div class="transport">
+          <button class="btn ghost" id="btnFirst" style="padding:5px 10px" title="First step">&#8676;</button>
+          <button class="btn ghost" id="btnPrev" style="padding:5px 10px" title="Previous step">&#9664;</button>
+          <input type="range" id="scrub" min="0" max="0" value="0" disabled title="Scrub through steps">
+          <button class="btn ghost" id="btnNext" style="padding:5px 10px" title="Next step">&#9654;</button>
+          <button class="btn ghost" id="btnLast" style="padding:5px 10px" title="Last step">&#8677;</button>
+          <select id="speed" title="Playback speed">
+            <option value="900">0.5&times;</option>
+            <option value="450" selected>1&times;</option>
+            <option value="220">2&times;</option>
+            <option value="90">5&times;</option>
+          </select>
+        </div>
+      </div>
+      <div class="stage-head">
+        <span class="title">Program World</span>
+        <span class="pill muted" id="stepPill">step 0 / 0</span>
+        <span class="pill blue" id="framePill">no frame</span>
+      </div>
+      <div class="timeline" id="timeline"></div>
+      <div class="stage-wrap">
+        <div class="stage" id="stage">
+          <div class="world" id="world">
+            <div class="wtop" id="wtop"></div>
+            <div class="arena" id="arena"></div>
+            <div id="outSlot"></div>
+            <div class="world-idle" id="worldIdle">
+              <div class="big">🤖 ⚔️ 👹</div>
+              <div>Press <code>Run</code> and watch your variables come alive.</div>
+            </div>
+          </div>
+          <div class="vs-layer" id="vsLayer"></div>
+          <div class="event-banner" id="eventBanner">
+            <span class="eb-kind" id="ebKind">Ready</span>
+            <span class="eb-text" id="ebText">Press Run to trace this program.</span>
+          </div>
+          <div class="game-view" id="gameView">
+            <div class="game-bar">
+              <button class="btn sm" id="btnGameStop" disabled>Stop</button>
+              <button class="btn ghost sm" id="btnGameExit">Back to stage</button>
+              <span class="game-msg" id="gameMsg"></span>
+            </div>
+            <div class="game-screen">
+              <canvas id="gameCanvas" width="480" height="360" tabindex="0"></canvas>
+            </div>
+            <pre class="game-out" id="gameOut"></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+</div>
+
+
+<!-- the app's own modules are pulled in by the adapter; no script ordering here -->
+<script type="module" src="./run.js"></script>
+</body>
+</html>

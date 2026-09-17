@@ -1,0 +1,40 @@
+  .program-world{
+    --bg:#0e1120; --panel:#161a2c; --panel-2:#1b2036; --line:#252b47;
+    --text:#e8ecf1; --dim:#7d88b0; --dim-2:#5c678f;
+    --gold:#ffd166; --blue:#5b8cff; --green:#4bd6a0; --red:#ff6b85; --purple:#c39dff;
+    --mono:ui-monospace,SFMono-Regular,"JetBrains Mono",Consolas,Monaco,monospace;
+    --split:10px;
+    --right:46%;
+    --drawer-h:44px;
+  }
+  .program-world *{box-sizing:border-box}
+  .program-world{height:100dvh}
+  .program-world{
+    margin:0;background:var(--bg);color:var(--text);overflow:hidden;
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .program-world .app{display:flex;flex-direction:column;height:100vh}
+
+  .program-world .topbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    padding:10px 16px;border-bottom:1px solid var(--line);background:#12162a;}
+  .program-world .brand{display:flex;align-items:baseline;gap:10px;min-width:0}
+  .program-world .brand h1{margin:0;font-size:15px;font-weight:700;letter-spacing:.2px;white-space:nowrap}
+  .program-world .brand .tag{font-size:11px;color:var(--dim-2);font-family:var(--mono);letter-spacing:.5px}
+  .program-world .spacer{flex:1}
+  .program-world .btn{font:inherit;font-size:13px;font-weight:600;padding:7px 15px;border-radius:8px;cursor:pointer;
+    border:1px solid transparent;background:#232a48;color:#c7d1ee;transition:.15s;white-space:nowrap;}
+  .program-world .btn:hover:not(:disabled){background:#2d3660;color:#fff}
+  .program-world .btn:disabled{opacity:.38;cursor:not-allowed}
+  .program-world .btn.primary{background:var(--gold);color:#1a1f33}
+  .program-world .btn.primary:hover:not(:disabled){background:#ffdd8a}
+  .program-world .btn.ghost{background:transparent;border-color:var(--line);color:var(--dim)}
+  .program-world .btn.ghost:hover:not(:disabled){background:#20263f;color:var(--text)}
+  .program-world .status{display:inline-flex;align-items:center;gap:7px;font-size:12px;color:var(--dim);
+    padding:5px 11px;border:1px solid var(--line);border-radius:999px;background:#161b2f;}
+  .program-world .status .dot{width:7px;height:7px;border-radius:50%;background:var(--dim-2)}
+  .program-world .status.ready .dot{background:var(--green);box-shadow:0 0 0 3px rgba(75,214,160,.16)}
+  .program-world .status.busy .dot{background:var(--gold);animation:blink .8s infinite alternate}
+  .program-world .status.error .dot{background:var(--red)}
+  @keyframes blink{from{opacity:1}to{opacity:.25}}
+
