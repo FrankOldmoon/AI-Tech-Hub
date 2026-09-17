@@ -333,6 +333,7 @@
   "speech": {
     "sourceMic": "Microphone",
     "sourceFile": "Upload file",
+    "sourceRecord": "Recording",
     "uploadAudio": "Upload audio",
     "analyzeFile": "Analyze",
     "noFile": "Upload or select an audio file first",

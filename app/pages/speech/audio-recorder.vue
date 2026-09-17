@@ -5,9 +5,9 @@ import { convertMedia, mediaExt, type ConvertTarget } from '~/utils/ffmpeg'
 /**
  * 录音工具：麦克风录制 → 试听 / 下载 → 浏览器内转格式（ffmpeg.wasm）。
  *
- * - 采集、chunk 累积、秒表、卸载关流全部交给 useRecorder（与 voiceprint / voice-clone /
+ * - 采集、chunk 累积、秒表、卸载关流全部交给 useAudioInput（与 voiceprint / voice-clone /
  *   speech-translate 同一条路径），本页只额外做「电平表」与「转格式」两件事。
- * - 电平表要挂在**录音那条流**上，所以 useRecorder 会把实时 stream 暴露出来。
+ * - 电平表要挂在**录音那条流**上，所以 useAudioInput 会把实时 stream 暴露出来。
  * - 产物不经过服务器：MediaRecorder 原生编码（Chrome 是 webm/Opus、Safari 是 m4a/AAC），
  *   转码交给本地的 ffmpeg.wasm（见 ~/utils/ffmpeg）。
  */
@@ -17,7 +17,7 @@ const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'audio-recorder')!)
 
 const error = ref<string | null>(null)
-/** 这一段录了多久（秒）：useRecorder 的秒表在 onStop 之前就归零了，所以自己留住最后一个非零值 */
+/** 这一段录了多久（秒）：录音的秒表在 onStop 之前就归零了，所以自己留住最后一个非零值 */
 const elapsed = ref(0)
 /** 输入电平 0..1，驱动那根条子 */
 const level = ref(0)
@@ -34,14 +34,20 @@ const convertLog = ref('')
 const convertedUrl = ref('')
 const convertedName = ref('')
 
-const recorder = useRecorder({
+// 采集、chunk 累积、秒表、卸载关流都在 useAudioInput 里（与其他语音页同一条路径）；
+// 本页只从它拿状态，外加「电平表」与「转格式」两件事，所以 UI 仍是自己的大按钮 + 电平条。
+const {
+  recording,
+  recordSeconds: seconds,
+  recordStream: stream,
+  startRecord,
+  stopRecord
+} = useAudioInput({
   namePrefix: 'audio',
-  onStop: handleStopped,
+  initialMode: 'record',
+  onRecorded: handleStopped,
   onError: (e) => { error.value = mediaError(e, t) }
 })
-const recording = recorder.recording
-const seconds = recorder.seconds
-const stream = recorder.stream
 
 watch(seconds, (v) => {
   if (v > 0) elapsed.value = v
@@ -83,7 +89,7 @@ function handleStopped(file: File) {
   }
   resultBlob = file
   resultSize.value = file.size
-  // 后缀按真实容器取：Safari 录出来是 m4a/AAC，而 useRecorder 一律命名成 .webm
+  // 后缀按真实容器取：Safari 录出来是 m4a/AAC，而录音产物一律命名成 .webm
   resultName.value = `audio-${stamp()}.${mediaExt(file)}`
   if (resultUrl.value) URL.revokeObjectURL(resultUrl.value)
   resultUrl.value = URL.createObjectURL(file)
@@ -97,11 +103,11 @@ function start() {
     error.value = t('audioRecorder.unsupported')
     return
   }
-  void recorder.start()
+  void startRecord()
 }
 
 function stop() {
-  recorder.stop()
+  stopRecord()
 }
 
 /** 清掉这一轮的录音与转换产物（不动采集状态） */

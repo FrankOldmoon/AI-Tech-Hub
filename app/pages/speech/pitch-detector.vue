@@ -3,7 +3,6 @@
 import type { ParamSpec } from '~/utils/params'
 import { mediaError } from '~/utils/errors'
 import { paramDefaults } from '~/utils/params'
-import { decodeTo16k } from '~/utils/audio'
 import { freqToNote, yinPitch } from '~/utils/pitch'
 
 const { t } = useI18n()
@@ -11,7 +10,6 @@ const { getDemo } = useDemos()
 
 const demo = computed(() => getDemo('speech', 'pitch-detector')!)
 
-const mode = ref<'mic' | 'file'>('mic')
 const error = ref<string | null>(null)
 const freq = ref(0)
 const note = ref('--')
@@ -20,9 +18,7 @@ const clarity = ref(0)
 const history = ref<number[]>([])
 const canvasRef = ref<HTMLCanvasElement>()
 
-// 文件模式
-const audioFile = ref<File | null>(null)
-const fileInput = ref<HTMLInputElement>()
+// 文件模式（文件本身由 useAudioInput 持有，见下方）
 const analyzing = ref(false)
 const analyzed = ref(false)
 let cancelled = false
@@ -34,14 +30,31 @@ const specs = computed<ParamSpec[]>(() => [
 ])
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
-/**
- * 采集改用公共 composable：getUserMedia + AudioContext + ScriptProcessor + 卸载 teardown
- * 原先这段样板在 audio-classifier / emotion / hum-to-notes / 本页各有一份，现在只此一处。
- * 采样率沿用 composable 默认的 16kHz：与本页文件模式（decodeTo16k）以及 hum-to-notes 同源，
- * 因此下面 yinPitch 的 sampleRate 直接复用这个常量，不再从 AudioContext 上现取。
- */
+// 麦克风采样率：与本页文件模式的解码（16kHz）以及 hum-to-notes 同源，
+// 因此下面 yinPitch 直接复用这个常量，不再从 AudioContext 上现取。
 const MIC_RATE = 16000
-const { running, start: startMic, stop: stopMic } = useMicStream()
+
+// 上传 / 示例 / 麦克风实时统一走 useAudioInput：文件 ref、objectURL、隐藏 input、解码缓存
+// 与采集链（getUserMedia + AudioContext + teardown）都在它内部；本页只留音高检测与读数。
+const {
+  mode,
+  file: audioFile,
+  setFile,
+  useSample,
+  toSamples16k,
+  micRunning: running,
+  startMic: startMicInput,
+  stopMic: stopMicInput
+} = useAudioInput({
+  defaultSampleUrl: '/samples/audio/speech.wav',
+  sampleRate: MIC_RATE,
+  initialMode: 'mic',
+  onFrame,
+  onError: (e) => { error.value = mediaError(e, t) }
+})
+
+/** 「试用示例」按钮由 AudioInput 渲染 */
+const samples = computed(() => [{ label: t('samples.trySample'), url: '/samples/audio/speech.wav' }])
 
 let rafId: number | null = null
 
@@ -109,12 +122,8 @@ function onFrame(frame: Float32Array) {
 async function start() {
   if (running.value) return
   error.value = null
-  await startMic({
-    sampleRate: MIC_RATE,
-    onFrame,
-    // 采集链路失败（权限被拒/无设备）由 composable 回调，此时它已把流与 context 收干净
-    onError: (e) => { error.value = mediaError(e, t) }
-  })
+  // 采样率/逐帧回调/错误出口都在 useAudioInput 的构造参数里
+  await startMicInput()
   if (!running.value) return
   history.value = []
   draw()
@@ -122,7 +131,7 @@ async function start() {
 
 /** 停止采集并清空读数：关 processor / context / 流由 composable 负责，这里只管本页的显示状态 */
 function stop() {
-  stopMic()
+  stopMicInput()
   if (rafId !== null) {
     cancelAnimationFrame(rafId)
     rafId = null
@@ -134,37 +143,15 @@ function stop() {
 }
 
 // ===== 文件模式：整段 16k 滑动窗口 YIN 提调 =====
-function pickFile() { fileInput.value?.click() }
-
-function onFileChange(e: Event) {
-  const input = e.target as HTMLInputElement
-  const f = input.files?.[0]
-  if (!f) return
-  audioFile.value = f
+/** 换文件后复位上一次的分析结果（文件本身由 useAudioInput 管） */
+watch(audioFile, () => {
   error.value = null
   analyzed.value = false
   history.value = []
   note.value = '--'
   freq.value = 0
   cents.value = 0
-}
-
-async function useSample() {
-  try {
-    const res = await fetch('/samples/audio/speech.wav')
-    const blob = await res.blob()
-    const f = new File([blob], 'speech.wav', { type: 'audio/wav' })
-    audioFile.value = f
-    error.value = null
-    analyzed.value = false
-    history.value = []
-    note.value = '--'
-    freq.value = 0
-    cents.value = 0
-  } catch (err: any) {
-    error.value = err?.message || String(err)
-  }
-}
+})
 
 /** 滑动窗口跑 YIN：2048 样本窗口 / 1024 步进，聚合整条音高轮廓 */
 async function analyzeFile() {
@@ -175,16 +162,16 @@ async function analyzeFile() {
   analyzed.value = false
   analyzing.value = true
   try {
-    const samples = await decodeTo16k(audioFile.value)
+    const pcm = await toSamples16k()
     const threshold = Number(params.value.threshold)
     const minFreq = Number(params.value.minFreq)
     const maxFreq = Number(params.value.maxFreq)
     const win = 2048
     const hop = 1024
-    const count = Math.max(0, Math.floor((samples.length - win) / hop) + 1)
+    const count = Math.max(0, Math.floor((pcm.length - win) / hop) + 1)
     for (let i = 0; i < count; i++) {
       if (cancelled) return
-      const slice = samples.slice(i * hop, i * hop + win)
+      const slice = pcm.slice(i * hop, i * hop + win)
       const res = yinPitch(slice, 16000, threshold, minFreq, maxFreq)
       if (res && res.clarity > 0.5) {
         history.value.push(res.freq)
@@ -241,93 +228,56 @@ watch(mode, (m) => {
     <DemoRunner :error="error">
       <!-- 输入 -->
       <template #input>
-        <AudioSourceToggle
-          v-model="mode"
-          class="mb-4"
-        />
-
-        <!-- 麦克风模式 -->
-        <template v-if="mode === 'mic'">
-          <p class="text-sm text-muted mb-4">
-            {{ t('pitch.hint') }}
-          </p>
-        </template>
-
-        <!-- 文件模式 -->
-        <template v-else>
-          <p class="text-sm text-muted mb-4">
-            {{ t('speech.fileHint') }}
-          </p>
-          <div class="flex flex-wrap items-center gap-2 mb-4">
-            <input
-              ref="fileInput"
-              type="file"
-              accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-              class="hidden"
-              @change="onFileChange"
-            >
-            <UButton
-              icon="i-lucide-upload"
-              :label="audioFile ? audioFile.name : t('speech.uploadAudio')"
-              variant="outline"
-              :disabled="analyzing"
-              @click="pickFile"
-            />
-            <UButton
-              icon="i-lucide-flask-conical"
-              :label="t('samples.trySample')"
-              variant="soft"
-              :disabled="analyzing"
-              @click="useSample"
-            />
-          </div>
-        </template>
+        <!-- 来源：麦克风实时 / 上传文件（统一输入组件） -->
+        <AudioInput
+          v-model:mode="mode"
+          :modes="['mic', 'file']"
+          :samples="samples"
+          :file-name="audioFile?.name"
+          :disabled="analyzing"
+          :active="running"
+          :start-label="t('pitch.start')"
+          :stop-label="t('pitch.stop')"
+          @select="setFile"
+          @sample="useSample"
+          @start="start"
+          @stop="stop"
+        >
+          <template #hint="{ mode: current }">
+            <p class="text-sm text-muted">
+              {{ current === 'mic' ? t('pitch.hint') : t('speech.fileHint') }}
+            </p>
+          </template>
+        </AudioInput>
 
         <DemoParams
           v-model="params"
           :specs="specs"
           :running="running || analyzing"
           :title="t('params.title')"
+          class="mt-4"
         />
       </template>
 
-      <!-- 控件 -->
+      <!-- 控件：文件模式的整段分析 -->
       <template #controls>
-        <template v-if="mode === 'mic'">
-          <UButton
-            v-if="!running"
-            icon="i-lucide-mic"
-            :label="t('pitch.start')"
-            color="primary"
-            @click="start"
-          />
-          <UButton
-            v-else
-            icon="i-lucide-square"
-            :label="t('pitch.stop')"
-            color="error"
-            variant="subtle"
-            @click="stop"
-          />
-        </template>
-        <template v-else>
-          <UButton
-            icon="i-lucide-wand-sparkles"
-            :label="t('speech.analyzeFile')"
-            color="primary"
-            :loading="analyzing"
-            :disabled="!audioFile"
-            @click="analyzeFile"
-          />
-          <UButton
-            v-if="analyzing"
-            icon="i-lucide-x"
-            :label="t('speech.cancel')"
-            color="neutral"
-            variant="subtle"
-            @click="cancelAnalyze"
-          />
-        </template>
+        <UButton
+          v-if="mode === 'file'"
+          icon="i-lucide-wand-sparkles"
+          :label="t('speech.analyzeFile')"
+          color="primary"
+          :loading="analyzing"
+          :disabled="!audioFile"
+          @click="analyzeFile"
+        />
+        <UButton
+          v-if="mode === 'file' && analyzing"
+          icon="i-lucide-x"
+          :label="t('speech.cancel')"
+          color="neutral"
+          variant="subtle"
+          @click="cancelAnalyze"
+        />
       </template>
 
       <!-- 结果 -->

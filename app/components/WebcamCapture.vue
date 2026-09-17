@@ -1,14 +1,38 @@
 <script setup lang="ts">
 /**
- * 通用摄像头组件（从 FaceCameraCapture 抽取出的纯取帧部分）。
+ * 全站唯一的摄像头取帧组件（含人脸实时识别的上层封装，见 FaceCameraCapture）。
  * - 打开摄像头 → 实时镜像预览 → 点「拍照」把当前帧导出为 JPEG File 并 emit 'capture'。
- * - 通过命名插槽 `overlay`（作用域含 video/active）暴露实时视频，供父组件做逐帧绘制。
+ * - 通过命名插槽 `overlay`（作用域含 video/active）暴露实时视频，供父组件做逐帧绘制；
+ *   `footer` 插槽放在视频与按钮之间，用来放「实时识别中」这类说明。
+ * - 文案可覆盖（openLabel / captureLabel / closeLabel），便于上层沿用自己页面的措辞。
+ * - emit 'ready' 把 video 元素交出去，供上层挂自己的逐帧循环（人脸框等）。
  * - 内置 getUserMedia 权限/设备/繁忙友好错误提示；卸载时自动停止媒体轨道。
  */
 import { mediaError } from '~/utils/errors'
 
 const { t } = useI18n()
-const emit = defineEmits<{ capture: [file: File], close: [] }>()
+const props = withDefaults(defineProps<{
+  /** 未开摄像头时按钮的文案 */
+  openLabel?: string
+  /** 「拍照」按钮文案 */
+  captureLabel?: string
+  /** 「关闭摄像头」按钮文案 */
+  closeLabel?: string
+}>(), {
+  openLabel: undefined,
+  captureLabel: undefined,
+  closeLabel: undefined
+})
+const emit = defineEmits<{
+  capture: [file: File]
+  close: []
+  /** 预览就绪：把 video 元素交出去，上层可开始自己的逐帧绘制 */
+  ready: [video: HTMLVideoElement]
+}>()
+
+const openText = computed(() => props.openLabel ?? t('webcam.useCamera'))
+const captureText = computed(() => props.captureLabel ?? t('webcam.capture'))
+const closeText = computed(() => props.closeLabel ?? t('webcam.closeCamera'))
 
 const videoEl = ref<HTMLVideoElement>()
 const active = ref(false)
@@ -36,6 +60,7 @@ async function open() {
       videoEl.value.muted = true
       videoEl.value.playsInline = true
       await videoEl.value.play().catch(() => { /* 忽略自动播放拦截 */ })
+      emit('ready', videoEl.value)
     }
   } catch (e) {
     cameraError.value = mediaError(e, t)
@@ -96,7 +121,7 @@ defineExpose({ open, capture, stop, close, toggle, videoEl })
     >
       <UButton
         icon="i-lucide-video"
-        :label="t('webcam.useCamera')"
+        :label="openText"
         color="secondary"
         variant="subtle"
         :loading="busy"
@@ -119,10 +144,11 @@ defineExpose({ open, capture, stop, close, toggle, videoEl })
           v-bind="{ video: videoEl, active }"
         />
       </div>
+      <slot name="footer" />
       <div class="flex flex-wrap items-center gap-2">
         <UButton
           icon="i-lucide-camera"
-          :label="t('webcam.capture')"
+          :label="captureText"
           color="primary"
           @click="capture"
         />
@@ -131,7 +157,7 @@ defineExpose({ open, capture, stop, close, toggle, videoEl })
           size="sm"
           color="neutral"
           variant="ghost"
-          :label="t('webcam.closeCamera')"
+          :label="closeText"
           @click="close"
         />
       </div>

@@ -51,21 +51,32 @@ const modeItems = computed(() => [
 ])
 
 // ===== 输入 =====
-const source = ref<'mic' | 'file'>('mic')
 const name = ref('')
 
-// 上传/示例：文件 ref、objectURL、隐藏 input、解码缓存与时长全交给 useAudioSource，
-// 它自己负责卸载时 revoke objectURL，所以下面不再出现 URL.createObjectURL/revokeObjectURL。
-const audioSource = useAudioSource({
+// 上传 / 示例 / 录音三条路径统一交给 useAudioInput：文件 ref、objectURL、隐藏 input、
+// 解码缓存与时长都在它内部，卸载时自动 revoke objectURL；录音产物也自动成为「当前文件」，
+// 所以下面不再出现 URL.createObjectURL / revokeObjectURL，也不再各自维护一份录音状态。
+const {
+  mode: source,
+  file: audioFile,
+  url: audioUrl,
+  seconds: sourceSeconds,
+  setFile,
+  useSample,
+  toSamples16k,
+  recording,
+  recordSeconds,
+  startRecord,
+  stopRecord
+} = useAudioInput({
   defaultSampleUrl: '/samples/audio/speech-zh.wav',
-  onError: (e) => { error.value = humanError(e, t) }
+  namePrefix: 'voice',
+  initialMode: 'record',
+  onError: (e) => { error.value = mediaError(e, t) }
 })
-const audioFile = audioSource.file
-const audioUrl = audioSource.url
-const fileInput = audioSource.inputRef
-const pickFile = audioSource.pick
-const onFileChange = audioSource.onFileChange
-const useSample = audioSource.useSample
+
+/** 「试用示例」按钮由 AudioInput 渲染，点一下回调这里 */
+const samples = computed(() => [{ label: t('samples.trySample'), url: '/samples/audio/speech-zh.wav' }])
 
 // ===== 运行状态 =====
 const busy = ref(false)
@@ -90,7 +101,7 @@ function refreshRegistry() { registry.value = getVoiceprints() }
 refreshRegistry()
 
 // 换输入（录音产物 / 上传 / 示例）后必须清掉上一次的向量与排名。这段副作用原本写在页面自己的
-// setFile 里，而 setFile 已由 useAudioSource 提供，故用 watch 监听 file 补齐，避免再包一层重复的 setFile。
+// setFile 里，而 setFile 已由 useAudioInput 提供，故用 watch 监听 file 补齐，避免再包一层重复的 setFile。
 watch(audioFile, () => {
   lastEmbedding = null
   ranks.value = []
@@ -99,29 +110,21 @@ watch(audioFile, () => {
 })
 
 // ---- 录音（MediaRecorder → File，后续与上传文件统一走 toSamples16k）----
-// 采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」这一步。
-const recorder = useRecorder({
-  namePrefix: 'voice',
-  onStop: audioSource.setFile,
-  onError: (e) => { error.value = mediaError(e, t) }
-})
-const recording = recorder.recording
-const recordSeconds = recorder.seconds
-
+// 采集、chunk 累积、秒表、卸载关流都在 useAudioInput 里，页面只保留「开始前清错误」这一步。
 function startRecording() {
   error.value = null
-  recorder.start()
+  void startRecord()
 }
 
 function stopRecording() {
-  recorder.stop()
+  stopRecord()
 }
 
-/** 解码到 16kHz 单声道（WavLM 期望输入）；解码缓存与时长由 useAudioSource 算好 */
+/** 解码到 16kHz 单声道（WavLM 期望输入）；解码缓存与时长由 useAudioInput 算好 */
 async function loadAudio(): Promise<Float32Array> {
   if (!audioFile.value) throw new Error(t('vp.noFile'))
-  const samples = await audioSource.toSamples16k()
-  lastSeconds.value = audioSource.seconds.value
+  const samples = await toSamples16k()
+  lastSeconds.value = sourceSeconds.value
   if (lastSeconds.value < MIN_AUDIO_SECONDS) throw new Error(t('vp.tooShort'))
   return samples
 }
@@ -205,7 +208,7 @@ function clearAll() {
   ranks.value = []
 }
 
-// 只需终止在途推理：录音流与输入 objectURL 的回收已由 useRecorder / useAudioSource 各自接管，
+// 只需终止在途推理：录音流与输入 objectURL 的回收已由 useAudioInput 各自接管，
 // 这里再 stop/revoke 一次就是双重释放。
 onBeforeUnmount(() => {
   cancelled = true
@@ -254,83 +257,38 @@ const sampleCount = computed(() => registry.value.reduce((s, p) => s + p.samples
           {{ mode === 'enroll' ? t('vp.enrollHint') : t('vp.identifyHint') }}
         </p>
 
-        <AudioSourceToggle v-model="source" />
-
-        <div class="mt-4 space-y-3">
-          <!-- 录音 -->
-          <template v-if="source === 'mic'">
-            <div class="flex flex-wrap items-center gap-2">
-              <UButton
-                v-if="!recording"
-                icon="i-lucide-mic"
-                :label="t('speech.recordStart')"
-                color="primary"
-                variant="soft"
-                @click="startRecording"
-              />
-              <UButton
-                v-else
-                icon="i-lucide-square"
-                :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
-                color="error"
-                variant="subtle"
-                @click="stopRecording"
-              />
-              <span
-                v-if="audioFile"
-                class="text-sm text-dimmed"
-              >{{ audioFile.name }}</span>
-            </div>
-          </template>
-
-          <!-- 上传 -->
-          <template v-else>
-            <div class="flex flex-wrap items-center gap-2">
-              <input
-                ref="fileInput"
-                type="file"
-                accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-                class="hidden"
-                @change="onFileChange"
-              >
-              <UButton
-                icon="i-lucide-upload"
-                :label="audioFile ? audioFile.name : t('speech.uploadAudio')"
-                variant="outline"
-                @click="pickFile"
-              />
-              <UButton
-                icon="i-lucide-flask-conical"
-                :label="t('samples.trySample')"
-                variant="soft"
-                @click="useSample('/samples/audio/speech-zh.wav')"
+        <AudioInput
+          v-model:mode="source"
+          class="mt-4"
+          :modes="['record', 'file']"
+          :samples="samples"
+          :file-name="audioFile?.name"
+          :file-url="audioUrl"
+          :active="recording"
+          :seconds="recordSeconds"
+          @select="setFile"
+          @sample="useSample"
+          @start="startRecording"
+          @stop="stopRecording"
+        >
+          <template #extra>
+            <div v-if="mode === 'enroll'">
+              <label class="mb-1 block text-sm font-medium text-muted">{{ t('vp.name') }}</label>
+              <UInput
+                v-model="name"
+                :placeholder="t('vp.namePlaceholder')"
+                class="w-full max-w-xs"
               />
             </div>
-          </template>
 
-          <audio
-            v-if="audioUrl"
-            :src="audioUrl"
-            controls
-            class="w-full max-w-md"
-          />
-
-          <div v-if="mode === 'enroll'">
-            <label class="mb-1 block text-sm font-medium text-muted">{{ t('vp.name') }}</label>
-            <UInput
-              v-model="name"
-              :placeholder="t('vp.namePlaceholder')"
-              class="w-full max-w-xs"
+            <DemoParams
+              v-model="params"
+              :specs="specs"
+              :running="busy"
+              :title="t('params.title')"
             />
-          </div>
-
-          <DemoParams
-            v-model="params"
-            :specs="specs"
-            :running="busy"
-            :title="t('params.title')"
-          />
-        </div>
+          </template>
+        </AudioInput>
       </template>
 
       <!-- 控件 -->

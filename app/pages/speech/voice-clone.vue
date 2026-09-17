@@ -13,13 +13,22 @@ const demo = computed(() => getDemo('speech', 'voice-clone')!)
 const text = ref('你好，这是一段用你的声音合成的语音。Hello, this is your cloned voice speaking.')
 const device = ref<'webgpu' | 'wasm'>('webgpu')
 
-// 参考音上传：文件 ref、objectURL、隐藏 input 交给 useAudioSource（本页没有示例音入口，故不传 defaultSampleUrl）
-const audioSource = useAudioSource()
-const refFile = audioSource.file
-const refUrl = audioSource.url
-const fileInput = audioSource.inputRef
-const pickFile = audioSource.pick
-const onFileChange = audioSource.onFileChange
+// 参考音：上传 / 录音两条路径统一走 useAudioInput（本页没有示例音入口，故不传 defaultSampleUrl）。
+// 文件 ref、objectURL、隐藏 input、录音状态与秒表都在它内部，录音产物自动成为当前参考音。
+const {
+  mode: source,
+  file: refFile,
+  url: refUrl,
+  setFile,
+  recording,
+  recordSeconds,
+  startRecord,
+  stopRecord
+} = useAudioInput({
+  namePrefix: 'ref',
+  initialMode: 'record',
+  onError: (e) => { error.value = mediaError(e, t) }
+})
 
 // 推理
 const loading = ref(false)
@@ -38,28 +47,20 @@ const DTYPE = {
 }
 
 // 换参考音后清空上一次的合成结果（原 setRef 的副作用），改挂在 file 的 watch 上，
-// setRef 本身则完全交给 useAudioSource。
+// setRef 本身则完全交给 useAudioInput。
 watch(refFile, () => {
   resultUrl.value = ''
   error.value = null
 })
 
-// 录音：采集、chunk 累积、秒表、卸载关流都交给 useRecorder，页面只保留「开始前清错误」。
-const recorder = useRecorder({
-  namePrefix: 'ref',
-  onStop: audioSource.setFile,
-  onError: (e) => { error.value = mediaError(e, t) }
-})
-const recording = recorder.recording
-const recordSeconds = recorder.seconds
-
+// 录音：采集、chunk 累积、秒表、卸载关流都在 useAudioInput 里，页面只保留「开始前清错误」。
 function startRecording() {
   error.value = null
-  recorder.start()
+  void startRecord()
 }
 
 function stopRecording() {
-  recorder.stop()
+  stopRecord()
 }
 
 // 参考音频 → 48kHz 单声道 Float32Array，再编码为说话人嵌入
@@ -162,42 +163,17 @@ onBeforeUnmount(() => {
         <p class="text-xs text-muted">
           {{ t('vcClone.refHint') }}
         </p>
-        <div class="flex flex-wrap items-center gap-2">
-          <UButton
-            v-if="!recording"
-            icon="i-lucide-mic"
-            :label="t('speech.recordStart')"
-            color="primary"
-            variant="soft"
-            @click="startRecording"
-          />
-          <UButton
-            v-else
-            icon="i-lucide-square"
-            :label="`${t('speech.recordStop')} (${recordSeconds}s)`"
-            color="error"
-            variant="subtle"
-            @click="stopRecording"
-          />
-          <input
-            ref="fileInput"
-            type="file"
-            accept="audio/*,.mp3,.wav,.m4a,.webm,.ogg,.flac"
-            class="hidden"
-            @change="onFileChange"
-          >
-          <UButton
-            icon="i-lucide-upload"
-            :label="refFile ? refFile.name : t('vcClone.uploadRef')"
-            variant="outline"
-            @click="pickFile"
-          />
-        </div>
-        <audio
-          v-if="refUrl"
-          :src="refUrl"
-          controls
-          class="w-full"
+        <AudioInput
+          v-model:mode="source"
+          :modes="['record', 'file']"
+          :upload-label="t('vcClone.uploadRef')"
+          :file-name="refFile?.name"
+          :file-url="refUrl"
+          :active="recording"
+          :seconds="recordSeconds"
+          @select="setFile"
+          @start="startRecording"
+          @stop="stopRecording"
         />
       </div>
 
