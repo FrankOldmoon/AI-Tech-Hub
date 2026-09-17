@@ -1481,6 +1481,22 @@ export const demos: Demo[] = [
     icon: 'i-lucide-move-3d',
     status: 'ready',
     tags: ['Robotics', 'Kinematics', 'Forward Kinematics', 'Inverse Kinematics', 'Three.js', 'Trajectory']
+  },
+  {
+    slug: 'embodied',
+    category: 'robot',
+    title: { zh: '具身智能五机器人实验室（Orion）', en: 'Embodied AI · Five-Robot Lab (Orion)' },
+    description: {
+      zh: '五个 URDF 机器人（四旋翼、六足、六轴机械臂、四足、人形）共用一个 3D 引擎：拖拽观察、逐关节调角度、跑演示轨迹看步态与运动学，并实时显示帧率与绘制调用数。',
+      en: 'Five URDF robots (quadcopter, hexapod, 6-axis arm, quadruped, humanoid) share one 3D engine: orbit to inspect, drive individual joints, run motion demos to watch gaits and kinematics, with live FPS and draw-call metrics.'
+    },
+    howItWorks: {
+      zh: 'URDF（link/joint/limit + box/cylinder/sphere 几何与材质）在浏览器里解析成 Three.js 场景图，关节按轴角旋转；每条演示轨迹是相位 p∈[0,1) 的函数，直接驱动各关节角。Three.js 已改为 npm 依赖打包，不再依赖独立目录里的 vendor 副本。',
+      en: 'URDF (links/joints/limits plus box/cylinder/sphere geometry and materials) is parsed in the browser into a Three.js scene graph, and joints rotate about their axes. Each motion demo is a phase function p∈[0,1) driving joint angles. Three.js now comes from npm instead of a vendored copy.'
+    },
+    icon: 'i-lucide-bot',
+    status: 'ready',
+    tags: ['Robotics', 'Embodied AI', 'URDF', 'Three.js', 'Kinematics', 'Gait', 'Simulation']
   }
 ]
 
