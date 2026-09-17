@@ -8,6 +8,8 @@
  *   - tesseract.js   → /model/vendor/tesseract/          （脚本 + worker + core + 语言数据）
  *   - ml5            → /model/vendor/ml5/                 （仅 min 主包，不搬 25MB sourcemap）
  *   - pyodide        → /model/vendor/pyodide/             （脚本 + wasm + stdlib + lock）
+ *                                                        以及示例要的 wheel：numpy/pillow/
+ *                                                        matplotlib/pandas/scipy/pygame
  *   - monaco-editor  → /model/vendor/monaco/min/          （AMD 加载器 + workers）
  *   - ffmpeg.wasm    → /model/vendor/ffmpeg/              （UMD 主包 + worker 分块 + 单线程 core 与 wasm）
  *
@@ -137,7 +139,65 @@ if (existsSync(monacoMin)) {
   console.warn('  ! 未找到 monaco-editor/min，跳过')
 }
 
-// ===== 2. Tesseract 语言数据（chi_sim 约 20MB，缺失才下载）=====
+// ===== 2. Pyodide 包（wheel）=====
+// Program World 的示例会 import numpy / pillow / matplotlib / pandas / scipy /
+// pygame。npm 的 pyodide 包只有内核，这些 wheel 不在其中；pyodide 会按 indexURL
+// 去解析包名，所以把它们放到内核旁边即可离线使用。与 tesseract 语言数据一样：
+// 缺失才下载，联网失败只是少几个示例。
+const PYODIDE_PKGS = ['numpy', 'pillow', 'matplotlib', 'pandas', 'scipy', 'pygame-ce', 'micropip']
+
+async function fetchPyodidePackages() {
+  const lockFile = join(OUT, 'pyodide', 'pyodide-lock.json')
+  if (!existsSync(lockFile)) {
+    console.warn('  ! 未找到 pyodide-lock.json，跳过 wheel（先完成上面的 npm 产物复制）')
+    return
+  }
+  const lock = JSON.parse(readFileSync(lockFile, 'utf8'))
+  const pkgs = lock.packages || {}
+  const version = (lock.info && lock.info.version) || '0.27.7'
+  const cdn = `https://cdn.jsdelivr.net/pyodide/v${version}/full`
+
+  // 传递依赖也要装：pyodide 按 lock 的 depends 逐个取 wheel
+  const want = new Set()
+  const visit = (name) => {
+    if (want.has(name)) return
+    const p = pkgs[name]
+    if (!p) {
+      console.warn(`  ! pyodide ${version} 的 lock 中没有包：${name}`)
+      return
+    }
+    want.add(name)
+    for (const d of p.depends || []) visit(d)
+  }
+  PYODIDE_PKGS.forEach(visit)
+
+  for (const name of want) {
+    const file = pkgs[name].file_name
+    const target = join(OUT, 'pyodide', file)
+    if (existsSync(target) && !FORCE) {
+      skipped++
+      continue
+    }
+    process.stdout.write(`  下载 ${file} ... `)
+    try {
+      const res = await fetch(`${cdn}/${file}`)
+      if (!res.ok) {
+        console.log(`失败 (HTTP ${res.status})`)
+        continue
+      }
+      const buf = Buffer.from(await res.arrayBuffer())
+      writeFileSync(target, buf)
+      copied++
+      console.log(mb(buf.length))
+    } catch (e) {
+      console.log(`失败 (${e.message})`)
+    }
+  }
+}
+
+await fetchPyodidePackages()
+
+// ===== 3. Tesseract 语言数据（chi_sim 约 20MB，缺失才下载）=====
 const LANGS = ['eng', 'chi_sim']
 const TESSDATA = 'https://tessdata.projectnaptha.com/4.0.0'
 const langOut = join(OUT, 'tesseract/lang')

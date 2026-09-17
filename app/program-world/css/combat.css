@@ -1,0 +1,89 @@
+  
+  .program-world .vs-layer{
+    position:absolute;inset:0;pointer-events:none;z-index:20;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .program-world .vs-box{
+    display:flex;align-items:center;gap:26px;
+    padding:22px 34px;border-radius:22px;
+    background:rgba(13,16,32,.94);border:2px solid rgba(255,209,102,.55);
+    box-shadow:0 24px 70px rgba(0,0,0,.7),0 0 70px rgba(255,209,102,.18);
+    opacity:0;transform:scale(.8) translateY(8px);
+    transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.4,.64,1);
+  }
+  .program-world .vs-box.show{opacity:1;transform:scale(1) translateY(0)}
+
+  .program-world .vs-fighter{font-size:58px;line-height:1;transition:transform .3s;position:relative}
+  .program-world .vs-fighter .flabel{
+    position:absolute;bottom:-18px;left:50%;transform:translateX(-50%);
+    font-family:var(--mono);font-size:10.5px;color:#8fa3d6;letter-spacing:.6px;white-space:nowrap;
+  }
+  .program-world .vs-fighter .fval{
+    position:absolute;top:-20px;left:50%;transform:translateX(-50%);
+    font-family:var(--mono);font-size:14px;font-weight:800;color:var(--gold);white-space:nowrap;
+  }
+  
+  .program-world .vs-fighter.left.charge{ animation: vChargeL .55s cubic-bezier(.34,1.4,.64,1) forwards; }
+  .program-world .vs-fighter.right.charge{ animation: vChargeR .55s cubic-bezier(.34,1.4,.64,1) forwards; }
+  
+  .program-world .vs-fighter.win{ animation: vWin  .9s ease; }
+  
+  .program-world .vs-fighter.lose{ animation: vLose .9s ease; filter:grayscale(.55); opacity:.6; }
+
+  .program-world .vs-mid{display:flex;flex-direction:column;align-items:center;gap:6px;font-family:var(--mono);min-width:80px}
+  .program-world .vs-op{font-size:26px;font-weight:800;color:var(--gold);letter-spacing:1px}
+  .program-world .vs-chain{display:flex;flex-wrap:wrap;gap:4px;justify-content:center;max-width:230px;margin-top:2px;position:relative;z-index:3}
+  .program-world .vs-chip{
+    font-family:var(--mono);font-size:10px;line-height:1.7;padding:0 5px;border-radius:4px;
+    background:#1a2036;border:1px solid var(--line);color:var(--dim);white-space:nowrap;
+  }
+  .program-world .vs-chip.ok{color:var(--green);border-color:rgba(75,214,160,.45);background:rgba(75,214,160,.1)}
+  .program-world .vs-chip.bad{color:var(--red);border-color:rgba(255,107,133,.45);background:rgba(255,107,133,.1)}
+  .program-world .vs-chip.unk{color:var(--dim-2)}
+  .program-world .vs-boom{
+    font-size:58px;position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%) scale(.2);
+    opacity:0;pointer-events:none;
+    transition:opacity .18s ease,transform .35s cubic-bezier(.34,1.7,.64,1);
+    filter:drop-shadow(0 0 22px rgba(255,209,102,.85));
+  }
+  .program-world .vs-boom.show{animation:boomFlash .95s ease-out forwards}
+  @keyframes boomFlash{
+    0%   {opacity:0;transform:translate(-50%,-50%) scale(.25)}
+    18%  {opacity:1;transform:translate(-50%,-50%) scale(1.5)}
+    45%  {opacity:1;transform:translate(-50%,-50%) scale(1.22)}
+    100% {opacity:0;transform:translate(-50%,-50%) scale(1.7)}
+  }
+  .program-world .vs-result{
+    font-family:var(--mono);font-size:15px;font-weight:800;letter-spacing:2px;
+    padding:6px 16px;border-radius:9px;margin-top:6px;
+    opacity:0;transform:translateY(6px);transition:opacity .3s,transform .3s;
+  }
+  .program-world .vs-result.show{opacity:1;transform:translateY(0)}
+  .program-world .vs-result.true{background:rgba(75,214,160,.22);color:var(--green);border:1px solid rgba(75,214,160,.6);box-shadow:0 0 18px rgba(75,214,160,.3)}
+  .program-world .vs-result.false{background:rgba(255,107,133,.18);color:var(--red);border:1px solid rgba(255,107,133,.6);box-shadow:0 0 18px rgba(255,107,133,.28)}
+
+  @keyframes vChargeL{
+    0%   { transform:translateX(0) scale(1); }
+    55%  { transform:translateX(38px) scale(1.18); }
+    75%  { transform:translateX(32px) scale(.92); }
+    100% { transform:translateX(0) scale(1); }
+  }
+  @keyframes vChargeR{
+    0%   { transform:translateX(0) scale(1); }
+    55%  { transform:translateX(-38px) scale(1.18); }
+    75%  { transform:translateX(-32px) scale(.92); }
+    100% { transform:translateX(0) scale(1); }
+  }
+  @keyframes vWin{
+    0%{transform:scale(1)}25%{transform:scale(1.22) translateY(-6px)}50%{transform:scale(1.05) translateY(0)}75%{transform:scale(1.15) translateY(-3px)}100%{transform:scale(1)}
+  }
+  @keyframes vLose{
+    0%,100%{transform:translateX(0) rotate(0)}
+    15%{transform:translateX(14px) rotate(8deg)}
+    30%{transform:translateX(-10px) rotate(-6deg)}
+    45%{transform:translateX(8px) rotate(5deg)}
+    60%{transform:translateX(-5px) rotate(-3deg)}
+    80%{transform:translateX(3px) rotate(2deg)}
+  }
+

@@ -66,6 +66,9 @@ tmp/
 .playwright-cli/
 tmp/chrome-headless/
 
+# Program World 测试台的临时 Chrome profile（scripts/test-program-world.mjs）
+.program-world-test-profile/
+
 # runtime temp (port/debug leftovers)
 3001/
 

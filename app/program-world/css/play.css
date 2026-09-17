@@ -1,0 +1,28 @@
+/* 游戏页（/ide/play）：内容比视口高，所以整页滚动而不是内部滚动。
+   base.css 里 .program-world 是 height:100dvh + overflow:hidden，这里覆盖。
+   与源站一样，本文件在 base.css 之后加载，用于覆盖 .status 等的观感。 */
+.program-world{height:auto;min-height:100dvh;overflow:auto}
+
+.program-world .wrap{max-width:1000px;margin:0 auto;padding:18px 20px 40px}
+.program-world .head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.program-world .head h1{font-size:16px;margin:0;letter-spacing:.3px}
+.program-world .head .tag{font-size:10.5px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--dim-2)}
+.program-world .status{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.program-world .status.bad{color:var(--red)}
+.program-world .status.good{color:var(--green)}
+.program-world .stage{display:flex;align-items:center;justify-content:center;min-height:340px;padding:16px;
+  border:1px solid var(--line);border-radius:12px;background:#0b0e18}
+.program-world #screen{background:#000;border-radius:6px;max-width:100%;image-rendering:pixelated;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);touch-action:none}
+.program-world .hint{margin:12px 0 0;font-size:12.5px;color:var(--dim);line-height:1.65}
+.program-world .hint code{font-family:var(--mono);font-size:12px;color:var(--gold)}
+.program-world .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.program-world select{font:inherit;font-size:12.5px;padding:5px 8px;border-radius:8px;background:#1c2138;color:var(--text);
+  border:1px solid var(--line)}
+.program-world pre.out{margin:14px 0 0;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#0f1322;
+  color:var(--dim);font-family:var(--mono);font-size:12px;line-height:1.55;max-height:210px;overflow:auto;white-space:pre-wrap}
+.program-world details.example{margin-top:14px;border:1px solid var(--line);border-radius:10px;background:#141930;padding:0 14px}
+.program-world details.example summary{cursor:pointer;padding:11px 0;font-size:12.5px;color:var(--gold)}
+.program-world details.example pre{margin:0 0 14px;color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.6;
+  overflow:auto;white-space:pre}
+.program-world a.btn{text-decoration:none}
