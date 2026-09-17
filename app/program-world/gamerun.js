@@ -16,20 +16,20 @@
    interpreter is still healthy and the same runtime can run again: no reload.
    ===================================================================== */
 /* 与追踪 worker 一样，pyodide 走 hubs 自托管的 npm 产物 */
-const VENDOR = () => new URL("/model/vendor/pyodide/", document.baseURI).href;
+const VENDOR = () => new URL('/model/vendor/pyodide/', document.baseURI).href
 
-let runtime = null;
-let running = false;
-let stopFlag = false;
+let runtime = null
+let running = false
+let stopFlag = false
 
-export function isRunning() { return running; }
+export function isRunning() { return running }
 
-export function stopGame() { stopFlag = true; }
+export function stopGame() { stopFlag = true }
 
 /* The main-thread interpreter cannot be terminated from outside (that is the
    whole reason the tracer uses a worker), so "releasing" it means dropping the
    reference and letting the next run build a fresh one. */
-export function releaseMainRuntime() { runtime = null; }
+export function releaseMainRuntime() { runtime = null }
 
 /* Runs before the game: cwd, stdout, and the stop check inside every yield. */
 const PREAMBLE = `
@@ -97,80 +97,80 @@ def _pw_set_mode(size, *a, **k):
     return surf
 
 pygame.display.set_mode = _pw_set_mode
-`;
+`
 
 /* The page already owns the event loop, so a program that ends with
    `asyncio.run(main())` dies on its first frame with a confusing message. */
-const HINT = "hint: this page already runs your file inside an event loop — "
-  + "end it with `await main()` instead of `asyncio.run(main())`.";
+const HINT = 'hint: this page already runs your file inside an event loop — '
+  + 'end it with `await main()` instead of `asyncio.run(main())`.'
 
 function tail(text, lines) {
-  const all = String(text == null ? "" : text).split("\n").filter(s => s.trim() !== "");
-  return all.slice(-(lines || 12)).join("\n");
+  const all = String(text == null ? '' : text).split('\n').filter(s => s.trim() !== '')
+  return all.slice(-(lines || 12)).join('\n')
 }
 
 export async function loadMainRuntime(onStatus) {
-  if (runtime) return runtime;
-  if (onStatus) onStatus("Loading Python runtime…");
-  const indexURL = VENDOR();
+  if (runtime) return runtime
+  if (onStatus) onStatus('Loading Python runtime…')
+  const indexURL = VENDOR()
   /* resolved against the document, not this module: the vendored pyodide sits
      outside the app folder, so a module-relative path lands one level short */
-  await import(indexURL + "pyodide.js");
-  runtime = await globalThis.loadPyodide({ indexURL: indexURL });
-  return runtime;
+  await import(indexURL + 'pyodide.js')
+  runtime = await globalThis.loadPyodide({ indexURL: indexURL })
+  return runtime
 }
 
 function writeFiles(py, files, onOut) {
-  try { py.FS.mkdir("/project"); } catch (e) {}
+  try { py.FS.mkdir('/project') } catch { /* ignore */ }
   (files || []).forEach(function (f) {
-    if (!f || typeof f.name !== "string") return;
+    if (!f || typeof f.name !== 'string') return
     try {
-      py.FS.writeFile("/project/" + f.name, f.kind === "bin" ? f.bytes : String(f.content || ""));
-    } catch (e) {
-      if (onOut) onOut("could not write " + f.name);
+      py.FS.writeFile('/project/' + f.name, f.kind === 'bin' ? f.bytes : String(f.content || ''))
+    } catch {
+      if (onOut) onOut('could not write ' + f.name)
     }
-  });
+  })
 }
 
 /* Resolves — never rejects — with what happened, so both callers can stay
    short: `{stopped}` when the flag was set, `{error}` when the program died. */
 export async function startGame(opts) {
-  const o = opts || {};
-  const files = o.files || [];
-  const entry = o.entry || "main.py";
-  const canvas = o.canvas || null;
-  const file = files.filter(f => f && f.name === entry)[0] || files[0];
-  const code = String((file && file.content) || "");
-  if (!code.trim()) return { stopped: false, error: "That file is empty." };
+  const o = opts || {}
+  const files = o.files || []
+  const entry = o.entry || 'main.py'
+  const canvas = o.canvas || null
+  const file = files.filter(f => f && f.name === entry)[0] || files[0]
+  const code = String((file && file.content) || '')
+  if (!code.trim()) return { stopped: false, error: 'That file is empty.' }
 
-  if (running) return { stopped: false, error: "Already running." };
-  stopFlag = false;
-  running = true;
+  if (running) return { stopped: false, error: 'Already running.' }
+  stopFlag = false
+  running = true
   try {
-    const py = await loadMainRuntime(o.onStatus);
+    const py = await loadMainRuntime(o.onStatus)
     /* emscripten looks for its canvas the moment pygame is imported */
-    if (canvas) py._module.canvas = canvas;
-    py.globals.set("pw_print", (s) => { if (o.onOut) o.onOut(String(s).replace(/\n$/, "")); });
-    py.globals.set("pw_resize", (w, h) => {
-      if (canvas && w > 0 && h > 0) { canvas.width = w; canvas.height = h; }
-    });
-    py.globals.set("pw_should_stop", () => stopFlag);
+    if (canvas) py._module.canvas = canvas
+    py.globals.set('pw_print', (s) => { if (o.onOut) o.onOut(String(s).replace(/\n$/, '')) })
+    py.globals.set('pw_resize', (w, h) => {
+      if (canvas && w > 0 && h > 0) { canvas.width = w; canvas.height = h }
+    })
+    py.globals.set('pw_should_stop', () => stopFlag)
 
-    if (o.onStatus) o.onStatus("Writing project files…");
-    writeFiles(py, files, o.onOut);
+    if (o.onStatus) o.onStatus('Writing project files…')
+    writeFiles(py, files, o.onOut)
 
-    if (o.onStatus) o.onStatus("Loading packages…");
-    const all = files.map(f => f.content || "").join("\n");
-    await py.loadPackagesFromImports(all, { messageCallback: () => {} });
+    if (o.onStatus) o.onStatus('Loading packages…')
+    const all = files.map(f => f.content || '').join('\n')
+    await py.loadPackagesFromImports(all, { messageCallback: () => {} })
 
-    if (o.onStatus) o.onStatus("Running " + entry);
-    await py.runPythonAsync(PREAMBLE + "\n" + code);
-    return { stopped: stopFlag, error: null };
+    if (o.onStatus) o.onStatus('Running ' + entry)
+    await py.runPythonAsync(PREAMBLE + '\n' + code)
+    return { stopped: stopFlag, error: null }
   } catch (e) {
-    if (stopFlag) return { stopped: true, error: null };
-    const msg = String(e && e.message ? e.message : e);
-    return { stopped: false, error: tail(msg) + (/asyncio\.run\(\)/.test(msg) ? "\n\n" + HINT : "") };
+    if (stopFlag) return { stopped: true, error: null }
+    const msg = String(e && e.message ? e.message : e)
+    return { stopped: false, error: tail(msg) + (/asyncio\.run\(\)/.test(msg) ? '\n\n' + HINT : '') }
   } finally {
-    running = false;
+    running = false
   }
 }

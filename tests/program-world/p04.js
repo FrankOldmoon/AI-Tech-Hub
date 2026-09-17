@@ -1,46 +1,46 @@
-console.log("===== PART 16: typewriter output (increment 8a) =====");
-function drain(cap) { var g = 0; while (pendingFrames() > 0 && g < (cap || 120)) { tick(16); g++; } }
-resetWorld();
-syncOutput("ab", true);
-eq(outNode.textContent, "", "Y1. first output starts typing from empty");
-eq(pendingFrames(), 1, "Y2. a typing frame is scheduled");
-drain();
-eq(outNode.textContent, "ab", "Y3. typing converges to the target");
-eq(pendingFrames(), 0, "Y4. nothing left scheduled");
-var long = "0123456789abcdefghijklmnopqrstuvwxyz";
-syncOutput("ab" + long, true);
-eq(outNode.textContent, "ab", "Y5. extension keeps the already revealed text");
-tick(16);
-var mid = outNode.textContent;
-eq(mid.length > 2 && mid.length < 2 + long.length ? "partial" : mid, "partial", "Y6. each frame reveals a partial chunk");
-drain();
-eq(outNode.textContent, "ab" + long, "Y7. eventually complete");
-syncOutput("ab" + long, true);
-eq(pendingFrames(), 0, "Y8. identical target schedules nothing");
-syncOutput("ab", true);
-eq(outNode.textContent, "ab", "Y9. shorter non-prefix target snaps immediately");
-syncOutput("abcdef", false);
-eq(outNode.textContent, "abcdef", "Y10. animate=false (scrub) snaps instantly");
-eq(pendingFrames(), 0, "Y11. no frame scheduled when not animating");
-syncOutput("", true);
-eq(outSlotEl.style.display, "none", "Y12. empty output hides the slot");
-syncOutput("hi", true);
-eq(outSlotEl.style.display, "", "Y13. output returns -> slot visible again");
-resetWorld();
-eq(outNode === null ? "cleared" : "stale", "cleared", "Y14. resetWorld drops the output node");
+console.log('===== PART 16: typewriter output (increment 8a) =====')
+function drain(cap) { var g = 0; while (pendingFrames() > 0 && g < (cap || 120)) { tick(16); g++ } }
+resetWorld()
+syncOutput('ab', true)
+eq(outNode.textContent, '', 'Y1. first output starts typing from empty')
+eq(pendingFrames(), 1, 'Y2. a typing frame is scheduled')
+drain()
+eq(outNode.textContent, 'ab', 'Y3. typing converges to the target')
+eq(pendingFrames(), 0, 'Y4. nothing left scheduled')
+var long = '0123456789abcdefghijklmnopqrstuvwxyz'
+syncOutput('ab' + long, true)
+eq(outNode.textContent, 'ab', 'Y5. extension keeps the already revealed text')
+tick(16)
+var mid = outNode.textContent
+eq(mid.length > 2 && mid.length < 2 + long.length ? 'partial' : mid, 'partial', 'Y6. each frame reveals a partial chunk')
+drain()
+eq(outNode.textContent, 'ab' + long, 'Y7. eventually complete')
+syncOutput('ab' + long, true)
+eq(pendingFrames(), 0, 'Y8. identical target schedules nothing')
+syncOutput('ab', true)
+eq(outNode.textContent, 'ab', 'Y9. shorter non-prefix target snaps immediately')
+syncOutput('abcdef', false)
+eq(outNode.textContent, 'abcdef', 'Y10. animate=false (scrub) snaps instantly')
+eq(pendingFrames(), 0, 'Y11. no frame scheduled when not animating')
+syncOutput('', true)
+eq(outSlotEl.style.display, 'none', 'Y12. empty output hides the slot')
+syncOutput('hi', true)
+eq(outSlotEl.style.display, '', 'Y13. output returns -> slot visible again')
+resetWorld()
+eq(outNode === null ? 'cleared' : 'stale', 'cleared', 'Y14. resetWorld drops the output node')
 
-console.log("===== PART 17: error drama (increment 8a) =====");
-var stageFake = document.getElementById("stage");
-var adds = 0;
-var origAdd = stageFake.classList.add;
-stageFake.classList.add = function () { adds++; return origAdd.apply(this, arguments); };
-syncErrorDrama(true);
-eq(stageFake._cls.has("error") ? "errored" : "clean", "errored", "Z1. error adds .error to the stage");
-var after = adds;
-syncErrorDrama(true);
-eq(adds, after, "Z2. repeated error render does NOT re-trigger the drama");
-syncErrorDrama(false);
-eq(stageFake._cls.has("error") ? "errored" : "clean", "clean", "Z3. clearing removes .error");
-syncErrorDrama(true);
-eq(adds > after ? "retriggered" : "stuck", "retriggered", "Z4. a fresh error re-triggers after clearing");
-console.log(fails === 0 ? "INCREMENT-8A TESTS PASSED" : ("INCREMENT-8A FAILURES: " + fails));
+console.log('===== PART 17: error drama (increment 8a) =====')
+var stageFake = document.getElementById('stage')
+var adds = 0
+var origAdd = stageFake.classList.add
+stageFake.classList.add = function () { adds++; return origAdd.apply(this, arguments) }
+syncErrorDrama(true)
+eq(stageFake._cls.has('error') ? 'errored' : 'clean', 'errored', 'Z1. error adds .error to the stage')
+var after = adds
+syncErrorDrama(true)
+eq(adds, after, 'Z2. repeated error render does NOT re-trigger the drama')
+syncErrorDrama(false)
+eq(stageFake._cls.has('error') ? 'errored' : 'clean', 'clean', 'Z3. clearing removes .error')
+syncErrorDrama(true)
+eq(adds > after ? 'retriggered' : 'stuck', 'retriggered', 'Z4. a fresh error re-triggers after clearing')
+console.log(fails === 0 ? 'INCREMENT-8A TESTS PASSED' : ('INCREMENT-8A FAILURES: ' + fails))

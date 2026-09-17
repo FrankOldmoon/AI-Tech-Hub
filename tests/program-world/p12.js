@@ -1,13 +1,13 @@
-console.log("===== PART 27: reduced motion (real media emulation) =====");
-eq(matchMedia("(prefers-reduced-motion: reduce)").matches ? "reduce" : "no-reduce", "reduce", "S16a. the browser really is in reduced-motion mode");
-resetWorld();
-var RM3 = scene([mk("f1:a", "a", "1"), mk("f1:b", "b", "2"), mk("f1:c", "c", "3")]);
-var RM2 = scene([mk("f1:a", "a", "1"), mk("f1:c", "c", "3")]);
-syncArena(RM3, null, "tween");
-clearAnims();
-syncArena(RM2, RM3, "tween");
-eq(totalAnims(), 0, "S16. reduced motion yields ZERO animations");
-eq(actorNodes.has("f1:b") ? "ghost" : "gone", "gone", "S16b. the retired entity is dropped outright, no ghost");
-eq(actorEls().length, 2, "S16c. and only the survivors remain");
-resetWorld();
-console.log(fails === 0 ? "PART 27 PASSED" : ("PART 27 FAILURES: " + fails));
+console.log('===== PART 27: reduced motion (real media emulation) =====')
+eq(matchMedia('(prefers-reduced-motion: reduce)').matches ? 'reduce' : 'no-reduce', 'reduce', 'S16a. the browser really is in reduced-motion mode')
+resetWorld()
+var RM3 = scene([mk('f1:a', 'a', '1'), mk('f1:b', 'b', '2'), mk('f1:c', 'c', '3')])
+var RM2 = scene([mk('f1:a', 'a', '1'), mk('f1:c', 'c', '3')])
+syncArena(RM3, null, 'tween')
+clearAnims()
+syncArena(RM2, RM3, 'tween')
+eq(totalAnims(), 0, 'S16. reduced motion yields ZERO animations')
+eq(actorNodes.has('f1:b') ? 'ghost' : 'gone', 'gone', 'S16b. the retired entity is dropped outright, no ghost')
+eq(actorEls().length, 2, 'S16c. and only the survivors remain')
+resetWorld()
+console.log(fails === 0 ? 'PART 27 PASSED' : ('PART 27 FAILURES: ' + fails))

@@ -156,7 +156,7 @@ RESULT = json.dumps({
     },
     'truncated': len(steps) >= MAX_STEPS or len(chunks) >= MAX_CHUNKS,
 })
-`;
+`
 
 export const SAMPLE = `hp = 100
 enemy = 80
@@ -166,7 +166,7 @@ if enemy > hp:
 else:
     print('win')
 print("hp =", hp, " enemy =", enemy)
-`;
+`
 
 /* =====================================================================
    Ready-made projects.
@@ -182,15 +182,15 @@ print("hp =", hp, " enemy =", enemy)
    ===================================================================== */
 export const EXAMPLES = [
   {
-    id: "basics",
-    name: "Basics — variables & if/else",
-    files: [{ name: "main.py", content: SAMPLE }]
+    id: 'basics',
+    name: 'Basics — variables & if/else',
+    files: [{ name: 'main.py', content: SAMPLE }]
   },
   {
-    id: "loops",
-    name: "Loops — accumulator",
+    id: 'loops',
+    name: 'Loops — accumulator',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `total = 0
 for i in range(1, 6):
     total = total + i
@@ -200,10 +200,10 @@ print("sum 1..5 =", total)
     }]
   },
   {
-    id: "functions",
-    name: "Functions — recursion & call stack",
+    id: 'functions',
+    name: 'Functions — recursion & call stack',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `def factorial(n):
     if n <= 1:
         return 1
@@ -215,10 +215,10 @@ for k in range(1, 6):
     }]
   },
   {
-    id: "collections",
-    name: "Collections — list, dict, set",
+    id: 'collections',
+    name: 'Collections — list, dict, set',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `scores = {"ann": 91, "bo": 78, "cy": 85}
 print("names:", list(scores))
 
@@ -234,10 +234,10 @@ print("unique letters:", sorted(letters))
     }]
   },
   {
-    id: "classes",
-    name: "Classes — objects with methods",
+    id: 'classes',
+    name: 'Classes — objects with methods',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `class Counter:
     def __init__(self, start=0):
         self.value = start
@@ -254,10 +254,10 @@ print("made a", type(c).__name__)
     }]
   },
   {
-    id: "exceptions",
-    name: "Exceptions — try / except",
+    id: 'exceptions',
+    name: 'Exceptions — try / except',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `def parse(text):
     try:
         return int(text)
@@ -275,10 +275,10 @@ except ZeroDivisionError as exc:
     }]
   },
   {
-    id: "textfile",
-    name: "Text file — write then read a .txt",
+    id: 'textfile',
+    name: 'Text file — write then read a .txt',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `rows = [("ann", 91), ("bo", 78), ("cy", 85)]
 
 with open("scores.txt", "w") as fh:
@@ -295,11 +295,11 @@ print("lines:", len(text.strip().splitlines()))
     }]
   },
   {
-    id: "multifile",
-    name: "Multi-file — import helper.py, read data.txt",
+    id: 'multifile',
+    name: 'Multi-file — import helper.py, read data.txt',
     files: [
       {
-        name: "main.py",
+        name: 'main.py',
         content: `import helper
 
 rows = helper.read_rows("data.txt")
@@ -313,7 +313,7 @@ for row in rows:
 `
       },
       {
-        name: "helper.py",
+        name: 'helper.py',
         content: `def read_rows(path):
     rows = []
     with open(path) as fh:
@@ -333,14 +333,14 @@ def total(marks):
     return got
 `
       },
-      { name: "data.txt", content: "ann 91\nbo 78\ncy 85\n" }
+      { name: 'data.txt', content: 'ann 91\nbo 78\ncy 85\n' }
     ]
   },
   {
-    id: "turtle",
-    name: "Turtle — draw a spiral",
+    id: 'turtle',
+    name: 'Turtle — draw a spiral',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `import turtle
 
 turtle.pensize(2)
@@ -353,10 +353,10 @@ turtle.done()
     }]
   },
   {
-    id: "matplotlib",
-    name: "Matplotlib — plot a curve",
+    id: 'matplotlib',
+    name: 'Matplotlib — plot a curve',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `import matplotlib
 matplotlib.use("AGG")
 import matplotlib.pyplot as plt
@@ -373,10 +373,10 @@ plt.show()
     }]
   },
   {
-    id: "numpy",
-    name: "NumPy — array maths",
+    id: 'numpy',
+    name: 'NumPy — array maths',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `import numpy as np
 
 xs = np.array([2, 4, 6, 8, 10])
@@ -388,10 +388,10 @@ print("squares:", xs ** 2)
     }]
   },
   {
-    id: "pillow",
-    name: "Pillow — build an image",
+    id: 'pillow',
+    name: 'Pillow — build an image',
     files: [{
-      name: "main.py",
+      name: 'main.py',
       content: `from PIL import Image, ImageDraw
 
 im = Image.new("RGB", (160, 120), (20, 24, 48))
@@ -407,9 +407,8 @@ print("wrote bars.png", im.size)
 `
     }]
   }
-];
+]
 
 export function exampleById(id) {
-  return EXAMPLES.filter(e => e.id === id)[0] || null;
+  return EXAMPLES.filter(e => e.id === id)[0] || null
 }
-
