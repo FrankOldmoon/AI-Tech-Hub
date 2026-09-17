@@ -1243,6 +1243,23 @@ export function scenePathfinding(): CoverShape[] {
   return shapes
 }
 
+/** 图像处理流水线：三帧连着走，左帧噪点、右帧提纯 —— 中间用箭头表示「上一步的输出是下一步的输入」 */
+export function scenePipeline(): CoverShape[] {
+  const noise: Point[] = [[40, 74], [54, 88], [46, 104], [66, 70], [72, 96], [60, 110], [36, 92], [78, 82]]
+  const edges: Point[] = [[238, 74], [250, 86], [266, 74], [281, 90], [244, 104], [262, 110], [281, 102]]
+  return [
+    ...imageFrame(56, 92, 74, 62, 0.5),
+    ...keyDots(noise, 2.2, 0.75),
+    ...arrow(98, 92, 120, 92, 0.75, 2.6, 7),
+    ...imageFrame(158, 92, 74, 62, 0.7),
+    strokePoly([[132, 92], [150, 76], [168, 92], [184, 78]], 0.6, 2.4),
+    ...arrow(200, 92, 222, 92, 0.75, 2.6, 7),
+    ...imageFrame(260, 92, 74, 62, 0.92),
+    ...keyDots(edges, 2.2, 0.9),
+    ...detectCorners(260, 92, 84, 72, 0.9, 3, 0.22)
+  ]
+}
+
 // ==================== 机器人 ====================
 
 /** 机械臂仿真器：二连杆 + 底座 */
@@ -1369,6 +1386,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'vision/face-recognition': sceneFaceRecognition,
   'vision/ocr': sceneOcr,
   'vision/recorder': sceneRecorder,
+  'vision/pipeline': scenePipeline,
   'vision/image-convert': sceneImageConvert,
   'vision/video-convert': sceneVideoConvert,
   'vision/image-compress': sceneImageCompress,
