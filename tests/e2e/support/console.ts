@@ -27,12 +27,25 @@ export interface PageIssues {
    * 若把展示文本当数据解析，格式一变判定就静默失效。
    */
   failedRequests: FailedRequest[]
+  /**
+   * 5xx 响应（带 URL）。
+   * requestfailed 只覆盖网络层失败；503 这类「有响应但是错误」不会进那里，
+   * 而控制台只留下一句没有 URL 的 "status of 503"，排查时无从下手。
+   * 4xx 可能是设计内降级（模型缺失回退），5xx 一定值得看一眼。
+   */
+  serverErrors: BadResponse[]
 }
 
 export interface FailedRequest {
   method: string
   url: string
   failure: string
+}
+
+export interface BadResponse {
+  method: string
+  url: string
+  status: number
 }
 
 /** 已知的「设计内降级」噪声 */
@@ -53,7 +66,12 @@ export const ALLOWED_CONSOLE_ERRORS: RegExp[] = [
 ]
 
 export function watchPage(page: Page): PageIssues {
-  const issues: PageIssues = { pageErrors: [], consoleErrors: [], failedRequests: [] }
+  const issues: PageIssues = { pageErrors: [], consoleErrors: [], failedRequests: [], serverErrors: [] }
+  page.on('response', (res) => {
+    if (res.status() >= 500) {
+      issues.serverErrors.push({ method: res.request().method(), url: res.url(), status: res.status() })
+    }
+  })
   page.on('pageerror', e => issues.pageErrors.push(e.message))
   page.on('console', (msg) => {
     if (msg.type() === 'error') issues.consoleErrors.push(msg.text())
@@ -66,6 +84,13 @@ export function watchPage(page: Page): PageIssues {
     })
   })
   return issues
+}
+
+/** 失败信息尾巴：把 5xx 响应（含 URL）附上 —— 否则只知道「有个 503」 */
+export function serverErrorTail(issues: PageIssues): string {
+  if (!issues.serverErrors.length) return ''
+  const uniq = [...new Set(issues.serverErrors.map(r => `${r.status} ${r.method} ${r.url}`))]
+  return `\n  期间的 5xx 响应（${uniq.length}）：\n${uniq.map(r => `    · ${r}`).join('\n')}`
 }
 
 /** 失败信息尾巴：把网络层失败（含 URL）附上，便于直接定位 */
@@ -112,9 +137,17 @@ export function onlyIgnorableRequests(issues: PageIssues): boolean {
   return issues.failedRequests.length > 0 && issues.failedRequests.every(ignorableRequest)
 }
 
+/** 这一窗口里的 5xx 是否全部来自第三方域 */
+export function onlyThirdPartyServerErrors(issues: PageIssues): boolean {
+  return issues.serverErrors.length > 0
+    && issues.serverErrors.every(res => THIRD_PARTY_HOSTS.some(re => re.test(res.url)))
+}
+
 export function isAllowedConsoleError(text: string, issues: PageIssues): boolean {
   if (ALLOWED_CONSOLE_ERRORS.some(re => re.test(text))) return true
-  return /Failed to load resource/i.test(text) && onlyIgnorableRequests(issues)
+  if (/Failed to load resource/i.test(text) && onlyIgnorableRequests(issues)) return true
+  // 5xx 同样没有 URL：只有确认这一窗口的 5xx 全来自管不着的第三方域才放过
+  return /status of 5\d\d/i.test(text) && onlyThirdPartyServerErrors(issues)
 }
 
 /** 去掉已知降级噪声后仍然存在的控制台错误 —— 这些才算问题 */

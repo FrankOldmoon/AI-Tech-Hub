@@ -10,7 +10,7 @@
  * 这一层**不点任何按钮**，只保证「每一页都能打开」。逐操作点击在 operations.spec.ts。
  */
 import { expect, test } from '@playwright/test'
-import { blockingConsoleErrors, describeIssues, requestTail, watchPage } from './support/console'
+import { blockingConsoleErrors, describeIssues, requestTail, serverErrorTail, watchPage } from './support/console'
 import { readyDemos, routeOf, titlesOf } from './support/routes'
 
 for (const demo of readyDemos) {
@@ -40,6 +40,9 @@ for (const demo of readyDemos) {
 
     expect(issues.pageErrors, describeIssues(`${path} 有未捕获异常`, issues.pageErrors)).toEqual([])
     const blocking = blockingConsoleErrors(issues)
-    expect(blocking, describeIssues(`${path} 有控制台错误`, blocking) + requestTail(issues)).toEqual([])
+    expect(
+      blocking,
+      describeIssues(`${path} 有控制台错误`, blocking) + requestTail(issues) + serverErrorTail(issues)
+    ).toEqual([])
   })
 }
