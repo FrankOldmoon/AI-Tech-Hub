@@ -69,7 +69,11 @@ const grouped = computed(() => {
           <span>{{ title }}</span>
         </div>
       </template>
-      <nav class="space-y-1">
+      <!-- data-testid：E2E 用它稳定定位「工具栏」，避免与站点头部的 nav 混淆 -->
+      <nav
+        class="space-y-1"
+        data-testid="tool-sidebar"
+      >
         <template
           v-for="(group, gi) in grouped"
           :key="group.section ?? `g${gi}`"

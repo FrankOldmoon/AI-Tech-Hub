@@ -66,6 +66,10 @@ tmp/
 .playwright-cli/
 tmp/chrome-headless/
 
+# Playwright E2E 产物（trace / 截图 / HTML 报告）
+test-results/
+tests/e2e/.report/
+
 # Program World 测试台的临时 Chrome profile（scripts/test-program-world.mjs）
 .program-world-test-profile/
 

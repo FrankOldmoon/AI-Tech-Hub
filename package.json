@@ -15,6 +15,11 @@
     "lint": "eslint .",
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
+    "test:e2e": "playwright test",
+    "test:e2e:routes": "playwright test tests/e2e/routes.spec.ts",
+    "test:e2e:ops": "playwright test tests/e2e/operations.spec.ts",
+    "test:e2e:tools": "playwright test tests/e2e/tools.spec.ts",
+    "test:e2e:report": "playwright show-report tests/e2e/.report",
     "test:program-world": "node scripts/test-program-world.mjs"
   },
   "dependencies": {
@@ -46,8 +51,12 @@
   },
   "devDependencies": {
     "@nuxt/eslint": "^1.16.0",
+    "@playwright/test": "^1.63.0",
     "@types/three": "^0.186.0",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vue/test-utils": "^2.4.6",
     "eslint": "^10.8.0",
+    "happy-dom": "^15.11.7",
     "long": "4.0.0",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
