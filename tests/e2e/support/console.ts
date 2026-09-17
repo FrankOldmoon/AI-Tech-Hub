@@ -85,7 +85,10 @@ const THIRD_PARTY_HOSTS = [
   /hmcdn\.baidu\.com/i,
   /googletagmanager\.com/i,
   /google-analytics\.com/i,
-  /doubleclick\.net/i
+  /doubleclick\.net/i,
+  // MediaPipe 的匿名使用上报（内网跑必失败）。注意别扩大成整个 googleapis.com ——
+  // storage.googleapis.com 是 TF.js 模型的真实来源，放进去会掩盖模型取不到的问题。
+  /odml\.pa\.googleapis\.com/i
 ]
 
 /**
