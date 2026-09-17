@@ -24,28 +24,45 @@ export interface Target {
 
 const CANDIDATES = 'button:visible, [role="switch"]:visible, [role="tab"]:visible'
 
-export async function collectTargets(page: Page, root = 'body'): Promise<Target[]> {
-  const scope = page.locator(root)
-  const locator = scope.locator(CANDIDATES)
-  const count = await locator.count()
+export async function collectTargets(
+  page: Page,
+  options: { root?: string, includeSidebar?: boolean } = {}
+): Promise<Target[]> {
+  // 页面可能已经被上一次点击搞没了（崩溃 / 被关闭），此时直接收工
+  if (page.isClosed()) return []
+
+  const locator = page.locator(options.root ?? 'body').locator(CANDIDATES)
+  const count = await locator.count().catch(() => 0)
   const out: Target[] = []
 
   for (let i = 0; i < count; i++) {
+    if (page.isClosed()) break
     const el = locator.nth(i)
-    // innerText 对纯图标按钮会是空串，用 textContent 兜底，再退到 aria-label
-    const text = await el
+
+    // 一次 evaluate 取齐所有信息（三次往返既慢又更容易撞上页面被关闭）
+    const meta = await el
       .evaluate((node) => {
         const el = node as HTMLElement
-        return (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ')
+        return {
+          // innerText 对纯图标按钮是空串，用 textContent 兜底
+          text: (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' '),
+          tag: el.getAttribute('role') || el.tagName.toLowerCase(),
+          aria: el.getAttribute('aria-label') ?? '',
+          disabled: (el as HTMLButtonElement).disabled === true,
+          inSidebar: !!el.closest('[data-testid="tool-sidebar"]')
+        }
       })
-      .catch(() => '')
-    const aria = (await el.getAttribute('aria-label')) ?? ''
-    const label = text || aria
+      .catch(() => null)
+
+    if (!meta) continue
+    // 工具栏里的算子归 tools.spec 管：这里再点一遍会重复触发模型加载，白等好几倍时间
+    if (meta.inSidebar && !options.includeSidebar) continue
+
+    const label = meta.text || meta.aria
     if (!label) continue
-    if (SKIP_TEXT.some(re => re.test(text) || re.test(aria))) continue
-    if (await el.isDisabled().catch(() => true)) continue
-    const tag = await el.evaluate(node => node.getAttribute('role') || node.tagName.toLowerCase())
-    out.push({ signature: `${tag}|${label}`, label, locator: el })
+    if (SKIP_TEXT.some(re => re.test(meta.text) || re.test(meta.aria))) continue
+    if (meta.disabled) continue
+    out.push({ signature: `${meta.tag}|${label}`, label, locator: el })
   }
   return out
 }
@@ -74,7 +91,7 @@ export async function clickThrough(
   issues: PageIssues,
   route: string,
   testInfo: TestInfo,
-  options: { root?: string, max?: number } = {}
+  options: { root?: string, max?: number, includeSidebar?: boolean } = {}
 ): Promise<ClickOutcome> {
   const max = options.max ?? MAX_CLICKS_PER_PAGE
   const clicked = new Set<string>()
@@ -82,7 +99,11 @@ export async function clickThrough(
   let count = 0
 
   for (let round = 0; round < max; round++) {
-    const targets = await collectTargets(page, options.root)
+    if (page.isClosed()) {
+      notes.push('页面在点完之前被关闭，后续控件跳过')
+      break
+    }
+    const targets = await collectTargets(page, { root: options.root, includeSidebar: options.includeSidebar })
     const next = targets.find(t => !clicked.has(t.signature))
     if (!next) break
     clicked.add(next.signature)

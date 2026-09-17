@@ -47,7 +47,9 @@ export const ALLOWED_CONSOLE_ERRORS: RegExp[] = [
   // 假设备无法满足 facingMode 等约束
   /OverconstrainedError|Requested device not found|NotFoundError/i,
   // 切页 / 切工具时中断在途请求
-  /ERR_ABORTED|The user aborted a request/i
+  /ERR_ABORTED|The user aborted a request/i,
+  // MediaPipe 的 wasm 胶水层用 console.error 打 INFO 级日志（如 XNNPACK delegate），不是错误
+  /INFO: .*TensorFlow Lite|XNNPACK delegate/i
 ]
 
 export function watchPage(page: Page): PageIssues {
@@ -91,6 +93,8 @@ const THIRD_PARTY_HOSTS = [
  * 后者被 abort 是正常现象 —— 换音源/换图时旧 objectURL 会被撤销。
  */
 function ignorableRequest(req: FailedRequest): boolean {
+  // 主动取消（切页/换输入时中断在途请求）不算失败
+  if (/ERR_ABORTED/i.test(req.failure)) return true
   if (/^(blob|data):/i.test(req.url)) return true
   return THIRD_PARTY_HOSTS.some(re => re.test(req.url))
 }
