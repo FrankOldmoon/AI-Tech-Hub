@@ -1,5 +1,7 @@
 <script setup lang="ts">
 const { t, locale } = useI18n()
+const route = useRoute()
+const fullscreen = computed(() => route.meta.fullscreen === true)
 
 useHead({
   meta: [
@@ -35,9 +37,9 @@ useSeoMeta({
 
 <template>
   <UApp>
-    <AppHeader />
+    <AppHeader v-if="!fullscreen" />
 
-    <UMain>
+    <UMain :class="fullscreen ? 'min-h-0' : ''">
       <NuxtLayout>
         <NuxtPage
           :transition="{ name: 'page', mode: 'out-in' }"
@@ -45,11 +47,12 @@ useSeoMeta({
       </NuxtLayout>
     </UMain>
 
-    <USeparator icon="i-simple-icons-nuxtdotjs" />
+    <template v-if="!fullscreen">
+      <USeparator icon="i-simple-icons-nuxtdotjs" />
+      <AppFooter />
+    </template>
 
-    <AppFooter />
-
-    <!-- 统计合规告知横幅（P2-3）：全局展示，仅首次访问出现，同意/拒绝后不再打扰 -->
-    <CookieConsent />
+    <!-- 统计合规告知横幅（P2-3）：全局展示（fullscreen 页除外），仅首次访问出现，同意/拒绝后不再打扰 -->
+    <CookieConsent v-if="!fullscreen" />
   </UApp>
 </template>
