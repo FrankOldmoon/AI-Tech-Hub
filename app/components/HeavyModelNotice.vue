@@ -12,7 +12,17 @@ defineProps<{
 }>()
 
 const { t } = useI18n()
-const gpu = hasWebGPU()
+
+/**
+ * 能力探测必须等客户端：SSR 阶段没有 navigator.gpu，若在 setup 里同步求值，
+ * 服务端会渲染「无 WebGPU」而客户端渲染「有 WebGPU」，两边 HTML 对不上 →
+ * Vue 报 hydration mismatch（E2E 的 routes.spec 正是在这 4 个 LLM 页抓到的）。
+ * 先渲染成服务端的结果，挂载后再按真实能力更新，水合输出保持一致。
+ */
+const gpu = ref(false)
+onMounted(() => {
+  gpu.value = hasWebGPU()
+})
 </script>
 
 <template>

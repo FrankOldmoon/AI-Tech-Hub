@@ -159,5 +159,15 @@ onBeforeUnmount(cancelLiveLoop)
         </div>
       </template>
     </WebcamCapture>
+
+    <!-- 识别本身的失败（模型/资源）：取流的失败由 WebcamCapture 自己报，互不覆盖 -->
+    <UAlert
+      v-if="detectionError"
+      class="mt-2"
+      color="error"
+      variant="subtle"
+      icon="i-lucide-triangle-alert"
+      :title="detectionError"
+    />
   </div>
 </template>

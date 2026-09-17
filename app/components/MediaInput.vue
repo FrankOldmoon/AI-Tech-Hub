@@ -105,9 +105,11 @@ const resolved = computed(() => ({
         @click.stop
       >
         <span class="text-xs text-dimmed">{{ t('samples.trySample') }}:</span>
+        <!-- data-testid：E2E 用它稳定定位「示例」按钮（给播放台喂一张图再遍历算子） -->
         <UButton
           v-for="s in samples"
           :key="s.url"
+          data-testid="media-sample"
           :label="s.label"
           icon="i-lucide-image"
           size="xs"

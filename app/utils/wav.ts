@@ -48,7 +48,10 @@ export function downloadBlob(blob: Blob, filename: string) {
 
 /** 秒 → mm:ss（visualizer / audiobook 原本各写一份） */
 export function formatClock(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds))
+  // 与 utils/format.ts 的 formatTime、utils/srt.ts 的 srtTime 同规矩：先挡掉非有限值。
+  // 媒体元数据未就绪时 duration 就是 NaN/Infinity，而 Math.max(0, NaN) 仍是 NaN，
+  // 漏掉这一步界面上会直接显示 "NaN:NaN"（visualizer 的时长就是这么来的）。
+  const total = Number.isFinite(seconds) ? Math.max(0, Math.floor(seconds)) : 0
   const m = Math.floor(total / 60)
   const s = total % 60
   return `${m}:${String(s).padStart(2, '0')}`
