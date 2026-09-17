@@ -1299,6 +1299,23 @@ export function sceneG1Motion(): CoverShape[] {
   ]
 }
 
+/** 具身智能五机器人实验室：机械臂 + 四足 + 人形 + 无人机同台 */
+export function sceneEmbodied(): CoverShape[] {
+  return [
+    line(28, 152, 292, 152, 0.24, 2.6),
+    ...robotArm(78, 102, 0.58, -1.5, -0.3),
+    ...quadruped(178, 124, 0.78),
+    ...skeleton(262, 104, 0.46, 'stand'),
+    rect(120, 38, 46, 9, 0.8, 3),
+    circle(114, 30, 5.5, 0.66),
+    circle(172, 30, 5.5, 0.66),
+    circle(114, 47, 5.5, 0.66),
+    circle(172, 47, 5.5, 0.66),
+    line(114, 30, 114, 47, 0.3, 1.5),
+    line(172, 30, 172, 47, 0.3, 1.5)
+  ]
+}
+
 /** 机械臂运动学：连杆 + 关节角度弧 */
 export function sceneUaibotKinematics(): CoverShape[] {
   return [
@@ -1453,5 +1470,6 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'robot/microduck': sceneMicroduck,
   'robot/g1-cartpole': sceneG1Cartpole,
   'robot/g1-motion-tracking': sceneG1Motion,
-  'robot/uaibot-kinematics': sceneUaibotKinematics
+  'robot/uaibot-kinematics': sceneUaibotKinematics,
+  'robot/embodied': sceneEmbodied
 }
