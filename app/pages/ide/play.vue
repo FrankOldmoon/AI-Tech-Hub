@@ -2,7 +2,7 @@
 import '~/program-world/css/base.css'
 import '~/program-world/css/play.css'
 
-definePageMeta({ layout: 'bare' })
+definePageMeta({ layout: 'bare', fullscreen: true })
 
 const { t } = useI18n()
 

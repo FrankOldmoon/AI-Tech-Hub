@@ -5,7 +5,7 @@ import '~/program-world/css/execution.css'
 import '~/program-world/css/stage.css'
 import '~/program-world/css/combat.css'
 
-definePageMeta({ layout: 'bare' })
+definePageMeta({ layout: 'bare', fullscreen: true })
 
 const { t } = useI18n()
 
