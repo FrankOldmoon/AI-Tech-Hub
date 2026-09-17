@@ -13,6 +13,12 @@ import { clickThrough } from './support/controls'
 import { watchPage } from './support/console'
 import { readyDemos, routeOf } from './support/routes'
 
+/**
+ * 逐操作点击很吃时间：重模型页一个控件就可能触发一次模型初始化，
+ * 点满 25 个控件远超默认 90s。用 E2E_OPS_TIMEOUT 可再放大。
+ */
+test.setTimeout(Number(process.env.E2E_OPS_TIMEOUT || 300_000))
+
 for (const demo of readyDemos) {
   const path = routeOf(demo)
 
