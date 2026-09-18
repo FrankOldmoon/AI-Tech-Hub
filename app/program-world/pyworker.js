@@ -15,18 +15,53 @@
    offscreen surface path needs SDL's video subsystem to come up first.  The
    turtle shim in pylib exists for exactly this reason.
    ===================================================================== */
-import {
-  ANSWER_OFFSET,
-  PROMPT_OFFSET,
-  STDIN_ANSWER_LEN,
-  STDIN_EOF,
-  STDIN_PROMPT_LEN,
-  STDIN_STATE,
-  STDIN_WAIT,
-  TEXT_LIMIT,
-  getText,
-  putText
-} from './stdin.js'
+/* =====================================================================
+   ⚠️ 本文件必须保持**零 import / 零 export 依赖**。
+
+   它不是一个被 Rollup 当入口打包的模块：python.js 里用的是
+   `new URL('./pyworker.js', import.meta.url)`，Vite 把它当**静态资源原样拷贝**
+   （产物形如 _nuxt/pyworker.<hash>.js，连源码里的注释都原封不动），不会内联它的依赖。
+   所以这里只要写下 `import ... from './stdin.js'`，生产环境就会 404：
+   `/_nuxt/stdin.js` 根本不存在 —— dev 之所以看不出来，是因为 Vite 在 dev 里按需
+   转译，相对导入能被解析。
+
+   代价：下面这几个常量与编解码函数同 stdin.js **成对维护**，改一处必须改另一处。
+   tests/program-world-worker.test.ts 钉住了「本文件不得出现 import」这条约束。
+   ===================================================================== */
+
+/** 与 stdin.js 保持一致：control 的下标 */
+const STDIN_STATE = 0
+const STDIN_PROMPT_LEN = 1
+const STDIN_ANSWER_LEN = 2
+
+/** 与 stdin.js 保持一致：control[STDIN_STATE] 的取值 */
+const STDIN_WAIT = 1 // worker 已挂起，等主线程
+const STDIN_EOF = 3 // 用户取消 → 按 EOF 处理
+
+/** 与 stdin.js 保持一致：text 的两半与安全上限 */
+const HALF = 4096
+const PROMPT_OFFSET = 0
+const ANSWER_OFFSET = HALF
+const TEXT_LIMIT = HALF - 1
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
+
+function putText(sab, offset, value, limit) {
+  const bytes = encoder.encode(value == null ? '' : String(value))
+  const n = Math.min(bytes.length, limit)
+  new Uint8Array(sab, offset, n).set(bytes.subarray(0, n))
+  return n
+}
+
+function getText(sab, offset, length) {
+  if (!length) return ''
+  const n = Math.min(length, TEXT_LIMIT)
+  /* 必须先拷出来：TextDecoder.decode 拒绝 SharedArrayBuffer 上的视图 */
+  const copy = new Uint8Array(n)
+  copy.set(new Uint8Array(sab, offset, n))
+  return decoder.decode(copy)
+}
 
 let runtime = null
 
