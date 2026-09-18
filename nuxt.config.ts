@@ -48,6 +48,13 @@ export default defineNuxtConfig({
     // CORP 必须一起给：COEP 下**同源**的 worker 脚本 / WASM 也算「嵌入资源」，
     // 缺 CORP 时 Chrome 直接 ERR_BLOCKED_BY_RESPONSE —— 那样隔离一开，Pyodide
     // 的 worker 根本起不来（比不开还糟）。
+    // ⚠️ 生产（10.28.1.152）目前是**由 nginx 统一下发**这三个头的（见
+    //    /etc/nginx/sites-available/aihub 的 server 级 add_header），所以部署时
+    //    **不要**再设 NUXT_ENABLE_CROSS_ORIGIN_ISOLATION=true：nginx 的 add_header
+    //    不会去重，会和这里叠成两个 COEP，按规范「多个 token 等价于 unsafe-none」，
+    //    隔离反而失效（input() 会静默退回「不可用」提示，不报错，很难查）。
+    //    二者只能选其一：要么这里开（头随应用走，需确认 routeRules 覆盖 /_nuxt/**
+    //    与 /apps/** 这类静态/子文档），要么 nginx 开（已实测可用）。
     ...(process.env.NUXT_ENABLE_CROSS_ORIGIN_ISOLATION === 'true'
       ? {
           '/**': {
