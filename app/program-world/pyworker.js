@@ -15,7 +15,63 @@
    offscreen surface path needs SDL's video subsystem to come up first.  The
    turtle shim in pylib exists for exactly this reason.
    ===================================================================== */
+import {
+  ANSWER_OFFSET,
+  PROMPT_OFFSET,
+  STDIN_ANSWER_LEN,
+  STDIN_EOF,
+  STDIN_PROMPT_LEN,
+  STDIN_STATE,
+  STDIN_WAIT,
+  TEXT_LIMIT,
+  getText,
+  putText
+} from './stdin.js'
+
 let runtime = null
+
+/* 与主线程共享的 stdin 缓冲（主线程在 load 消息里给过来）。 */
+let stdin = null
+
+/* 学生可以慢慢想，但不能把 worker 永久挂住：超时按 EOF 处理。 */
+const STDIN_WAIT_MS = 10 * 60 * 1000
+
+/* 同步向主线程要一行输入。返回 null = 用户取消，交回 Python 变成 EOFError。 */
+function readLine(promptText) {
+  if (!stdin) {
+    return ''
+  }
+  const ctrl = new Int32Array(stdin.control)
+  Atomics.store(ctrl, STDIN_PROMPT_LEN, putText(stdin.text, PROMPT_OFFSET, promptText, TEXT_LIMIT))
+  Atomics.store(ctrl, STDIN_ANSWER_LEN, 0)
+  Atomics.store(ctrl, STDIN_STATE, STDIN_WAIT)
+  /* 先改状态再 wait：主线程若在这两步之间就写好答案也不会丢唤醒 ——
+     Atomics.wait 发现值已不是 STDIN_WAIT，会立刻以 'not-equal' 返回。 */
+  Atomics.notify(ctrl, STDIN_STATE)
+  const woke = Atomics.wait(ctrl, STDIN_STATE, STDIN_WAIT, STDIN_WAIT_MS)
+  const state = Atomics.load(ctrl, STDIN_STATE)
+  if (woke === 'timed-out' || state === STDIN_EOF) return null
+  return getText(stdin.text, ANSWER_OFFSET, Atomics.load(ctrl, STDIN_ANSWER_LEN))
+}
+
+/* 两个入口都接上：PY_TRACE 里的 input() 垫片能拿到提示语，
+   sys.stdin.readline() 之类走 pyodide 的 stdin 处理器 —— 两条都不再碰 prompt
+   （worker 里没有 prompt，碰了就只能是 "ReferenceError: prompt is not defined"）。 */
+function installStdin(py) {
+  if (typeof py.setStdin === 'function') {
+    py.setStdin({
+      stdin: function () {
+        if (!stdin) return null // 没桥：按 EOF 处理，别去碰 prompt
+        const line = readLine('')
+        return line === null ? null : line + '\n'
+      }
+    })
+  }
+  if (!stdin) return
+  py.globals.set('__pw_read_line__', function (promptText) {
+    return readLine(promptText)
+  })
+}
 
 /* The project lives in pyodide's in-memory filesystem, so `import helper` and
    `open("data.txt")` behave exactly as they would on disk. */
@@ -84,6 +140,7 @@ function ensureRuntime(indexURL) {
   runtime = installPyodide(indexURL)
     .then(() => globalThis.loadPyodide({ indexURL: indexURL }))
     .then(function (py) {
+      installStdin(py)
       /* py.version is the *Pyodide* version (314.0.7); ask the interpreter for
          its own version instead of showing one as if it were the other */
       let interpreter
@@ -147,6 +204,7 @@ function producedFiles(py, files) {
 self.onmessage = function (ev) {
   const msg = ev.data || {}
   if (msg.type === 'load') {
+    if (msg.stdin) stdin = msg.stdin
     ensureRuntime(msg.indexURL).catch(function () {})
     return
   }

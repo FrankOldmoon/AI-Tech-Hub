@@ -1,5 +1,19 @@
 /* @deps: dom.js */
 import { setStatus } from './dom.js'
+import {
+  ANSWER_OFFSET,
+  PROMPT_OFFSET,
+  STDIN_ANSWER,
+  STDIN_ANSWER_LEN,
+  STDIN_EOF,
+  STDIN_PROMPT_LEN,
+  STDIN_STATE,
+  STDIN_WAIT,
+  TEXT_LIMIT,
+  createStdinBuffers,
+  getText,
+  putText
+} from './stdin.js'
 
 /* =====================================================================
    The Python runtime lives in a worker.
@@ -33,6 +47,62 @@ let pending = null
    trace budget and a runaway trace never waits for a download timeout */
 let rearm = () => {}
 
+/* =====================================================================
+   `input()` 的桥（主线程这一侧）
+
+   worker 里没有 prompt，所以 Python 的 input() 必须由主线程来回答。worker
+   在共享内存里放下提示语后挂起（Atomics.wait），这里轮询到就弹输入框，
+   把值写回去再唤醒它。worker 挂起的这段时间**必须停表**：用户在慢慢想，
+   不是程序跑得久 —— 否则 7s 看门狗会把这次运行当成超时杀掉。
+   ===================================================================== */
+let stdinBuffers = null
+let stdinWatch = null
+
+function stopStdinWatch() {
+  if (!stdinWatch) return
+  clearInterval(stdinWatch)
+  stdinWatch = null
+}
+
+function startStdinWatch() {
+  if (stdinWatch || !stdinBuffers) return
+  const ctrl = new Int32Array(stdinBuffers.control)
+  /* 用轮询而不是 Atomics.waitAsync：只有 worker 挂起的那一段需要响应，
+     40ms 的间隔手感上察觉不到，也省掉一套 promise 重排的维护成本。 */
+  stdinWatch = setInterval(function () {
+    if (Atomics.load(ctrl, STDIN_STATE) !== STDIN_WAIT) return
+    answerStdin(ctrl, stdinBuffers.text)
+  }, 40)
+}
+
+function answerStdin(ctrl, text) {
+  stopStdinWatch()
+  // 先停表再弹框
+  if (pending && pending.timer) {
+    clearTimeout(pending.timer)
+  }
+
+  const asked = getText(text, PROMPT_OFFSET, Atomics.load(ctrl, STDIN_PROMPT_LEN))
+  let line = null
+  try {
+    line = window.prompt(asked || 'input()', '')
+  } catch {
+    // 弹框被浏览器策略拦下：按用户取消处理，走下面的 EOF 分支
+  }
+
+  if (line === null || line === undefined) {
+    // 取消按 Ctrl+C 处理：Python 侧抛 EOFError
+    Atomics.store(ctrl, STDIN_STATE, STDIN_EOF)
+  } else {
+    Atomics.store(ctrl, STDIN_ANSWER_LEN, putText(text, ANSWER_OFFSET, line, TEXT_LIMIT))
+    Atomics.store(ctrl, STDIN_STATE, STDIN_ANSWER)
+  }
+  Atomics.notify(ctrl, STDIN_STATE)
+
+  if (pending) rearm()
+  startStdinWatch()
+}
+
 /* Files the program wrote or changed, handed to whoever wants them. */
 let outputHandler = null
 
@@ -59,6 +129,7 @@ function settle(kind, payload) {
    of letting the next call sit until the watchdog fires. */
 function poison() {
   ready = null
+  stopStdinWatch()
   if (worker) { worker.terminate(); worker = null }
 }
 
@@ -97,6 +168,7 @@ function onMessage(ev) {
 }
 
 function spawn() {
+  stdinBuffers = createStdinBuffers()
   worker = new Worker(WORKER_URL, { type: 'module' }) // pyodide rejects classic workers
   worker.onmessage = onMessage
   worker.onerror = (e) => {
@@ -107,7 +179,8 @@ function spawn() {
   }
   let resolve, reject
   ready = { promise: new Promise((res, rej) => { resolve = res; reject = rej }), resolve: resolve, reject: reject }
-  worker.postMessage({ type: 'load', indexURL: VENDOR_INDEX })
+  worker.postMessage({ type: 'load', indexURL: VENDOR_INDEX, stdin: stdinBuffers })
+  startStdinWatch()
   return ready.promise
 }
 
@@ -131,6 +204,7 @@ export function loadPython() {
    fresh worker, which the browser's HTTP cache makes cheap. */
 export function releasePython() {
   ready = null // a released worker cannot be reused
+  stopStdinWatch()
   const p = pending
   pending = null
   if (p) { clearTimeout(p.timer); p.reject(new Error('released')) }

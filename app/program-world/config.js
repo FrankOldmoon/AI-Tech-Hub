@@ -1,6 +1,6 @@
 /* @deps: none */
 export const PY_TRACE = `
-import sys, os, io, json, types, time, traceback
+import sys, os, io, json, types, time, traceback, builtins
 
 DIR = __PROJECT_DIR__
 ENTRY = __PROJECT_ENTRY__
@@ -14,6 +14,8 @@ steps = []
 chunks = []
 depth = 0
 started = time.time()
+# 等用户输入累积的秒数：学生在思考，不该算成程序跑超了
+paused = 0.0
 limit = None          # 'steps' | 'seconds' when the demo budget stops the run
 
 # Every run starts from the project directory with a clean import cache: a cached
@@ -91,7 +93,7 @@ def trace(frame, event, arg):
         limit = 'steps'
         raise RuntimeError('Execution limit reached (%d steps)' % MAX_STEPS)
     # every event, not every 128th: a short program may never reach a multiple
-    if time.time() - started > MAX_SECONDS:
+    if time.time() - started - paused > MAX_SECONDS:
         limit = 'seconds'
         raise RuntimeError('Execution limit reached (%.0fs)' % MAX_SECONDS)
     if event in ('call', 'line', 'return') and frame.f_lineno >= 1:
@@ -113,6 +115,31 @@ def trace(frame, event, arg):
     return trace
 
 error = None
+
+# input() 得走主线程的输入框：worker 里没有 prompt，pyodide 的默认 stdin 会直接
+# 抛 "ReferenceError: prompt is not defined"。这里只负责把提示语照常写进输出
+# （与内置 input 一致），取值交给 __pw_read_line__（见 pyworker.js 的 SAB 桥）。
+_read_line = globals().get('__pw_read_line__')
+_real_input = builtins.input
+
+def _pw_input(prompt=''):
+    global paused
+    if _read_line is None:
+        raise RuntimeError('input() is unavailable: this page is not cross-origin '
+                           'isolated, so the worker cannot wait for your answer')
+    if prompt:
+        sys.stdout.write(str(prompt))
+    t0 = time.time()
+    try:
+        line = _read_line(str(prompt))
+    finally:
+        paused += time.time() - t0
+    if line is None:
+        raise EOFError('EOF when reading a line')
+    return str(line)
+
+builtins.input = _pw_input
+
 sys.stdout = cap
 sys.settrace(trace)
 try:
@@ -136,6 +163,7 @@ except BaseException as exc:
 finally:
     sys.settrace(None)
     sys.stdout = real_stdout
+    builtins.input = _real_input
 
 views = []
 try:
@@ -152,7 +180,7 @@ RESULT = json.dumps({
     'limit': None if not limit else {
         'kind': limit,
         'steps': len(steps),
-        'seconds': round(time.time() - started, 1),
+        'seconds': round(time.time() - started - paused, 1),
     },
     'truncated': len(steps) >= MAX_STEPS or len(chunks) >= MAX_CHUNKS,
 })
