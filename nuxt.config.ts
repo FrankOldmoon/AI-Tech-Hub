@@ -45,12 +45,16 @@ export default defineNuxtConfig({
     //    「统计脚本」三条链路仍可加载；② 在生产 nginx 同步同名响应头。
     // 用 credentialless 而非 require-corp：对无凭据的跨域子资源更宽容，且不支持的
     // 浏览器会忽略该值（退化为非隔离），不会硬失败。
+    // CORP 必须一起给：COEP 下**同源**的 worker 脚本 / WASM 也算「嵌入资源」，
+    // 缺 CORP 时 Chrome 直接 ERR_BLOCKED_BY_RESPONSE —— 那样隔离一开，Pyodide
+    // 的 worker 根本起不来（比不开还糟）。
     ...(process.env.NUXT_ENABLE_CROSS_ORIGIN_ISOLATION === 'true'
       ? {
           '/**': {
             headers: {
               'Cross-Origin-Opener-Policy': 'same-origin',
-              'Cross-Origin-Embedder-Policy': 'credentialless'
+              'Cross-Origin-Embedder-Policy': 'credentialless',
+              'Cross-Origin-Resource-Policy': 'same-origin'
             }
           }
         }
@@ -85,6 +89,23 @@ export default defineNuxtConfig({
   // 触发 onnxruntime-node / sharp 等 Node 专属依赖解析失败
   // TensorFlow.js 需保留在预打包中以将 CJS require() 转为 ESM
   vite: {
+    // dev 下 `/_nuxt/**`（含 pyworker.js / stdin.js 这些模块）由 Vite 中间件直出，
+    // 不经过上面 routeRules 的 `/**`，所以隔离头得在这里补一份。
+    // 三件套缺一不可：COEP 下 worker 脚本的**响应本身**也要带 COEP，否则 Chrome
+    // 以 coep-frame-resource-needs-coep-header 直接 ERR_BLOCKED_BY_RESPONSE
+    // （隔离一开，Pyodide 的 worker 就起不来，比不开还糟）；CORP 则供 worker 内部
+    // 去取 pyodide wasm/wheel 时通过 COEP 的资源检查。
+    // 生产由 nginx 静态托管 `/_nuxt/**`，同样要同步这三个头。
+    ...(process.env.NUXT_ENABLE_CROSS_ORIGIN_ISOLATION === 'true'
+      ? {
+          server: {
+            headers: {
+              'Cross-Origin-Embedder-Policy': 'credentialless',
+              'Cross-Origin-Resource-Policy': 'same-origin'
+            }
+          }
+        }
+      : {}),
     plugins: [
       {
         // 修复 Vercel 生产构建崩溃，详见 build/webllm-neutralize.ts
