@@ -2,13 +2,24 @@
 let audioCtx = null
 let soundOn = false
 
+/* 每种逐步动画都有自己的声音：create/change/retire 是角色的生死，combat 是条件
+   对战，cond/loop/call/ret/ctl/bag 是那些没有角色变化的步骤（否则它们全程静音），
+   flow/ref 是「值从别处流过来」。 */
 export const TONES = {
   create: [660, 0.07],
   change: [430, 0.05],
   retire: [300, 0.09],
   combat: [180, 0.14],
   output: [880, 0.06],
-  error: [140, 0.32]
+  error: [140, 0.32],
+  cond: [520, 0.08],
+  loop: [600, 0.05],
+  call: [740, 0.06],
+  ret: [500, 0.07],
+  ctl: [900, 0.05],
+  bag: [640, 0.05],
+  flow: [820, 0.05],
+  ref: [1000, 0.07]
 }
 
 export function soundEnabled() { return soundOn }

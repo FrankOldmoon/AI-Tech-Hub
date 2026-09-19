@@ -106,6 +106,31 @@ Element.prototype.scrollIntoView = function (opts) {
   __realScrollIntoView.apply(this, arguments)
 }
 
+/* ------------------------------- audio spy -------------------------------- */
+/* beep() gives every step its own sound.  Recording the oscillator frequency
+   lets a test assert *which* tone a step played without any real audio, and it
+   has to be installed before any module can cache a context. */
+const __tones = []
+function __RecOsc() {
+  this.type = 'triangle'
+  this.frequency = { setValueAtTime: (f) => { __tones.push(f) } }
+  this.connect = function () { return this }
+  this.start = function () {}
+  this.stop = function () {}
+}
+function __RecGain() {
+  return {
+    gain: { setValueAtTime() {}, exponentialRampToValueAtTime() {} },
+    connect() { return this }
+  }
+}
+function __RecAC() {
+  return { currentTime: 0, destination: {}, createOscillator: () => new __RecOsc(), createGain: () => __RecGain() }
+}
+Object.defineProperty(window, 'AudioContext', { value: __RecAC, configurable: true, writable: true })
+Object.defineProperty(window, 'webkitAudioContext', { value: __RecAC, configurable: true, writable: true })
+function clearTones() { __tones.length = 0 }
+
 /* --------------------- freeze the state animations ------------------------ */
 /* .created / .changed / the retiry ghost drive CSS keyframe animations, and
    getBoundingClientRect() reflects their in-flight transform.  These tests
@@ -248,6 +273,7 @@ const local = {
   tick: tick, pendingFrames: pendingFrames, mk: mk, scene: scene,
   ok: ok, bad: bad, eq: eq, encB64: encB64,
   setSource: setSource, decoCalls: decoCalls, __focusCalls: __focusCalls,
+  tones: __tones, clearTones: clearTones,
   summary: summary
 }
 for (const key of Object.keys(local)) {

@@ -26,7 +26,7 @@ const CDP_PORT = 9341
 
 /* 计数即基线；改动要么是修 bug，要么是加断言，两者都应当在这里写明。 */
 const EXPECTED = [
-  { page: 'harness.html', ok: 344, label: 'main' },
+  { page: 'harness.html', ok: 366, label: 'main' },
   { page: 'harness-rm.html', ok: 4, label: 'reduced-motion', reducedMotion: true }
 ]
 

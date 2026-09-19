@@ -84,6 +84,24 @@
     font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre-wrap}
   .program-world .game-out:empty{display:none}
 
+  /* 值的流动与「同一个对象」的连线：盖在卡片上方的一层，坐标按舞台算，
+     所以相机缩放、FLIP 移动都不影响它连到正确的地方 */
+  .program-world .flow-layer{position:absolute;inset:0;pointer-events:none;z-index:12;overflow:hidden}
+  .program-world .flow-links{position:absolute;inset:0;width:100%;height:100%}
+  .program-world .flow-link{stroke:rgba(255,209,102,.7);stroke-width:2;stroke-dasharray:5 5}
+  .program-world .flow-link-chip{
+    position:absolute;transform:translate(-50%,-50%);font-family:var(--mono);font-size:10.5px;
+    padding:2px 7px;border-radius:999px;white-space:nowrap;
+    background:rgba(13,16,32,.92);border:1px solid rgba(255,209,102,.5);color:var(--gold)}
+  .program-world .flow-pip{
+    position:absolute;font-family:var(--mono);font-size:11px;font-weight:700;white-space:nowrap;
+    padding:2px 7px;border-radius:999px;will-change:transform;
+    background:rgba(20,26,48,.95);border:1px solid rgba(140,190,255,.6);color:#cfe2ff;
+    box-shadow:0 3px 12px rgba(0,0,0,.5)}
+  .program-world .flow-pip.ref{background:rgba(48,32,14,.95);border-color:rgba(255,209,102,.7);color:var(--gold)}
+  /* 指向同一个可变对象的卡片：一圈金边，和连线一起看 */
+  .program-world .actor.shared{border-color:rgba(255,209,102,.7)}
+
   /* Fullscreen: the panel becomes the screen, so give the picture all of it
      and keep only a thin bar with Stop / Back to stage. */
   .program-world .game-view:fullscreen{display:flex;background:#05070f;padding:0;gap:0}

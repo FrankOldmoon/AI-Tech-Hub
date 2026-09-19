@@ -170,6 +170,17 @@ function analyzeStep(i, steps, chunkMap, linesFor) {
   if (prev && prev.i === s.i && prev.v) {
     const changes = diffVars(prev.v, s.v)
     if (changes.length) {
+      /* 值从哪儿来：本步这次变更是上一行跑出来的，所以来源是上一行右侧读过的
+         变量名（a + a 会有两份）。自身不列——x = x + 1 的「累加」由数值补间
+         和 +/- 飘字讲，再从自己拉一条线只会糊在一起。 */
+      const read = prev.x || []
+      if (read.length) {
+        const known = new Set(Object.keys(prev.v || {}))
+        for (const ch of changes) {
+          const list = read.filter(n => n !== ch.name && known.has(n))
+          if (list.length) ch.sources = list
+        }
+      }
       const isCollection = changes.some(c =>
         /^(list|dict|set|tuple)$/i.test(c.afterType || c.beforeType || ''))
       return {
@@ -279,6 +290,8 @@ function buildScenes(steps, events, outputs, framesAt, linesFor) {
 
     const chars = []
     const innerScope = current ? (current.token || 'p' + current.id) : null
+    const srcMap = new Map()
+    for (const ch of (ev.changes || [])) if (ch.sources) srcMap.set(ch.name, ch.sources)
     for (const f of frames) {
       const scope = f.token || 'p' + f.id
       const names = Object.keys(f.vars || {}).sort()
@@ -309,9 +322,27 @@ function buildScenes(steps, events, outputs, framesAt, linesFor) {
           isOuter: scope !== innerScope,
           lastLine: lastLineById.get(id) || 0,
           frameId: f.id,
-          frameName: f.name
+          frameName: f.name,
+          /* 可变对象的身份：同一个 token 就是同一个 list/dict，d = c 之后两者共享 */
+          objTok: pair[2] || null,
+          /* 本步新算出来的变量，值从哪些变量来（b = a + a 会是 ['a', 'a']） */
+          sources: srcMap.get(n) || null,
+          shares: null
         })
       }
+    }
+
+    /* 指向同一个对象的变量两两相连，画面上才能看出「他们是一个东西」 */
+    const byTok = new Map()
+    for (const c of chars) {
+      if (!c.objTok) continue
+      const arr = byTok.get(c.objTok) || []
+      arr.push(c)
+      byTok.set(c.objTok, arr)
+    }
+    for (const arr of byTok.values()) {
+      if (arr.length < 2) continue
+      for (const c of arr) c.shares = arr.filter(x => x !== c).map(x => x.name)
     }
 
     let funcSpace = null
