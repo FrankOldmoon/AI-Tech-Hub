@@ -1309,6 +1309,7 @@
     "promptHint": "Click the image to place a hint point — the mask is computed around it",
     "liveStart": "Live camera",
     "liveStop": "Stop live",
+    "liveCameraHint": "One click opens the camera straight into live mode — no photo first",
     "sketchTitle": "Draw here",
     "sketchHint": "White background with thick black lines — doodle models are trained on exactly this style",
     "brush": "Brush",
