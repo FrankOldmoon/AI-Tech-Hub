@@ -1,220 +1,3 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<meta name="theme-color" content="#ffffff">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Face Recognition</title>
-<script>
-  // Debug hook: capture exceptions from the top-level await in the module below
-  window.__errs = [];
-  addEventListener('error', e => window.__errs.push('ERROR ' + e.message + ' @' + (e.filename||'') + ':' + e.lineno));
-  addEventListener('unhandledrejection', e => window.__errs.push('REJECT ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason)));
-</script>
-<style>
-  :root{
-    --ink:#0f172a; --sub:#64748b; --line:#e2e8f0;
-    --ok:#10b981; --bad:#ef4444; --accent:#2563eb;
-    --safe-t: env(safe-area-inset-top, 0px);
-    --safe-b: env(safe-area-inset-bottom, 0px);
-    --safe-l: env(safe-area-inset-left, 0px);
-    --safe-r: env(safe-area-inset-right, 0px);
-  }
-  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html,body{ height:100%; }
-  body{
-    margin:0; overflow:hidden; overscroll-behavior:none;
-    font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
-    color:var(--ink); background:#000;
-    -webkit-user-select:none; user-select:none;
-  }
-
-  /* ---------- full-bleed stage ---------- */
-  #stage{ position:fixed; inset:0; background:#000; overflow:hidden; touch-action:none; }
-  /* contain：完整画面都留在屏内、不裁切（原来的 cover 会把画面裁切放大，横屏设备尤其明显）。
-     双指缩放由 JS 写 transform，用的是和识别框同一套 viewTransform，保证放大后框仍贴着脸。 */
-  #stage img, #stage video{
-    position:absolute; inset:0; width:100%; height:100%;
-    object-fit:contain; object-position:center; display:block;
-  }
-  #stage video.mirror, #stage canvas.crop.mirror{ transform:scaleX(-1); }
-  /* 数字变焦时的裁剪画布：既是显示（contain 铺满，与 viewTransform 的映射一致），也是模型输入 */
-  #stage canvas.crop{
-    position:absolute; inset:0; width:100%; height:100%;
-    object-fit:contain; object-position:center; display:block;
-  }
-  #overlay{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
-
-  /* ---------- top controls ---------- */
-  #topbar{
-    position:fixed; z-index:20; display:flex; justify-content:space-between; align-items:center;
-    top:calc(var(--safe-t) + 10px); left:calc(var(--safe-l) + 12px); right:calc(var(--safe-r) + 12px);
-    pointer-events:none;
-  }
-  .iconbtn{
-    pointer-events:auto; width:40px; height:40px; border-radius:50%; border:0; padding:0;
-    display:grid; place-items:center; cursor:pointer;
-    background:rgba(15,23,42,.45); color:#fff; backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    transition:opacity .15s, transform .1s;
-  }
-  .iconbtn:active{ transform:scale(.92); }
-  .iconbtn svg{ width:19px; height:19px; display:block; }
-  .iconbtn[hidden]{ display:none; }
-
-  /* ---------- bottom bar: result card + shutter ---------- */
-  #bottombar{
-    position:fixed; z-index:20; display:flex; align-items:flex-end; gap:10px;
-    left:calc(var(--safe-l) + 12px); right:calc(var(--safe-r) + 12px); bottom:calc(var(--safe-b) + 14px);
-    pointer-events:none;
-  }
-  #card{
-    flex:1; min-width:0; max-width:560px; pointer-events:auto;
-    background:rgba(255,255,255,.94); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
-    border-radius:14px; padding:12px 14px; box-shadow:0 6px 24px rgba(0,0,0,.22);
-    border-left:4px solid var(--sub); transition:border-color .15s;
-  }
-  #card.hit{ border-left-color:var(--ok); }
-  #card.miss{ border-left-color:var(--bad); }
-  #card .who{ font-size:19px; font-weight:650; letter-spacing:-.01em; word-break:break-word; }
-  #card .who .pref{ font-weight:400; color:var(--sub); }
-  #card .meta{ font-size:12.5px; color:var(--sub); margin-top:3px; font-variant-numeric:tabular-nums; }
-  #card .rows{ display:grid; grid-template-columns:auto 1fr; gap:1px 10px; font-size:12.5px; margin-top:8px; }
-  #card .rows b{ color:var(--sub); font-weight:400; white-space:nowrap; }
-  #card .rows span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  #shutter{
-    pointer-events:auto; flex:0 0 auto; width:56px; height:56px; border-radius:50%; border:0; cursor:pointer;
-    background:var(--accent); color:#fff; display:grid; place-items:center;
-    box-shadow:0 6px 20px rgba(37,99,235,.45); transition:transform .1s, opacity .15s;
-  }
-  #shutter:active{ transform:scale(.9); }
-  #shutter svg{ width:24px; height:24px; }
-  #shutter[hidden]{ display:none; }
-
-  /* ---------- pinch zoom badge ---------- */
-  #zoomBadge{
-    position:fixed; z-index:25; left:50%; transform:translateX(-50%);
-    bottom:calc(var(--safe-b) + 84px);
-    padding:5px 11px; border-radius:999px;
-    background:rgba(15,23,42,.62); color:#fff;
-    font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums;
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    opacity:0; transition:opacity .18s; pointer-events:none;
-  }
-  #zoomBadge.show{ opacity:1; }
-
-  /* ---------- per-frame inference time ---------- */
-  #perf{
-    position:fixed; z-index:24; left:calc(var(--safe-l) + 12px);
-    bottom:calc(var(--safe-b) + 84px);
-    padding:4px 10px; border-radius:999px;
-    background:rgba(15,23,42,.55); color:#fff;
-    font-size:11.5px; font-weight:600; font-variant-numeric:tabular-nums;
-    backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-    white-space:nowrap; pointer-events:none;
-    opacity:0; transition:opacity .2s;
-  }
-  #perf.show{ opacity:1; }
-
-  /* ---------- 桌面端（鼠标）适配 ---------- */
-  /* 非移动端也能用：没有双指，滚轮就是缩放；hover 态让按钮看得出可点 */
-  @media (hover: hover){
-    #stage{ cursor:zoom-in; }
-    .iconbtn:hover{ background:rgba(15,23,42,.62); }
-    .choice:hover{ border-color:var(--accent); background:#f8fafc; }
-    .choice.primary:hover{ background:#1d4ed8; border-color:#1d4ed8; }
-    #shutter:hover{ background:#1d4ed8; }
-  }
-
-  /* ---------- intro ---------- */
-  #intro{
-    position:fixed; inset:0; z-index:40; background:#fff;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
-    padding:calc(var(--safe-t) + 28px) 26px calc(var(--safe-b) + 28px);
-    transition:opacity .22s ease, visibility .22s;
-  }
-  #intro.hide{ opacity:0; visibility:hidden; }
-  #intro h1{ margin:0 0 6px; font-size:23px; font-weight:680; letter-spacing:-.02em; text-align:center; }
-  #intro p.sub{ margin:0 0 18px; color:var(--sub); font-size:13.5px; text-align:center; max-width:30ch; }
-  .choice{
-    width:min(340px,100%); display:flex; align-items:center; gap:14px; padding:17px 20px;
-    border-radius:16px; border:1px solid var(--line); background:#fff; cursor:pointer;
-    font-size:16.5px; font-weight:560; color:var(--ink); text-align:left;
-    transition:transform .1s, border-color .15s, background .15s;
-  }
-  .choice:active{ transform:scale(.975); background:#f8fafc; }
-  .choice .ico{ width:26px; height:26px; flex:0 0 auto; color:var(--accent); }
-  .choice .ico svg{ width:100%; height:100%; }
-  .choice.primary{ background:var(--accent); border-color:var(--accent); color:#fff; }
-  .choice.primary .ico{ color:#fff; }
-  .choice[aria-disabled=true]{ opacity:.45; pointer-events:none; }
-  #status{ margin-top:20px; font-size:12.5px; color:var(--sub); text-align:center; }
-  #status:empty{ display:none; }
-  #status.err{ color:var(--bad); }
-  .spinner{
-    width:13px; height:13px; margin-right:7px; display:inline-block; vertical-align:-2px;
-    border:2px solid var(--line); border-top-color:var(--accent); border-radius:50%;
-    animation:spin .7s linear infinite;
-  }
-  @keyframes spin{ to{ transform:rotate(360deg); } }
-  [hidden]{ display:none !important; }
-</style>
-</head>
-<body>
-
-<div id="stage">
-  <canvas id="crop" class="crop" hidden></canvas>
-  <canvas id="overlay"></canvas>
-</div>
-
-<div id="topbar">
-  <button class="iconbtn" id="btnExit" title="Close" hidden aria-label="Close">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
-  </button>
-  <button class="iconbtn" id="btnFlip" title="Switch camera" hidden aria-label="Switch camera">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M3 9V5a2 2 0 0 1 2-2h9l-2.5-2M21 15v4a2 2 0 0 1-2 2H10l2.5 2"/>
-      <path d="M21 9a9 9 0 0 0-15.5-6.4M3 15a9 9 0 0 0 15.5 6.4"/>
-    </svg>
-  </button>
-</div>
-
-<div id="bottombar">
-  <div id="card" hidden>
-    <div class="who" id="cardWho">&nbsp;</div>
-    <div class="meta" id="cardMeta">&nbsp;</div>
-    <div class="rows" id="cardRows"></div>
-  </div>
-  <button id="shutter" title="Save photo" hidden aria-label="Save photo">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
-    </svg>
-  </button>
-</div>
-
-<div id="zoomBadge"></div>
-
-<div id="perf"></div>
-
-<div id="intro">
-  <h1>Face Recognition</h1>
-  <p class="sub">Take or pick a photo to identify a student.</p>
-  <button class="choice primary" id="choiceUpload" aria-disabled="true">
-    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5"/><path d="M4 15v3a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-3"/></svg></span>
-    Upload Image
-  </button>
-  <button class="choice" id="choiceCamera" aria-disabled="true">
-    <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h1.2a1 1 0 0 0 .83-.45l.94-1.4A1 1 0 0 1 9.3 3.7h5.4a1 1 0 0 1 .83.45l.94 1.4A1 1 0 0 0 17.3 6h1.2A2.5 2.5 0 0 1 21 8.5v8A2.5 2.5 0 0 1 18.5 19h-13A2.5 2.5 0 0 1 3 16.5z"/><circle cx="12" cy="12.3" r="3.6"/></svg></span>
-    Open Camera
-  </button>
-  <input type="file" id="file" accept="image/*" hidden>
-  <div id="status"><span class="spinner"></span>Loading recognition models…</div>
-</div>
-
-<script src="./face-recognizer.js"></script>
-<script type="module">
 import * as faceapi from './face-api.esm.js';
 window.faceapi = faceapi;
 
@@ -240,10 +23,13 @@ let sourceSize = { w: 0, h: 0 };
 let busy = false, loopId = null;
 
 // ---------- boot ----------
+// 这里是 Nuxt 页面 /face 的客户端主体（旧 public/face/index.html 的 <script type="module">）。
+// 资源必须写绝对路径：页面 URL 是 /face（无尾斜杠），相对路径会解析到站点根目录，
+// 变成 /students-face-data.json、/models —— 全都 404。
 const rec = await createFaceRecognizer({
   faceapi,
-  dataUrl: './students-face-data.json',
-  modelUrl: './models',
+  dataUrl: '/face/students-face-data.json',
+  modelUrl: '/face/models',
   // 检测器：tinyFaceDetector 比 ssdMobilenetv1 快约 3.9×（实测同图检出结果一致），
   // 代价是更远/更小的脸容易漏检。想换回来：控制台执行 rec.setDetector('ssdMobilenetv1')
   // （SSD 模型会按需加载，不必重启页面）。inputSize 可再降到 320 换更多速度。
@@ -826,6 +612,9 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') btnExit.click();
 });
-</script>
-</body>
-</html>
+
+// Nuxt 页面在路由离开时调用：停掉摄像头与检测循环。监听器仍留在 document/window 上，
+// 但 resetMedia() 把 mode 归 null 后它们都是空操作，不会继续抓帧或占用摄像头。
+export function teardown(){
+  try { resetMedia(); } catch (_) { /* 首屏还没就绪时忽略 */ }
+}
