@@ -1309,6 +1309,7 @@
     "promptHint": "点击图片放置提示点 —— 掩码会围绕该点计算",
     "liveStart": "实时摄像头",
     "liveStop": "停止实时",
+    "liveCameraHint": "点一下直接开摄像头进入实时模式，不用先拍照",
     "sketchTitle": "在此手绘",
     "sketchHint": "白底 + 粗黑线 —— 简笔画模型正是按这种画风训练的",
     "brush": "笔刷",

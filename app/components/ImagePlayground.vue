@@ -380,6 +380,37 @@ let liveInferring = false
 
 const liveSupported = computed(() => Boolean(activeTool.value?.live))
 
+/** 摄像头当前帧 → JPEG File（实时模式用它当「原图」） */
+function frameToFile(video: HTMLVideoElement, name: string): Promise<File | null> {
+  return new Promise((resolve) => {
+    const canvas = document.createElement('canvas')
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+    const ctx = canvas.width && canvas.height ? canvas.getContext('2d') : null
+    if (!ctx) {
+      resolve(null)
+      return
+    }
+    ctx.drawImage(video, 0, 0)
+    canvas.toBlob((blob) => {
+      resolve(blob ? new File([blob], name, { type: 'image/jpeg' }) : null)
+    }, 'image/jpeg', 0.85)
+  })
+}
+
+/** video 尚未解出画面时等一帧，最多等 1.5s */
+function waitFrame(video: HTMLVideoElement): Promise<boolean> {
+  if (video.readyState >= 2) return Promise.resolve(true)
+  return new Promise((resolve) => {
+    const done = () => {
+      video.removeEventListener('loadeddata', done)
+      resolve(video.readyState >= 2)
+    }
+    video.addEventListener('loadeddata', done)
+    setTimeout(done, 1500)
+  })
+}
+
 async function startLive() {
   const tool = activeTool.value
   if (!tool?.live || liveStarting.value) return
@@ -399,6 +430,12 @@ async function startLive() {
     }
     video.srcObject = liveStream
     await video.play()
+    /* 空状态直接开实时：把第一帧当作「原图」，工作台（参数 / 对比 / 下载）随即可用。
+       不这样就得先拍一张照片、再点一次实时——多一步毫无意义的操作。 */
+    if (!original.value && await waitFrame(video)) {
+      const frame = await frameToFile(video, 'camera.jpg')
+      if (frame) await loadFile(frame, { silent: true })
+    }
     await tool.live.ensure()
     liveLastTime = -1
     liveActive.value = true
@@ -883,7 +920,7 @@ async function useSecondSample(url: string) {
   await loadSecondFile(file)
 }
 
-async function loadFile(file: File) {
+async function loadFile(file: File, opts: { silent?: boolean } = {}) {
   if (!file.type.startsWith('image/')) {
     error.value = t('image.error') + ': ' + file.name
     return
@@ -913,7 +950,8 @@ async function loadFile(file: File) {
     result.value = null
     resultInfo.value = []
     error.value = null
-    runLater()
+    /* silent：实时模式拿第一帧当原图时用，单次推理马上会被逐帧结果覆盖，不必跑 */
+    if (!opts.silent) runLater()
   } catch (e) {
     error.value = humanError(e, t)
   }
@@ -1120,15 +1158,37 @@ const modeText = computed(() => {
           </div>
         </div>
 
-        <!-- 上传区 / 示例 / 摄像头：统一走通用图片输入组件（拖拽 + 示例 + 拍照） -->
+        <!-- 上传区 / 示例：统一走通用图片输入组件（拖拽 + 示例）。
+             支持实时的工具不给「拍照」入口——摄像头一点就直接进实时模式 -->
         <MediaInput
           v-if="!original && !needsDrawing"
           accept="image/*"
-          camera
+          :camera="!liveSupported"
           :samples="sampleImages"
           @select="loadFile"
           @sample="onSample"
         />
+
+        <!-- 支持实时的工具：空状态一次点击即进实时，不必先拍一张再点一次实时 -->
+        <div
+          v-if="!original && !needsDrawing && liveSupported"
+          class="space-y-2"
+        >
+          <UButton
+            icon="i-lucide-video"
+            size="lg"
+            class="w-full"
+            data-testid="live-camera"
+            :loading="liveStarting"
+            :disabled="liveStarting"
+            @click="startLive()"
+          >
+            {{ t('image.liveStart') }}
+          </UButton>
+          <p class="text-xs text-dimmed text-center">
+            {{ t('image.liveCameraHint') }}
+          </p>
+        </div>
 
         <template v-if="original">
           <!-- 图片信息 -->
