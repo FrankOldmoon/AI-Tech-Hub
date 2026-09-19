@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build && node scripts/trim-production-assets.mjs",
+    "build": "node scripts/check-program-world-worker.mjs && nuxt build && node scripts/check-program-world-worker.mjs --artifacts && node scripts/trim-production-assets.mjs",
     "dev": "NODE_USE_ENV_PROXY=1 nuxt dev --host",
     "preview": "nuxt preview",
     "server": "node .output/server/index.mjs",
     "check:i18n": "node scripts/check-i18n.mjs",
+    "check:program-world": "node scripts/check-program-world-worker.mjs",
     "models:fetch": "node scripts/fetch-models.mjs",
     "models:list": "node scripts/fetch-models.mjs --list",
     "postinstall": "nuxt prepare && node scripts/sync-runtime-libs.mjs",

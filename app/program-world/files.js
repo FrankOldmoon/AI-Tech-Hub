@@ -14,6 +14,11 @@ import { $ } from './dom.js'
    ===================================================================== */
 let hooks = {}
 
+/* Whether the file list is showing.  This is UI state, not project data: the
+   page opens with the list hidden and the Files button reveals it, so the
+   editor gets the whole pane by default and a reload never surprises anyone. */
+let treeOpen = false
+
 function text(id, s) {
   const el = $(id)
   if (el) el.textContent = s
@@ -59,9 +64,9 @@ export function renderFiles() {
   const n = fileCount()
   text('fileCount', n + (n === 1 ? ' file' : ' files'))
   const body = $('editorBody')
-  if (body) body.classList.toggle('tree-hidden', !project.treeOpen)
+  if (body) body.classList.toggle('tree-hidden', !treeOpen)
   const btn = $('btnTree')
-  if (btn) btn.setAttribute('aria-expanded', project.treeOpen ? 'true' : 'false')
+  if (btn) btn.setAttribute('aria-expanded', treeOpen ? 'true' : 'false')
 }
 
 function wire(id, fn) {
@@ -84,9 +89,7 @@ function say(msg, bad) {
 
 /* ------------------------------- actions ---------------------------- */
 function toggleTree() {
-  if (!project) return
-  project.treeOpen = !project.treeOpen
-  if (hooks.onPersist) hooks.onPersist()
+  treeOpen = !treeOpen
   renderFiles()
 }
 

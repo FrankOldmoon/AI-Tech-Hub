@@ -14,6 +14,12 @@
    `document` and a canvas at import time, and a worker has none of them; the
    offscreen surface path needs SDL's video subsystem to come up first.  The
    turtle shim in pylib exists for exactly this reason.
+
+   Messages (main → worker): `load` warms the runtime, `run` traces a project.
+   Messages (worker → main), three kinds and no more:
+     { type:'status', state:'ready'|'fatal'|'packages'|'running', ... }
+     { type:'out', text }                       -- print() as it happens
+     { type:'result', id, data?, produced?, error? }   -- one reply per run
    ===================================================================== */
 /* =====================================================================
    ⚠️ 本文件必须保持**零 import / 零 export 依赖**。
@@ -21,92 +27,14 @@
    它不是一个被 Rollup 当入口打包的模块：python.js 里用的是
    `new URL('./pyworker.js', import.meta.url)`，Vite 把它当**静态资源原样拷贝**
    （产物形如 _nuxt/pyworker.<hash>.js，连源码里的注释都原封不动），不会内联它的依赖。
-   所以这里只要写下 `import ... from './stdin.js'`，生产环境就会 404：
-   `/_nuxt/stdin.js` 根本不存在 —— dev 之所以看不出来，是因为 Vite 在 dev 里按需
+   所以这里只要写下 `import ... from './io.js'`，生产环境就会 404：
+   `/_nuxt/io.js` 根本不存在 —— dev 之所以看不出来，是因为 Vite 在 dev 里按需
    转译，相对导入能被解析。
 
-   代价：下面这几个常量与编解码函数同 stdin.js **成对维护**，改一处必须改另一处。
    tests/program-world-worker.test.ts 钉住了「本文件不得出现 import」这条约束。
    ===================================================================== */
 
-/** 与 stdin.js 保持一致：control 的下标 */
-const STDIN_STATE = 0
-const STDIN_PROMPT_LEN = 1
-const STDIN_ANSWER_LEN = 2
-
-/** 与 stdin.js 保持一致：control[STDIN_STATE] 的取值 */
-const STDIN_WAIT = 1 // worker 已挂起，等主线程
-const STDIN_EOF = 3 // 用户取消 → 按 EOF 处理
-
-/** 与 stdin.js 保持一致：text 的两半与安全上限 */
-const HALF = 4096
-const PROMPT_OFFSET = 0
-const ANSWER_OFFSET = HALF
-const TEXT_LIMIT = HALF - 1
-
-const encoder = new TextEncoder()
-const decoder = new TextDecoder()
-
-function putText(sab, offset, value, limit) {
-  const bytes = encoder.encode(value == null ? '' : String(value))
-  const n = Math.min(bytes.length, limit)
-  new Uint8Array(sab, offset, n).set(bytes.subarray(0, n))
-  return n
-}
-
-function getText(sab, offset, length) {
-  if (!length) return ''
-  const n = Math.min(length, TEXT_LIMIT)
-  /* 必须先拷出来：TextDecoder.decode 拒绝 SharedArrayBuffer 上的视图 */
-  const copy = new Uint8Array(n)
-  copy.set(new Uint8Array(sab, offset, n))
-  return decoder.decode(copy)
-}
-
 let runtime = null
-
-/* 与主线程共享的 stdin 缓冲（主线程在 load 消息里给过来）。 */
-let stdin = null
-
-/* 学生可以慢慢想，但不能把 worker 永久挂住：超时按 EOF 处理。 */
-const STDIN_WAIT_MS = 10 * 60 * 1000
-
-/* 同步向主线程要一行输入。返回 null = 用户取消，交回 Python 变成 EOFError。 */
-function readLine(promptText) {
-  if (!stdin) {
-    return ''
-  }
-  const ctrl = new Int32Array(stdin.control)
-  Atomics.store(ctrl, STDIN_PROMPT_LEN, putText(stdin.text, PROMPT_OFFSET, promptText, TEXT_LIMIT))
-  Atomics.store(ctrl, STDIN_ANSWER_LEN, 0)
-  Atomics.store(ctrl, STDIN_STATE, STDIN_WAIT)
-  /* 先改状态再 wait：主线程若在这两步之间就写好答案也不会丢唤醒 ——
-     Atomics.wait 发现值已不是 STDIN_WAIT，会立刻以 'not-equal' 返回。 */
-  Atomics.notify(ctrl, STDIN_STATE)
-  const woke = Atomics.wait(ctrl, STDIN_STATE, STDIN_WAIT, STDIN_WAIT_MS)
-  const state = Atomics.load(ctrl, STDIN_STATE)
-  if (woke === 'timed-out' || state === STDIN_EOF) return null
-  return getText(stdin.text, ANSWER_OFFSET, Atomics.load(ctrl, STDIN_ANSWER_LEN))
-}
-
-/* 两个入口都接上：PY_TRACE 里的 input() 垫片能拿到提示语，
-   sys.stdin.readline() 之类走 pyodide 的 stdin 处理器 —— 两条都不再碰 prompt
-   （worker 里没有 prompt，碰了就只能是 "ReferenceError: prompt is not defined"）。 */
-function installStdin(py) {
-  if (typeof py.setStdin === 'function') {
-    py.setStdin({
-      stdin: function () {
-        if (!stdin) return null // 没桥：按 EOF 处理，别去碰 prompt
-        const line = readLine('')
-        return line === null ? null : line + '\n'
-      }
-    })
-  }
-  if (!stdin) return
-  py.globals.set('__pw_read_line__', function (promptText) {
-    return readLine(promptText)
-  })
-}
 
 /* The project lives in pyodide's in-memory filesystem, so `import helper` and
    `open("data.txt")` behave exactly as they would on disk. */
@@ -175,7 +103,6 @@ function ensureRuntime(indexURL) {
   runtime = installPyodide(indexURL)
     .then(() => globalThis.loadPyodide({ indexURL: indexURL }))
     .then(function (py) {
-      installStdin(py)
       /* py.version is the *Pyodide* version (314.0.7); ask the interpreter for
          its own version instead of showing one as if it were the other */
       let interpreter
@@ -184,12 +111,12 @@ function ensureRuntime(indexURL) {
       } catch {
         interpreter = ''
       }
-      self.postMessage({ type: 'ready', api: py.version, python: interpreter })
+      self.postMessage({ type: 'status', state: 'ready', api: py.version, python: interpreter })
       return py
     })
     .catch(function (e) {
       runtime = null
-      self.postMessage({ type: 'failed', message: String(e) })
+      self.postMessage({ type: 'status', state: 'fatal', message: String(e) })
       throw e
     })
   return runtime
@@ -239,7 +166,6 @@ function producedFiles(py, files) {
 self.onmessage = function (ev) {
   const msg = ev.data || {}
   if (msg.type === 'load') {
-    if (msg.stdin) stdin = msg.stdin
     ensureRuntime(msg.indexURL).catch(function () {})
     return
   }
@@ -251,25 +177,35 @@ self.onmessage = function (ev) {
       /* numpy, pillow, ... : pyodide resolves each wheel against indexURL, so
          anything vendored next to the lock loads without touching the network.
          The main thread is told, so the trace budget does not include the wait. */
-      self.postMessage({ type: 'phase', id: msg.id, phase: 'packages' })
+      self.postMessage({ type: 'status', id: msg.id, state: 'packages' })
       const all = (msg.files || []).map(f => f.content || '').join('\n')
       try {
         await py.loadPackagesFromImports(all, { messageCallback: () => {} })
       } catch (e) {
-        self.postMessage({ type: 'phase', id: msg.id, phase: 'running' })
         throw new Error('could not load a package this program imports: '
           + (e && e.message ? e.message : e), { cause: e })
       }
-      self.postMessage({ type: 'phase', id: msg.id, phase: 'running' })
+      self.postMessage({ type: 'status', id: msg.id, state: 'running' })
       syncFs(py, msg.files)
       py.globals.set('__PROJECT_DIR__', DIR)
       py.globals.set('__PROJECT_ENTRY__', DIR + '/' + (msg.entry || 'main.py'))
+      /* 输入：已给的行原样交给解释器（PY_TRACE 铺成 sys.stdin）。普通 Run 用输入框
+         里的行、取完即 EOF；交互式终端每问一次就带更长的输入重跑，见 config.js 的
+         NeedLine。两条路都不需要跨线程等待，也就不需要任何响应头。 */
+      py.globals.set('__pw_stdin__', String(msg.stdin == null ? '' : msg.stdin))
+      py.globals.set('__pw_interactive__', !!msg.interactive)
+      /* 输出边写边发：Python 是同步跑的，但 worker 在 Python 里 postMessage 是即时的
+         （此刻主线程空着，消息马上被处理），所以页面不必等整段 trace 结束才看到 print。 */
+      py.globals.set('__pw_emit__', function (s) {
+        self.postMessage({ type: 'out', text: String(s) })
+      })
       py.runPython(msg.tracer)
       const raw = py.globals.get('RESULT')
       const data = JSON.parse(typeof raw === 'string' ? raw : String(raw))
       self.postMessage({ type: 'result', id: msg.id, data: data, produced: producedFiles(py, msg.files) })
     })
     .catch(function (e) {
-      self.postMessage({ type: 'failed', id: msg.id, message: (e && e.message) ? e.message : String(e) })
+      /* 一次运行只有一个答复：要么 result.data，要么 result.error */
+      self.postMessage({ type: 'result', id: msg.id, error: (e && e.message) ? e.message : String(e) })
     })
 }

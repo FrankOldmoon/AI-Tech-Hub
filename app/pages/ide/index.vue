@@ -45,17 +45,18 @@ onBeforeUnmount(() => {
       <header class="topbar">
         <div class="brand">
           <h1>Program World</h1>
-          <span class="tag">PYTHON EXECUTION · CHARACTER EDITION</span>
         </div>
         <span id="status" class="status"><span class="dot" /><span id="statusText">Runtime not loaded</span></span>
         <div class="spacer" />
         <button id="btnRun" class="btn primary">Run</button>
-        <button id="btnGame" class="btn" title="Run the entry file as a real pygame game on the main thread, in the panel on the right">Run game</button>
-        <button id="btnStep" class="btn" disabled>Step</button>
+        <button id="btnTerm" class="btn" title="Run the project with input and output inside a simulated terminal window">Run terminal</button>
+        <span class="btn-split">
+          <button id="btnGame" class="btn split-lead" title="Run the entry file as a real pygame game on the main thread, in the panel on the right">Run game</button>
+          <button id="btnPrompt" class="btn split-tip" title="Rules to give an AI assistant, so the pygame code it writes runs here unchanged" aria-label="Prompt for an AI assistant">?</button>
+        </span>
         <button id="btnPlay" class="btn" disabled>Play</button>
         <button id="btnSound" class="btn ghost" title="Toggle sound">Sound off</button>
         <button id="btnReset" class="btn ghost" disabled>Clear</button>
-        <NuxtLink class="btn ghost" to="/ide/play" title="Open the game page: same project, one full window, nothing else">Game page</NuxtLink>
       </header>
 
       <main id="main">
@@ -71,7 +72,7 @@ onBeforeUnmount(() => {
             <button id="btnShare" class="btn ghost" style="padding:4px 10px;font-size:12px" title="Copy a link containing every file">Share link</button>
           </div>
           <div class="files-bar">
-            <button id="btnTree" class="btn ghost sm" aria-expanded="true" title="Show or hide the file list">Files</button>
+            <button id="btnTree" class="btn ghost sm" aria-expanded="false" title="Show or hide the file list">Files</button>
             <button id="btnNewFile" class="btn ghost sm" title="New file">+ New</button>
             <button id="btnRenameFile" class="btn ghost sm" title="Rename the open file">Rename</button>
             <button id="btnDeleteFile" class="btn ghost sm" title="Delete the open file">Delete</button>
@@ -81,7 +82,7 @@ onBeforeUnmount(() => {
             <input id="fileInput" type="file" multiple hidden>
             <span id="fileCount" class="count" />
           </div>
-          <div id="editorBody" class="editor-body">
+          <div id="editorBody" class="editor-body tree-hidden">
             <aside id="fileTree" class="file-tree" />
             <div id="editor" />
             <div id="viewer" class="viewer">
@@ -91,38 +92,9 @@ onBeforeUnmount(() => {
             </div>
           </div>
 
-          <div id="hsplit" class="hsplit" title="Drag to resize · double-click to expand/collapse" />
-
-          <div id="drawer" class="drawer">
-            <button id="drawerHead" class="drawer-head" aria-expanded="false">
-              <span class="chev">&#9654;</span>
-              <span class="dtitle">Execution</span>
-              <span id="drawerMeta" class="dmeta">step 0 / 0</span>
-              <span class="dhint">click to expand &mdash; variables, call stack, output</span>
-            </button>
-            <div id="drawerBody" class="drawer-body">
-              <div class="card now wide">
-                <div class="card-head">Now executing <span id="nowFile" class="now-file" /></div>
-                <div class="card-body">
-                  <div class="line"><span id="nowLn" class="ln">&ndash;</span><code id="nowCode">Press Run to trace this program.</code></div>
-                  <div id="nowMeta" class="meta" />
-                </div>
-              </div>
-              <div class="card">
-                <div class="card-head">Variables <span id="varCount" class="count" /></div>
-                <div class="card-body"><div id="vars" class="vars" /></div>
-              </div>
-              <div class="card">
-                <div class="card-head">Call stack</div>
-                <div class="card-body"><div id="frames" class="frames" /></div>
-              </div>
-              <div class="card wide">
-                <div class="card-head">Standard output</div>
-                <pre id="stdout" class="out" />
-                <div id="errBox" />
-              </div>
-              <div id="stale" class="stale">Code changed since the last run &mdash; press <b>Run</b> to re-trace.</div>
-            </div>
+          <div class="io-bar">
+            <textarea id="ioIn" class="io-box" rows="4" autocomplete="off" spellcheck="false" aria-label="Program input, one line per input()" placeholder="input() — one answer per line, then press Run" />
+            <textarea id="ioOut" class="io-box io-out" rows="4" readonly tabindex="-1" aria-label="Program output" placeholder="output" />
           </div>
         </section>
 
@@ -144,40 +116,73 @@ onBeforeUnmount(() => {
               </select>
             </div>
           </div>
-          <div class="stage-head">
-            <span class="title">Program World</span>
-            <span id="stepPill" class="pill muted">step 0 / 0</span>
-            <span id="framePill" class="pill blue">no frame</span>
+
+          <div id="panelTabs" class="panel-tabs">
+            <button id="tabWorld" class="ptab on" aria-selected="true">Program World</button>
+            <button id="tabExec" class="ptab" aria-selected="false">Execution <span id="drawerMeta" class="dmeta">step 0 / 0</span></button>
           </div>
-          <div id="timeline" class="timeline" />
-          <div class="stage-wrap">
-            <div id="stage" class="stage">
-              <div id="world" class="world">
-                <div id="wtop" class="wtop" />
-                <div id="arena" class="arena" />
-                <div id="outSlot" />
-                <div id="worldIdle" class="world-idle">
-                  <div class="big">🤖 ⚔️ 👹</div>
-                  <div>Press <code>Run</code> and watch your variables come alive.</div>
+
+          <div id="panelWorld" class="panel-view">
+            <div class="stage-head">
+              <span class="title">Program World</span>
+              <span id="stepPill" class="pill muted">step 0 / 0</span>
+              <span id="framePill" class="pill blue">no frame</span>
+            </div>
+            <div id="timeline" class="timeline" />
+            <div class="stage-wrap">
+              <div id="stage" class="stage">
+                <div id="world" class="world">
+                  <div id="wtop" class="wtop" />
+                  <div id="arena" class="arena" />
+                  <div id="outSlot" />
+                  <div id="worldIdle" class="world-idle">
+                    <div class="big">🤖 ⚔️ 👹</div>
+                    <div>Press <code>Run</code> and watch your variables come alive.</div>
+                  </div>
                 </div>
-              </div>
-              <div id="vsLayer" class="vs-layer" />
-              <div id="eventBanner" class="event-banner">
-                <span id="ebKind" class="eb-kind">Ready</span>
-                <span id="ebText" class="eb-text">Press Run to trace this program.</span>
-              </div>
-              <div id="gameView" class="game-view">
-                <div class="game-bar">
-                  <button id="btnGameStop" class="btn sm" disabled title="Stops at the end of the current frame">Stop</button>
-                  <button id="btnGameExit" class="btn ghost sm">Back to stage</button>
-                  <span id="gameMsg" class="game-msg" />
+                <div id="vsLayer" class="vs-layer" />
+                <div id="eventBanner" class="event-banner">
+                  <span id="ebKind" class="eb-kind">Ready</span>
+                  <span id="ebText" class="eb-text">Press Run to trace this program.</span>
                 </div>
-                <div class="game-screen">
-                  <canvas id="gameCanvas" width="480" height="360" tabindex="0" />
+                <div id="gameView" class="game-view">
+                  <div class="game-bar">
+                    <button id="btnGameStop" class="btn sm" disabled title="Stops at the end of the current frame">Stop</button>
+                    <button id="btnGameExit" class="btn ghost sm">Back to stage</button>
+                    <button id="btnGameFull" class="btn ghost sm" title="Fill the screen with the game (Esc leaves)">Fullscreen</button>
+                    <span id="gameMsg" class="game-msg" />
+                  </div>
+                  <div class="game-screen">
+                    <canvas id="gameCanvas" width="480" height="360" tabindex="0" />
+                  </div>
+                  <pre id="gameOut" class="game-out" />
                 </div>
-                <pre id="gameOut" class="game-out" />
               </div>
             </div>
+          </div>
+
+          <div id="panelExec" class="panel-view panel-exec" hidden>
+            <div class="card now wide">
+              <div class="card-head">Now executing <span id="nowFile" class="now-file" /></div>
+              <div class="card-body">
+                <div class="line"><span id="nowLn" class="ln">&ndash;</span><code id="nowCode">Press Run to trace this program.</code></div>
+                <div id="nowMeta" class="meta" />
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-head">Variables <span id="varCount" class="count" /></div>
+              <div class="card-body"><div id="vars" class="vars" /></div>
+            </div>
+            <div class="card">
+              <div class="card-head">Call stack</div>
+              <div class="card-body"><div id="frames" class="frames" /></div>
+            </div>
+            <div class="card wide">
+              <div class="card-head">Standard output</div>
+              <pre id="stdout" class="out" />
+              <div id="errBox" />
+            </div>
+            <div id="stale" class="stale">Code changed since the last run &mdash; press <b>Run</b> to re-trace.</div>
           </div>
         </section>
       </main>
@@ -195,6 +200,40 @@ onBeforeUnmount(() => {
           <button id="viewClose" class="btn ghost sm" title="Close (Esc)">Close</button>
         </div>
         <div id="viewBody" class="modal-body" />
+      </div>
+    </div>
+
+    <div id="promptModal" class="modal prompt-modal">
+      <div class="modal-box">
+        <div class="modal-head">
+          <span class="mtitle">Prompt for an AI assistant</span>
+          <span class="spacer" />
+          <span id="promptState" class="mcount" />
+          <button id="promptCopy" class="btn ghost sm">Copy</button>
+          <button id="promptClose" class="btn ghost sm" title="Close (Esc)">Close</button>
+        </div>
+        <div class="modal-body">
+          <p class="prompt-hint">Paste this into any AI assistant, then put the code it writes in <code>main.py</code> and press <b>Run game</b>.</p>
+          <pre id="promptText" class="prompt-text" />
+        </div>
+      </div>
+    </div>
+
+    <div id="termModal" class="modal term-modal">
+      <div class="term-box">
+        <div class="term-bar">
+          <span class="term-dots"><i /><i /><i /></span>
+          <span class="term-title">Terminal &mdash; <span id="termFile">main.py</span></span>
+          <div class="spacer" />
+          <button id="termClear" class="btn ghost sm">Clear</button>
+          <button id="termClose" class="btn ghost sm" title="Close (Esc)">Close</button>
+        </div>
+        <pre id="termOut" class="term-out" />
+        <div class="term-input-row">
+          <span id="termPrompt" class="term-prompt">$</span>
+          <input id="termIn" class="term-cin" type="text" autocomplete="off" spellcheck="false" aria-label="Terminal input" placeholder="Press Run terminal — input() is typed here" disabled>
+          <button id="termSend" class="btn ghost sm" disabled>Send</button>
+        </div>
       </div>
     </div>
   </div>

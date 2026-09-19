@@ -132,6 +132,25 @@ function writeFiles(py, files, onOut) {
   })
 }
 
+/* pygame's SDL attaches keydown/keypress listeners to the document while the
+   display is up and never detaches them on its own: once a game has stopped
+   they keep swallowing every key — keypress gets preventDefault()ed, so the
+   browser never inserts a character and the editor becomes unusable.
+   Quitting the display hands the keyboard back. The canvas keeps the last
+   frame it painted, and the next run re-creates the window in set_mode(). */
+function releaseKeyboard(py) {
+  if (!py) return
+  try {
+    py.runPython([
+      'import sys',
+      'if "pygame" in sys.modules:',
+      '    _pg = sys.modules["pygame"]',
+      '    if _pg.display.get_init():',
+      '        _pg.display.quit()'
+    ].join('\n'))
+  } catch { /* the runtime may already be gone */ }
+}
+
 /* Resolves — never rejects — with what happened, so both callers can stay
    short: `{stopped}` when the flag was set, `{error}` when the program died. */
 export async function startGame(opts) {
@@ -172,5 +191,6 @@ export async function startGame(opts) {
     return { stopped: false, error: tail(msg) + (/asyncio\.run\(\)/.test(msg) ? '\n\n' + HINT : '') }
   } finally {
     running = false
+    releaseKeyboard(runtime)
   }
 }
