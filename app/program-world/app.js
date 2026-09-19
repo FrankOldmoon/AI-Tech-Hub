@@ -1,11 +1,15 @@
-/* @deps: analysis.js, config.js, dom.js, editor.js, files.js, gamerun.js, layout.js, project.js, python.js, render.js, sound.js, state.js, url-code.js, views.js */
+/* @deps: analysis.js, clipboard.js, config.js, dom.js, editor.js, files.js, gamerun.js, io.js, layout.js, panels.js, project.js, prompt.js, python.js, render.js, sound.js, state.js, url-code.js, views.js */
 import { buildTimeline } from './analysis.js'
+import { copyToClipboard } from './clipboard.js'
 import { EXAMPLES, PY_TRACE, exampleById } from './config.js'
-import { $, arenaEl, bindDom, btnFirst, btnGame, btnGameExit, btnGameStop, btnLast, btnNext, btnPlay, btnPrev, btnReset, btnRun, btnShare, btnSound, btnStep, errBox, esc, examplePick, gameCanvas, gameMsg, gameOut, nowCode, on, scrub, setStatus, speedSel, stageEl, staleEl, timelineEl, draftStateEl, unbindAll } from './dom.js'
+import { $, arenaEl, bindDom, btnFirst, btnGame, btnGameExit, btnGameFull, btnGameStop, btnLast, btnNext, btnPlay, btnPrev, btnReset, btnRun, btnShare, btnSound, btnTerm, errBox, esc, examplePick, gameCanvas, gameMsg, gameOut, nowCode, on, scrub, setStatus, speedSel, stageEl, staleEl, timelineEl, draftStateEl, unbindAll } from './dom.js'
 import { destroyEditor, dropModel, fileText, hasModel, highlight, loadMonaco, renameModel, setFileContent, setFiles, showFile } from './editor.js'
 import { initFiles, renderFiles } from './files.js'
 import { startGame, stopGame } from './gamerun.js'
-import { initLayout, setDrawerOpen } from './layout.js'
+import { initLayout } from './layout.js'
+import { awaitLine, beginAttempt, beginSession, clearIo, closeTerminal, finishSession, initIo, openTerminal, stdinText } from './io.js'
+import { initPanels, showPanel } from './panels.js'
+import { initPrompt } from './prompt.js'
 import { initViews, openViews } from './views.js'
 import { loadPython, releasePython, runTrace, setOutputHandler, setViewHandler } from './python.js'
 import { cancelCombat, renderDetails, renderStage, renderTimeline, showHoverLine } from './render.js'
@@ -32,6 +36,7 @@ let draftTimer = null
 /* Elements read only here are bound on boot, like the shared ones in dom.js. */
 let nowFileEl = null
 let editorBodyEl = null
+let gameViewEl = null
 let fnameEl = null
 let viewerEl = null
 let viewerImg = null
@@ -45,7 +50,6 @@ function syncButtons() {
   /* While a game owns the main thread the page only gets a turn between its
      frames, so every control that would start another job is parked. */
   btnRun.disabled = gameBusy
-  btnStep.disabled = !ready || gameBusy
   btnPlay.disabled = !ready || gameBusy
   btnReset.disabled = steps.length === 0 || gameBusy
   scrub.disabled = steps.length === 0 || gameBusy
@@ -77,6 +81,11 @@ function stopPlay() {
   btnPlay.textContent = 'Play'
 }
 
+/* Leaving the game view (or the page) must not leave the tab fullscreen. */
+function leaveFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+}
+
 function startPlay() {
   if (!steps.length || stale) return
   if (cur >= steps.length - 1) setCur(-1)
@@ -91,33 +100,6 @@ function startPlay() {
   tick()
 }
 
-function copyToClipboard(text, done, manual) {
-  const viaExec = () => {
-    try {
-      const ta = document.createElement('textarea')
-      ta.value = text
-      ta.setAttribute('readonly', '')
-      ta.style.position = 'fixed'
-      ta.style.left = '-9999px'
-      document.body.appendChild(ta)
-      ta.select()
-      const ok = document.execCommand('copy')
-      document.body.removeChild(ta)
-      if (ok) done(); else manual()
-    } catch {
-      manual()
-    }
-  }
-  try {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done, viaExec)
-    } else {
-      viaExec()
-    }
-  } catch {
-    viaExec()
-  }
-}
 /* A pygame game belongs in the game view, and the tracer's failure says nothing
    about why: it runs a file with a plain exec, so there is no event loop (a
    top-level `await asyncio.sleep(...)` reads as "SyntaxError: 'await' outside
@@ -137,14 +119,23 @@ function gameHint() {
     + 'in the panel on the right.</pre></div>'
 }
 
-export async function runCode() {
+/* A program that asks for input in an endless loop must not run forever: the
+   interactive terminal stops after this many answered lines. */
+const TERMINAL_INPUT_LIMIT = 200
+
+export async function runCode(opts) {
+  const interactive = !!(opts && opts.interactive)
   if (running || gameBusy) return
+  /* Run belongs to the boxes under the editor; only Run terminal uses the
+     terminal, so a plain run always comes back to the inline surface. */
+  if (!interactive) closeTerminal()
   setRunning(true)
   stopPlay()
   btnRun.disabled = true
   btnRun.textContent = 'Running...'
   setStale(false)
   staleEl.classList.remove('show')
+  beginSession()
 
   try {
     const py = await loadPython()
@@ -152,7 +143,34 @@ export async function runCode() {
     await new Promise(r => requestAnimationFrame(() => r()))
 
     syncProjectFromEditor()
-    const data = await runTrace({ files: project.files, entry: entryName() }, PY_TRACE)
+    const target = { files: project.files, entry: entryName() }
+    /* A plain run feeds the input box's lines and stops at EOF.  The interactive
+       terminal starts empty and grows: the worker stops at the missing line, the
+       reader types it, and the program re-runs with the longer buffer — the
+       output already on screen is skipped by character count (see io.js). */
+    let stdin = interactive ? '' : stdinText()
+    let answers = 0
+    let data
+    for (;;) {
+      data = await runTrace(target, PY_TRACE, undefined, stdin, interactive)
+      if (!interactive || !data || !data.needsInput) break
+      if (answers >= TERMINAL_INPUT_LIMIT) {
+        setStatus('error', 'Too many input() calls')
+        finishSession('stopped: more than ' + TERMINAL_INPUT_LIMIT + ' input() lines')
+        return
+      }
+      setStatus('busy', 'Waiting for input\u2026')
+      const line = await awaitLine(data.needsInput.prompt)
+      if (line === null) {
+        /* the reader shut the terminal: stop here, keep what was printed */
+        setStatus('ready', 'Stopped')
+        return
+      }
+      answers++
+      stdin += line + '\n'
+      beginAttempt()
+      setStatus('busy', 'Tracing program...')
+    }
 
     buildTimeline(data)
     renderTimeline()
@@ -177,26 +195,32 @@ export async function runCode() {
               ? 'Stopped at the ' + limit.steps + '-step demo limit'
               : 'Stopped after ' + limit.seconds + 's')
           : 'Python ' + (py.python || py.api) + ' ready')
+    finishSession(error ? error.type + ': ' + error.msg : null)
   } catch (e) {
     const msg = e && e.message ? e.message : String(e)
+    let told = msg
     if (msg.indexOf('packages:') === 0) {
       setStatus('error', 'Package load timed out')
       errBox.innerHTML = '<div class="err"><div class="etitle">Package load timed out</div>'
         + '<pre>A package this program imports took too long to load.\n'
         + 'Only the packages installed on this server load without the internet.</pre></div>'
+      told = 'A package this program imports took too long to load, so the run was stopped.'
     } else if (msg.indexOf('timeout:') === 0) {
       const secs = msg.split(':')[1]
       setStatus('error', 'Stopped after ' + secs + 's')
       errBox.innerHTML = '<div class="err"><div class="etitle">Stopped after ' + esc(secs) + 's</div>'
         + '<pre>The program was still running when the time budget ran out, so the runtime was '
         + 'restarted to keep the page usable.</pre></div>'
+      told = 'Stopped after ' + secs + 's \u2014 the program was still running when the time budget ran out.'
     } else {
       setStatus('error', 'Trace failed')
       errBox.innerHTML = '<div class="err"><div class="etitle">Trace failed</div><pre>' + esc(msg) + '</pre></div>'
       /* an import that dies inside SDL arrives out here, not as a traced error */
       gameHint()
     }
-    setDrawerOpen()
+    /* nothing was traced, so there is no output to show — only the failure */
+    finishSession(told)
+    showPanel('exec')
   } finally {
     setRunning(false)
     btnRun.disabled = false
@@ -397,6 +421,7 @@ function clearTrace() {
   staleEl.classList.remove('show')
   if (deco) deco.set([])
   if (errBox) errBox.innerHTML = ''
+  clearIo()
   cancelCombat()
   renderStage(-1, -1)
   renderDetails(-1)
@@ -408,8 +433,10 @@ function clearTrace() {
    listeners, the Python worker and the Monaco instance. */
 export function teardown() {
   stopPlay()
+  leaveFullscreen()
   if (draftTimer) { clearTimeout(draftTimer); draftTimer = null }
   if (viewerUrl) { URL.revokeObjectURL(viewerUrl); viewerUrl = null }
+  closeTerminal()
   clearTrace()
   unbindAll()
   releasePython()
@@ -424,14 +451,17 @@ export function boot(el) {
   bindDom(el || document.querySelector('.program-world'))
   nowFileEl = $('nowFile')
   editorBodyEl = $('editorBody')
+  gameViewEl = $('gameView')
   fnameEl = $('fname')
   viewerEl = $('viewer')
   viewerImg = $('viewerImg')
   viewerMsg = $('viewerMsg')
   viewerMeta = $('viewerMeta')
   initLayout()
+  initPanels()
+  initIo()
+  initPrompt()
   btnPlay.addEventListener('click', () => { if (playing) stopPlay(); else startPlay() })
-  btnStep.addEventListener('click', () => { stopPlay(); goto(cur + 1) })
   btnFirst.addEventListener('click', () => { stopPlay(); goto(0) })
   btnPrev.addEventListener('click', () => { stopPlay(); goto(cur - 1) })
   btnNext.addEventListener('click', () => { stopPlay(); goto(cur + 1) })
@@ -517,6 +547,17 @@ export function boot(el) {
 
   btnRun.addEventListener('click', runCode)
 
+  /* The same project, run inside a terminal window: input() is answered on the
+     terminal's own line, the way a real session works, and the whole output
+     stays in one scrollback. */
+  if (btnTerm) {
+    btnTerm.addEventListener('click', () => {
+      if (running || gameBusy) return
+      openTerminal(entryName())
+      runCode({ interactive: true })
+    })
+  }
+
   /* ------------------------------ game view --------------------------- */
   /* Write on the left, play on the right.  Same entry file as Run, so "what Run
    traces is what Run game plays" is a rule you can hold on to. */
@@ -534,7 +575,52 @@ export function boot(el) {
     gameOut.scrollTop = gameOut.scrollHeight
   }
 
+  /* The canvas is 480x360 and a projector is a lot bigger, so the whole game
+     panel can go fullscreen — the bar (Stop, Back to stage) comes along, and
+     Esc is the browser's own way out. */
+  function setFullLabel() {
+    if (!btnGameFull) return
+    btnGameFull.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen'
+  }
+
+  /* The canvas is a fixed-size bitmap (whatever set_mode picked), so in
+     fullscreen the free area is measured and the picture is scaled to fit it:
+     it grows to the screen without stretching, and the inline size is dropped
+     again on the way out. */
+  function fitGameScreen() {
+    if (!gameCanvas || !gameViewEl) return
+    if (!document.fullscreenElement) {
+      gameCanvas.style.width = ''
+      gameCanvas.style.height = ''
+      return
+    }
+    const screenEl = gameViewEl.querySelector('.game-screen')
+    if (!screenEl) return
+    const r = screenEl.getBoundingClientRect()
+    const k = Math.min(r.width / (gameCanvas.width || 1), r.height / (gameCanvas.height || 1))
+    if (!(k > 0)) return
+    gameCanvas.style.width = Math.floor(gameCanvas.width * k) + 'px'
+    gameCanvas.style.height = Math.floor(gameCanvas.height * k) + 'px'
+  }
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) { leaveFullscreen(); return }
+    if (!gameViewEl || !gameViewEl.requestFullscreen) {
+      setGameMsg('Fullscreen is not available in this browser', true)
+      return
+    }
+    gameViewEl.requestFullscreen().catch((e) => {
+      setGameMsg('Fullscreen was refused: ' + (e && e.message ? e.message : e), true)
+    })
+  }
+  on(document, 'fullscreenchange', () => {
+    setFullLabel()
+    requestAnimationFrame(fitGameScreen)
+  })
+  on(window, 'resize', () => { if (document.fullscreenElement) fitGameScreen() })
+
   function hideGame() {
+    leaveFullscreen()
     if (stageEl) stageEl.classList.remove('game-on')
     setGameMsg('')
   }
@@ -548,6 +634,9 @@ export function boot(el) {
 
     syncProjectFromEditor() /* the editor is the truth, exactly as for Run */
     stopPlay()
+    /* the game owns the right pane, so a terminal window would only cover it */
+    closeTerminal()
+    showPanel('world')
     leaveAfterGame = false
     if (stageEl) stageEl.classList.add('game-on')
     if (gameOut) gameOut.textContent = ''
@@ -599,6 +688,7 @@ export function boot(el) {
   if (btnGame) btnGame.addEventListener('click', runAsGame)
   if (btnGameStop) btnGameStop.addEventListener('click', stopGameNow)
   if (btnGameExit) btnGameExit.addEventListener('click', leaveGame)
+  if (btnGameFull) btnGameFull.addEventListener('click', toggleFullscreen)
   /* ------------------------------- keys ------------------------------- */
   /* A bare key is never stolen from the editor, a form field or the scrubber,
    and a focused button must still activate exactly once. */
@@ -658,8 +748,7 @@ export function boot(el) {
       onOpen: openFile,
       onAdd: addFile,
       onRename: renameOpenFile,
-      onDelete: deleteOpenFile,
-      onPersist: () => writeProject(project)
+      onDelete: deleteOpenFile
     })
     if (fromLink && flagFromSearch(location.search, 'run')) runCode()
   })

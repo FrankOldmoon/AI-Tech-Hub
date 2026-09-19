@@ -80,13 +80,13 @@ export function projectFromSearch(search) {
     const bundle = params.get('files')
     if (bundle) {
       const p = decodeProjectParam(bundle)
-      if (p) return { files: p.files, active: p.active, treeOpen: true, from: 'link' }
+      if (p) return { files: p.files, active: p.active, from: 'link' }
     }
     const single = params.get('code')
     if (single) {
       const code = decodeCodeParam(single)
       if (code) {
-        return { files: [{ name: 'main.py', content: code }], active: 'main.py', treeOpen: true, from: 'link' }
+        return { files: [{ name: 'main.py', content: code }], active: 'main.py', from: 'link' }
       }
     }
     return null

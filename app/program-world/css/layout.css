@@ -76,28 +76,57 @@
     overflow:auto;background:repeating-conic-gradient(#161a2c 0% 25%, #12151f 0% 50%) 50%/18px 18px}
   .program-world .view-shot{max-width:100%;max-height:72vh;border-radius:6px;box-shadow:0 6px 22px rgba(0,0,0,.5)}
   .program-world .view-canvas{width:100%;max-width:640px;border-radius:6px;background:#fff}
+
+  /* The prompt tip: a wall of text, so the body is a plain scrollable column
+     instead of the centred picture stage the other modal uses. */
+  .program-world .prompt-modal .modal-box{width:min(74vw,760px)}
+  .program-world .prompt-modal .modal-body{flex-direction:column;align-items:stretch;justify-content:flex-start;
+    gap:10px;padding:14px;background:var(--panel)}
+  .program-world .prompt-hint{margin:0;font-size:12.5px;color:var(--dim)}
+  .program-world .prompt-hint code{font-family:var(--mono);color:var(--gold)}
+  .program-world .prompt-hint b{color:var(--text)}
+  .program-world .prompt-text{flex:1;min-height:0;margin:0;overflow:auto;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--line);background:#0f1322;color:#dfe6ff;
+    font-family:var(--mono);font-size:12.5px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
   .program-world .now-file{margin-left:8px;font-family:var(--mono);font-size:11px;color:var(--gold);letter-spacing:.3px}
-  .program-world .drawer{flex:0 0 var(--drawer-h,44px);display:flex;flex-direction:column;background:#141930;min-height:0}
-  .program-world .hsplit{position:relative;flex:0 0 7px;cursor:row-resize;background:#11152a;
-    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
-    display:flex;align-items:center;justify-content:center;transition:background .15s;}
-  .program-world .hsplit:hover,.program-world .hsplit.dragging{background:#1d2544}
-  .program-world .hsplit::after{content:"";height:2px;width:46px;border-radius:2px;background:#39406a;transition:background .15s}
-  .program-world .hsplit:hover::after,.program-world .hsplit.dragging::after{background:var(--gold)}
-  .program-world #main.rowdragging{cursor:row-resize;user-select:none}
-  .program-world #main.rowdragging #editor,.program-world #main.rowdragging .drawer-body{pointer-events:none}
-  .program-world .drawer-head{display:flex;align-items:center;gap:10px;width:100%;height:44px;flex:0 0 44px;
-    padding:0 14px;border:0;background:transparent;color:var(--text);cursor:pointer;font:inherit;text-align:left;}
-  .program-world .drawer-head:hover{background:#18203a}
-  .program-world .drawer-head .chev{font-size:10px;color:var(--gold);transition:transform .18s ease;display:inline-block;}
-  .program-world .drawer.open .drawer-head .chev{transform:rotate(90deg)}
-  .program-world .drawer-head .dtitle{font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;color:var(--dim-2)}
-  .program-world .drawer-head .dmeta{font-family:var(--mono);font-size:11.5px;color:var(--dim)}
-  .program-world .drawer-head .dhint{margin-left:auto;font-size:11.5px;color:var(--dim-2)}
-  .program-world .drawer.open .drawer-head .dhint{display:none}
-  .program-world .drawer-body{flex:1;min-height:0;overflow:auto;padding:11px 12px 13px;display:grid;gap:11px;
-    grid-template-columns:repeat(auto-fit,minmax(232px,1fr));align-content:start}
-  .program-world .drawer:not(.open) .drawer-body{display:none}
+
+  /* The editor's I/O bar: input() is answered on the left, what was printed
+     shows up on the right.  Both are textareas fixed at four lines. */
+  .program-world .io-bar{display:flex;align-items:stretch;gap:8px;flex:0 0 auto;padding:8px 11px;
+    border-top:1px solid var(--line);background:#10142a}
+  .program-world .io-box{flex:1 1 50%;min-width:0;display:block;resize:none;overflow:auto;
+    height:calc(4 * 1.55em + 16px);line-height:1.55;white-space:pre-wrap;word-break:break-word;
+    font-family:var(--mono);font-size:12.5px;padding:7px 10px;
+    border-radius:8px;border:1px solid var(--line);background:#0f1322;color:var(--text);outline:0}
+  .program-world .io-box:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,209,102,.16)}
+  .program-world .io-box:disabled{opacity:.5;cursor:not-allowed}
+  .program-world .io-box::placeholder{color:var(--dim-2)}
+  .program-world .io-out{background:#0b0f1d;color:#cfe3d8;cursor:default}
+  .program-world .io-out:focus{border-color:var(--line);box-shadow:none}
+
+  .program-world .term-modal{background:rgba(4,6,12,.72)}
+  .program-world .term-box{display:flex;flex-direction:column;width:min(72vw,860px);height:min(72vh,560px);
+    overflow:hidden;border:1px solid var(--line);border-radius:12px;background:#0a0d17;
+    box-shadow:0 24px 70px rgba(0,0,0,.7)}
+  .program-world .term-bar{display:flex;align-items:center;gap:10px;padding:8px 12px;flex:0 0 auto;
+    background:#141930;border-bottom:1px solid var(--line)}
+  .program-world .term-dots{display:inline-flex;gap:5px}
+  .program-world .term-dots i{width:10px;height:10px;border-radius:50%;background:#39406a}
+  .program-world .term-dots i:first-child{background:var(--red)}
+  .program-world .term-dots i:nth-child(2){background:var(--gold)}
+  .program-world .term-dots i:last-child{background:var(--green)}
+  .program-world .term-title{font-family:var(--mono);font-size:12px;color:var(--dim)}
+  .program-world .term-out{flex:1;min-height:0;margin:0;overflow:auto;padding:12px 14px;
+    background:#05070f;color:#cfe3d8;font-family:var(--mono);font-size:12.5px;line-height:1.62;
+    white-space:pre-wrap;word-break:break-word}
+  .program-world .term-out:empty::before{content:"Run terminal \2014 the program runs here, and input() is typed on the line below.";color:var(--dim-2)}
+  .program-world .term-input-row{display:flex;align-items:center;gap:8px;flex:0 0 auto;
+    padding:8px 11px;border-top:1px solid var(--line);background:#0f1322}
+  .program-world .term-prompt{font-family:var(--mono);font-size:12.5px;color:var(--gold);white-space:nowrap}
+  .program-world .term-cin{flex:1;min-width:0;font-family:var(--mono);font-size:12.5px;padding:7px 10px;border-radius:7px;
+    border:1px solid var(--line);background:#0b0f1d;color:#cfe3d8;outline:0}
+  .program-world .term-cin:focus{border-color:var(--gold);box-shadow:0 0 0 2px rgba(255,209,102,.16)}
+  .program-world .term-cin:disabled{opacity:.5;cursor:not-allowed}
 
   .program-world .card{background:var(--panel-2);border:1px solid var(--line);border-radius:12px;overflow:hidden;min-width:0}
   .program-world .card.wide{grid-column:1 / -1}

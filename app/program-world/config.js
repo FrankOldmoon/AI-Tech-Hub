@@ -14,8 +14,6 @@ steps = []
 chunks = []
 depth = 0
 started = time.time()
-# 等用户输入累积的秒数：学生在思考，不该算成程序跑超了
-paused = 0.0
 limit = None          # 'steps' | 'seconds' when the demo budget stops the run
 
 # Every run starts from the project directory with a clean import cache: a cached
@@ -38,6 +36,10 @@ for _name in list(sys.modules):
     except BaseException:
         pass
 
+# 输出一边写一边发回主线程（见 pyworker.js 的 __pw_emit__）：页面因此能像真终端
+# 一样边跑边显示。chunks 照旧收着，逐步回放仍用它。
+_emit = globals().get('__pw_emit__')
+
 class Capture(io.TextIOBase):
     def __init__(self):
         self.step = 0
@@ -45,6 +47,11 @@ class Capture(io.TextIOBase):
         s = str(s)
         if s and len(chunks) < MAX_CHUNKS:
             chunks.append([self.step, s])
+            if _emit is not None:
+                try:
+                    _emit(s)
+                except BaseException:
+                    pass
         return len(s)
     def flush(self):
         return None
@@ -93,7 +100,7 @@ def trace(frame, event, arg):
         limit = 'steps'
         raise RuntimeError('Execution limit reached (%d steps)' % MAX_STEPS)
     # every event, not every 128th: a short program may never reach a multiple
-    if time.time() - started - paused > MAX_SECONDS:
+    if time.time() - started > MAX_SECONDS:
         limit = 'seconds'
         raise RuntimeError('Execution limit reached (%.0fs)' % MAX_SECONDS)
     if event in ('call', 'line', 'return') and frame.f_lineno >= 1:
@@ -116,34 +123,49 @@ def trace(frame, event, arg):
 
 error = None
 
-# input() 得走主线程的输入框：worker 里没有 prompt，pyodide 的默认 stdin 会直接
-# 抛 "ReferenceError: prompt is not defined"。这里只负责把提示语照常写进输出
-# （与内置 input 一致），取值交给 __pw_read_line__（见 pyworker.js 的 SAB 桥）。
-_read_line = globals().get('__pw_read_line__')
-_real_input = builtins.input
+# input() 的行由外面给。两种喂法：
+#   · 普通 Run：编辑器下方输入框里的行整段进来，按顺序取，取完就是真正的 EOFError；
+#   · Run terminal（交互式）：先给空，读不到行就抛 NeedLine 中止这一次执行，主线程
+#     在终端里问到一行后再带着累积的输入重跑一遍。
+_NL = chr(10)
+_stdin_text = str(globals().get('__pw_stdin__') or '')
+if _stdin_text and not _stdin_text.endswith(_NL):
+    _stdin_text += _NL
+_stdin = io.StringIO(_stdin_text)
+_interactive = bool(globals().get('__pw_interactive__'))
+_needs_input = None
+
+class NeedLine(BaseException):
+    # worker 里没法同步等用户，所以交互式终端用「读不到就中止、拿到答案带更长
+    # 输入重跑」来实现：主线程按已显示的字符数对齐，因此看不到重复的输出。
+    # 用 BaseException 是有意的 —— 用户代码里的 except Exception 不能吞掉它。
+    def __init__(self, prompt):
+        self.prompt = str(prompt)
 
 def _pw_input(prompt=''):
-    global paused
-    if _read_line is None:
-        raise RuntimeError('input() is unavailable: this page is not cross-origin '
-                           'isolated, so the worker cannot wait for your answer')
+    global _needs_input
     if prompt:
         sys.stdout.write(str(prompt))
-    t0 = time.time()
-    try:
-        line = _read_line(str(prompt))
-    finally:
-        paused += time.time() - t0
-    if line is None:
+    line = _stdin.readline()
+    if line == '':
+        if _interactive:
+            _needs_input = {'prompt': str(prompt)}
+            raise NeedLine(str(prompt))
         raise EOFError('EOF when reading a line')
-    return str(line)
+    if line.endswith(_NL):
+        line = line[:-1]
+    return line
 
+_real_input = builtins.input
 builtins.input = _pw_input
 
 sys.stdout = cap
+sys.stdin = _stdin
 sys.settrace(trace)
 try:
     exec(compile(open(ENTRY).read(), ENTRY, 'exec'), {'__name__': '__main__', '__file__': ENTRY})
+except NeedLine:
+    error = None          # 交互式终端：等主线程问到下一行再重跑
 except BaseException as exc:
     tb = traceback.format_exception(type(exc), exc, exc.__traceback__)
     keep_lines = []
@@ -177,10 +199,11 @@ RESULT = json.dumps({
     'steps': steps,
     'chunks': chunks,
     'error': error,
+    'needsInput': _needs_input,
     'limit': None if not limit else {
         'kind': limit,
         'steps': len(steps),
-        'seconds': round(time.time() - started - paused, 1),
+        'seconds': round(time.time() - started, 1),
     },
     'truncated': len(steps) >= MAX_STEPS or len(chunks) >= MAX_CHUNKS,
 })
@@ -195,6 +218,31 @@ else:
     print('win')
 print("hp =", hp, " enemy =", enemy)
 `
+
+/* =====================================================================
+   A prompt you can hand to any AI assistant so the pygame program it writes
+   runs here unchanged.
+
+   The two rules an assistant never guesses on its own are the async loop and
+   the trailing `await main()`: the game runs on the main thread inside a page
+   that already owns an event loop, so a synchronous loop freezes the tab with
+   no way to stop it, and asyncio.run() dies on the first frame.  Everything
+   else in the list is here because it was measured, not assumed.
+
+   ⚠️ This is a template literal: no backticks and no ${ inside.
+   ===================================================================== */
+export const LLM_PROMPT = `Write the game I describe below in Python 3.12 with pygame-ce, as a single file named main.py. It has to run unchanged in a browser-based runner, so follow these rules exactly:
+
+1. Put the whole game loop in "async def main():" and end every frame with "await asyncio.sleep(1 / 60)" so the browser gets a turn.
+2. The last line of the file must be "await main()". Never use "asyncio.run(main())".
+3. Do not use a synchronous "while True" loop, and do not pace frames with pygame.time.delay(), pygame.time.wait() or clock.tick(); use "await asyncio.sleep(...)" instead. A blocking loop freezes the page and the Stop button cannot be reached.
+4. Leave the loop with "return". Do not call sys.exit(), quit() or pygame.quit().
+5. Load no files at all: no images, no sounds, no fonts. Draw everything with pygame.draw, and use pygame.font.Font(None, size) if you want text. pygame.mixer is fine for sounds you generate in code.
+6. Read input with pygame.event.get() (QUIT, KEYDOWN) and pygame.key.get_pressed(). The canvas is 480x360 unless you pick another size with pygame.display.set_mode().
+7. print() output shows up in the page, so use it for scores or debug values.
+
+Here is what I want:
+<describe your game here>`
 
 /* =====================================================================
    Ready-made projects.
@@ -432,6 +480,49 @@ for i in range(6):
 
 im.save("bars.png")
 print("wrote bars.png", im.size)
+`
+    }]
+  },
+  {
+    id: 'game',
+    name: 'Game — move a dot with arrow keys',
+    files: [{
+      name: 'main.py',
+      content: `import asyncio
+import pygame
+
+W, H = 480, 360
+SPEED = 4
+
+pygame.init()
+screen = pygame.display.set_mode((W, H))
+pygame.display.set_caption("arrow keys move the dot")
+
+x, y = W // 2, H // 2
+
+
+async def main():
+    global x, y
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return
+            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                return
+
+        keys = pygame.key.get_pressed()
+        x += (keys[pygame.K_RIGHT] - keys[pygame.K_LEFT]) * SPEED
+        y += (keys[pygame.K_DOWN] - keys[pygame.K_UP]) * SPEED
+        x = max(14, min(W - 14, x))
+        y = max(14, min(H - 14, y))
+
+        screen.fill((14, 18, 34))
+        pygame.draw.circle(screen, (255, 209, 102), (x, y), 14)
+        pygame.display.flip()
+        await asyncio.sleep(1 / 60)
+
+
+await main()
 `
     }]
   }

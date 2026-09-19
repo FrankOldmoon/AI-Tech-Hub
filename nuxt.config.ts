@@ -41,6 +41,8 @@ export default defineNuxtConfig({
     // 跨域隔离（默认关闭，构建时开关 NUXT_ENABLE_CROSS_ORIGIN_ISOLATION=true）：
     // 打开后才有 SharedArrayBuffer → onnxruntime-web / MediaPipe / Tesseract / Pyodide
     // 可启用多线程 WASM（WASM SIMD+MT 相对单线程有数倍差距）。
+    // 注：/ide 的 Python input() 不依赖它 —— 输入框里的行是整段喂进解释器的，
+    // 不存在跨线程的同步等待。
     // ⚠️ 打开前必须：① 真机验证「模型缺失 → 302 回退 CDN」「站内 iframe 子应用」
     //    「统计脚本」三条链路仍可加载；② 在生产 nginx 同步同名响应头。
     // 用 credentialless 而非 require-corp：对无凭据的跨域子资源更宽容，且不支持的
@@ -96,7 +98,7 @@ export default defineNuxtConfig({
   // 触发 onnxruntime-node / sharp 等 Node 专属依赖解析失败
   // TensorFlow.js 需保留在预打包中以将 CJS require() 转为 ESM
   vite: {
-    // dev 下 `/_nuxt/**`（含 pyworker.js / stdin.js 这些模块）由 Vite 中间件直出，
+    // dev 下 `/_nuxt/**`（含 pyworker.js 这些模块）由 Vite 中间件直出，
     // 不经过上面 routeRules 的 `/**`，所以隔离头得在这里补一份。
     // 三件套缺一不可：COEP 下 worker 脚本的**响应本身**也要带 COEP，否则 Chrome
     // 以 coep-frame-resource-needs-coep-header 直接 ERR_BLOCKED_BY_RESPONSE

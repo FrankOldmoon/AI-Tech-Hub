@@ -67,7 +67,7 @@ export function projectFromExample(ex) {
   const files = ((ex && ex.files) || []).map(f => makeFile(f.name, f.content))
   if (!files.length) files.push(makeFile(ENTRY, SAMPLE))
   const entry = files.filter(f => f.name === ENTRY)[0] || files[0]
-  return { files: files, active: entry.name, treeOpen: true, from: 'sample' }
+  return { files: files, active: entry.name, from: 'sample' }
 }
 
 /* A project can arrive from a link, a draft, the editor or a test, and older
@@ -156,14 +156,14 @@ export async function readProject() {
       }
       if (kept.length) {
         const active = kept.some(f => f.name === p.active) ? p.active : kept[0].name
-        return { files: kept, active, treeOpen: p.treeOpen !== false, at: p.at, from: 'project' }
+        return { files: kept, active, at: p.at, from: 'project' }
       }
     }
   } catch { /* unreadable → keep going */ }
   try {
     const d = readDraft()
     if (d && d.code && d.code.trim() && d.code.trim() !== SAMPLE.trim()) {
-      return { files: [makeFile(ENTRY, d.code)], active: ENTRY, treeOpen: true, from: 'draft' }
+      return { files: [makeFile(ENTRY, d.code)], active: ENTRY, from: 'draft' }
     }
   } catch { /* ignore */ }
   return defaultProject()
@@ -188,7 +188,7 @@ export async function writeProject(p, opts) {
     })
     if (textBytes(manifest) > MAX_TEXT_BYTES) return false
     localStorage.setItem(KEY, JSON.stringify({
-      v: 3, files: manifest, active: q.active, treeOpen: q.treeOpen !== false, at: Date.now()
+      v: 3, files: manifest, active: q.active, at: Date.now()
     }))
     const keep = new Set()
     for (const f of q.files) {

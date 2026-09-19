@@ -8,6 +8,19 @@
   .program-world .stage-head .title{font-size:10.5px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--dim-2)}
   .program-world .stage-head .hint{margin-left:auto;font-size:11.5px;color:var(--dim-2)}
 
+  .program-world .panel-tabs{display:flex;gap:6px;padding:7px 12px;flex:0 0 auto;
+    border-bottom:1px solid var(--line);background:#131830}
+  .program-world .ptab{display:inline-flex;align-items:center;gap:8px;font:inherit;font-size:12px;font-weight:600;
+    padding:5px 12px;border-radius:8px;cursor:pointer;border:1px solid var(--line);background:#1c2138;color:var(--dim)}
+  .program-world .ptab:hover{background:#20263f;color:var(--text)}
+  .program-world .ptab.on{color:var(--gold);border-color:rgba(255,209,102,.35);background:rgba(255,209,102,.1)}
+  .program-world .ptab .dmeta{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--dim-2);letter-spacing:0}
+  .program-world .ptab.on .dmeta{color:var(--gold)}
+  .program-world .panel-view{flex:1;min-height:0;display:flex;flex-direction:column}
+  .program-world .panel-view[hidden]{display:none}
+  .program-world .panel-exec{overflow:auto;padding:11px 12px 13px;display:grid;gap:11px;
+    grid-template-columns:repeat(auto-fit,minmax(232px,1fr));align-content:start;background:var(--panel)}
+
   .program-world .timeline{
     flex:0 0 auto;position:relative;display:flex;gap:1px;
     margin:0 14px 6px;height:12px;
@@ -70,6 +83,17 @@
     border:1px solid var(--line);background:#0f1322;color:var(--dim);
     font-family:var(--mono);font-size:11.5px;line-height:1.55;white-space:pre-wrap}
   .program-world .game-out:empty{display:none}
+
+  /* Fullscreen: the panel becomes the screen, so give the picture all of it
+     and keep only a thin bar with Stop / Back to stage. */
+  .program-world .game-view:fullscreen{display:flex;background:#05070f;padding:0;gap:0}
+  .program-world .game-view:fullscreen .game-bar{padding:10px 14px;background:#0f1322;
+    border-bottom:1px solid var(--line);flex-wrap:nowrap}
+  .program-world .game-view:fullscreen .game-screen{flex:1;padding:0;border:0;border-radius:0;
+    background:#000;overflow:hidden}
+  .program-world .game-view:fullscreen #gameCanvas{max-width:none;max-height:none;
+    border-radius:0;box-shadow:none}
+  .program-world .game-view:fullscreen .game-out{max-height:18vh;border-radius:0;border-left:0;border-right:0}
 
   .program-world .wtop{display:flex;gap:12px;flex-wrap:wrap;align-items:center;min-height:0}
   .program-world .wtop:empty{display:none}
@@ -249,5 +273,5 @@
   @media (max-width:1080px){
     .program-world main{grid-template-columns:1fr;grid-template-rows:minmax(0,1fr) minmax(240px,44%)}
     .program-world .splitter{display:none}
-    .program-world .drawer{border-top:1px solid var(--line)}
+    .program-world .io-bar{border-top:1px solid var(--line)}
   }

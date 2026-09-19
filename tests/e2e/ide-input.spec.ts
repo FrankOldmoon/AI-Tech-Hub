@@ -1,32 +1,26 @@
 /**
  * IDE 里 Python `input()` 的端到端契约。
  *
- * 为什么分两条用例：交互式输入靠 worker ↔ 主线程的 SharedArrayBuffer 桥，而 SAB
- * 只在**跨域隔离**下可用（COOP: same-origin + COEP: credentialless + CORP，见
- * nuxt.config.ts 的 NUXT_ENABLE_CROSS_ORIGIN_ISOLATION）。站点没开隔离时，worker
- * 里没有任何办法同步等用户 —— 那时的正确行为是给一句可执行的报错，而不是把 pyodide
- * 的 "ReferenceError: prompt is not defined" 甩给用户。两条契约都得钉住。
+ * 两条路，两种喂法：
+ *   · Run：编辑器下方左边那个输入框就是程序的标准输入，一行一个答案、按顺序交给
+ *     input()，用完就是 EOFError —— 和 `python main.py < in.txt` 一致；右边那个
+ *     只读框显示程序打印出来的内容。
+ *   · Run terminal：交互式。程序跑到 input() 就停在终端里等你，你在终端自己那行
+ *     敲一行回车，它接着往下跑 —— 像真的 python 交互终端。
  *
- * 跑法（隔离必须在起 dev server 时就打开，它决定了响应头）：
- *   NUXT_ENABLE_CROSS_ORIGIN_ISOLATION=true npm run dev
+ * 两条路都**不需要**跨域隔离、SharedArrayBuffer 或任何特殊响应头，也不需要 HTTPS：
+ * worker 全程没有阻塞等待（终端是「读到没有就中止、拿到答案带更长输入重跑」实现的）。
+ *
+ * 跑法：
+ *   npm run dev
  *   npx playwright test tests/e2e/ide-input.spec.ts
- * 或在已开启隔离的站点上：
- *   E2E_BASE_URL=https://<站点> npx playwright test tests/e2e/ide-input.spec.ts
  *
  * 地址必须是 /ide（跑 tracer 的 worker 版），不是 /ide/play —— 后者是 pygame 主线程
- * 游戏页，那里 prompt 本来就存在，压根到不了这条契约上。
+ * 游戏页。
  *
- * 用链接只把代码装进编辑器，**不**带 &run=1：自动运行会和「草稿/示例回填」抢时序，
- * 跑出来的结果可能被判为过期（面板显示 "Code changed since the last run"）。显式点
- * Run 才是一次可复现的运行。
+ * 用链接只把代码装进编辑器，**不**带 &run=1：自动运行会和「草稿/示例回填」抢时序。
  */
 import { expect, test } from '@playwright/test'
-
-const SRC = [
-  'name = input(\'你叫什么？\')',
-  'print(\'你好,\' + name)',
-  ''
-].join('\n')
 
 function codeUrl(source: string): string {
   const b64 = Buffer.from(source, 'utf8')
@@ -40,46 +34,104 @@ function codeUrl(source: string): string {
 /** 载入 Python 运行时本身就要十几秒，给足 */
 test.setTimeout(240_000)
 
-test('input() 弹出输入框，值回到 Python 里', async ({ page }) => {
-  const asked: string[] = []
-  page.on('dialog', (dialog) => {
-    asked.push(dialog.message())
-    void dialog.accept('小明')
-  })
-
-  await page.goto(codeUrl(SRC))
-
-  const isolated = await page.evaluate(() => globalThis.crossOriginIsolated === true)
-  test.skip(!isolated, '站点未开启跨域隔离：worker 无法同步等输入，走的是「不可用」分支')
-
-  // 等运行时就绪再点 Run（否则按钮点了也只是排队，弹框迟迟不来）
+async function ready(page: import('@playwright/test').Page) {
   await expect(page.getByText(/Python .* ready/).first()).toBeVisible({ timeout: 120_000 })
+}
+
+test('Run：input() 从左边输入框按行取值，print 的结果进右边输出框', async ({ page }) => {
+  await page.goto(codeUrl([
+    'name = input(\'你叫什么？\')',
+    'print(\'你好,\' + name)',
+    ''
+  ].join('\n')))
+  await ready(page)
+
+  // 先填输入（一行一个答案），再 Run
+  await page.locator('#ioIn').fill('小明')
   await page.locator('#btnRun').click()
 
-  // 弹框要带着程序写的提示语（不是一句笼统的 "input()"）
-  await expect.poll(() => asked.join('\n'), { timeout: 120_000 }).toContain('你叫什么')
-  // 运行时输出面板是**按步累积**的（outputs[i] 只含到第 i 步为止的输出），
-  // 跑完停在 step 1，所以先跳到末步，才看得到 print 的结果
-  await expect(page.locator('#stepPill')).not.toHaveText(/step 0 \/ 0/, { timeout: 120_000 })
-  await page.locator('#btnLast').click()
-  // 值真的进了 Python：print 的结果出现在输出里
-  await expect(page.locator('body')).toContainText('你好,小明', { timeout: 60_000 })
+  await expect(page.locator('#ioOut')).toHaveValue(/你好,小明/, { timeout: 120_000 })
 })
 
-test('未开启跨域隔离时，input() 给出可执行的报错而不是 prompt 未定义', async ({ page }) => {
-  await page.goto(codeUrl(SRC))
+test('Run：多行输入按顺序喂给连续的 input()', async ({ page }) => {
+  await page.goto(codeUrl([
+    'a = input(\'a: \')',
+    'b = input(\'b: \')',
+    'print(a + \'-\' + b)',
+    ''
+  ].join('\n')))
+  await ready(page)
 
-  const isolated = await page.evaluate(() => globalThis.crossOriginIsolated === true)
-  test.skip(isolated, '站点已开启跨域隔离：这条契约属于未隔离环境')
-
-  await expect(page.getByText(/Python .* ready/).first()).toBeVisible({ timeout: 120_000 })
+  await page.locator('#ioIn').fill('one\ntwo')
   await page.locator('#btnRun').click()
 
-  // 错误面板同样只在末步渲染
-  await expect(page.locator('#stepPill')).not.toHaveText(/step 0 \/ 0/, { timeout: 120_000 })
-  await page.locator('#btnLast').click()
-  // 等运行结束（错误面板出现）
-  await expect(page.locator('body')).toContainText('input() is unavailable', { timeout: 60_000 })
-  // 回归护栏：这个特定的 ReferenceError 说明又退回了 pyodide 的默认 stdin
-  await expect(page.locator('body')).not.toContainText('prompt is not defined')
+  await expect(page.locator('#ioOut')).toHaveValue(/one-two/, { timeout: 120_000 })
+})
+
+test('Run：输入不够时是真正的 EOFError，而不是 prompt 未定义', async ({ page }) => {
+  await page.goto(codeUrl([
+    'x = input(\'need: \')',
+    'print(x)',
+    ''
+  ].join('\n')))
+  await ready(page)
+
+  // 一行都不填就 Run
+  await page.locator('#btnRun').click()
+
+  await expect(page.locator('#ioOut')).toHaveValue(/EOFError/, { timeout: 120_000 })
+  // 回归护栏：这个特定的 ReferenceError 说明又退回了 worker 里不存在的 prompt
+  await expect(page.locator('#ioOut')).not.toHaveValue(/prompt is not defined/)
+})
+
+test('Run terminal：input() 在终端自己那行一问一答', async ({ page }) => {
+  await page.goto(codeUrl([
+    'print(\'start\')',
+    'name = input(\'name? \')',
+    'print(\'hi \' + name)',
+    ''
+  ].join('\n')))
+  await ready(page)
+
+  await page.locator('#btnTerm').click()
+  await expect(page.locator('#termModal')).toBeVisible({ timeout: 30_000 })
+
+  // 程序跑到 input() 就停在终端里等你（提示语先出现在屏幕上）
+  const term = page.locator('#termIn')
+  await expect(term).toBeEnabled({ timeout: 120_000 })
+  await expect(page.locator('#termOut')).toContainText('name?')
+  await term.fill('ada')
+  await term.press('Enter')
+
+  // 你敲的那行回显在提示语后面，程序接着跑完
+  await expect(page.locator('#termOut')).toContainText('name? ada', { timeout: 120_000 })
+  await expect(page.locator('#termOut')).toContainText('hi ada', { timeout: 120_000 })
+})
+
+test('Run terminal：连续两次 input() 依次问答，输出不重复', async ({ page }) => {
+  await page.goto(codeUrl([
+    'a = input(\'a: \')',
+    'b = input(\'b: \')',
+    'print(a + \'-\' + b)',
+    ''
+  ].join('\n')))
+  await ready(page)
+
+  await page.locator('#btnTerm').click()
+  const term = page.locator('#termIn')
+
+  await expect(term).toBeEnabled({ timeout: 120_000 })
+  await term.fill('one')
+  await term.press('Enter')
+
+  await expect(term).toBeEnabled({ timeout: 120_000 })
+  await expect(page.locator('#termOut')).toContainText('a: one')
+  await term.fill('two')
+  await term.press('Enter')
+
+  await expect(page.locator('#termOut')).toContainText('one-two', { timeout: 120_000 })
+  // 「重跑」被按字符数对齐掉了：每一行只出现一次
+  const shown = (await page.locator('#termOut').textContent()) || ''
+  expect(shown.match(/a: /g)?.length).toBe(1)
+  expect(shown.match(/b: /g)?.length).toBe(1)
 })
