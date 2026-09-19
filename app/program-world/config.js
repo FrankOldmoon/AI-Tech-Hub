@@ -1,6 +1,6 @@
 /* @deps: none */
 export const PY_TRACE = `
-import sys, os, io, json, types, time, traceback, builtins
+import sys, os, io, json, ast, types, time, linecache, traceback, builtins
 
 DIR = __PROJECT_DIR__
 ENTRY = __PROJECT_ENTRY__
@@ -80,6 +80,47 @@ def keep(v):
         return False
     return not callable(v)
 
+# 赋值行右侧读到的变量名（保留重复：a + a 就是两份来源）。只用来给动画提示
+# 「值从哪儿来」，解析失败一律当作没有来源，绝不影响执行。
+_src_cache = {}
+
+def rhs_names(fname, lineno):
+    key = (fname, lineno)
+    got = _src_cache.get(key)
+    if got is not None:
+        return got
+    names = []
+    try:
+        code = linecache.getline(fname, lineno).split('#', 1)[0]
+        head, sep, tail = code.partition('=')
+        plain = sep and tail.strip() and head.rstrip()[-1:] not in '=!<>+-*/%&|^' and not tail.lstrip().startswith('=')
+        if plain:
+            for node in ast.walk(ast.parse(tail.strip(), mode='eval')):
+                if isinstance(node, ast.Name):
+                    names.append(node.id)
+                    if len(names) >= 6:
+                        break
+    except BaseException:
+        names = []
+    _src_cache[key] = names
+    return names
+
+# 同一个对象身份：只有可变容器才需要记。小整数、短字符串会被解释器缓存，
+# 拿 id() 判断会把 b = a 误报成共享，所以按类型先筛掉。
+_obj_ids = {}
+_obj_keep = []
+
+def objid(v):
+    if type(v) not in (list, dict, set, bytearray):
+        return None
+    k = id(v)
+    tok = _obj_ids.get(k)
+    if tok is None:
+        _obj_keep.append(v)          # 钉住对象，免得回收后 id 被复用
+        tok = 'o%d' % (len(_obj_ids) + 1)
+        _obj_ids[k] = tok
+    return tok
+
 def snapshot(frame):
     out = {}
     for k, v in list(frame.f_locals.items()):
@@ -87,7 +128,8 @@ def snapshot(frame):
             continue
         if not keep(v):
             continue
-        out[k] = [type(v).__name__, brief(v)]
+        tok = objid(v)
+        out[k] = [type(v).__name__, brief(v), tok] if tok else [type(v).__name__, brief(v)]
     return out
 
 def trace(frame, event, arg):
@@ -116,6 +158,10 @@ def trace(frame, event, arg):
         }
         if event == 'return':
             rec['r'] = brief(arg)
+        elif event == 'line':
+            names = rhs_names(frame.f_code.co_filename, frame.f_lineno)
+            if names:
+                rec['x'] = names
         steps.append(rec)
     if event == 'return':
         depth -= 1

@@ -140,6 +140,7 @@ onBeforeUnmount(() => {
                     <div>Press <code>Run</code> and watch your variables come alive.</div>
                   </div>
                 </div>
+                <div id="flowLayer" class="flow-layer" />
                 <div id="vsLayer" class="vs-layer" />
                 <div id="eventBanner" class="event-banner">
                   <span id="ebKind" class="eb-kind">Ready</span>

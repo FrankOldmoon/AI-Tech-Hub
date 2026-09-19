@@ -1,5 +1,5 @@
 /* @deps: dom.js, editor.js, sound.js, state.js */
-import { $, arenaEl, clip, drawerMeta, errBox, esc, framePill, framesEl, nowCode, nowLn, nowMeta, outSlotEl, scrub, stdoutEl, stepPill, timelineEl, varCount, varsEl, vsLayerEl, worldIdleEl, wtopEl } from './dom.js'
+import { $, arenaEl, clip, drawerMeta, errBox, esc, flowLayerEl, framePill, framesEl, nowCode, nowLn, nowMeta, outSlotEl, scrub, stdoutEl, stepPill, timelineEl, varCount, varsEl, vsLayerEl, worldIdleEl, wtopEl } from './dom.js'
 import { setHoverLine } from './editor.js'
 import { beep } from './sound.js'
 import { editor, error, events, limit, outputs, scenes, stacks, steps, truncated } from './state.js'
@@ -90,15 +90,20 @@ function updateActorNode(node, c, prev, index, animate) {
 
   const want = actorStateClass(c, prev)
   node.want = want
+  const shared = !!(c.shares && c.shares.length)
+  const flowing = animate && !!(c.sources && c.sources.length)
   if (animate && want) {
     spawnParticles(node, want)
-    beep(want === 'created' ? 'create' : 'change')
+    /* 有来源的变量不响 create/change：值是从别处流过来的，让流动自己发声 */
+    if (!flowing) beep(want === 'created' ? 'create' : 'change')
   }
+  if (flowing) pendingFlows.push({ char: c, node, names: c.sources })
+  if (L.shared !== shared) node.el.classList.toggle('shared', shared)
   if (node.index !== index) {
     node.el.style.order = index
     node.index = index
   }
-  node.last = { name: c.name, value: c.value, type: c.type, avatar: c.avatar, numeric: c.numeric, hasBar, bar: width, outer, scope: scopeName, line }
+  node.last = { name: c.name, value: c.value, type: c.type, avatar: c.avatar, numeric: c.numeric, hasBar, bar: width, outer, scope: scopeName, line, shared }
   if (L.value !== c.value) syncBag(node, c, animate)
 }
 
@@ -511,6 +516,174 @@ function reducedMotion() {
   return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 }
 
+/* ============ 值的来源：合并流动 + 共享对象的连线 ============
+   b = a + a 的时候，b 不该凭空出现：两枚带着 a 的值的小圆点从 a 飞进 b。
+   d = c 则是另一个故事 —— 流过去的是一枚「引用」，两个卡片会连一条常驻的线，
+   因为它们本来就是同一个 list（trace 用 objid 标出来）。 */
+const SVGNS = 'http://www.w3.org/2000/svg'
+const FLOW_MS = 620
+
+let pendingFlows = []
+const linkEls = new Map()
+
+function flowBase() {
+  return flowLayerEl ? flowLayerEl.getBoundingClientRect() : null
+}
+
+function centerIn(node, base) {
+  const r = node.el.getBoundingClientRect()
+  return { x: r.left - base.left + r.width / 2, y: r.top - base.top + r.height / 2 }
+}
+
+/* 同名变量优先取目标自己那一帧里的（闭包里的外层同名变量放后面） */
+function charFor(scene, name, preferId) {
+  let fallback = null
+  for (let i = scene.chars.length - 1; i >= 0; i--) {
+    const c = scene.chars[i]
+    if (c.name !== name) continue
+    if (!actorNodes.has(c.id)) continue
+    if (c.id === preferId) return c
+    if (!fallback) fallback = c
+  }
+  return fallback
+}
+
+function spawnPip(target, src, kind, label, delay) {
+  const base = flowBase()
+  if (!base) return
+  const a = centerIn(src, base)
+  const b = centerIn(target, base)
+  const pip = makeDiv('flow-pip ' + kind)
+  pip.setAttribute('data-from', src.id)
+  pip.setAttribute('data-to', target.id)
+  pip.setAttribute('data-kind', kind)
+  pip.textContent = label
+  pip.style.left = a.x + 'px'
+  pip.style.top = a.y + 'px'
+  flowLayerEl.appendChild(pip)
+  const dx = b.x - a.x
+  const dy = b.y - a.y
+  const mid = 'translate(calc(-50% + ' + (dx * 0.16) + 'px), calc(-50% + ' + (dy * 0.16) + 'px))'
+  const end = 'translate(calc(-50% + ' + dx + 'px), calc(-50% + ' + dy + 'px))'
+  const anim = pip.animate([
+    { transform: 'translate(-50%, -50%) scale(.5)', opacity: 0 },
+    { transform: mid + ' scale(1.2)', opacity: 1, offset: 0.3 },
+    { transform: end + ' scale(.75)', opacity: 0 }
+  ], { duration: FLOW_MS, delay: delay || 0, easing: 'cubic-bezier(.3,.8,.4,1)', fill: 'forwards' })
+  anim.finished.then(() => pip.remove(), () => pip.remove())
+}
+
+/* 位置要等 mutate + applyCamera 都定下来才量，否则连到旧位置上 */
+function flushFlows(scene) {
+  const jobs = pendingFlows
+  pendingFlows = []
+  if (!jobs.length || !flowLayerEl) return
+  for (const job of jobs) {
+    const target = actorNodes.get(job.char.id) || job.node
+    if (!target || target.dying) continue
+    const cut = target.id.lastIndexOf(':')
+    const scope = cut > 0 ? target.id.slice(0, cut) : ''
+    let ref = false
+    let placed = 0
+    for (const name of job.names) {
+      const sc = charFor(scene, name, scope + ':' + name)
+      if (!sc) continue
+      const src = actorNodes.get(sc.id)
+      if (!src || src === target) continue
+      /* 同一个 token 说明来源和目标指向同一个可变对象：流过去的是一枚引用 */
+      const isRef = !!job.char.objTok && sc.objTok === job.char.objTok
+      if (isRef) ref = true
+      if (placed < 3) {
+        spawnPip(target, src, isRef ? 'ref' : 'copy', isRef ? '🔗' : clip(src.last.value, 8), placed * 110)
+        placed++
+      }
+    }
+    if (placed) beep(ref ? 'ref' : 'flow')
+  }
+}
+
+function linkSvg() {
+  if (!flowLayerEl) return null
+  let svg = flowLayerEl.querySelector('svg.flow-links')
+  if (!svg) {
+    svg = document.createElementNS(SVGNS, 'svg')
+    svg.setAttribute('class', 'flow-links')
+    flowLayerEl.appendChild(svg)
+  }
+  return svg
+}
+
+function syncLinks(scene, animate) {
+  if (!flowLayerEl) return
+  const chars = scene.chars || []
+  const pairs = []
+  for (const c of chars) {
+    if (!c.shares || !c.shares.length) continue
+    for (const name of c.shares) {
+      let other = null
+      for (let i = chars.length - 1; i >= 0; i--) if (chars[i].name === name) { other = chars[i]; break }
+      if (!other) continue
+      const key = c.id < other.id ? c.id + '|' + other.id : other.id + '|' + c.id
+      if (!pairs.some(p => p.key === key)) pairs.push({ key, a: c, b: other })
+    }
+  }
+
+  const keep = new Set(pairs.map(p => p.key))
+  for (const [key, held] of Array.from(linkEls)) {
+    if (keep.has(key)) continue
+    held.line.remove()
+    if (held.chip) held.chip.remove()
+    linkEls.delete(key)
+  }
+  if (!pairs.length) return
+  const svg = linkSvg()
+  const base = flowBase()
+  if (!svg || !base) return
+
+  for (const p of pairs) {
+    const na = actorNodes.get(p.a.id)
+    const nb = actorNodes.get(p.b.id)
+    if (!na || !nb || na.dying || nb.dying) continue
+    const a = centerIn(na, base)
+    const b = centerIn(nb, base)
+    let held = linkEls.get(p.key)
+    if (!held) {
+      const line = document.createElementNS(SVGNS, 'line')
+      line.setAttribute('class', 'flow-link')
+      line.setAttribute('data-pair', p.key)
+      svg.appendChild(line)
+      const chip = makeDiv('flow-link-chip')
+      chip.setAttribute('data-pair', p.key)
+      chip.textContent = '🔗 ' + (p.a.type || 'object')
+      chip.style.left = ((a.x + b.x) / 2) + 'px'
+      chip.style.top = ((a.y + b.y) / 2) + 'px'
+      flowLayerEl.appendChild(chip)
+      if (animate) {
+        chip.animate(
+          [{ transform: 'translate(-50%,-50%) scale(.4)', opacity: 0 }, { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 }],
+          { duration: 260, easing: 'cubic-bezier(.34,1.4,.64,1)', fill: 'forwards' }
+        )
+        line.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 260, fill: 'forwards' })
+      }
+      held = { line, chip }
+      linkEls.set(p.key, held)
+    }
+    held.line.setAttribute('x1', a.x)
+    held.line.setAttribute('y1', a.y)
+    held.line.setAttribute('x2', b.x)
+    held.line.setAttribute('y2', b.y)
+    held.chip.style.left = ((a.x + b.x) / 2) + 'px'
+    held.chip.style.top = ((a.y + b.y) / 2) + 'px'
+  }
+}
+
+function clearFlows() {
+  pendingFlows = []
+  if (!flowLayerEl) return
+  flowLayerEl.innerHTML = ''
+  linkEls.clear()
+}
+
 function flipMove(mutate) {
   const k0 = cameraScale || 1
   const p0 = arenaEl.getBoundingClientRect()
@@ -638,6 +811,9 @@ export function syncArena(scene, prevScene, motion) {
 
   rearmStates()
   applyCamera()
+  /* 位置定下来之后再画流动和连线：量出来的坐标才是这一帧的 */
+  flushFlows(scene)
+  syncLinks(scene, animate)
 }
 
 function rearmStates() {
@@ -669,6 +845,8 @@ export function cancelCombat() {
 
 export function resetWorld() {
   lastTopSignature = ''
+  lastSoundedStep = -1
+  clearFlows()
   stopOutType()
   outNode = null
   outTarget = ''
@@ -746,6 +924,7 @@ export function syncOutput(text, animate) {
     return
   }
   outTarget = target
+  if (animate) beep('output')
   if (!animate) {
     stopOutType()
     outNode.textContent = target
@@ -766,8 +945,25 @@ export function syncErrorDrama(on) {
   }
 }
 
-function renderWorld(scene, prevScene, motion) {
+let lastSoundedStep = -1
+
+/* 没有角色变化的那几步以前是全程静音的：if 判断、循环推进、函数进出、break、
+   容器变化、print。这里按事件类型补上——对战有自己的音（showCombat），不重复。 */
+function soundForStep(i, scene, animate) {
+  if (!animate || i === lastSoundedStep || scene.combat) return
+  lastSoundedStep = i
+  const type = (scene.event || {}).type
+  if (type === 'condition') beep('cond')
+  else if (type === 'loop_iteration') beep('loop')
+  else if (type === 'function_call') beep('call')
+  else if (type === 'function_return') beep('ret')
+  else if (type === 'break' || type === 'continue') beep('ctl')
+  else if (type === 'collection_mutation') beep('bag')
+}
+
+function renderWorld(scene, prevScene, motion, i) {
   worldIdleEl.style.display = 'none'
+  soundForStep(i, scene, motion !== 'instant' && !reducedMotion())
 
   const topHTML = renderTopHTML(scene)
   if (topHTML !== lastTopSignature) {
@@ -1098,7 +1294,7 @@ export function renderStage(i, prevIdx, motion) {
   const prevScene = (prevIdx >= 0 && prevIdx < total) ? scenes[prevIdx] : null
   const isBackward = prevIdx > i
 
-  renderWorld(scene, prevScene, motion)
+  renderWorld(scene, prevScene, motion, i)
   syncErrorDrama(i === total - 1 && !!error)
   syncTimelineCursor(i)
   framePill.textContent = scene.chars.length + ' char' + (scene.chars.length === 1 ? '' : 's')

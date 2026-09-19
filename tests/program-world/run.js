@@ -17,6 +17,7 @@ try {
     await import('./p' + String(i).padStart(2, '0') + '.js')
   }
   await import('./p13.js')
+  await import('./p14.js')
 } catch (e) {
   summary.fail++
   summary.fails.push('harness aborted: ' + (e && e.message ? e.message : e))

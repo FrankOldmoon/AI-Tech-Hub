@@ -31,6 +31,7 @@ export let staleEl = null
 export let mainEl = null, splitterEl = null
 export let wtopEl = null, arenaEl = null, outSlotEl = null, worldIdleEl = null
 export let vsLayerEl = null
+export let flowLayerEl = null
 export let draftStateEl = null
 export let timelineEl = null
 
@@ -62,6 +63,7 @@ export function bindDom(el) {
   mainEl = $('main'); splitterEl = $('splitter')
   wtopEl = $('wtop'); arenaEl = $('arena'); outSlotEl = $('outSlot'); worldIdleEl = $('worldIdle')
   vsLayerEl = $('vsLayer')
+  flowLayerEl = $('flowLayer')
   draftStateEl = $('draftState')
   timelineEl = $('timeline')
   ioIn = $('ioIn'); ioOut = $('ioOut')
