@@ -1,0 +1,16 @@
+nova.glb — 3D avatar for the "Digital Human" demo (/aigc/digital-human)
+
+Source : VTubeMe free avatar "Nova"  https://vtubeme.com/free-vrm-avatars/nova
+License: CC BY 4.0                  https://creativecommons.org/licenses/by/4.0/
+Credit : VTubeMe (link back to https://vtubeme.com)
+
+MODIFIED: (1) the blend-shape (morph target) names were remapped to the Oculus
+viseme convention used by TalkingHead / HeadAudio so the mouth can be driven from
+audio; (2) the skeleton root node was renamed AvatarRoot → Armature to match
+TalkingHead's default modelRoot. Reproduce with:
+
+    curl -o nova.orig.glb https://vtubeme.com/media/free/nova/model.glb
+    node scripts/patch-avatar-visemes.mjs nova.orig.glb public/avatar/nova.glb
+
+The avatar carries a Mixamo-compatible skeleton plus ARKit facial shapes and the
+full 15-viseme Oculus set (viseme_aa … viseme_sil).

@@ -32,6 +32,12 @@ importers:
       '@mediapipe/tasks-vision':
         specifier: ^1.0.1
         version: 1.0.1
+      '@met4citizen/headaudio':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@met4citizen/talkinghead':
+        specifier: ^1.7.0
+        version: 1.7.0
       '@mlc-ai/web-llm':
         specifier: ^0.2.84
         version: 0.2.84
@@ -1292,6 +1298,12 @@ packages:
 
   '@mediapipe/tasks-vision@1.0.1':
     resolution: {integrity: sha512-rvRE2FmAZ6ZxKSw7wq+e+jQDpN3t1B/tD2mJz9SmAzb1msoDkd4dMoE4wAh8Z30Um0PQwLiHr9QtomhmXk3aUQ==}
+
+  '@met4citizen/headaudio@0.1.0':
+    resolution: {integrity: sha512-94n+82/gYJ1kxisfEgAJcnx1fDbZjB/HDMCCXLh3QsNqJNZmOVzybgiJ5ctYEHlYdWkXS3je84do7wrHwzAlMQ==}
+
+  '@met4citizen/talkinghead@1.7.0':
+    resolution: {integrity: sha512-iBQhTjvwOO2lLht/YeWqAUmsH0jk4FGpxiPTPMMp3QYVjst/u2rDhn4up59BMJwfdeW3DyU7Im6y+TWmnNllZA==}
 
   '@miyaneee/rollup-plugin-json5@1.2.0':
     resolution: {integrity: sha512-JjTIaXZp9WzhUHpElrqPnl1AzBi/rvRs065F71+aTmlqvTMVkdbjZ8vfFl4nRlgJy+TPBw69ZK4pwFdmOAt4aA==}
@@ -6634,6 +6646,9 @@ packages:
   text-decoder@1.2.7:
     resolution: {integrity: sha512-vlLytXkeP4xvEq2otHeJfSQIRyWxo/oZGEbXrtEEF9Hnmrdly59sUbzZ/QgyWuLYHctCHxFF4tRQZNQ9k60ExQ==}
 
+  three@0.180.0:
+    resolution: {integrity: sha512-o+qycAMZrh+TsE01GqWUxUIKR1AL0S8pq7zDkYOQw8GqfX8b8VoCKYUoHbhiX5j+7hr8XsuHDVU6+gkQJQKg9w==}
+
   three@0.186.0:
     resolution: {integrity: sha512-cr/fIM2ddMSVbYVgkfD4jLJv7Fh/8ZTjvo+7gQeSVGUZHxpx9FDwoL5iC7hUz/LiRA8wMbqfnb90xKfm1/HHkQ==}
 
@@ -8624,6 +8639,12 @@ snapshots:
   '@mediapipe/tasks-text@1.0.1': {}
 
   '@mediapipe/tasks-vision@1.0.1': {}
+
+  '@met4citizen/headaudio@0.1.0': {}
+
+  '@met4citizen/talkinghead@1.7.0':
+    dependencies:
+      three: 0.180.0
 
   '@miyaneee/rollup-plugin-json5@1.2.0(rollup@4.60.4)':
     dependencies:
@@ -14803,6 +14824,8 @@ snapshots:
       b4a: 1.8.1
     transitivePeerDependencies:
       - react-native-b4a
+
+  three@0.180.0: {}
 
   three@0.186.0: {}
 

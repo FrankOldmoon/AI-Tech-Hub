@@ -725,6 +725,18 @@ export const demos: Demo[] = [
     tags: ['WebLLM', 'WebGPU', 'Llama', 'Qwen']
   },
   {
+    slug: 'digital-human',
+    category: 'aigc',
+    title: { zh: '数字人', en: 'Digital Human' },
+    description: { zh: '3D 数字人：会说话、会对口型。语音可选服务端 Edge TTS（零下载、音色 300+）或本地 Kokoro（零联网）。', en: 'A 3D digital human that speaks and lip-syncs. Voice via server-side Edge TTS (no download, 300+ voices) or local Kokoro (fully offline).' },
+    howItWorks: { zh: 'TalkingHead 渲染 3D 头像并混合表情；HeadAudio 从音频里实时识别 viseme（口型）驱动嘴形——所以语音换成哪种引擎都能对口型，中文同样成立。语音合成可选：服务端 Edge TTS（文本经服务端转发微软）或本地 Kokoro（模型在浏览器内跑，不上传数据）。', en: 'TalkingHead renders and blends the 3D avatar while HeadAudio detects visemes from the audio in real time — so lip-sync works no matter which TTS produces the voice, including Chinese. Speech comes either from server-side Edge TTS (text is relayed to Microsoft) or from the local Kokoro model running in-browser.' },
+    icon: 'i-lucide-user-round',
+    status: 'ready',
+    requirements: { modelSizeMB: 100 },
+    featured: true,
+    tags: ['TalkingHead', 'HeadAudio', 'Kokoro', 'Three.js', 'WebGPU']
+  },
+  {
     slug: 'text-to-image',
     category: 'aigc',
     title: { zh: '文生图 (Janus-Pro)', en: 'Text-to-Image (Janus-Pro)' },
