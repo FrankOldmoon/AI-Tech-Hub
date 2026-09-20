@@ -985,6 +985,27 @@
     "quantizeHelp": "Quantize embeddings to bytes to reduce memory.",
     "topK": "Top K"
   },
+  "digitalHuman": {
+    "init": "Initialize digital human",
+    "engine": "TTS engine",
+    "engineEdge": "Server-side Edge TTS",
+    "engineKokoro": "Local Kokoro",
+    "female": "Female",
+    "male": "Male",
+    "hintEdge": "Audio is synthesized by Microsoft Edge TTS through this site's server (your text leaves the browser), with zero model download; lip-sync is still detected locally from the audio.",
+    "loadingAvatar": "Loading 3D avatar…",
+    "loadingLipSync": "Loading lip-sync engine…",
+    "synthesizing": "Synthesizing speech…",
+    "ready": "Ready",
+    "voice": "Voice",
+    "speed": "Speed",
+    "placeholder": "Type what the digital human should say, then press Enter or Read aloud",
+    "speak": "Read aloud",
+    "stop": "Stop",
+    "hint": "The first run downloads the ~92 MB Kokoro voice model; later runs use the browser cache.",
+    "noWebgpu": "WebGPU not detected: speech synthesis falls back to WASM and is noticeably slower (desktop Chrome / Edge recommended).",
+    "credit": "3D avatar from VTubeMe (CC BY 4.0, viseme names remapped)"
+  },
   "webllm": {
     "model": "Model",
     "load": "Load model",

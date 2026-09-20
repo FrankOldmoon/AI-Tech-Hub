@@ -527,6 +527,18 @@ export function sceneTalkingPhoto(): CoverShape[] {
   ]
 }
 
+/** 数字人：半身像 + 口型声弧 + 智能星火 */
+export function sceneDigitalHuman(rand: () => number): CoverShape[] {
+  return [
+    strokePoly(roundRectPoints(64, 100, 112, 66, 24), 0.3, 2.6, { close: true }),
+    ...face(120, 76, 0.92),
+    ...soundArcs(180, 88, 1.6, 3),
+    ...sparkles(252, 52, 3, rand, 18, 5),
+    circle(232, 122, 3, 0.35),
+    circle(252, 134, 2.2, 0.25)
+  ]
+}
+
 /** 文生视频：三帧画面 + 星火 */
 export function sceneVideoGen(rand: () => number): CoverShape[] {
   return [
@@ -1424,6 +1436,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
 
   // AIGC
   'aigc/webllm': sceneWebllm,
+  'aigc/digital-human': sceneDigitalHuman,
   'aigc/text-to-image': sceneTextToImage,
   'aigc/inpainting': sceneInpaint,
   'aigc/capabilities': sceneCapabilities,

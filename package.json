@@ -32,6 +32,8 @@
     "@mediapipe/tasks-audio": "^1.0.1",
     "@mediapipe/tasks-text": "^1.0.1",
     "@mediapipe/tasks-vision": "^1.0.1",
+    "@met4citizen/headaudio": "^0.1.0",
+    "@met4citizen/talkinghead": "^1.7.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "@nuxt/ui": "^4.10.0",
     "@nuxtjs/i18n": "10.6.0",

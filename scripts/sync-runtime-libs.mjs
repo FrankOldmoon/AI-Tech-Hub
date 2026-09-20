@@ -118,6 +118,14 @@ for (const f of ['pyodide.js', 'pyodide.mjs', 'pyodide.asm.js', 'pyodide.asm.was
   put(join(pyDir, f), join(OUT, 'pyodide', f))
 }
 
+// HeadAudio（数字人口型）：音频驱动的 viseme 识别。
+// AudioWorklet 的 processor 必须是一个能 addModule() 的独立 URL，不能走打包；
+// 预训练模型只有 14KB。两者都放同源目录。
+const headAudioDist = join(pkgDir('@met4citizen/headaudio'), 'dist')
+for (const f of ['headaudio.min.mjs', 'headworklet.min.mjs', 'model-en-mixed.bin']) {
+  put(join(headAudioDist, f), join(OUT, 'headaudio', f))
+}
+
 // monaco 是 AMD 目录结构（loader.js + vs/ + workers），必须整目录拷贝
 const monacoMin = join(pkgDir('monaco-editor'), 'min')
 const monacoOut = join(OUT, 'monaco/min')

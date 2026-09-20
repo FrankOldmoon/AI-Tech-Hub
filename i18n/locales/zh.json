@@ -985,6 +985,27 @@
     "quantizeHelp": "将嵌入向量量化为字节，降低内存占用。",
     "topK": "返回数量"
   },
+  "digitalHuman": {
+    "init": "初始化数字人",
+    "engine": "语音引擎",
+    "engineEdge": "服务端 Edge TTS",
+    "engineKokoro": "本地 Kokoro",
+    "female": "女",
+    "male": "男",
+    "hintEdge": "音频由本站服务端调用微软 Edge TTS 合成（文本会离开浏览器），零模型下载；口型仍由本地音频实时识别。",
+    "loadingAvatar": "正在加载 3D 头像…",
+    "loadingLipSync": "正在加载口型识别…",
+    "synthesizing": "正在合成语音…",
+    "ready": "已就绪",
+    "voice": "声音",
+    "speed": "语速",
+    "placeholder": "输入要让数字人说的话，回车或点「朗读」",
+    "speak": "朗读",
+    "stop": "停止",
+    "hint": "首次朗读会下载约 92MB 的 Kokoro 语音模型，之后走浏览器缓存。",
+    "noWebgpu": "未检测到 WebGPU：语音合成会退到 WASM，明显更慢（建议用桌面版 Chrome / Edge）。",
+    "credit": "3D 头像来自 VTubeMe（CC BY 4.0，已改口型命名）"
+  },
   "webllm": {
     "model": "模型",
     "load": "加载模型",
