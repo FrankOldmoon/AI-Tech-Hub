@@ -861,6 +861,26 @@ const enhancementTools: ImageTool[] = [
     run: ({ imageData }) => ({ imageData: alg.enhance(imageData) })
   },
   {
+    id: 'beautify',
+    page: 'enhancement',
+    name: { zh: '图像美化 Beautify', en: 'Image Beautify' },
+    description: { zh: '保边降噪 + 自动亮度/对比度 + 轻微锐化 + 饱和度提升，一步得到照片成品（与「增强」不同：增强是给算法看的预处理图）。', en: 'Edge-preserving denoise + auto levels + light sharpening + saturation for a finished photo (unlike Enhance, which targets algorithm input).' },
+    kind: 'canvas',
+    params: [
+      { key: 'smooth', label: { zh: '磨皮 / 降噪', en: 'Smoothing' }, type: 'slider', default: 6, min: 0, max: 10, step: 1 },
+      { key: 'saturate', label: { zh: '饱和度', en: 'Saturation' }, type: 'slider', default: 1.15, min: 0.5, max: 2, step: 0.05 },
+      { key: 'sharpen', label: { zh: '锐化强度', en: 'Sharpen' }, type: 'slider', default: 0.5, min: 0, max: 2, step: 0.1 }
+    ],
+    run: ({ imageData, params }) => ({
+      imageData: alg.beautify(
+        imageData,
+        Number(params.smooth ?? 6),
+        Number(params.saturate ?? 1.15),
+        Number(params.sharpen ?? 0.5)
+      )
+    })
+  },
+  {
     id: 'super-res',
     page: 'enhancement',
     name: { zh: '超分辨率 Super Resolution', en: 'Super Resolution' },

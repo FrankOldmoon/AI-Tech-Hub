@@ -4,13 +4,15 @@
  * 图像处理入门（教学页，与「像素原理」同组）。
  *
  * 一条固定的六步演示，同一张图逐步被改造：
- *   1 输入 → 2 灰度化 → 3 降噪 → 4 增强 → 5 特征强调 → 6 处理结果
- * 每一步的输入都是上一步的输出 —— 这正是「图像处理是 AI 视觉第一步」的具体含义。
+ *   1 输入 → 2 灰度化 → 3 降噪 → 4 增强 → 5 特征强调 → 6 处理结果（美化）
+ * 前五步的输入都是上一步的输出 —— 这正是「图像处理是 AI 视觉第一步」的具体含义。
+ * 第 6 步是收尾：前面几步是算法视角（灰度化丢掉颜色、特征强调只剩边缘），
+ * 照直串下去最终只能是张边缘图，所以「美化」改读彩色原图，给出给人看的成品。
  *
  * 页面只做一件事：把六步摆出来，每步左边给原图、右边给这一步的效果，
  * 一眼看出「这一小步到底改变了什么」。所以刻意不做流水线搭建器，也不堆文字说明。
  *
- * 执行是渐进的：三个 canvas 算子（灰度 / 降噪 / 增强）立刻出结果，
+ * 执行是渐进的：canvas 算子（灰度 / 降噪 / 增强 / 美化）立刻出结果，
  * 第 5 步的 OpenCV Sobel（约 10MB）加载完成后补上，不会拖住前面的步骤。
  */
 import type { PipelineStage, PipelineStep } from '~/utils/image-pipeline'
@@ -37,10 +39,10 @@ const lesson: Array<{ id: string, icon: string, title: L, kind: string }> = [
   { id: '1', icon: 'i-lucide-eraser', title: { zh: '3 降噪', en: '3 Noise Reduction' }, kind: 'CANVAS · DENOISE' },
   { id: '2', icon: 'i-lucide-sun-medium', title: { zh: '4 增强', en: '4 Enhancement' }, kind: 'CANVAS · ENHANCE' },
   { id: '3', icon: 'i-lucide-pen-tool', title: { zh: '5 特征强调', en: '5 Feature Emphasis' }, kind: 'OPENCV · SOBEL' },
-  { id: 'result', icon: 'i-lucide-check-check', title: { zh: '6 处理结果', en: '6 Processed Image' }, kind: 'RESULT' }
+  { id: 'result', icon: 'i-lucide-sparkles', title: { zh: '6 处理结果', en: '6 Processed Image' }, kind: 'CANVAS · BEAUTIFY' }
 ]
 
-/** 四个算子步骤（灰度 / 降噪 / 增强 / Sobel），参数取各算子的默认值 */
+/** 五个算子步骤（灰度 / 降噪 / 增强 / Sobel / 美化），参数取各算子的默认值 */
 const steps = ref<PipelineStep[]>(buildLessonSteps())
 
 // ===== 状态 =====
@@ -55,7 +57,7 @@ const originalImage = computed<ImageData | null>(() => stages.value[0]?.image ??
 /** 整条链是否算完（第 6 步「处理结果」= 最后一个算子的产物，算完才有意义） */
 const complete = computed(() => source.value !== null && stages.value.length === steps.value.length + 1)
 
-/** 第 i 步的产物：0 = 原图，1~4 = 算子输出，5 = 整条链的结果 */
+/** 第 i 步的产物：0 = 原图，1~4 = 中间算子输出，5 = 整条链的美化成品 */
 function outputAt(i: number): ImageData | null {
   const s = stages.value
   if (i === 0) return s[0]?.image ?? null

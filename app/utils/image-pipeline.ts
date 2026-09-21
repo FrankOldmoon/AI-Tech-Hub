@@ -1,11 +1,15 @@
 /**
  * 图像处理入门演示的执行器：把几个经典算子按固定顺序串成一条链，
- * **每一步的输入是上一步的输出**。
+ * **除收尾的「美化」外，每一步的输入是上一步的输出**。
  *
  * 这是一个教学页（与「像素原理」同组）的执行层，刻意只做三件事：
- * 1. 固定链：灰度 → 降噪 → 增强 → 特征强调（`LESSON_CHAIN`，顺序即课堂讲解顺序）；
+ * 1. 固定链：灰度 → 降噪 → 增强 → 特征强调 → 美化（`LESSON_CHAIN`，顺序即课堂讲解顺序）；
  * 2. 复用算子：每一步都调图像处理工坊注册表里的算子，不新写任何图像算法；
  * 3. 留档：返回原图与每一步的产物，页面据此逐步展示「图像是怎么被改造的」。
+ *
+ * 唯一的例外是收尾的「美化」：它读的是**原图**而不是上一步的产物。前面几步是
+ * 算法视角的预处理（灰度化会丢掉颜色、特征强调只剩边缘），照直串下去最后只能得到
+ * 一张边缘图；美化要的是给人看的照片，所以把「降噪 + 增强」的思路落回彩色原图。
  *
  * 抽成模块而不是写在页面里，是为了能在 Node 里直接测（见 tests/image-pipeline.test.ts：
  * 真的跑一遍链，并断言灰度步每个像素 R=G=B、每一步都确实改变了像素）。
@@ -23,6 +27,8 @@ export interface PipelineStep {
   /** 是否参与本次执行 */
   enabled: boolean
   params: Record<string, number | string | boolean>
+  /** 输入来源：默认上一步的产物；'original' 表示直接读原图（收尾美化用） */
+  from?: 'original'
 }
 
 /** 执行产物：每一步之后得到的图像 */
@@ -48,16 +54,21 @@ export interface PipelineRun {
 }
 
 /**
- * 这节课的固定链：灰度 → 降噪 → 增强 → 特征强调。
+ * 这节课的固定链：灰度 → 降噪 → 增强 → 特征强调 → 美化。
  *
  * 顺序不是随便定的，页面里会给学生讲清：先降维（三通道压成一）、
  * 再降噪（增强与锐化都会放大局部差异，噪声先放大就再也去不掉）、
- * 最后提特征（在已经干净的图上提取结构，否则提取到的是噪声的轮廓）。
+ * 然后提特征（在已经干净的图上提取结构，否则提取到的是噪声的轮廓），
+ * 最后把这条链的处理思路落回彩色原图，得到美化成品。
  *
- * 前三个是 canvas 算子（即时出结果）；最后一个是 OpenCV 的 Sobel
- * （opencv.js 自托管在 public/opencv/，首次点击该步需要加载一次，约 10MB）。
+ * 前三个是 canvas 算子（即时出结果）；第四个是 OpenCV 的 Sobel
+ * （opencv.js 自托管在 public/opencv/，首次点击该步需要加载一次，约 10MB）；
+ * 最后一个是 canvas 的 beautify（读原图，见下方 FROM_ORIGINAL）。
  */
-export const LESSON_CHAIN = ['grayscale', 'denoise', 'enhance', 'sobel'] as const
+export const LESSON_CHAIN = ['grayscale', 'denoise', 'enhance', 'sobel', 'beautify'] as const
+
+/** 这些步骤不吃上一步的产物，直接对原图运算（收尾美化要作用在彩色原图，而不是灰度链的产物上） */
+const FROM_ORIGINAL = new Set<string>(['beautify'])
 
 /** 按 id 取算子；不存在则返回 undefined */
 export function pipelineTool(toolId: string): ImageTool | undefined {
@@ -77,7 +88,8 @@ export function buildStep(toolId: string): PipelineStep | null {
   return {
     toolId,
     enabled: true,
-    params: paramDefaults(buildParamSpecs(tool.params, 'zh'))
+    params: paramDefaults(buildParamSpecs(tool.params, 'zh')),
+    from: FROM_ORIGINAL.has(toolId) ? 'original' : undefined
   }
 }
 
@@ -136,6 +148,7 @@ export async function runStep(
  * 三种情况都不会中断链：
  * - 步骤被停用（enabled: false）：直接沿用上一步的产物，让学生看到「少了这一步会怎样」
  * - 算子不存在 / 抛错 / 没产出图像：沿用上一步的产物，并把算子 id 记进 skipped
+ * - 步骤声明了 from: 'original'（收尾美化）：输入换成原图，其余行为不变
  */
 export async function runSegment(
   original: ImageData,
@@ -153,7 +166,7 @@ export async function runSegment(
   while (index < upTo && index < steps.length) {
     const step = steps[index]
     if (!step) break
-    const current = stages[stages.length - 1]?.image ?? original
+    const current = step.from === 'original' ? original : (stages[stages.length - 1]?.image ?? original)
     if (!step.enabled) {
       stages.push({ id: String(index), image: current, toolId: step.toolId, ms: 0 })
       skipped.push(step.toolId)
