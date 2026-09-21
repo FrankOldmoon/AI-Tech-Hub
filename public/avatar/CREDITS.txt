@@ -1,8 +1,12 @@
-nova.glb — 3D avatar for the "Digital Human" demo (/aigc/digital-human)
+3D avatars for the "Digital Human" demo (/aigc/digital-human) — one per gender.
 
-Source : VTubeMe free avatar "Nova"  https://vtubeme.com/free-vrm-avatars/nova
-License: CC BY 4.0                  https://creativecommons.org/licenses/by/4.0/
+  nova.glb  male    VTubeMe free avatar "Nova"  https://vtubeme.com/free-vrm-avatars/nova
+  kai.glb   female  VTubeMe free avatar "Kai"   https://vtubeme.com/free-vrm-avatars/kai
+
+License: CC BY 4.0  https://creativecommons.org/licenses/by/4.0/
 Credit : VTubeMe (link back to https://vtubeme.com)
+
+CC BY 4.0 requires attribution, and a note that the assets were modified.
 
 MODIFIED: (1) the blend-shape (morph target) names were remapped to the Oculus
 viseme convention used by TalkingHead / HeadAudio so the mouth can be driven from
@@ -12,5 +16,8 @@ TalkingHead's default modelRoot. Reproduce with:
     curl -o nova.orig.glb https://vtubeme.com/media/free/nova/model.glb
     node scripts/patch-avatar-visemes.mjs nova.orig.glb public/avatar/nova.glb
 
-The avatar carries a Mixamo-compatible skeleton plus ARKit facial shapes and the
+    curl -o kai.orig.glb  https://vtubeme.com/media/free/kai/model.glb
+    node scripts/patch-avatar-visemes.mjs kai.orig.glb  public/avatar/kai.glb
+
+Both avatars carry a Mixamo-compatible skeleton plus ARKit facial shapes and the
 full 15-viseme Oculus set (viseme_aa … viseme_sil).

@@ -987,6 +987,7 @@
   },
   "digitalHuman": {
     "init": "Initialize digital human",
+    "avatar": "Character",
     "engine": "TTS engine",
     "engineEdge": "Server-side Edge TTS",
     "engineKokoro": "Local Kokoro",
@@ -1000,6 +1001,7 @@
     "voice": "Voice",
     "speed": "Speed",
     "placeholder": "Type what the digital human should say, then press Enter or Read aloud",
+    "sampleText": "Hi, I am the digital human on this site. What you are hearing was synthesized in the browser just now, and my mouth shapes are computed from that audio in real time. Try another character or voice, and listen again.",
     "speak": "Read aloud",
     "stop": "Stop",
     "hint": "The first run downloads the ~92 MB Kokoro voice model; later runs use the browser cache.",
@@ -1009,6 +1011,7 @@
   "webllm": {
     "model": "Model",
     "load": "Load model",
+    "loadFailed": "The model files could not be fetched: this model is not prefetched locally (dev mode skips the WebLLM prefetch) and the online download failed as well. Check your network and retry; for offline or intranet use, place the model weights under .models/webllm/ first.",
     "loaded": "Loaded",
     "clear": "Clear chat",
     "empty": "Type a message to start chatting (load a model first).",
