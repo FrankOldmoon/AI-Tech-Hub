@@ -14,6 +14,7 @@ import type { LocalizedParamSpec } from '~/utils/localized'
 import type { YoloModel } from '~/utils/yolo/models'
 import { MODELS } from '~/utils/yolo/models'
 import { getYoloSession, preprocess, preprocessImageData } from '~/composables/useYolo'
+import { drawScoreList } from '~/utils/canvas-overlay'
 import {
   drawBoxes, drawDepth, drawObb, drawPose, drawSeg, drawSem, postprocess
 } from '~/utils/yolo/postprocess'
@@ -99,8 +100,9 @@ function paint(
       info.push({ label: zh ? '深度图' : 'Depth map', value: `${res.w}×${res.h}` })
       break
     case 'cls':
+      drawScoreList(ctx, res.top5)
       for (const t of res.top5) {
-        info.push({ label: t.label, value: `${Math.round(t.score * 100)}%` })
+        info.push({ label: t.label, value: `${(t.score * 100).toFixed(1)}%` })
       }
       break
   }
@@ -164,6 +166,8 @@ function makeTool(model: YoloModel): ImageTool {
     },
     kind: 'yolo',
     section: { '*': 'image.sections.yolo' },
+    /* 分类的「结果」就是原图 + 左上角 top5 标注，左右对比没有信息量，单图展示 */
+    singlePane: model.id === 'cls',
     params: model.needConf ? [CONF_PARAM] : [],
     run: ({ imageData, params, lang }) =>
       inferImage(model, imageData, Number(params.conf ?? 0.25), lang),

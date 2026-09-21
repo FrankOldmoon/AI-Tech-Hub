@@ -47,9 +47,11 @@ function infoFor(r: any, lang: 'zh' | 'en'): InfoRow[] {
     }))
   }
   if (r?.classifications?.[0]?.categories?.length) {
+    /* 保留一位小数：分类的尾部类别本来就常在 0.1% 量级，取整会全变成 0%，
+       与画面上叠的标注口径也不一致 */
     return r.classifications[0].categories.slice(0, 10).map((c: any) => ({
       label: c.categoryName || '?',
-      value: `${Math.round((c.score || 0) * 100)}%`
+      value: `${((c.score || 0) * 100).toFixed(1)}%`
     }))
   }
   if (r?.gestures?.length) {
@@ -116,7 +118,13 @@ function closeLiveDetector(key: string) {
 
 function visionTaskTool(
   key: string,
-  opts: { pages: ImagePageSlug[], section: Record<string, string>, name: { zh: string, en: string } }
+  opts: {
+    pages: ImagePageSlug[]
+    section: Record<string, string>
+    name: { zh: string, en: string }
+    /** 单画面展示（分类：结果叠在图上，左右对比没有信息量） */
+    singlePane?: boolean
+  }
 ): ImageTool {
   const cfg = visionTasks[key]!
   return {
@@ -125,6 +133,7 @@ function visionTaskTool(
     name: opts.name,
     kind: 'mediapipe',
     section: opts.section,
+    singlePane: opts.singlePane,
     resolvedParams: t => (cfg.params ? cfg.params(t) : []),
     run: async ({ imageData, params, lang }) => {
       const { imageData: out, result } = await ai.mediaPipeImageResult(
@@ -196,7 +205,8 @@ export const mediaPipeTaskTools: ImageTool[] = [
   visionTaskTool('image-classifier', {
     pages: ['mediapipe', 'classification'],
     section: { mediapipe: SEC.detection, classification: SEC.mediapipe },
-    name: { zh: '图像分类', en: 'Image Classification' }
+    name: { zh: '图像分类', en: 'Image Classification' },
+    singlePane: true
   })
 ]
 

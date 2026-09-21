@@ -94,6 +94,9 @@ export interface ImageTool {
   planned?: boolean
   /** 需要「手绘画布」作为输入源（简笔画识别类工具）；开启后隐藏上传/示例/拍照入口 */
   needsDrawing?: boolean
+  /** 单画面展示：产物直接叠在图上（如分类的 top5 标注），左右「原图 / 结果」对比没有信息量，
+   *  界面只显示结果这一张图。 */
+  singlePane?: boolean
   /** 侧栏小节标题（i18n key），按页面给出：能力页按实现引擎分组（MediaPipe / YOLO），引擎页按任务族分组。
    *  键为页面 slug，`*` 为所有页面的默认值。 */
   section?: Record<string, string>
