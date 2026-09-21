@@ -959,6 +959,34 @@ export function enhance(src: ImageData): ImageData {
   return autoContrast(autoBrightness(src))
 }
 
+/**
+ * 一键美化（照片成品）：保边降噪 → 自动亮度/对比度 → 轻微锐化 → 饱和度提升。
+ *
+ * 与 enhance 的区别：增强只拉对比度，产物是给后续算法看的预处理图；
+ * 美化的目标是一张给人看的照片 —— 先磨掉噪点，再找回通透感与色彩，
+ * 最后把降噪损失的高频用 USM 补回来，否则画面会发闷。
+ *
+ * smooth 为磨皮强度（0 关闭）；双边滤波半径随图幅缩放，避免大图过慢。
+ */
+export function beautify(
+  src: ImageData,
+  smooth = 6,
+  saturate = 1.15,
+  sharpenAmount = 0.5
+): ImageData {
+  let out: ImageData
+  if (smooth > 0) {
+    const radius = clamp(Math.round(Math.min(src.width, src.height) / 400), 1, 4)
+    out = bilateralFilter(src, radius, 20 + smooth * 5, radius)
+  } else {
+    out = cloneImageData(src)
+  }
+  out = autoContrast(autoBrightness(out), 1, 99)
+  if (sharpenAmount > 0) out = unsharpMask(out, 1, sharpenAmount)
+  if (saturate !== 1) out = adjustSaturation(out, saturate)
+  return out
+}
+
 // ===== 阈值与形态学（08） =====
 
 /** 固定阈值二值化（亮度 >= thresh → 白，否则黑） */

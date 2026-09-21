@@ -8,7 +8,11 @@
  * Node 没有 ImageData（那是浏览器 API），这里补一个最小实现：算子只用到
  * width / height / data 三个字段，以及 `new ImageData(data, w, h)` 两种构造。
  *
- * 最后一个算子 Sobel 是 OpenCV（需要浏览器加载 opencv.js），Node 里跑不了：
+ * 最后一个纯 canvas 算子是 beautify（收尾美化），它读的是原图而不是上一步的产物 ——
+ * 这里也把「最终产物来自原图」钉死：这个页面之前的问题正是收尾步直接取了链尾，
+ * 于是「处理结果」和「特征强调」显示成同一张边缘图。
+ *
+ * Sobel 是 OpenCV（需要浏览器加载 opencv.js），Node 里跑不了：
  * 这里只断言它确实在链上且标记为 opencv，实际执行由浏览器端 e2e 覆盖。
  */
 import { beforeAll, describe, expect, it } from 'vitest'
@@ -45,6 +49,8 @@ const {
   runPipeline,
   runSegment
 } = await import('../app/utils/image-pipeline')
+
+const alg = await import('../app/utils/image-algorithms')
 
 /** 16×16 测试图：彩色渐变 + 一条高对比边 + 确定性椒盐噪声（保证降噪/增强/边缘都有活干） */
 function makeImage(size = 16): ImageData {
@@ -83,8 +89,8 @@ function diff(a: ImageData, b: ImageData): number {
 const nodeSteps = () => buildLessonSteps().filter(s => pipelineTool(s.toolId)?.kind === 'canvas')
 
 describe('课程链', () => {
-  it('链是固定的四步，顺序即讲解顺序', () => {
-    expect([...LESSON_CHAIN]).toEqual(['grayscale', 'denoise', 'enhance', 'sobel'])
+  it('链是固定的五步，顺序即讲解顺序', () => {
+    expect([...LESSON_CHAIN]).toEqual(['grayscale', 'denoise', 'enhance', 'sobel', 'beautify'])
   })
 
   it('每一步的算子都存在，且能造出带默认参数的一步', () => {
@@ -100,9 +106,14 @@ describe('课程链', () => {
     }
   })
 
-  it('前三个是 canvas 算子（即时），第四个是 OpenCV 的 Sobel', () => {
+  it('只有特征强调是 OpenCV，其余都是 canvas（即时出结果）', () => {
     const kinds = buildLessonSteps().map(s => pipelineTool(s.toolId)?.kind)
-    expect(kinds).toEqual(['canvas', 'canvas', 'canvas', 'opencv'])
+    expect(kinds).toEqual(['canvas', 'canvas', 'canvas', 'opencv', 'canvas'])
+  })
+
+  it('收尾美化的输入是原图，其余每一步都吃上一步的产物', () => {
+    const steps = buildLessonSteps()
+    expect(steps.map(s => s.from)).toEqual([undefined, undefined, undefined, undefined, 'original'])
   })
 
   it('算子不存在时返回 null，不抛错', () => {
@@ -136,10 +147,33 @@ describe('执行器', () => {
     let incremental = await runSegment(input, [], steps, 1, 'zh')
     incremental = await runSegment(input, incremental.stages, steps, 2, 'zh')
     incremental = await runSegment(input, incremental.stages, steps, 3, 'zh')
+    incremental = await runSegment(input, incremental.stages, steps, steps.length, 'zh')
     // 重复推进到同一目标不应重复计算
-    incremental = await runSegment(input, incremental.stages, steps, 3, 'zh')
+    incremental = await runSegment(input, incremental.stages, steps, steps.length, 'zh')
     expect(incremental.stages).toHaveLength(whole.stages.length)
     expect(Array.from(incremental.stages[3]?.image.data ?? [])).toEqual(Array.from(whole.stages[3]?.image.data ?? []))
+  })
+
+  it('收尾美化读原图：产物是彩色成品，与「特征强调」那一步不是同一张图', async () => {
+    const input = makeImage()
+    const steps = buildLessonSteps()
+    const { stages } = await runSegment(input, [], steps, steps.length, 'zh')
+
+    const final = stages[stages.length - 1]
+    const emphasis = stages[stages.length - 2]
+    expect(final?.toolId).toBe('beautify')
+    // 之前的问题就是这里：最终产物直接取了链尾，于是和特征强调一模一样
+    expect(diff(final?.image as ImageData, emphasis?.image as ImageData)).toBeGreaterThan(0)
+
+    // 输入确实是原图：与直接对原图跑美化逐像素一致
+    const step = buildStep('beautify')!
+    const expected = alg.beautify(
+      input,
+      Number(step.params.smooth),
+      Number(step.params.saturate),
+      Number(step.params.sharpen)
+    )
+    expect(Array.from((final?.image as ImageData).data)).toEqual(Array.from(expected.data))
   })
 
   it('第一步是灰度化：产物每个像素都满足 R=G=B', async () => {
