@@ -56,6 +56,8 @@ export interface DepthRes {
 export interface BoxRes {
   type: 'boxes' | 'pose' | 'obb' | 'seg'
   dets: Detection[]
+  /** seg 专用：proto 掩码画布在源图坐标下的贴图矩形（覆盖整幅图，与检测框无关） */
+  maskRect?: { x: number, y: number, w: number, h: number }
 }
 
 export interface ClsRes {
@@ -67,7 +69,7 @@ export interface ClsRes {
 
 export type Result = BoxRes | SemRes | DepthRes | ClsRes
 
-interface PreprocessRect { scale: number, dx: number, dy: number }
+interface PreprocessRect { scale: number, dx: number, dy: number, imgsz: number }
 
 export type OutputTensor = { data: any, dims?: number[] }
 
@@ -151,7 +153,10 @@ function postSeg(out0: OutputTensor, out1: OutputTensor, p: PreprocessRect, conf
       mask, maskSize: PM, hasMask: any
     })
   }
-  return { type: 'seg', dets }
+  /* 掩码画布是 proto 分辨率，铺满整个网络输入（imgsz×imgsz）；反 letterbox 回源图后，
+     它的贴图矩形等于「整幅图」而不是某个检测框——把它塞进检测框会把人物整体压扁。 */
+  const side = p.imgsz / p.scale
+  return { type: 'seg', dets, maskRect: { x: -p.dx / p.scale, y: -p.dy / p.scale, w: side, h: side } }
 }
 
 function postSem(out: OutputTensor): SemRes {
@@ -274,9 +279,6 @@ export function drawPose(ctx: CanvasRenderingContext2D, dets: Detection[]) {
         }
       }
     }
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2
-    ctx.strokeRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1)
     drawLabel(ctx, d.label, d.score, d.x1, d.y1, color)
   }
 }
@@ -303,10 +305,10 @@ function getMaskCanvas(): OffscreenCanvas {
   return maskCanvasRef.c
 }
 
-export function drawSeg(ctx: CanvasRenderingContext2D, dets: Detection[]) {
+export function drawSeg(ctx: CanvasRenderingContext2D, dets: Detection[], maskRect?: { x: number, y: number, w: number, h: number }) {
   const mctx = getMaskCanvas().getContext('2d')!
   for (const d of dets) {
-    if (d.hasMask && d.mask && d.maskSize) {
+    if (maskRect && d.hasMask && d.mask && d.maskSize) {
       const img = mctx.createImageData(d.maskSize, d.maskSize)
       const hue = hueOf(d.label)
       const [r, g, b] = hslToRgb(hue / 360, 0.9, 0.6)
@@ -317,18 +319,9 @@ export function drawSeg(ctx: CanvasRenderingContext2D, dets: Detection[]) {
         }
       }
       mctx.putImageData(img, 0, 0)
-      ctx.save()
-      ctx.beginPath()
-      ctx.rect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1)
-      ctx.clip()
-      ctx.drawImage(getMaskCanvas(), d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1)
-      ctx.restore()
+      ctx.drawImage(getMaskCanvas(), maskRect.x, maskRect.y, maskRect.w, maskRect.h)
     }
-    const color = `hsl(${hueOf(d.label)}, 90%, 60%)`
-    ctx.strokeStyle = color
-    ctx.lineWidth = 2
-    ctx.strokeRect(d.x1, d.y1, d.x2 - d.x1, d.y2 - d.y1)
-    drawLabel(ctx, d.label, d.score, d.x1, d.y1, color)
+    drawLabel(ctx, d.label, d.score, d.x1, d.y1, `hsl(${hueOf(d.label)}, 90%, 60%)`)
   }
 }
 

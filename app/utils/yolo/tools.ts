@@ -87,7 +87,7 @@ function paint(
       pushDets(res.dets)
       break
     case 'seg':
-      drawSeg(ctx, res.dets)
+      drawSeg(ctx, res.dets, res.maskRect)
       info.push({ label: zh ? '实例数' : 'Instances', value: `${res.dets.length}` })
       pushDets(res.dets)
       break

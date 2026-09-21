@@ -73,7 +73,7 @@ export function disposeYoloSessions() {
  */
 export async function preprocessSource(
   source: CanvasImageSource, vw: number, vh: number, imgsz: number, centerCrop: boolean
-): Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+): Promise<{ tensor: any } & PreprocessRect> {
   const ort = await getOrt()
   const tmp = new OffscreenCanvas(imgsz, imgsz)
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!
@@ -107,18 +107,18 @@ export async function preprocessSource(
     chw[i + plane * 2] = (data[j++] as number) / 255
     j++
   }
-  return { tensor: new ort.Tensor('float32', chw, [1, 3, imgsz, imgsz]), scale, dx, dy }
+  return { tensor: new ort.Tensor('float32', chw, [1, 3, imgsz, imgsz]), scale, dx, dy, imgsz }
 }
 
 /** 视频帧预处理（摄像头实时路径） */
 export function preprocess(video: HTMLVideoElement, imgsz: number, centerCrop: boolean):
-Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+Promise<{ tensor: any } & PreprocessRect> {
   return preprocessSource(video, video.videoWidth, video.videoHeight, imgsz, centerCrop)
 }
 
 /** 静态图预处理（上传/示例/拍照单帧路径，与视频共用同一管线） */
 export function preprocessImageData(imageData: ImageData, imgsz: number, centerCrop: boolean):
-Promise<{ tensor: any, scale: number, dx: number, dy: number } & PreprocessRect> {
+Promise<{ tensor: any } & PreprocessRect> {
   const canvas = new OffscreenCanvas(imageData.width, imageData.height)
   const ctx = canvas.getContext('2d', { willReadFrequently: true })!
   ctx.putImageData(imageData, 0, 0)
