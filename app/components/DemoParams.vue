@@ -23,8 +23,9 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [Record<string, number | string | boolean>] }>()
 
 const { t } = useI18n()
-// 默认展开参数面板，方便课堂直接调参
-const isOpen = ref(true)
+// 默认收起：参数面板在每页都占一块显眼位置，先让学生看到「结果」，
+// 需要调参时点开即可（各页传进来的 title 就是展开后的标题）
+const isOpen = ref(false)
 
 function update(key: string, val: number | string | boolean) {
   emit('update:modelValue', { ...props.modelValue, [key]: val })
