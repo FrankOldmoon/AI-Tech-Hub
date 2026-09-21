@@ -379,6 +379,22 @@ let liveLastTime = -1
 let liveInferring = false
 
 const liveSupported = computed(() => Boolean(activeTool.value?.live))
+/** 单画面工具的产物直接叠在图上（如分类的 top5 标注）→ 只显示结果这一张图，不做左右对比 */
+const singlePane = computed(() => Boolean(activeTool.value?.singlePane))
+
+/** 实时模式：把摄像头当前帧刷到左栏「原图」——否则它停在开启实时那一刻的第一帧
+ *  （往往是黑的），看起来就像左栏没显示。只刷显示、不更新 original 数据：
+ *  实时推理直接读 video 元素，数据侧仍是静态图语义（点击取像素等仍以首帧为准）。 */
+function syncLiveOriginal(video: HTMLVideoElement) {
+  const canvas = origCanvas.value
+  const ctx = canvas?.getContext('2d')
+  if (!canvas || !ctx || !video.videoWidth || !video.videoHeight) return
+  if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+    canvas.width = video.videoWidth
+    canvas.height = video.videoHeight
+  }
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+}
 
 /** 摄像头当前帧 → JPEG File（实时模式用它当「原图」） */
 function frameToFile(video: HTMLVideoElement, name: string): Promise<File | null> {
@@ -452,6 +468,8 @@ async function startLive() {
 function loopLive() {
   if (!liveActive.value) return
   const video = liveVideo.value
+  /* 左栏原图每帧刷新（不受推理节流影响，这样预览是流畅的） */
+  if (video && video.readyState >= 2) syncLiveOriginal(video)
   const tool = activeTool.value
   if (video && tool?.live && !liveInferring && video.readyState >= 2 && video.currentTime !== liveLastTime) {
     liveLastTime = video.currentTime
@@ -623,6 +641,21 @@ function reset() {
     return
   }
   run()
+}
+
+/** 回到「选择图片」的初始界面：清掉当前图片与结果，拖拽 / 示例 / 摄像头入口重新出现 */
+function back() {
+  if (liveActive.value) stopLive()
+  resizeDisplayMode.value = null
+  clearPrompt()
+  original.value = null
+  result.value = null
+  resultInfo.value = []
+  fileName.value = ''
+  sourceBytes.value = 0
+  secondOriginal.value = null
+  secondFileName.value = ''
+  error.value = null
 }
 
 // ===== resize 拖拽手柄（与参数面板双向联动） =====
@@ -1256,6 +1289,17 @@ const modeText = computed(() => {
               >
                 {{ t('image.reset') }}
               </UButton>
+              <!-- 回到「选择图片」界面（手绘输入没有图片可选，故不显示） -->
+              <UButton
+                v-if="!needsDrawing"
+                icon="i-lucide-arrow-left"
+                color="neutral"
+                variant="soft"
+                data-testid="back-to-picker"
+                @click="back"
+              >
+                {{ t('image.back') }}
+              </UButton>
               <div class="ms-auto flex items-center gap-2">
                 <USelect
                   v-model="downloadFormat"
@@ -1276,10 +1320,14 @@ const modeText = computed(() => {
             </div>
           </div>
 
-          <!-- 原图 / 结果：两列对半，图像一样大 -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- 原图 / 结果：两列对半，图像一样大。单画面工具（分类）只留结果这一张 ——
+               它的产物是「原图 + 左上角标注」，再并排摆一张原图纯属重复 -->
+          <div
+            class="grid grid-cols-1 gap-4"
+            :class="singlePane ? '' : 'md:grid-cols-2'"
+          >
             <div
-              v-if="!needsDrawing"
+              v-if="!needsDrawing && !singlePane"
               class="space-y-2"
             >
               <p class="text-xs font-medium text-muted uppercase tracking-wide">

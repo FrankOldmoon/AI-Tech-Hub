@@ -79,13 +79,16 @@ export async function preprocessSource(
   const tctx = tmp.getContext('2d', { willReadFrequently: true })!
   let scale: number, dx: number, dy: number
   if (centerCrop) {
+    /* 短边缩放到 imgsz*256/224（对齐 ultralytics classify_transforms），再中心裁 imgsz。
+       绘制尺寸必须是缩放后的 sw × sh —— 若写成 sw/rs、sh/rs，画面会退化成「原生分辨率
+       下 imgsz 像素的偏心窗口」（既没有缩放、裁的位置也不在中心），分类输入直接失真。 */
     const rs = (imgsz * 256) / 224 / Math.min(vw, vh)
     const sw = vw * rs, sh = vh * rs
     dx = (sw - imgsz) / 2; dy = (sh - imgsz) / 2
     scale = rs
     tctx.fillStyle = '#000'
     tctx.fillRect(0, 0, imgsz, imgsz)
-    tctx.drawImage(source, -dx / rs, -dy / rs, sw / rs, sh / rs)
+    tctx.drawImage(source, -dx, -dy, sw, sh)
     dx = -dx; dy = -dy // 源坐标 -> 模型坐标偏移
   } else {
     scale = Math.min(imgsz / vw, imgsz / vh)

@@ -171,15 +171,42 @@ function postDepth(out: OutputTensor): DepthRes {
   return { type: 'depth', norm, w: 768, h: 768 }
 }
 
+/**
+ * 分类输出 → top5。
+ *
+ * 关键：yolo26n-cls 的分类头在图内已经做过 softmax（实测输出非负、且和为 1），
+ * 这里再套一层 softmax 会把整条分布压平 —— top5 概率全部落到 0.5% 以下，
+ * 界面上就显示成一排 0%。所以只有输出看起来不是概率分布（有负值、和明显不为 1）
+ * 时才补 softmax，兼容将来换成输出 logits 的模型。
+ */
 function postCls(out: OutputTensor): ClsRes {
   const d = out.data
   const idx = Array.from(d.keys()) as number[]
   idx.sort((a, b) => d[b] - d[a])
-  const maxLogit = d[idx[0]!]
-  const exps = idx.map(i => Math.exp(d[i] - maxLogit))
-  const sumExp = exps.reduce((a, b) => a + b, 0)
-  const top5 = idx.slice(0, 5).map((ci, k) => ({
-    label: IMAGENET[ci] || String(ci), score: (exps[k] ?? 0) / sumExp
+  let min = Infinity, sum = 0
+  for (let i = 0; i < d.length; i++) {
+    const v = d[i] as number
+    if (v < min) min = v
+    sum += v
+  }
+  const isProb = min >= 0 && Math.abs(sum - 1) < 0.05
+  let prob: (i: number) => number
+  if (isProb) {
+    prob = i => d[i] as number
+  } else {
+    const maxLogit = d[idx[0]!] as number
+    const exps = new Float64Array(d.length)
+    let denom = 0
+    for (let i = 0; i < d.length; i++) {
+      const e = Math.exp((d[i] as number) - maxLogit)
+      exps[i] = e
+      denom += e
+    }
+    const base = denom || 1
+    prob = i => (exps[i] as number) / base
+  }
+  const top5 = idx.slice(0, 5).map(ci => ({
+    label: IMAGENET[ci] || String(ci), score: prob(ci)
   }))
   const first = top5[0]
   return { type: 'cls', label: first?.label ?? 'unknown', score: first?.score ?? 0, top5 }

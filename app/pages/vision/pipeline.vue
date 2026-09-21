@@ -14,6 +14,7 @@
  * 第 5 步的 OpenCV Sobel（约 10MB）加载完成后补上，不会拖住前面的步骤。
  */
 import type { PipelineStage, PipelineStep } from '~/utils/image-pipeline'
+import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 import { humanError } from '~/utils/errors'
 import { loadImageData } from '~/utils/image'
 import { buildLessonSteps, runSegment } from '~/utils/image-pipeline'
@@ -69,6 +70,19 @@ const rows = computed(() => lesson.map((step, i) => ({
   isInput: i === 0,
   original: originalImage.value,
   output: outputAt(i)
+})))
+
+/** 当前查看的步骤（左侧工具栏选中项，id 即 lesson 的 id） */
+const selected = ref(lesson[0]!.id)
+const activeRow = computed(() => rows.value.find(r => r.id === selected.value) ?? rows.value[0]!)
+
+/** 左侧步骤工具栏：点一步看一步，不再把六步一屏到底铺下去 */
+const sidebarItems = computed<ToolSidebarItem[]>(() => rows.value.map(row => ({
+  id: row.id,
+  label: pick(row.title),
+  kind: row.kind,
+  icon: row.icon,
+  badge: running.value && !row.output ? t('image.processing') : undefined
 })))
 
 // ===== 执行 =====
@@ -130,7 +144,7 @@ async function drawAll() {
   }
 }
 
-watch(rows, () => {
+watch([rows, selected], () => {
   void drawAll()
 }, { flush: 'post' })
 
@@ -227,90 +241,95 @@ onMounted(() => {
         />
       </UCard>
 
-      <!-- 六步：左边原图，右边这一步的效果 -->
-      <UCard
-        v-for="row in rows"
-        :key="row.id"
+      <!-- 六步：左侧步骤工具栏，点一步看一步（不再一屏到底往下滚） -->
+      <ToolSidebar
+        :model-value="selected"
+        :items="sidebarItems"
+        :title="pick({ zh: '处理步骤', en: 'Steps' })"
+        title-icon="i-lucide-list-ordered"
+        @update:model-value="(v: string | number) => { selected = String(v) }"
       >
-        <template #header>
-          <div class="flex flex-wrap items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon
-              :name="row.icon"
-              class="size-4 text-primary"
-            />
-            <span>{{ pick(row.title) }}</span>
-            <UBadge
-              color="neutral"
-              variant="subtle"
-              size="xs"
-            >
-              {{ row.kind }}
-            </UBadge>
-            <UBadge
-              v-if="running && !row.output"
-              color="info"
-              variant="subtle"
-              size="xs"
-            >
-              {{ t('image.processing') }}
-            </UBadge>
-          </div>
-        </template>
+        <UCard :key="activeRow.id">
+          <template #header>
+            <div class="flex flex-wrap items-center gap-2 text-sm font-medium text-highlighted">
+              <UIcon
+                :name="activeRow.icon"
+                class="size-4 text-primary"
+              />
+              <span>{{ pick(activeRow.title) }}</span>
+              <UBadge
+                color="neutral"
+                variant="subtle"
+                size="xs"
+              >
+                {{ activeRow.kind }}
+              </UBadge>
+              <UBadge
+                v-if="running && !activeRow.output"
+                color="info"
+                variant="subtle"
+                size="xs"
+              >
+                {{ t('image.processing') }}
+              </UBadge>
+            </div>
+          </template>
 
-        <!-- 第 1 步：输入图本身 -->
-        <template v-if="row.isInput">
-          <canvas
-            v-if="row.output"
-            :ref="el => setCanvas('solo-0', el)"
-            class="w-full rounded border border-default"
-          />
-          <p
+          <!-- 第 1 步：输入图本身 -->
+          <template v-if="activeRow.isInput">
+            <canvas
+              v-if="activeRow.output"
+              :ref="el => setCanvas('solo-0', el)"
+              class="w-full rounded border border-default"
+            />
+            <p
+              v-else
+              class="rounded border border-dashed border-default p-8 text-center text-sm text-muted"
+            >
+              {{ pick({ zh: '先在上面选一张图。', en: 'Pick an image above first.' }) }}
+            </p>
+          </template>
+
+          <!-- 第 2~6 步：左原图 / 右本步效果 -->
+          <div
             v-else
-            class="rounded border border-dashed border-default p-8 text-center text-sm text-muted"
+            class="grid gap-4 sm:grid-cols-2"
           >
-            {{ pick({ zh: '先在上面选一张图。', en: 'Pick an image above first.' }) }}
-          </p>
-        </template>
-
-        <!-- 第 2~6 步：左原图 / 右本步效果 -->
-        <div
-          v-else
-          class="grid gap-4 sm:grid-cols-2"
-        >
-          <div>
-            <p class="mb-1 text-xs text-muted">
-              {{ t('image.original') }}
-            </p>
-            <canvas
-              v-if="row.original"
-              :ref="el => setCanvas(`orig-${row.index}`, el)"
-              class="w-full rounded border border-default"
-            />
-            <p
-              v-else
-              class="rounded border border-dashed border-default p-8 text-center text-xs text-muted"
-            >
-              —
-            </p>
+            <div>
+              <p class="mb-1 text-xs text-muted">
+                {{ t('image.original') }}
+              </p>
+              <canvas
+                v-if="activeRow.original"
+                :ref="el => setCanvas(`orig-${activeRow.index}`, el)"
+                class="w-full rounded border border-default"
+              />
+              <p
+                v-else
+                class="rounded border border-dashed border-default p-8 text-center text-xs text-muted"
+              >
+                —
+              </p>
+            </div>
+            <div>
+              <p class="mb-1 text-xs text-muted">
+                {{ t('image.result') }}
+              </p>
+              <canvas
+                v-if="activeRow.output"
+                :ref="el => setCanvas(`out-${activeRow.index}`, el)"
+                class="w-full rounded border border-default"
+              />
+              <p
+                v-else
+                class="rounded border border-dashed border-default p-8 text-center text-xs text-muted"
+              >
+                {{ pick({ zh: '处理中…', en: 'Processing…' }) }}
+              </p>
+            </div>
           </div>
-          <div>
-            <p class="mb-1 text-xs text-muted">
-              {{ t('image.result') }}
-            </p>
-            <canvas
-              v-if="row.output"
-              :ref="el => setCanvas(`out-${row.index}`, el)"
-              class="w-full rounded border border-default"
-            />
-            <p
-              v-else
-              class="rounded border border-dashed border-default p-8 text-center text-xs text-muted"
-            >
-              {{ pick({ zh: '处理中…', en: 'Processing…' }) }}
-            </p>
-          </div>
-        </div>
-      </UCard>
+        </UCard>
+      </ToolSidebar>
     </div>
   </MediaDemoShell>
 </template>

@@ -13,6 +13,7 @@ import {
 } from '@mediapipe/tasks-vision'
 import type { ParamSpec } from './params'
 import { mediapipeModels } from './mediapipe'
+import { drawScoreList } from './canvas-overlay'
 
 export interface VisionTaskConfig {
   /** 创建检测器/标记器 */
@@ -28,6 +29,9 @@ export interface VisionTaskConfig {
 }
 
 const GPU = 'GPU'
+
+/** MediaPipe 分类输出里的一条类别 */
+type MpCategory = { categoryName?: string, score?: number }
 
 function drawing(ctx: CanvasRenderingContext2D) {
   return new DrawingUtils(ctx)
@@ -240,9 +244,15 @@ export const visionTasks: Record<string, VisionTaskConfig> = {
       runningMode: 'VIDEO',
       maxResults: 5
     }),
-    method: 'classifyForVideo'
-    // 无 canvas 绘制，分类结果通过 result slot 显示
-    , params: t => [
+    method: 'classifyForVideo',
+    // 分类没有框可画：把前 5 名「类别 + 置信度」叠在画面左上角（与 YOLO 分类同一套绘制）
+    draw: (ctx, result) => {
+      const cats: MpCategory[] = result?.classifications?.[0]?.categories ?? []
+      drawScoreList(ctx, cats.slice(0, 5).map(c => ({
+        label: c.categoryName || '?', score: c.score || 0
+      })))
+    },
+    params: t => [
       { key: 'maxResults', label: t('params.maxResults'), type: 'slider', default: 5, min: 1, max: 20, step: 1 },
       { key: 'scoreThreshold', label: t('params.scoreThreshold'), type: 'slider', default: 0, min: 0, max: 1, step: 0.05 }
     ],
