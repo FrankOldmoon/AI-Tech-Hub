@@ -35,6 +35,19 @@
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
+
+/* 聊天回复里的代码高亮（shiki 双主题）。
+   浅色主题直接写在行内 style 上，暗色只输出 --shiki-dark* 变量，由这里接管；
+   这样同一份高亮结果能同时适配明暗，不用为暗色重新高亮。
+   !important 是 shiki 官方双主题用法：要盖掉行内的 color / background-color。 */
+.dark .shiki,
+.dark .shiki span {
+  color: var(--shiki-dark) !important;
+  background-color: var(--shiki-dark-bg) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
 @media (prefers-reduced-motion: reduce) {
   .page-enter-active,
   .page-leave-active {
