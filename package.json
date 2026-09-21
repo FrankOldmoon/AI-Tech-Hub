@@ -43,11 +43,13 @@
     "@tensorflow/tfjs": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "kokoro-js": "^1.2.1",
+    "marked": "17.0.6",
     "ml5": "1.4.0",
     "monaco-editor": "0.52.2",
     "nuxt": "^4.5.2",
     "onnxruntime-web": "^1.27.0",
     "pyodide": "0.27.7",
+    "shiki": "^4.4.3",
     "tailwindcss": "^4.3.3",
     "tesseract.js": "5.1.1",
     "three": "^0.186.0"

@@ -7,11 +7,12 @@
  * 在 Nuxt 服务器启动时通过 server plugin 自动触发；
  * 已存在的文件会跳过，缺失的文件才下载。
  *
- * 使用 hf-mirror.com 作为 Hugging Face 镜像，
- * jsdelivr CDN 作为 npm/GitHub 镜像。
+ * 仓库级下载统一走 server/utils/model-fetch.mjs：源优先级 ModelScope → hf-mirror.com
+ * → huggingface.co（只认 hf-mirror 时，国内网络下它 308 跳去被墙的 huggingface.co，
+ * 整条预取链路会失效）；npm/GitHub 产物用 jsdelivr CDN。
  */
 import { createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs'
-import { dirname, join, relative, basename, extname } from 'node:path'
+import { dirname, join, relative, basename } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 // 仓库级下载（ModelScope → hf-mirror → huggingface 自动回退）与语音模型清单共用，
@@ -24,7 +25,6 @@ import { DOODLE_BASE, FACEAPI_BASES, MEDIAPIPE_BASE, MEDIAPIPE_MODELS, MEDIAPIPE
 // （与 server/routes/model/[...].ts 的服务路径保持一致；
 //  不用 storage/：全局 gitignore 有 storage 规则会阻断 yolo 入库例外）
 const BASE = process.env.MODELS_DIR || join(process.cwd(), '.models')
-const MIRROR = 'https://hf-mirror.com'
 
 // 防止并发重复执行
 let running = false
@@ -83,23 +83,6 @@ async function listJsdelivrFiles(pkg: string, version: string): Promise<string[]
       'wasm/vision_wasm_simd_internal.js', 'wasm/vision_wasm_simd_internal.wasm',
       'wasm/vision_wasm_threaded_simd_internal.js', 'wasm/vision_wasm_threaded_simd_internal.wasm'
     ]
-  }
-}
-
-/** 用 HF API 列出仓库中所有文件。 */
-async function listHfFiles(modelId: string): Promise<string[]> {
-  const url = `${MIRROR}/api/models/${modelId}`
-  try {
-    const resp = await fetch(url, { redirect: 'follow' })
-    if (!resp.ok) {
-      console.log(`  ERROR listing HF files for ${modelId}: HTTP ${resp.status}`)
-      return []
-    }
-    const data = await resp.json() as any
-    return (data.siblings || []).map((s: any) => s.rfilename)
-  } catch (e: any) {
-    console.log(`  ERROR listing HF files for ${modelId}: ${e?.message || e}`)
-    return []
   }
 }
 
@@ -204,27 +187,13 @@ async function downloadWebllmModels(): Promise<void> {
     'mlc-ai/Llama-3.2-1B-Instruct-q4f16_1-MLC',
     'mlc-ai/Llama-3.2-3B-Instruct-q4f16_1-MLC'
   ]
-  const skipExts = ['.gitattributes']
-  const skipNames = ['.gitattributes', 'README.md', 'LICENSE']
   for (const modelId of models) {
     console.log(`  --- ${modelId} ---`)
-    // WebLLM 会给 model URL 追加 /resolve/main/{filename}，
-    // 因此本地文件也需存到 {model_id}/resolve/main/ 下
-    const destDir = join(BASE, `webllm/${modelId}/resolve/main`)
-    const files = await listHfFiles(modelId)
-    if (!files.length) {
-      console.log(`  WARN: 未获取到文件列表，跳过 ${modelId}`)
-      continue
-    }
-    console.log(`  ${modelId}: ${files.length} 个文件`)
-    for (const f of files) {
-      const bname = basename(f)
-      const ext = extname(f)
-      if (skipNames.includes(bname) || skipExts.includes(ext)) continue
-      const url = `${MIRROR}/${modelId}/resolve/main/${f}`
-      const dest = join(destDir, f)
-      await downloadFile(url, dest)
-    }
+    // WebLLM 会给 model URL 追加 /resolve/main/{filename}，本地也照这个层级放，
+    // 页面侧才能用 /model/webllm/{owner}/{repo}/resolve/main/... 命中。
+    // 仓库级下载（ModelScope → hf-mirror → huggingface）：只认 hf-mirror 时，
+    // 国内网络下它 308 跳去被墙的 huggingface.co，这批权重就一直下不下来。
+    await downloadHfRepo(modelId, `webllm/${modelId}/resolve/main`)
   }
   // 下载 model_lib (.wasm) — 使用 jsdelivr CDN 镜像 GitHub raw
   console.log('\n  --- WebLLM model libs ---')
