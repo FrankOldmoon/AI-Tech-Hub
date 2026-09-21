@@ -158,6 +158,9 @@ export default defineNuxtConfig({
   },
 
   i18n: {
+    // 进站语言策略见 app/middleware/locale-default.global.ts：
+    // defaultLocale 只是「检测不到时的兜底」，开着 detectBrowserLanguage 时中文浏览器会直接进中文。
+    // 那个中间件把它改成「英文优先 + 记住手动切换」，所以这里的检测配置要留着（cookie 读写归它管）。
     defaultLocale: 'en',
     strategy: 'no_prefix',
     locales: [
