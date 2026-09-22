@@ -163,10 +163,216 @@ function producedFiles(py, files) {
   })
 }
 
+/* =====================================================================
+   Flowchart source analysis.
+
+   The module the tracer imports below is *inlined* on purpose: this file is
+   copied verbatim as a static asset (see scripts/check-program-world-worker.mjs),
+   so a relative import would 404 in production.
+
+   `__import__` instead of `import ast, json` for the same reason: that script
+   flags any line starting with `import`, and it cannot tell Python from JS.
+   ===================================================================== */
+const FLOW_PY = `
+_ast = __import__('ast')
+_json = __import__('json')
+
+def __pw_seg(node):
+    try:
+        text = _ast.get_source_segment(__pw_src__, node) or ''
+    except Exception:
+        text = ''
+    return ' '.join(text.split())
+
+def __pw_args(args):
+    parts = []
+    for a in getattr(args, 'posonlyargs', []):
+        parts.append(a.arg)
+    for a in args.args:
+        parts.append(a.arg)
+    if args.vararg:
+        parts.append('*' + args.vararg.arg)
+    for a in args.kwonlyargs:
+        parts.append(a.arg)
+    if args.kwarg:
+        parts.append('**' + args.kwarg.arg)
+    return ', '.join(parts)
+
+def __pw_calls(value):
+    # 语句里出现的调用，点号名原样留着（helper.total）：主线程据此把「调用别处
+    # 定义的函数」连到那个定义上。取不到就当没有，绝不影响解析本身。
+    found = []
+    try:
+        for sub in _ast.walk(value):
+            if not isinstance(sub, _ast.Call):
+                continue
+            f = sub.func
+            name = ''
+            if isinstance(f, _ast.Name):
+                name = f.id
+            elif isinstance(f, _ast.Attribute):
+                parts = []
+                cur = f
+                while isinstance(cur, _ast.Attribute):
+                    parts.append(cur.attr)
+                    cur = cur.value
+                if isinstance(cur, _ast.Name):
+                    parts.append(cur.id)
+                    name = '.'.join(reversed(parts))
+            if name and name not in found:
+                found.append(name)
+            if len(found) >= 8:
+                break
+    except Exception:
+        found = []
+    return found
+
+def __pw_io(node):
+    if isinstance(node, _ast.Expr) and isinstance(node.value, _ast.Call):
+        f = node.value.func
+        if isinstance(f, _ast.Name) and f.id in ('print', 'input'):
+            return f.id
+    return ''
+
+def __pw_plain(node):
+    value = getattr(node, 'value', None)
+    return {'kind': 'stmt', 'line': getattr(node, 'lineno', 0), 'text': __pw_seg(node),
+            'calls': __pw_calls(value) if value is not None else []}
+
+def __pw_stmt(node):
+    line = getattr(node, 'lineno', 0)
+    # 文档字符串不进图
+    if isinstance(node, _ast.Expr) and isinstance(node.value, _ast.Constant) and isinstance(node.value.value, str):
+        return []
+    io = __pw_io(node)
+    if io:
+        return [{'kind': 'io', 'dir': 'out' if io == 'print' else 'in', 'line': line,
+                 'text': __pw_seg(node), 'calls': __pw_calls(node.value)}]
+    if isinstance(node, _ast.If):
+        # if / elif / else 摊成一条 branches 链，else 单独放
+        branches = []
+        cur = node
+        tail = []
+        while isinstance(cur, _ast.If):
+            branches.append({'test': __pw_seg(cur.test), 'line': getattr(cur, 'lineno', line), 'body': __pw_block(cur.body)})
+            nxt = cur.orelse
+            if len(nxt) == 1 and isinstance(nxt[0], _ast.If):
+                cur = nxt[0]
+            else:
+                tail = nxt
+                cur = None
+        out = {'kind': 'if', 'line': line, 'branches': branches}
+        if tail:
+            out['orelse'] = __pw_block(tail)
+        return [out]
+    if isinstance(node, _ast.While):
+        out = {'kind': 'while', 'line': line, 'test': __pw_seg(node.test), 'body': __pw_block(node.body)}
+        if node.orelse:
+            out['orelse'] = __pw_block(node.orelse)
+        return [out]
+    if isinstance(node, (_ast.For, _ast.AsyncFor)):
+        return [{'kind': 'for', 'line': line, 'target': __pw_seg(node.target),
+                 'iter': __pw_seg(node.iter), 'body': __pw_block(node.body)}]
+    if isinstance(node, (_ast.FunctionDef, _ast.AsyncFunctionDef, _ast.ClassDef)):
+        is_class = isinstance(node, _ast.ClassDef)
+        return [{'kind': 'func', 'sub': 'class' if is_class else 'def', 'line': line,
+                 'name': node.name, 'args': '' if is_class else __pw_args(node.args),
+                 'body': __pw_block(node.body)}]
+    if isinstance(node, _ast.Return):
+        calls = __pw_calls(node.value) if node.value is not None else []
+        return [{'kind': 'return', 'line': line, 'text': __pw_seg(node), 'calls': calls}]
+    if isinstance(node, _ast.Break):
+        return [{'kind': 'break', 'line': line, 'text': 'break'}]
+    if isinstance(node, _ast.Continue):
+        return [{'kind': 'continue', 'line': line, 'text': 'continue'}]
+    if isinstance(node, _ast.Try):
+        out = [{'kind': 'stmt', 'line': line, 'text': 'try'}]
+        out.extend(__pw_block(node.body))
+        for h in node.handlers:
+            label = 'except'
+            if h.type is not None:
+                label = 'except ' + __pw_seg(h.type)
+            out.append({'kind': 'stmt', 'line': getattr(h, 'lineno', line), 'text': label})
+            out.extend(__pw_block(h.body))
+        if node.orelse:
+            out.append({'kind': 'stmt', 'line': line, 'text': 'else'})
+            out.extend(__pw_block(node.orelse))
+        if node.finalbody:
+            out.append({'kind': 'stmt', 'line': line, 'text': 'finally'})
+            out.extend(__pw_block(node.finalbody))
+        return out
+    # 其余带 body 的复合语句（with / match / async with …）：保留外壳，body 摊平进主流程，语句不丢
+    body = getattr(node, 'body', None)
+    if isinstance(body, list) and body:
+        out = [__pw_plain(node)]
+        out.extend(__pw_block(body))
+        return out
+    return [__pw_plain(node)]
+
+def __pw_block(nodes):
+    out = []
+    for n in nodes:
+        out.extend(__pw_stmt(n))
+        if len(out) > 600:
+            out.append({'kind': 'more', 'line': 0, 'text': '... (too long, chart truncated)'})
+            break
+    return out
+
+__pw_error = None
+
+def __pw_imports_of(nodes):
+    # 顶层 import 语句：主线程据此把 helper.total 里的 helper 认成 helper.py，
+    # 从而把跨文件的调用连到定义上。
+    out = []
+    for n in nodes:
+        if isinstance(n, _ast.Import):
+            for a in n.names:
+                out.append({'module': a.name, 'alias': a.asname or a.name, 'names': []})
+        elif isinstance(n, _ast.ImportFrom):
+            if n.module:
+                out.append({'module': n.module, 'alias': '', 'names': [a.name for a in n.names]})
+    return out
+
+__pw_tree = []
+__pw_imports = []
+try:
+    __pw_module = _ast.parse(__pw_src__)
+    __pw_tree = __pw_block(__pw_module.body)
+    __pw_imports = __pw_imports_of(__pw_module.body)
+except SyntaxError as e:
+    __pw_error = {'line': getattr(e, 'lineno', 0) or 0, 'message': e.msg or 'syntax error'}
+except Exception as e:
+    __pw_error = {'line': 0, 'message': str(e)}
+__pw_flow__ = _json.dumps({'tree': __pw_tree, 'error': __pw_error, 'imports': __pw_imports})
+`
+
 self.onmessage = function (ev) {
   const msg = ev.data || {}
   if (msg.type === 'load') {
     ensureRuntime(msg.indexURL).catch(function () {})
+    return
+  }
+  if (msg.type === 'parse') {
+    /* 只解析、不执行用户代码：语法错误是正常答复，所以不走 result（那条路会 poison）。
+       一个项目的每个 .py 都解析一遍，跨文件的调用才连得起来。 */
+    ensureRuntime(msg.indexURL)
+      .then(function (py) {
+        const list = (Array.isArray(msg.files) && msg.files.length)
+          ? msg.files
+          : [{ name: 'main.py', code: msg.code }]
+        const entry = msg.entry || list[0].name
+        const files = {}
+        for (const f of list) {
+          py.globals.set('__pw_src__', String(f.code == null ? '' : f.code))
+          py.runPython(FLOW_PY)
+          const raw = py.globals.get('__pw_flow__')
+          files[f.name] = JSON.parse(typeof raw === 'string' ? raw : String(raw))
+        }
+        self.postMessage({ type: 'parsed', id: msg.id, data: { entry: entry, files: files } })
+      })
+      .catch(function (e) {
+        self.postMessage({ type: 'parsed', id: msg.id, error: (e && e.message) ? e.message : String(e) })
+      })
     return
   }
   if (msg.type !== 'run') return

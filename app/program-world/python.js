@@ -33,6 +33,11 @@ let ready = null
 let seq = 0
 let pending = null
 
+/* Flowchart parsing rides on its own slot: it must not fight the single trace
+   slot above (a parse can be requested while a run is still settling), and a
+   syntax error there is an answer, not a failure. */
+let parsePending = null
+
 /* the timer is re-armed between phases, so a slow download never eats the
    trace budget and a runaway trace never waits for a download timeout */
 let rearm = () => {}
@@ -69,6 +74,10 @@ function settle(kind, payload) {
    of letting the next call sit until the watchdog fires. */
 function poison() {
   ready = null
+  if (parsePending) {
+    parsePending.reject(new Error('python runtime restarted'))
+    parsePending = null
+  }
   if (worker) { worker.terminate(); worker = null }
 }
 
@@ -99,6 +108,16 @@ function onMessage(ev) {
     if (streamHandler) {
       try { streamHandler(msg.text) } catch { /* the run still counts */ }
     }
+    return
+  }
+  if (msg.type === 'parsed') {
+    /* 源码结构（流程图用）。语法错误在这里是正常结果，所以只 reject 这一次请求，
+       绝不 poison —— 否则用户写错一个标点就会把整个运行时拆掉。 */
+    const p = parsePending
+    if (!p || p.id !== msg.id) return
+    parsePending = null
+    if (msg.error) p.reject(new Error(msg.error))
+    else p.resolve(msg.data)
     return
   }
   if (msg.type !== 'result') return
@@ -154,7 +173,32 @@ export function releasePython() {
   const p = pending
   pending = null
   if (p) { clearTimeout(p.timer); p.reject(new Error('released')) }
+  const q = parsePending
+  parsePending = null
+  if (q) q.reject(new Error('released'))
   if (worker) { worker.terminate(); worker = null }
+}
+
+/* Structured view of a whole project (`{ entry, files: { name: {tree, error, imports} } }`)
+   for the flowchart.  Parsing is milliseconds and never executes the program, so it needs
+   neither the trace watchdog nor the packages wait — only the interpreter being up.
+
+   Every `.py` in the project is parsed, not just the entry: that is what lets the chart
+   follow a call into the module that defines it. */
+export function parseProject(files, entry) {
+  const list = (files || []).map(f => ({ name: f.name, code: String(f.code == null ? '' : f.code) }))
+  return loadPython().then(() => new Promise((resolve, reject) => {
+    const id = ++seq
+    parsePending = { id: id, resolve: resolve, reject: reject }
+    worker.postMessage({ type: 'parse', id: id, files: list, entry: entry || (list[0] && list[0].name) || 'main.py' })
+  }))
+}
+
+/* One buffer, for callers that only have one.  Resolves to that file's
+   `{ tree, error, imports }`. */
+export function parseCode(code) {
+  return parseProject([{ name: 'main.py', code: code }], 'main.py')
+    .then(project => (project.files || {})['main.py'] || { tree: [], error: null, imports: [] })
 }
 
 /* Runs the tracer over `src` in the worker.  Rejects with `timeout:<seconds>`

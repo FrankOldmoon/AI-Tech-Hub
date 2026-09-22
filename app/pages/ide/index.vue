@@ -4,6 +4,7 @@ import '~/program-world/css/layout.css'
 import '~/program-world/css/execution.css'
 import '~/program-world/css/stage.css'
 import '~/program-world/css/combat.css'
+import '~/program-world/css/flowchart.css'
 
 definePageMeta({ layout: 'bare', fullscreen: true })
 
@@ -120,6 +121,7 @@ onBeforeUnmount(() => {
           <div id="panelTabs" class="panel-tabs">
             <button id="tabWorld" class="ptab on" aria-selected="true">Program World</button>
             <button id="tabExec" class="ptab" aria-selected="false">Execution <span id="drawerMeta" class="dmeta">step 0 / 0</span></button>
+            <button id="tabFlow" class="ptab" aria-selected="false" title="Control flow of the entry file, built by Run">Flowchart</button>
           </div>
 
           <div id="panelWorld" class="panel-view">
@@ -185,6 +187,9 @@ onBeforeUnmount(() => {
             </div>
             <div id="stale" class="stale">Code changed since the last run &mdash; press <b>Run</b> to re-trace.</div>
           </div>
+
+          <!-- 流程图面板：工具栏、图例、SVG 与提示都由 flowchart.js 生成 -->
+          <div id="panelFlow" class="panel-view panel-flow" hidden />
         </section>
       </main>
     </div>
