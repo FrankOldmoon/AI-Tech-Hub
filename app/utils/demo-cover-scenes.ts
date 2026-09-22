@@ -1272,6 +1272,47 @@ export function scenePipeline(): CoverShape[] {
   ]
 }
 
+/** 特征提取入门：原图 → 3×3 卷积核 → 特征图（高亮若干响应强的小格） */
+export function sceneFeatureExtraction(): CoverShape[] {
+  return [
+    ...imageFrame(56, 92, 76, 64, 0.55),
+    ...arrow(96, 92, 118, 92, 0.75, 2.6, 7),
+    ...gridLines(150, 68, 46, 46, 3, 3, 0.5),
+    gridCell(150, 68, 46, 46, 3, 3, 1, 1, 0.72),
+    ...arrow(202, 92, 224, 92, 0.75, 2.6, 7),
+    ...gridLines(260, 68, 54, 46, 4, 4, 0.32),
+    gridCell(260, 68, 54, 46, 4, 4, 1, 1, 0.6),
+    gridCell(260, 68, 54, 46, 4, 4, 2, 2, 0.78),
+    gridCell(260, 68, 54, 46, 4, 4, 0, 3, 0.45)
+  ]
+}
+
+/** 边缘检测入门：原图 → 只留轮廓 → 轮廓叠回原图 */
+export function sceneEdgeDetection(): CoverShape[] {
+  return [
+    ...imageFrame(58, 92, 78, 66, 0.5),
+    ...arrow(102, 92, 124, 92, 0.75, 2.6, 7),
+    ...imageFrame(178, 92, 78, 66, 0.28),
+    strokePoly([[152, 80], [170, 96], [154, 110], [188, 106]], 0.85, 2.4),
+    strokePoly(ellipsePoints(190, 94, 22, 17, 20), 0.6, 2.2, { close: true }),
+    ...arrow(222, 92, 244, 92, 0.75, 2.6, 7),
+    ...imageFrame(288, 92, 60, 56, 0.85),
+    strokePoly([[266, 82], [282, 96], [268, 108], [300, 104]], 0.7, 2.2)
+  ]
+}
+
+/** 图像分类入门：图像 → 每个类别的得分条（Top-K）→ 结果标签 */
+export function sceneClassification(rand: () => number): CoverShape[] {
+  return [
+    ...imageFrame(56, 92, 76, 64, 0.7),
+    ...arrow(98, 92, 120, 92, 0.75, 2.6, 7),
+    ...labelBox(178, 92, 84, 94, 0.32),
+    ...probBars(178, 92, 62, 4, rand),
+    ...arrow(232, 92, 254, 92, 0.75, 2.6, 7),
+    ...labelBox(288, 92, 56, 30, 0.9)
+  ]
+}
+
 // ==================== 机器人 ====================
 
 /** 机械臂仿真器：二连杆 + 底座 */
@@ -1416,6 +1457,9 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'vision/ocr': sceneOcr,
   'vision/recorder': sceneRecorder,
   'vision/pipeline': scenePipeline,
+  'vision/feature-extraction': sceneFeatureExtraction,
+  'vision/edge-detection': sceneEdgeDetection,
+  'vision/image-classification': sceneClassification,
   'vision/image-convert': sceneImageConvert,
   'vision/video-convert': sceneVideoConvert,
   'vision/image-compress': sceneImageCompress,

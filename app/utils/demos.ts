@@ -1332,6 +1332,18 @@ export const demos: Demo[] = [
     tags: ['Lesson', 'Edge Detection', 'Sobel', 'Gradient']
   },
   {
+    slug: 'image-classification',
+    group: 'lesson',
+    category: 'vision',
+    title: { zh: '图像分类入门（教学）', en: 'Image Classification Basics (Lesson)' },
+    description: { zh: '五步看懂 AI 怎么给图片分类：输入图像 → 特征提取（灰度 + 轮廓）→ 学习与模式（同类例子平均成「原型」）→ 分类（透明迷你模型 + 真实模型并排）→ 输出（置信度与「前二名差距」）。可直接用 dog / cat 等示例图或上传照片，真实模型给出 Top-5。', en: 'A five-step walkthrough of how AI classifies an image: input → feature extraction (grayscale + outline) → learn patterns (same-class examples averaged into a “prototype”) → classify (a transparent mini model next to a real model) → output (confidence and the top-two margin). Use the built-in dog / cat samples or upload a photo; the real model returns Top-5.' },
+    howItWorks: { zh: '教学页，两条线并排。真实线：用通用图片输入组件选 dog / cat / 任意照片，第 2 步显示灰度与轮廓，第 4、5 步直接跑 MediaPipe EfficientNet-Lite0 给出 Top-5 与置信度。迷你线：用四类形状做一个小模型，把「学习」摊开 —— 同类几个带变化的例子对齐归一化后平均成「原型」（可拖「每类例子数」看原型由糊变清，并看「例子越多越准」的学习曲线），再用余弦相似度 + softmax 打分，温度滑杆控制果断程度。两条线刻意对照：小模型让你看懂打分逻辑，真实模型让你看到它能用。计算全部在浏览器本地完成，不上传图片。', en: 'A lesson page with two parallel tracks. Real track: use the shared image-input component to pick dog / cat / any photo; step 2 shows grayscale and outlines; steps 4–5 run MediaPipe EfficientNet-Lite0 for Top-5 and confidence. Mini track: a small four-shape model that opens up “learning” — a few varied examples per class are aligned, normalised and averaged into a “prototype” (drag “examples per class” to watch it sharpen, and read the learning curve “more examples → better”), then scored with cosine similarity + softmax, with a temperature slider for decisiveness. The two tracks contrast deliberately: the mini model makes the scoring logic visible, the real model shows it put to work. All computation is in-browser; no image is uploaded.' },
+    icon: 'i-lucide-tags',
+    status: 'ready',
+    classroomSafe: true,
+    tags: ['Lesson', 'Image Classification', 'Cosine', 'Softmax', 'EfficientNet-Lite0']
+  },
+  {
     slug: 'recorder',
     group: 'media',
     category: 'vision',
