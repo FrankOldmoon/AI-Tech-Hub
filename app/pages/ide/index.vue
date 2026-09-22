@@ -5,6 +5,7 @@ import '~/program-world/css/execution.css'
 import '~/program-world/css/stage.css'
 import '~/program-world/css/combat.css'
 import '~/program-world/css/flowchart.css'
+import '~/program-world/css/tour.css'
 
 definePageMeta({ layout: 'bare', fullscreen: true })
 

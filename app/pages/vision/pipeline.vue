@@ -197,51 +197,14 @@ onMounted(() => {
 <template>
   <MediaDemoShell :demo="demo">
     <div class="space-y-6">
-      <!-- 输入：通用图片输入组件（拖拽 / 示例 / 摄像头） -->
-      <UCard>
-        <template #header>
-          <div class="flex flex-wrap items-center gap-2 text-sm font-medium text-highlighted">
-            <UIcon
-              name="i-lucide-image-up"
-              class="size-4 text-primary"
-            />
-            <span>{{ pick({ zh: '选择一张图片', en: 'Choose an image' }) }}</span>
-            <UBadge
-              v-if="sourceLabel"
-              color="neutral"
-              variant="subtle"
-              size="xs"
-            >
-              {{ sourceLabel }}
-            </UBadge>
-            <UBadge
-              v-if="source"
-              color="neutral"
-              variant="subtle"
-              size="xs"
-            >
-              {{ source.width }} × {{ source.height }}
-            </UBadge>
-          </div>
-        </template>
-
-        <UAlert
-          v-if="errorMsg"
-          color="error"
-          variant="subtle"
-          icon="i-lucide-triangle-alert"
-          :title="errorMsg"
-          class="mb-3"
-        />
-
-        <MediaInput
-          accept="image/*"
-          camera
-          :samples="samples"
-          @select="onFile"
-          @sample="onSample"
-        />
-      </UCard>
+      <!-- 出错提示放页面级：任何一步失败都要看得见，不能跟着某一步藏起来 -->
+      <UAlert
+        v-if="errorMsg"
+        color="error"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        :title="errorMsg"
+      />
 
       <!-- 六步：左侧步骤工具栏，点一步看一步（不再一屏到底往下滚） -->
       <ToolSidebar
@@ -266,6 +229,23 @@ onMounted(() => {
               >
                 {{ activeRow.kind }}
               </UBadge>
+              <!-- 文件名 / 尺寸原本挂在页首那张输入卡上，选图控件挪进第 1 步后跟着挪过来 -->
+              <UBadge
+                v-if="activeRow.isInput && sourceLabel"
+                color="neutral"
+                variant="subtle"
+                size="xs"
+              >
+                {{ sourceLabel }}
+              </UBadge>
+              <UBadge
+                v-if="activeRow.isInput && source"
+                color="neutral"
+                variant="subtle"
+                size="xs"
+              >
+                {{ source.width }} × {{ source.height }}
+              </UBadge>
               <UBadge
                 v-if="running && !activeRow.output"
                 color="info"
@@ -277,7 +257,7 @@ onMounted(() => {
             </div>
           </template>
 
-          <!-- 第 1 步：输入图本身 -->
+          <!-- 第 1 步：输入图本身 + 选图控件（选图属于这一步，不再浮在页面最上方） -->
           <template v-if="activeRow.isInput">
             <canvas
               v-if="activeRow.output"
@@ -288,8 +268,17 @@ onMounted(() => {
               v-else
               class="rounded border border-dashed border-default p-8 text-center text-sm text-muted"
             >
-              {{ pick({ zh: '先在上面选一张图。', en: 'Pick an image above first.' }) }}
+              {{ pick({ zh: '还没有选图。', en: 'No image selected yet.' }) }}
             </p>
+
+            <MediaInput
+              class="mt-4"
+              accept="image/*"
+              camera
+              :samples="samples"
+              @select="onFile"
+              @sample="onSample"
+            />
           </template>
 
           <!-- 第 2~6 步：左原图 / 右本步效果 -->

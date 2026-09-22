@@ -1307,6 +1307,31 @@ export const demos: Demo[] = [
     tags: ['Lesson', 'Canvas', 'OpenCV', 'Image Processing']
   },
   {
+    slug: 'feature-extraction',
+    group: 'lesson',
+    category: 'vision',
+    title: { zh: '特征提取入门（教学）', en: 'Feature Extraction Basics (Lesson)' },
+    description: { zh: '四步看懂「AI 看见世界的第一步」：输入图像 → 特征提取（卷积核）→ 特征图（热力图）→ 理解（分类）。同一张图，每一步都能亲手改。', en: 'A four-step walkthrough of how AI first “sees”: input image → feature extraction (kernels) → feature map (heat map) → understanding (classification). One image, every step hands-on.' },
+    howItWorks: { zh: '教学页：第 2 步摆出 6 个卷积核（竖直/水平/对角边缘、斑点角点、锐化、平滑反例）各自滑一遍整张图，换核即换「看什么」，还能自己填 3×3 权重；第 3 步把响应值做激活（ReLU / 取模）、池化并映射成伪彩热力图，再叠成一摞通道；第 4 步真的跑一个小分类模型（MediaPipe EfficientNet-Lite0，首次约 18MB）给出 Top-5 置信度。全部在浏览器本地完成，不上传图片。', en: 'A lesson page: step 2 slides six kernels (vertical / horizontal / diagonal edges, blob-corner, sharpen, plus a smoothing counter-example) over the whole image — swapping the kernel changes what the AI looks at — and lets you type your own 3×3 weights. Step 3 activates (ReLU / absolute), pools and colour-maps the responses into a heat map, then stacks them into channels. Step 4 actually runs a small classifier (MediaPipe EfficientNet-Lite0, ~18MB first load) for top-5 confidences. Everything runs locally in the browser; no image is uploaded.' },
+    icon: 'i-lucide-layers',
+    status: 'ready',
+    classroomSafe: true,
+    requirements: { modelSizeMB: 18 },
+    tags: ['Lesson', 'Convolution', 'Feature Map', 'MediaPipe']
+  },
+  {
+    slug: 'edge-detection',
+    group: 'lesson',
+    category: 'vision',
+    title: { zh: '边缘检测入门（教学）', en: 'Edge Detection Basics (Lesson)' },
+    description: { zh: '四步看懂 AI 怎么找到物体的轮廓：输入图像 → 检测变化（在图上点一个像素，看它和邻居差多少）→ 边缘图（拖阈值看白线变少）→ 看得更清楚（轮廓叠回原图）。', en: 'A four-step walkthrough of how AI finds an object’s outline: input image → detect changes (click any pixel to see how much it differs from its neighbours) → edge image (drag the threshold and watch the lines thin out) → seeing better (edges laid back over the photo).' },
+    howItWorks: { zh: '教学页：第 2 步把彩图转灰度后算出横向变化 Gx 与纵向变化 Gy，再合成强度 |∇| = √(Gx²+Gy²)；可在图上任点一个像素，直接看到它 5×5 邻居的亮度数字表与手算差值。算子可切 Sobel / Prewitt / Scharr，并能打开「先降噪」看噪点如何制造假边缘。第 3 步用阈值把强度二值化成边缘图，第 4 步把边缘叠回原图（高亮轮廓 / 只看形状两种模式）。全部是纯浏览器端算法，不上传图片。', en: 'A lesson page: step 2 converts to grayscale, computes the horizontal Gx and vertical Gy changes and combines them into |∇| = √(Gx²+Gy²); click any pixel to see a 5×5 table of its neighbours’ brightness plus the hand-worked difference. Swap between Sobel / Prewitt / Scharr and toggle a denoise pass to watch noise manufacture fake edges. Step 3 binarises the magnitude with a threshold and step 4 overlays the edges on the photo (highlight or shape-only). All pure in-browser algorithms; no image is uploaded.' },
+    icon: 'i-lucide-scan-line',
+    status: 'ready',
+    classroomSafe: true,
+    tags: ['Lesson', 'Edge Detection', 'Sobel', 'Gradient']
+  },
+  {
     slug: 'recorder',
     group: 'media',
     category: 'vision',
