@@ -14,6 +14,7 @@
    口型脚本与模型在 /model/vendor/headaudio（全部同源）。 */
 import type { ParamOption } from '~/utils/params'
 import { humanError } from '~/utils/errors'
+import { blobModuleUrl } from '~/utils/vendored-module'
 import { kokoroSynthesize, kokoroVoiceGroups, kokoroVoices, voiceOptionLabel } from '~/utils/kokoro'
 
 const { t, locale } = useI18n()
@@ -312,9 +313,20 @@ async function init() {
     await loadAvatar()
 
     progressText.value = t('digitalHuman.loadingLipSync')
-    const audioMod = await import(/* @vite-ignore */ HEADAUDIO_MODULE) as { HeadAudio: any }
-    await head.audioCtx.audioWorklet.addModule(HEADTTS_WORKLET)
-    headaudio = new audioMod.HeadAudio(head.audioCtx, { parameterData: { vadMode: 0 } })
+    /* 这两份产物是运行时按 URL 取的，不能直接 import / addModule 裸路径：反向代理常把
+       .mjs 发成 octet-stream，模块会被浏览器拒绝执行，而报错还会被显示成「网络请求失败」
+       （根因与修法见 utils/vendored-module.ts）。Blob URL 的生命周期与「用」的时机对齐：
+       模块与 worklet 都加载完、节点建好之后再 revoke。 */
+    const headAudioUrl = await blobModuleUrl(HEADAUDIO_MODULE)
+    const workletUrl = await blobModuleUrl(HEADTTS_WORKLET)
+    try {
+      const audioMod = await import(/* @vite-ignore */ headAudioUrl) as { HeadAudio: any }
+      await head.audioCtx.audioWorklet.addModule(workletUrl)
+      headaudio = new audioMod.HeadAudio(head.audioCtx, { parameterData: { vadMode: 0 } })
+    } finally {
+      URL.revokeObjectURL(headAudioUrl)
+      URL.revokeObjectURL(workletUrl)
+    }
     await headaudio.loadModel(VISEME_MODEL)
     /* 口型值直接写进 TalkingHead 的 morph 通道（newvalue 是它每帧消费的一次性通道） */
     headaudio.onvalue = (key: string, value: number) => {

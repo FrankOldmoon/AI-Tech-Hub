@@ -1,4 +1,4 @@
-/* @deps: analysis.js, clipboard.js, config.js, dom.js, editor.js, files.js, flowchart.js, gamerun.js, io.js, layout.js, panels.js, prompt.js, project.js, python.js, render.js, sound.js, state.js, url-code.js, views.js */
+/* @deps: analysis.js, clipboard.js, config.js, dom.js, editor.js, files.js, flowchart.js, gamerun.js, io.js, layout.js, panels.js, prompt.js, project.js, python.js, render.js, sound.js, state.js, tour.js, url-code.js, views.js */
 import { buildTimeline } from './analysis.js'
 import { copyToClipboard } from './clipboard.js'
 import { EXAMPLES, PY_TRACE, exampleById } from './config.js'
@@ -16,6 +16,7 @@ import { loadPython, parseProject, releasePython, runTrace, setOutputHandler, se
 import { cancelCombat, renderDetails, renderStage, renderTimeline, showHoverLine } from './render.js'
 import { beep, toggleSound } from './sound.js'
 import { cur, deco, error, limit, resetTrace, running, setCur, setRunning, setStale, stale, steps } from './state.js'
+import { initTour, maybeShowTour } from './tour.js'
 import { flagFromSearch, projectFromSearch, shareUrlForProject } from './url-code.js'
 import { ENTRY, activeFile as projActive, fileByName, isBinaryName, isImageName, isPristine, makeBinFile, makeFile, mimeOf, project, projectFromExample, readProject, setActiveFile, setProject, writeProject } from './project.js'
 
@@ -188,6 +189,8 @@ export async function runCode(opts) {
         + '</div><pre>' + esc(error.tb) + '</pre></div>'
     } else {
       goto(0, -1)
+      /* the first Run that drew something gets the one-time tour */
+      maybeShowTour()
     }
     /* pygame cannot come up in a worker (SDL wants a real canvas) and the
        error it leaves behind says nothing about that.  Say it here, and point
@@ -482,7 +485,8 @@ export function teardown() {
 /* Everything the app wires up at start-up lives here.  Importing this module
    only defines things; nothing runs until boot(el) is called by the page. */
 export function boot(el) {
-  bindDom(el || document.querySelector('.program-world'))
+  const appRoot = el || document.querySelector('.program-world')
+  bindDom(appRoot)
   nowFileEl = $('nowFile')
   editorBodyEl = $('editorBody')
   gameViewEl = $('gameView')
@@ -493,6 +497,7 @@ export function boot(el) {
   viewerMeta = $('viewerMeta')
   initLayout()
   initPanels()
+  initTour(appRoot)
   /* clicking a node in the flowchart opens its file and points the editor at
      that line; the ↳ badge on a cross-file call does the same for the definition */
   setFlowPickHandler(function (target) {

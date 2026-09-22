@@ -17,6 +17,17 @@
  */
 import { expect, test } from '@playwright/test'
 
+/* 导览只在「第一次 Run」之后出现，而且出现时会挡住页面上的点击。这个文件不测导览，
+   所以每个用例开跑前先把它标记成已看过（用例之间是全新的浏览器上下文）。
+   导览本身在 tests/e2e/ide-tour.spec.ts 里验。 */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('pw.tour.v1', 'seen')
+    } catch { /* 没有存储就用不了，导览会冒出来 */ }
+  })
+})
+
 function codeUrl(source: string): string {
   const b64 = Buffer.from(source, 'utf8')
     .toString('base64')

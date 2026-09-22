@@ -76,6 +76,17 @@ systemctl restart aihub
 6. **服务器是 VM**（4vCPU/8G），非采购单 2288HV6 实体配置，需与 IT 确认
 7. **云端 LLM 对话**：`.env` 未配 MOONSHOT/DEEPSEEK key
 8. 任务队列在内存，重启即丢
+9. **`/model/` 下的 `.mjs` 被 nginx 发成 octet-stream**（2026-09-22 数字人点初始化报「网络请求失败」的真因，排查被这条文案带偏过一轮）：
+   `/model/` 是 nginx `alias` 直出、不走 Nitro，而 `server/routes/model/[...].ts` 里那张 MIME 表（含 `mjs: text/javascript`）只有走 Nitro 才生效；nginx 自带的 `mime.types` 没有 `mjs` → 按 `default_type` 发成 `application/octet-stream`。浏览器对 ES module / AudioWorklet 强制校验 MIME，于是模块被直接拒绝（控制台：`Failed to load module script: Expected a JavaScript-or-Wasm module script…`）。
+   在 `/model/` 的 location 里补上类型即可（`.models` 与 `public/generated` 两处同理）：
+   ```nginx
+   location /model/ {
+       alias /www/wwwroot/aihub/.models/;
+       types { text/javascript mjs; }
+       # …长缓存 + Range 照旧
+   }
+   ```
+   前端已同时加固（`app/utils/vendored-module.ts`：取回源码 → `text/javascript` 的 Blob URL，MIME 由前端自己给），所以不改 nginx 也能用；但 `.models/vendor/` 下其它将来要按 module/Worklet 加载的文件会踩同一个坑，建议照上面补。自查一行：`curl -I https://10.28.1.152/model/vendor/headaudio/headaudio.min.mjs | grep -i content-type`（应为 `text/javascript`）
 
 ## 六、独立应用集成（机械人分类示例）
 
