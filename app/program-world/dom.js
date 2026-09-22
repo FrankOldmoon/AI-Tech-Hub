@@ -39,6 +39,7 @@ export let timelineEl = null
    io.js drives the two text boxes and the terminal window, panels.js the tabs. */
 export let ioIn = null, ioOut = null
 export let tabWorld = null, tabExec = null, panelWorld = null, panelExec = null
+export let tabFlow = null, panelFlow = null
 export let termModal = null, termFile = null, termOut = null
 export let termPrompt = null, termIn = null, termSend = null, termClose = null, termClear = null
 
@@ -68,6 +69,8 @@ export function bindDom(el) {
   timelineEl = $('timeline')
   ioIn = $('ioIn'); ioOut = $('ioOut')
   tabWorld = $('tabWorld'); tabExec = $('tabExec'); panelWorld = $('panelWorld'); panelExec = $('panelExec')
+  tabFlow = $('tabFlow')
+  panelFlow = $('panelFlow')
   termModal = $('termModal'); termFile = $('termFile'); termOut = $('termOut')
   termPrompt = $('termPrompt'); termIn = $('termIn'); termSend = $('termSend')
   termClose = $('termClose'); termClear = $('termClear')

@@ -1,0 +1,182 @@
+/* Flowchart view (see flowchart.js).
+
+   Colours come from the palette declared in base.css, so the chart reads as
+   part of the app.  Two animations matter:
+   - `fc-flow` slides `stroke-dashoffset` by exactly one dash period (7 + 6),
+     which is what makes the loop back edge look like it is flowing.  Matching
+     the period to the dasharray is what keeps the loop seamless.
+   - `fc-pulse` marks the node the tracer is currently on. */
+
+.fc-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--dim);
+}
+.fc-count { font-variant-numeric: tabular-nums; color: var(--dim-2); }
+.fc-legend { display: flex; gap: 10px; flex-wrap: wrap; }
+.fc-chip { display: inline-flex; align-items: center; gap: 5px; }
+.fc-dot { width: 9px; height: 9px; border-radius: 3px; border: 1.5px solid currentColor; background: rgba(255, 255, 255, 0.06); }
+.fc-actions { margin-left: auto; display: flex; gap: 6px; }
+/* The holder is the only scrolling part: the toolbar, the variable strip and the
+   hint stay put, so a chart taller than the panel cannot push them off screen. */
+.fc-holder { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 10px; }
+.fc-hint {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--dim-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fc-svg { display: block; height: auto; }
+
+/* ------------------------------- nodes ------------------------------- */
+
+.fc-node rect,
+.fc-node polygon {
+  fill: var(--panel-2);
+  stroke: var(--dim-2);
+  stroke-width: 1.5;
+}
+.fc-node text {
+  fill: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.fc-hit rect { fill: transparent; stroke: none; cursor: pointer; }
+.fc-node:hover rect,
+.fc-node:hover polygon { stroke: var(--text); }
+
+.fc-start rect { fill: rgba(75, 214, 160, 0.14); stroke: var(--green); }
+.fc-start text { fill: var(--green); }
+.fc-end rect { fill: rgba(255, 107, 133, 0.14); stroke: var(--red); }
+.fc-end text { fill: var(--red); }
+
+.fc-if polygon,
+.fc-while polygon { fill: rgba(91, 140, 255, 0.14); stroke: var(--blue); }
+.fc-if text,
+.fc-while text { fill: #bcd0ff; }
+.fc-for polygon { fill: rgba(195, 157, 255, 0.14); stroke: var(--purple); }
+.fc-for text { fill: #e2d3ff; }
+
+.fc-io polygon { fill: rgba(255, 209, 102, 0.14); stroke: var(--gold); }
+.fc-io text { fill: #ffe6a8; }
+
+.fc-func rect { fill: rgba(232, 236, 241, 0.06); stroke: var(--dim); }
+.fc-frame rect { fill: none; stroke: var(--line); stroke-dasharray: 5 4; }
+.fc-frame text { fill: var(--dim-2); font-size: 11px; }
+
+.fc-return rect { fill: rgba(255, 209, 102, 0.10); stroke: var(--gold); }
+.fc-break rect { fill: rgba(255, 107, 133, 0.12); stroke: var(--red); }
+.fc-break text { fill: var(--red); }
+.fc-continue rect { fill: rgba(255, 209, 102, 0.10); stroke: var(--gold); }
+.fc-continue text { fill: var(--gold); }
+.fc-more rect { fill: none; stroke: var(--dim-2); stroke-dasharray: 4 4; }
+.fc-empty rect { fill: none; stroke: var(--line); stroke-dasharray: 4 4; }
+.fc-empty text { fill: var(--dim-2); }
+
+/* ------------------------------- edges ------------------------------- */
+
+.fc-edge {
+  fill: none;
+  stroke: var(--dim-2);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  marker-end: url(#fc-arrow-seq);
+}
+.fc-e-true { stroke: var(--green); marker-end: url(#fc-arrow-true); }
+.fc-e-false { stroke: var(--dim-2); stroke-dasharray: 4 5; marker-end: url(#fc-arrow-false); }
+.fc-e-merge { stroke: var(--dim-2); marker-end: url(#fc-arrow-merge); }
+/* the back edge of a loop — always flowing, so the loop direction is obvious */
+.fc-e-loop {
+  stroke: var(--purple);
+  stroke-width: 1.8;
+  stroke-dasharray: 7 6;
+  marker-end: url(#fc-arrow-loop);
+  animation: fc-flow 1.1s linear infinite;
+}
+/* edges the tracer has already walked light up and flow too */
+.fc-e-done {
+  stroke: var(--blue) !important;
+  stroke-dasharray: 7 6;
+  animation: fc-flow 1.1s linear infinite;
+}
+@keyframes fc-flow {
+  to { stroke-dashoffset: -13; }
+}
+
+.fc-elabel { font-family: inherit; font-size: 11px; fill: var(--dim); }
+.fc-l-true { fill: var(--green); }
+.fc-l-false { fill: var(--dim-2); }
+.fc-l-loop { fill: var(--purple); }
+
+.fc-arrow { fill: var(--dim-2); }
+.fc-a-true { fill: var(--green); }
+.fc-a-false { fill: var(--dim-2); }
+.fc-a-loop { fill: var(--purple); }
+.fc-a-done { fill: var(--blue); }
+
+/* --------------------------- playback state -------------------------- */
+
+.fc-done rect,
+.fc-done polygon { stroke: var(--blue); stroke-width: 2; }
+.fc-now rect,
+.fc-now polygon { stroke: var(--gold); stroke-width: 2.5; }
+.fc-now { animation: fc-pulse 1.1s ease-in-out infinite; }
+@keyframes fc-pulse {
+  50% { opacity: 0.6; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-e-loop,
+  .fc-e-done,
+  .fc-now { animation: none; }
+}
+
+/* --------------------------- legend colours --------------------------- */
+/* The dots carry the same colour as the thing they name. */
+.fc-dot.fc-l-start { color: var(--green); }
+.fc-dot.fc-l-if { color: var(--blue); }
+.fc-dot.fc-l-loop { color: var(--purple); }
+.fc-dot.fc-l-io { color: var(--gold); }
+.fc-dot.fc-l-stmt { color: var(--dim); }
+.fc-dot.fc-l-func { color: var(--text); }
+.fc-dot.fc-l-link { color: #5ad1e6; }
+
+/* ------------------------- cross-file links --------------------------- */
+/* A call whose definition lives in another file: the node grows a badge row.
+   `↳ helper.py:14` jumps to the definition, the +/− inlines its body. */
+.fc-cross > rect,
+.fc-cross > polygon { stroke-dasharray: 5 3; }
+
+.fc-link rect { fill: rgba(90, 209, 230, 0.14); stroke: #5ad1e6; stroke-width: 1; cursor: pointer; }
+.fc-link:hover rect { fill: rgba(90, 209, 230, 0.28); }
+.fc-jumptext {
+  fill: #9fe4f2;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  pointer-events: none;
+}
+
+.fc-expander rect { fill: rgba(255, 255, 255, 0.06); stroke: #5ad1e6; stroke-width: 1; cursor: pointer; }
+.fc-expander:hover rect { fill: rgba(90, 209, 230, 0.3); }
+.fc-expander text { fill: #9fe4f2; font-size: 11px; pointer-events: none; }
+
+.fc-l-link { fill: #5ad1e6; }
+
+/* --------------------------- playback readout ------------------------- */
+/* The toolbar's file:line readout for the step the tracer is on. */
+.fc-nowline {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  color: var(--blue);
+}
+

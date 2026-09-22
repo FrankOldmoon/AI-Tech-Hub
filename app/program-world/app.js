@@ -1,17 +1,18 @@
-/* @deps: analysis.js, clipboard.js, config.js, dom.js, editor.js, files.js, gamerun.js, io.js, layout.js, panels.js, project.js, prompt.js, python.js, render.js, sound.js, state.js, url-code.js, views.js */
+/* @deps: analysis.js, clipboard.js, config.js, dom.js, editor.js, files.js, flowchart.js, gamerun.js, io.js, layout.js, panels.js, prompt.js, project.js, python.js, render.js, sound.js, state.js, url-code.js, views.js */
 import { buildTimeline } from './analysis.js'
 import { copyToClipboard } from './clipboard.js'
 import { EXAMPLES, PY_TRACE, exampleById } from './config.js'
 import { $, arenaEl, bindDom, btnFirst, btnGame, btnGameExit, btnGameFull, btnGameStop, btnLast, btnNext, btnPlay, btnPrev, btnReset, btnRun, btnShare, btnSound, btnTerm, errBox, esc, examplePick, gameCanvas, gameMsg, gameOut, nowCode, on, scrub, setStatus, speedSel, stageEl, staleEl, timelineEl, draftStateEl, unbindAll } from './dom.js'
 import { destroyEditor, dropModel, fileText, hasModel, highlight, loadMonaco, renameModel, setFileContent, setFiles, showFile } from './editor.js'
 import { initFiles, renderFiles } from './files.js'
+import { clearFlowchart, renderFlowchart, setFlowPickHandler, syncFlowStep } from './flowchart.js'
 import { startGame, stopGame } from './gamerun.js'
 import { initLayout } from './layout.js'
 import { awaitLine, beginAttempt, beginSession, clearIo, closeTerminal, finishSession, initIo, openTerminal, stdinText } from './io.js'
 import { initPanels, showPanel } from './panels.js'
 import { initPrompt } from './prompt.js'
 import { initViews, openViews } from './views.js'
-import { loadPython, releasePython, runTrace, setOutputHandler, setViewHandler } from './python.js'
+import { loadPython, parseProject, releasePython, runTrace, setOutputHandler, setViewHandler } from './python.js'
 import { cancelCombat, renderDetails, renderStage, renderTimeline, showHoverLine } from './render.js'
 import { beep, toggleSound } from './sound.js'
 import { cur, deco, error, limit, resetTrace, running, setCur, setRunning, setStale, stale, steps } from './state.js'
@@ -72,6 +73,7 @@ function goto(i, prevIdx, motion) {
   if (nowFileEl) nowFileEl.textContent = s && s.F ? s.F + ' : ' + s.l : ''
   renderStage(clamped, prev, motion)
   renderDetails(clamped)
+  syncFlowStep(steps, clamped)
   syncButtons()
 }
 
@@ -174,6 +176,10 @@ export async function runCode(opts) {
 
     buildTimeline(data)
     renderTimeline()
+    /* The chart is drawn even when the trace failed: a syntax error is exactly
+       when seeing the shape of the code helps most.  Fire and forget — it must
+       not sit between Run and the first frame. */
+    void refreshFlowchart()
     if (!steps.length) {
       renderStage(-1, -1)
       renderDetails(-1)
@@ -411,6 +417,33 @@ function entryName() {
   return (py[0] || project.files[0] || { name: ENTRY }).name
 }
 
+/* Chart the project's control flow (Flowchart panel).  Parsing never runs the
+   program, so this is safe on broken code — and a syntax error comes back as
+   data, which the panel shows as a hint instead of a stack trace.
+
+   Every `.py` is parsed, not just the entry: that is what lets the chart know
+   that `helper.total(...)` means the `total` defined in helper.py. */
+async function refreshFlowchart() {
+  const name = entryName()
+  if (!fileByName(name)) {
+    clearFlowchart()
+    return
+  }
+  const sources = (project ? project.files : [])
+    .filter(f => f.kind !== 'bin' && /\.pyw?$/i.test(f.name))
+    .map(f => ({ name: f.name, code: hasModel(f.name) ? fileText(f.name) : String(f.content || '') }))
+  if (!sources.length) {
+    clearFlowchart()
+    return
+  }
+  try {
+    renderFlowchart(await parseProject(sources, name))
+  } catch {
+    /* the worker may have been restarted right after a failed run */
+    clearFlowchart('Flowchart needs the Python runtime - press Run again.')
+  }
+}
+
 /* Clear means "forget the last trace": the stage, the decorations, the error
    banner and the transport all go back to their idle state. */
 function clearTrace() {
@@ -425,6 +458,7 @@ function clearTrace() {
   cancelCombat()
   renderStage(-1, -1)
   renderDetails(-1)
+  syncFlowStep([], -1)
   syncButtons()
 }
 
@@ -459,6 +493,17 @@ export function boot(el) {
   viewerMeta = $('viewerMeta')
   initLayout()
   initPanels()
+  /* clicking a node in the flowchart opens its file and points the editor at
+     that line; the ↳ badge on a cross-file call does the same for the definition */
+  setFlowPickHandler(function (target) {
+    const t = target || {}
+    if (t.file) {
+      const open = projActive()
+      if (!open || open.name !== t.file) openFile(t.file)
+    }
+    highlight(t.line || 0)
+  })
+  clearFlowchart()
   initIo()
   initPrompt()
   btnPlay.addEventListener('click', () => { if (playing) stopPlay(); else startPlay() })
