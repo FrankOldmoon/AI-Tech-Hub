@@ -1379,6 +1379,75 @@ export function sceneUaibotKinematics(): CoverShape[] {
   ]
 }
 
+/**
+ * EnvSense 多传感器环境监测：玻璃围栏 + 三根带指示环的传感器立杆 + 日照 + 读数曲线。
+ * 顺时针：右上角的太阳代表光照通道，左下立杆是温湿度/CO₂ 探头，右下折线是采样历史。
+ */
+export function sceneEnvSense(): CoverShape[] {
+  const shapes: CoverShape[] = [
+    rect(26, 44, 268, 104, 0.06, 6),
+    strokePoly([[26, 44], [294, 44], [294, 148], [26, 148]], 0.32, 2.6, { close: true }),
+    line(20, 152, 300, 152, 0.24, 2.6),
+    // 太阳 + 光芒
+    circle(266, 66, 13, 0.9)
+  ]
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    shapes.push(line(
+      266 + Math.cos(a) * 17, 66 + Math.sin(a) * 17,
+      266 + Math.cos(a) * 22, 66 + Math.sin(a) * 22,
+      0.7, 2.2
+    ))
+  }
+  // 三根传感器立杆：杆身 + 指示灯 + 顶部指示环
+  ;[62, 92, 122].forEach((x, i) => {
+    const headY = 92 - i * 4
+    shapes.push(line(x, 140, x, headY + 4, 0.75, 3))
+    shapes.push(circle(x, headY, 5.5, 0.92))
+    shapes.push(strokePoly(ellipsePoints(x, headY, 11, 4, 20), 0.5, 2))
+  })
+  // 读数曲线（采样历史）
+  shapes.push(...polyline(sine(18, 2.2, 0.4), 176, 100, 110, 34, 0.85, 3))
+  return shapes
+}
+
+/**
+ * VacuSim 扫地机器人：俯视户型 + 已清扫格子 + 清扫路径 + 机器人激光扫描扇面。
+ */
+export function sceneVacuSim(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    rect(30, 36, 260, 116, 0.06, 6),
+    strokePoly([[30, 36], [290, 36], [290, 152], [30, 152]], 0.34, 2.6, { close: true }),
+    ...gridLines(38, 44, 244, 100, 8, 4, 0.14)
+  ]
+  // 已清扫的格子（位置由确定性随机源决定，但一定落在网格内）
+  for (let i = 0; i < 7; i++) {
+    const col = Math.floor(rand() * 8)
+    const row = Math.floor(rand() * 4)
+    shapes.push(gridCell(38, 44, 244, 100, 8, 4, col, row, 0.5))
+  }
+  // 家具与充电座
+  shapes.push(rect(48, 52, 30, 14, 0.42, 3))
+  shapes.push(rect(210, 122, 28, 12, 0.36, 3))
+  shapes.push(rect(146, 140, 18, 6, 0.6, 2))
+  // 弓字形清扫路径（虚线）
+  shapes.push(...routePath(
+    [[0.06, 0.2], [0.6, 0.2], [0.6, 0.55], [0.12, 0.55], [0.12, 0.86], [0.72, 0.86]],
+    38, 44, 244, 100, 0.45, '7 6'
+  ))
+  // 机器人本体 + 朝向 + LiDAR 扇面
+  shapes.push(circle(126, 96, 13, 0.95))
+  shapes.push(circle(126, 96, 17, 0.35))
+  shapes.push(strokePoly(arcPoints(126, 96, 26, -0.55, 0.55), 0.75, 2.4))
+  shapes.push(strokePoly(arcPoints(126, 96, 36, -0.45, 0.45), 0.5, 2))
+  shapes.push(line(126, 96, 148, 96, 0.85, 2.6))
+  // 残余灰尘
+  for (let i = 0; i < 6; i++) {
+    shapes.push(circle(r1(48 + rand() * 200), r1(56 + rand() * 80), 2.2, 0.5))
+  }
+  return shapes
+}
+
 // ==================== 兜底 ====================
 
 /**
@@ -1528,5 +1597,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'robot/g1-cartpole': sceneG1Cartpole,
   'robot/g1-motion-tracking': sceneG1Motion,
   'robot/uaibot-kinematics': sceneUaibotKinematics,
-  'robot/embodied': sceneEmbodied
+  'robot/embodied': sceneEmbodied,
+  'robot/envsense': sceneEnvSense,
+  'robot/vacusim': sceneVacuSim
 }
