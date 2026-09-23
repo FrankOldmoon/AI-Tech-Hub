@@ -145,8 +145,8 @@ export const categories: Category[] = [
     slug: 'robot',
     title: { zh: '机械人', en: 'Robotics' },
     description: {
-      zh: '机器人相关 AI 演示（敬请期待）——机械臂控制、视觉导航、语音交互等。',
-      en: 'Robotics AI demos (coming soon) — robot arm control, vision navigation, voice interaction and more.'
+      zh: '机器人相关 AI 演示——机械臂/人形/双足仿真、运动学与具身多机器人实验室，以及多传感器环境监测、扫地机器人覆盖规划这类感知与决策场景。',
+      en: 'Robotics AI demos — arm/humanoid/biped simulation, kinematics and an embodied multi-robot lab, plus perception & decision scenarios such as multi-sensor environment monitoring and vacuum coverage planning.'
     },
     icon: 'i-lucide-bot'
   }
@@ -1546,6 +1546,38 @@ export const demos: Demo[] = [
     icon: 'i-lucide-bot',
     status: 'ready',
     tags: ['Robotics', 'Embodied AI', 'URDF', 'Three.js', 'Kinematics', 'Gait', 'Simulation']
+  },
+  {
+    slug: 'envsense',
+    category: 'robot',
+    title: { zh: 'EnvSense 多传感器环境监测仿真', en: 'EnvSense Multi-Sensor Environment Simulation' },
+    description: {
+      zh: '七路传感器（温度/湿度/CO₂/光照/PM2.5/噪声/土壤水分）共处一个玻璃温室：拖拽观察传感器实体、切换晴/多云/雨与热浪、人员涌入、CO₂ 故障等场景，实时看曲线与阈值告警怎么被触发。',
+      en: 'Seven sensors (temperature, humidity, CO₂, light, PM2.5, noise, soil moisture) share one glasshouse: orbit the hardware, switch weather and heatwave/occupancy/CO₂-fault scenarios, and watch live curves cross their warning and alarm thresholds.'
+    },
+    howItWorks: {
+      zh: '每个传感器都是一段带迟滞的一阶跟随：先按太阳高度角、天气因子与场景开关算出目标值，再用指数平滑逼近（光照用更快的 0.25，其余 0.08），因此曲线有惯性而不是跳变；越界即按预警/报警两档阈值分类并写进事件日志。3D 部分用 Three.js，太阳/月亮按仿真时钟绕场景旋转并驱动光照强度与天色插值。全过程纯前端，无后端。',
+      en: 'Each sensor is a first-order follower with hysteresis: a target is computed from solar elevation, weather factors and scenario switches, then approached by exponential smoothing (0.25 for light, 0.08 otherwise) so curves have inertia instead of jumping; out-of-range values are classified into warning/alarm tiers and written to the event log. The 3D layer uses Three.js, with the sun and moon orbiting by simulation clock and driving light intensity and sky colour. Fully client-side, no backend.'
+    },
+    icon: 'i-lucide-thermometer-sun',
+    status: 'ready',
+    tags: ['Robotics', 'Sensors', 'IoT', 'Three.js', 'Simulation', 'Telemetry']
+  },
+  {
+    slug: 'vacusim',
+    category: 'robot',
+    title: { zh: 'VacuSim 扫地机器人仿真', en: 'VacuSim Robot Vacuum Simulation' },
+    description: {
+      zh: '俯视户型里的扫地机器人：覆盖率栅格 + 灰尘粒子 + LiDAR 射线可视化，自动/定点/沿边三种清洁模式、碰撞条与悬崖探头、回充座归位，并带 6 张原理知识卡（SLAM/路径规划/传感器/刷组/电池/HEPA）。',
+      en: 'A robot vacuum in a top-down floor plan: coverage grid, dust particles and LiDAR ray visualisation, three cleaning modes (auto/spot/edge), bumper and cliff sensors, dock homing, plus six knowledge cards (SLAM, path planning, sensors, brush system, battery, HEPA).'
+    },
+    howItWorks: {
+      zh: '房间被切成 0.5 m 的栅格，家具/悬崖判为不可清扫；三束 LiDAR 射线（正前 ±0.6 rad）按 0.25 m 步长做距离查询，据此决定直行、绕行或退避。覆盖路线用弹跳式随机策略，机器人半径内的格子标记为已清扫，覆盖率 = 已清扫 ÷ 可清扫格数。灰尘是 InstancedMesh，进入机器人半径后被「吸入」并缩放到消失。地图与曲线由 Canvas 2D 绘制，Three.js 只负责 3D。',
+      en: 'The room is discretised into 0.5 m cells, with furniture and the cliff marked non-cleanable; three LiDAR rays (front ±0.6 rad) do distance queries in 0.25 m steps to decide straight-ahead, wall-follow or escape. Coverage uses a bounce/random strategy: cells within the robot radius are marked cleaned, and coverage = cleaned ÷ cleanable. Dust is an InstancedMesh that gets "sucked in" and scaled to zero within the robot radius. Maps and charts are Canvas 2D; Three.js handles only the 3D view.'
+    },
+    icon: 'i-lucide-radar',
+    status: 'ready',
+    tags: ['Robotics', 'Coverage Planning', 'SLAM', 'LiDAR', 'Three.js', 'Simulation']
   }
 ]
 

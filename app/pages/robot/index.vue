@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 机械人类演示列表（新分类，demo 待补充；CategoryPage 内置空状态）
+// 机械人类演示列表（CategoryPage 内置空状态，当前 8 个 demo 均由注册表驱动）
 definePageMeta({ layout: 'bare' })
 </script>
 
