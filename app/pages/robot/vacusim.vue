@@ -114,8 +114,40 @@ function mount() {
   }
 }
 
-onMounted(mount)
-onBeforeUnmount(unmount)
+/* ---------- 全屏（右上角按钮）----------
+   全屏只作用在页面根容器上：渲染尺寸由引擎里的 ResizeObserver 自己跟，不需要额外通知。 */
+const isFullscreen = ref(false)
+const fsLabel = computed(() => pick({
+  zh: isFullscreen.value ? '退出全屏' : '全屏',
+  en: isFullscreen.value ? 'Exit fullscreen' : 'Fullscreen'
+}))
+
+async function toggleFullscreen() {
+  const el = rootEl.value
+  if (!el) return
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen()
+    else await el.requestFullscreen()
+  } catch (err) {
+    // iframe 宿主没给 allow="fullscreen" 时会走到这里：提示一下就够，不打断页面
+    console.warn('[robot/vacusim] requestFullscreen failed', err)
+  }
+}
+
+function syncFullscreenState() {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+onMounted(() => {
+  mount()
+  document.addEventListener('fullscreenchange', syncFullscreenState)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullscreenState)
+  // 离开页面别把浏览器留在全屏里
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  unmount()
+})
 
 /* ---------- 传感器行 / 模式按钮的静态元数据 ---------- */
 const sensorRows = [
@@ -228,6 +260,45 @@ const modes = [
             type="button"
           >
             ⏸ {{ pick({ zh: '暂停', en: 'Pause' }) }}
+          </button>
+          <button
+            id="vs-btn-fs"
+            class="fsbtn"
+            type="button"
+            :title="fsLabel"
+            :aria-label="fsLabel"
+            @click="toggleFullscreen"
+          >
+            <svg
+              v-if="!isFullscreen"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+              <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+              <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+              <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+            </svg>
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
           </button>
         </div>
       </div>
@@ -558,6 +629,17 @@ const modes = [
 .hud-block .k { color:var(--vs-muted); font-size:10px; text-transform:uppercase; letter-spacing:.6px; }
 .hud-block .v { font-size:18px; font-weight:600; color:#fff; font-variant-numeric:tabular-nums; }
 .hud-actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+
+/* 右上角全屏按钮：方一点，只放图标 */
+.hud-actions .fsbtn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; flex:none; }
+.hud-actions .fsbtn svg { width:15px; height:15px; }
+/* 全屏时根容器铺满屏幕 */
+.vs-root:fullscreen { height:100vh; min-height:0; border-radius:0; }
+.vs-root:-webkit-full-screen { height:100vh; min-height:0; border-radius:0; }
+@media (max-width:1280px) {
+  /* 全屏里没有右侧栏，底栏要继续贴到右边 */
+  .vs-root:fullscreen #vs-bottom { right:12px; }
+}
 .batt-wrap { width:100%; height:7px; background:rgba(255,255,255,0.1); border-radius:4px; margin-top:5px; overflow:hidden; }
 .batt-bar { height:100%; width:100%; background:linear-gradient(90deg,#39e6a0,#9be86a); transition:width .2s, background .2s; }
 
