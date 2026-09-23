@@ -32,9 +32,8 @@ let handle: ReturnType<typeof createEnvSense> | null = null
 const visited = ref<Set<string>>(new Set())
 const scenarios = ref<Set<string>>(new Set())
 const weathers = ref<Set<string>>(new Set())
-const exported = ref(false)
-
-const TASK_WEIGHTS = { sensors: 0.35, scenarios: 0.25, weather: 0.2, export: 0.2 }
+// 教学进度只统计「必须体验」的动作；导出 CSV 是可选工具，已从必做项里去掉
+const TASK_WEIGHTS = { sensors: 0.45, scenarios: 0.3, weather: 0.25 }
 
 const tasks = computed(() => [
   {
@@ -57,13 +56,6 @@ const tasks = computed(() => [
     done: weathers.value.size,
     total: 3,
     weight: TASK_WEIGHTS.weather
-  },
-  {
-    key: 'export',
-    label: { zh: '导出一次数据集', en: 'Export the dataset once' } as LocalizedText,
-    done: exported.value ? 1 : 0,
-    total: 1,
-    weight: TASK_WEIGHTS.export
   }
 ])
 
@@ -75,7 +67,6 @@ function onTask(task: string) {
   if (task.startsWith('sensor:')) visited.value = new Set(visited.value).add(task.slice(7))
   else if (task.startsWith('scenario:')) scenarios.value = new Set(scenarios.value).add(task.slice(9))
   else if (task.startsWith('weather:')) weathers.value = new Set(weathers.value).add(task.slice(8))
-  else if (task === 'export') exported.value = true
 }
 
 /** 上报契约：parent.postMessage({ type:'correct_rate', rate, ... })，详见 utils/embed-report.ts */
@@ -89,8 +80,7 @@ watch([rate, finished], () => {
       sensorsVisited: visited.value.size,
       sensorsTotal: ENVSENSE_SENSORS.length,
       scenariosUsed: scenarios.value.size,
-      weathersUsed: weathers.value.size,
-      exported: exported.value
+      weathersUsed: weathers.value.size
     }
   })
 })
@@ -112,8 +102,40 @@ function mount() {
   }
 }
 
-onMounted(mount)
-onBeforeUnmount(unmount)
+/* ---------- 全屏（右上角按钮）----------
+   全屏只作用在页面根容器上：渲染尺寸由引擎里的 ResizeObserver 自己跟，不需要额外通知。 */
+const isFullscreen = ref(false)
+const fsLabel = computed(() => pick({
+  zh: isFullscreen.value ? '退出全屏' : '全屏',
+  en: isFullscreen.value ? 'Exit fullscreen' : 'Fullscreen'
+}))
+
+async function toggleFullscreen() {
+  const el = rootEl.value
+  if (!el) return
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen()
+    else await el.requestFullscreen()
+  } catch (err) {
+    // iframe 宿主没给 allow="fullscreen" 时会走到这里：提示一下就够，不打断页面
+    console.warn('[robot/envsense] requestFullscreen failed', err)
+  }
+}
+
+function syncFullscreenState() {
+  isFullscreen.value = !!document.fullscreenElement
+}
+
+onMounted(() => {
+  mount()
+  document.addEventListener('fullscreenchange', syncFullscreenState)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('fullscreenchange', syncFullscreenState)
+  // 离开页面别把浏览器留在全屏里
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {})
+  unmount()
+})
 
 // 切语言：卡片标题由模板自动更新，右栏详情与弹窗由引擎写，重新选一次当前传感器即可刷新
 watch(locale, () => {
@@ -223,6 +245,45 @@ watch(locale, () => {
               {{ pick({ zh: '降雨', en: 'Rain' }) }}
             </button>
           </div>
+          <button
+            id="es-btn-fs"
+            class="fsbtn"
+            type="button"
+            :title="fsLabel"
+            :aria-label="fsLabel"
+            @click="toggleFullscreen"
+          >
+            <svg
+              v-if="!isFullscreen"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+              <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+              <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+              <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+            </svg>
+            <svg
+              v-else
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+            </svg>
+          </button>
         </div>
       </div>
 
@@ -558,6 +619,17 @@ watch(locale, () => {
 .hud-block .v { font-size:18px; font-weight:600; color:#fff; font-variant-numeric:tabular-nums; }
 .hud-actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
 .seg { display:flex; gap:4px; background:rgba(0,0,0,0.25); padding:4px; border-radius:9px; border:1px solid var(--es-border); }
+
+/* 右上角全屏按钮：方一点，只放图标 */
+.hud-actions .fsbtn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; flex:none; }
+.hud-actions .fsbtn svg { width:15px; height:15px; }
+/* 全屏时根容器铺满屏幕 */
+.es-root:fullscreen { height:100vh; min-height:0; border-radius:0; }
+.es-root:-webkit-full-screen { height:100vh; min-height:0; border-radius:0; }
+@media (max-width:1280px) {
+  /* 全屏里没有右侧栏，底栏要继续贴到右边 */
+  .es-root:fullscreen #es-bottom { right:12px; }
+}
 
 /* 左侧 */
 .side-left { position:absolute; left:12px; top:118px; bottom:68px; width:284px; z-index:10;

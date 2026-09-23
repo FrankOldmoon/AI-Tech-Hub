@@ -103,7 +103,13 @@ scripts/adapt-app-paths.py               路径适配脚本（把应用内绝对
      遍历 dispose 几何/材质 + `renderer.dispose()`，否则切页会漏 WebGL 上下文。
 4. **three 的版本坑（0.186）**：`THREE.Clock` 已弃用，用 `THREE.Timer`
    （`timer.update()` 后再 `timer.getDelta()`）；`PCFSoftShadowMap` 已移除，用 `PCFShadowMap`。
-5. **注册**：`demos.ts` 加条目；`demo-cover-scenes.ts` 必须补专属封面场景，否则
+5. **右上角要有全屏按钮**：全屏作用在**页面根容器**上（不是整个站点），
+   `rootEl.requestFullscreen()` / `document.exitFullscreen()`，按钮放在 HUD 的 `.hud-actions` 末尾
+   （`margin-left:auto` 让它落在右上角）；额外给 `.<root>:fullscreen { height:100vh; border-radius:0 }`，
+   渲染尺寸不用管——引擎里的 ResizeObserver 会自动跟。离开页面时记得 `exitFullscreen()`，
+   别把浏览器留在全屏里。被 iframe 嵌时宿主若没给 `allow="fullscreen"`，`requestFullscreen()` 会 reject，
+   catch 住打个 warn 就行，不要打断页面。
+6. **注册**：`demos.ts` 加条目；`demo-cover-scenes.ts` 必须补专属封面场景，否则
    `tests/demo-cover.test.ts` 直接红。
 
 ## 九、完成度上报契约（页面 → 宿主，postMessage）

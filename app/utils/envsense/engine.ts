@@ -1250,7 +1250,6 @@ export function createEnvSense(root: HTMLElement, options: EnvSenseOptions): Env
     a.click()
     URL.revokeObjectURL(a.href)
     addAlert('good', lang() === 'zh' ? '数据集已导出为 CSV' : 'Collected dataset exported to CSV')
-    options.onTask?.('export')
   }
 
   /* ---------- 尺寸 ---------- */
