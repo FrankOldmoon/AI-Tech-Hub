@@ -39,6 +39,8 @@ export type ImagePageSlug =
   | 'features'
   | 'face'
   | 'ocr'
+  // 任务专页：单一任务族的完整入口（手部 21 点关键点 → 手势类别）
+  | 'gesture'
   // 引擎页：一个模型库的全部任务
   | 'mediapipe'
   | 'yolo'
@@ -2607,6 +2609,11 @@ export const imagePageSamples: Partial<Record<ImagePageSlug, ImagePageSample[]>>
   face: [
     { labelKey: 'samples.group', url: '/samples/images/group.jpg' },
     { labelKey: 'samples.face', url: '/samples/images/portrait.jpg', secondUrl: '/samples/images/face.jpg' }
+  ],
+  gesture: [
+    // 手势识别要的是「能看懂的手势」：首图是剪刀手（胜利手势），次图是张开的手掌
+    { labelKey: 'samples.hand', url: '/samples/images/gesture.jpg' },
+    { labelKey: 'samples.handOpen', url: '/samples/images/hand.jpg' }
   ],
   ocr: [
     { labelKey: 'samples.document', url: '/samples/images/document.jpg' }

@@ -20,6 +20,9 @@ const SEC = {
   mediapipe: 'image.sections.mediapipe',
   face: 'image.sections.face',
   handsPose: 'image.sections.handsPose',
+  /** 手势专页：先手部关键点、再手势类别，两级各成一小节 */
+  handLandmarks: 'image.sections.handLandmarks',
+  gestureClasses: 'image.sections.gestureClasses',
   detection: 'image.sections.detection',
   segmentation: 'image.sections.segmentation',
   embedding: 'image.sections.embedding'
@@ -178,13 +181,13 @@ export const mediaPipeTaskTools: ImageTool[] = [
     name: { zh: '人脸关键点', en: 'Face Landmarks' }
   }),
   visionTaskTool('hand-landmarker', {
-    pages: ['mediapipe'],
-    section: { mediapipe: SEC.handsPose },
-    name: { zh: '手部关键点', en: 'Hand Landmarks' }
+    pages: ['gesture', 'mediapipe'],
+    section: { gesture: SEC.handLandmarks, mediapipe: SEC.handsPose },
+    name: { zh: '手部关键点（21 点）', en: 'Hand Landmarks (21 pts)' }
   }),
   visionTaskTool('gesture-recognizer', {
-    pages: ['mediapipe'],
-    section: { mediapipe: SEC.handsPose },
+    pages: ['gesture', 'mediapipe'],
+    section: { gesture: SEC.gestureClasses, mediapipe: SEC.handsPose },
     name: { zh: '手势识别', en: 'Gesture Recognition' }
   }),
   visionTaskTool('pose-landmarker', {
