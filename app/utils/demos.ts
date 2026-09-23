@@ -78,6 +78,7 @@ export interface LocalizedDemo extends Omit<Demo, 'title' | 'description' | 'how
 export const visionGroupKeys = [
   'workbench',
   'face',
+  'hand',
   'capability',
   'engine',
   'lesson',
@@ -88,6 +89,7 @@ export type VisionGroupKey = typeof visionGroupKeys[number]
 export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
   workbench: { zh: '图像处理工坊', en: 'Image Workbench' },
   face: { zh: '人脸', en: 'Face' },
+  hand: { zh: '手部', en: 'Hands' },
   capability: { zh: '能力对比', en: 'Capability Comparison' },
   engine: { zh: '引擎全览', en: 'Engine Overview' },
   lesson: { zh: '教学', en: 'Lessons' },
@@ -1281,6 +1283,25 @@ export const demos: Demo[] = [
     status: 'ready',
     featured: true,
     tags: ['face-api', 'TF.js', 'localStorage', 'On-device']
+  },
+  {
+    slug: 'gesture',
+    group: 'hand',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '手部与手势', en: 'Hands & Gestures' },
+    description: {
+      zh: '手部 21 个关键点与手势类别两级任务：上传手势照片或开摄像头，先看骨架落在哪里，再看模型判成了哪个手势。',
+      en: 'Hand keypoints and gesture categories in one place: upload a hand photo or go live, see where the 21 landmarks land, then which gesture the model picked.'
+    },
+    howItWorks: {
+      zh: 'MediaPipe 的两个任务并排放在一页：① 手部关键点 —— 只画 21 个点与骨骼连线，回答「手在哪、手指怎么摆」；② 手势识别 —— 在同一套关键点上再跑一个分类头，输出手势类别与置信度（点赞 / 胜利 / 张开手掌等）。摄像头模式逐帧推理，适合课堂现场演示。',
+      en: 'Two MediaPipe tasks share one page: ① Hand Landmarks — draws the 21 points and bones, answering "where is the hand, how are the fingers posed"; ② Gesture Recognition — runs a classifier on top of those same landmarks and outputs the gesture label with confidence (thumbs up / victory / open palm…). The camera mode runs frame-by-frame, ideal for live classroom demos.'
+    },
+    icon: 'i-lucide-hand',
+    status: 'ready',
+    requirements: { camera: true },
+    tags: ['MediaPipe', 'Hand', 'Gesture', 'Landmarks']
   },
   {
     slug: 'ocr',

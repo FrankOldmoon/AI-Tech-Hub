@@ -85,7 +85,15 @@ export default defineNuxtConfig({
     '/vision/image-embedder': { redirect: { to: '/vision/mediapipe', statusCode: 301 } },
     '/vision/multimodal': { redirect: { to: '/vision/transformers', statusCode: 301 } },
     '/vision/ai-vision': { redirect: { to: '/vision/detection', statusCode: 301 } },
-    '/vision/yolo-detection': { redirect: { to: '/vision/yolo', statusCode: 301 } }
+    '/vision/yolo-detection': { redirect: { to: '/vision/yolo', statusCode: 301 } },
+    // 手部两个任务已从 mediapipe 引擎页抽出为 /vision/gesture 专页，但当初这批 301 漏了
+    // 这四条，旧深链（含书签、课件里的链接）会直接 404，这里补齐。
+    // pose 已有能力页（MediaPipe 33 点 × YOLO 17 点对比），单独指过去比丢回引擎页更有用；
+    // holistic 没有独立页，仍留在引擎页内。
+    '/vision/hand-landmarker': { redirect: { to: '/vision/gesture?tool=hand-landmarker', statusCode: 301 } },
+    '/vision/gesture-recognizer': { redirect: { to: '/vision/gesture?tool=gesture-recognizer', statusCode: 301 } },
+    '/vision/pose-landmarker': { redirect: { to: '/vision/pose?tool=pose-landmarker', statusCode: 301 } },
+    '/vision/holistic-landmarker': { redirect: { to: '/vision/mediapipe?tool=holistic-landmarker', statusCode: 301 } }
   },
 
   compatibilityDate: '2026-06-30',

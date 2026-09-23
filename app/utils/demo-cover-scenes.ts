@@ -826,6 +826,17 @@ export function sceneFace(): CoverShape[] {
   ]
 }
 
+/** 手势识别工作室：张开的手 + 21 点骨架，右侧手势类别置信度 */
+export function sceneGesture(rand: () => number): CoverShape[] {
+  return [
+    ...detectCorners(86, 96, 88, 104, 0.4, 3, 0.2),
+    ...hand(86, 96, 0.85),
+    ...arrow(140, 96, 164, 96, 0.6, 2.4, 7),
+    ...labelBox(248, 96, 96, 62, 0.35),
+    ...probBars(248, 96, 62, 4, rand)
+  ]
+}
+
 /** 人脸注册与识别：两张脸 + 匹配结论 */
 export function sceneFaceRecognition(): CoverShape[] {
   return [
@@ -1522,6 +1533,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'vision/object': sceneContour,
   'vision/features': sceneFeatures,
   'vision/face': sceneFace,
+  'vision/gesture': sceneGesture,
   'vision/face-recognition': sceneFaceRecognition,
   'vision/ocr': sceneOcr,
   'vision/recorder': sceneRecorder,
