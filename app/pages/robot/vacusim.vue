@@ -32,7 +32,7 @@ const coverage = ref(0)
 const dockedOnce = ref(false)
 const vizUsed = ref<Set<string>>(new Set())
 
-const COVERAGE_GOAL = 90
+const COVERAGE_GOAL = 30
 
 const tasks = computed(() => [
   {
