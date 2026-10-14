@@ -1,22 +1,17 @@
-const CACHE_NAME = 'rebot-arm-rs-pwa-v89-control49';
+const CACHE_NAME = 'rebot-arm-sort-v1-20261014';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/apps/rebot-arm/manifest.webmanifest',
   '/apps/rebot-arm/favicon.png',
-  '/apps/rebot-arm/css/rebot-sim.css?v=20260813-rs-guide43',
-  '/apps/rebot-arm/js/pwa.js?v=20260812-rs-ctrl32',
-  '/apps/rebot-arm/js/i18n.js?v=20260824-rs-control44',
-  '/apps/rebot-arm/js/rebot-sim.js?v=20260824-rs-control44',
-  '/apps/rebot-arm/js/ros/rebot-ros-client.js?v=20260812-rs-ctrl32',
-  '/apps/rebot-arm/js/control-mode.js?v=20260812-rs-ctrl32',
-  '/apps/rebot-arm/js/ros/rebot-ros-ui.js?v=20260824-rs-control46',
-  '/apps/rebot-arm/js/rebot-llm.js?v=20260813-rs-guide43',
+  '/apps/rebot-arm/css/rebot-sim.css?v=20261014-track23',
+  '/apps/rebot-arm/js/pwa.js?v=20261014-track23',
+  '/apps/rebot-arm/js/i18n.js?v=20261014-track23',
+  '/apps/rebot-arm/js/rebot-sim.js?v=20261014-track23',
+  '/apps/rebot-arm/js/rebot-task.js?v=20261014-track23',
   '/apps/rebot-arm/lib/three-r128.min.js',
   '/apps/rebot-arm/lib/STLLoader-umd.js',
-  '/apps/rebot-arm/lib/URDFLoader.js',
-  '/apps/rebot-arm/js/motorbridge/rebot-motorbridge-client.js?v=20260812-rs-ctrl32',
-  '/apps/rebot-arm/js/motorbridge/rebot-motorbridge-ui.js?v=20260812-rs-ctrl32'
+  '/apps/rebot-arm/lib/URDFLoader.js'
 ];
 
 self.addEventListener('install', (event) => {

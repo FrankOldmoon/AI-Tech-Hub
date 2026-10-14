@@ -9,7 +9,7 @@
   const SUPPORTED = ['zh', 'en'];
   const DICT = {
     'app.eyebrow': { zh: '欢迎来到reBot Arm B601-RS的世界', en: 'Welcome to reBot Arm B601-RS' },
-    'app.title': { zh: 'ROS2 ReBot Arm B601-RS机械臂仿真器', en: 'ROS2 ReBot Arm B601-RS Arm Simulator' },
+    'app.title': { zh: 'ReBot Arm B601-RS 机械臂视觉分拣仿真', en: 'ReBot Arm B601-RS Vision Sorting Simulator' },
     'app.loading': { zh: '加载中', en: 'Loading' },
     'app.tcp': { zh: 'TCP', en: 'TCP' },
     'app.tcpDefault': { zh: 'X -- / Y -- / Z --', en: 'X -- / Y -- / Z --' },
@@ -401,11 +401,52 @@
     'mb.modeDirect': { zh: 'MotorBridge 直连', en: 'MotorBridge Direct' },
     'pwa.detecting': { zh: '正在检测安装状态', en: 'Detecting install status' },
 
+    'task.eyebrow': { zh: 'Vision', en: 'Vision' },
+    'task.title': { zh: '视觉分拣', en: 'Vision Sorting' },
+    'task.cameraTitle': { zh: '实时相机 · 颜色识别', en: 'Live Camera · Color Detection' },
+    'task.detecting': { zh: '识别中', en: 'Detecting' },
+    'task.detected': { zh: '检测到 {n} 个目标', en: '{n} target(s) detected' },
+    'task.detectedNone': { zh: '视野内没有目标', en: 'No target in view' },
+    'task.moveAbove': { zh: '移动到目标', en: 'Move to Target' },
+    'task.grasp': { zh: '抓取', en: 'Grasp' },
+    'task.release': { zh: '松开', en: 'Release' },
+    'task.pickPlace': { zh: '抓取并放入盒子', en: 'Pick & Place' },
+    'task.autoSort': { zh: '自动分拣', en: 'Auto Sorting' },
+    'task.stopSort': { zh: '停止分拣', en: 'Stop Sorting' },
+    'task.conveyor': { zh: '传送带运行', en: 'Conveyor running' },
+    'task.status': { zh: '状态', en: 'Status' },
+    'task.stopped': { zh: '待机中', en: 'Idle' },
+    'task.binTitle': { zh: '分拣计数', en: 'Sorted' },
+    'task.holding': { zh: '夹持中：{color}', en: 'Holding: {color}' },
+    'task.noTarget': { zh: '夹爪附近没有可抓取的物体', en: 'No object near the gripper' },
+    'task.released': { zh: '已松开物体', en: 'Object released' },
+    'task.alreadyHolding': { zh: '夹爪上已有物体，请先松开', en: 'Already holding an object; release it first' },
+    'task.sortStarted': { zh: '自动分拣已启动', en: 'Auto sorting started' },
+    'task.sortStopped': { zh: '自动分拣已停止', en: 'Auto sorting stopped' },
+    'task.waitingBlock': { zh: '等待方块进入抓取区...', en: 'Waiting for a block...' },
+    'task.picking': { zh: '正在抓取 {color} 方块', en: 'Picking the {color} block' },
+    'task.placing': { zh: '正在放入 {color} 格', en: 'Placing into the {color} slot' },
+    'task.placed': { zh: '已放入 {color} 格', en: 'Placed into the {color} slot' },
+    'task.stepFail': { zh: '动作未完成，分拣已停止', en: 'Move failed; sorting stopped' },
+    'task.busy': { zh: '任务执行中，请稍候', en: 'Task in progress' },
+    'task.moving': { zh: 'IK 运动中...', en: 'IK moving...' },
+    'task.reachOk': { zh: '到位，误差 {mm}mm', en: 'Arrived, error {mm}mm' },
+    'task.reachFail': { zh: '目标不可达', en: 'Target unreachable' },
+    'task.firstOpen': { zh: '已打开夹爪', en: 'Gripper opened' },
+    'task.grasped': { zh: '已抓取 {color} 方块', en: '{color} block grasped' },
+    'task.graspClosed': { zh: '夹爪已闭合（附近无物体）', en: 'Gripper closed (nothing nearby)' },
+
   };
   let currentLang = 'zh';
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved && SUPPORTED.indexOf(saved) >= 0) currentLang = saved;
+    // 界面语言跟随外部网页：iframe URL 的 ?locale=zh|en 优先，仅无参数时读本地记忆
+    const urlLang = ((new URLSearchParams(window.location.search)).get('locale') || '').toLowerCase();
+    if (urlLang) {
+      currentLang = urlLang.indexOf('zh') >= 0 ? 'zh' : 'en';
+    } else {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved && SUPPORTED.indexOf(saved) >= 0) currentLang = saved;
+    }
   } catch (_) {}
   const listeners = new Set();
   function lookup(key) {
