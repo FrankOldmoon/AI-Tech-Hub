@@ -82,6 +82,7 @@ output/
 # 工具会话目录（勿提交）
 .dumate/
 .workbuddy/
+.workbuddy-ai/
 
 # 独立应用模型/大数据（不入库，部署时上传）
 # 学生人脸识别小工具（public/face/）：**代码入库，个人信息不入库** ——
