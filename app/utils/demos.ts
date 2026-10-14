@@ -1599,6 +1599,86 @@ export const demos: Demo[] = [
     icon: 'i-lucide-radar',
     status: 'ready',
     tags: ['Robotics', 'Coverage Planning', 'SLAM', 'LiDAR', 'Three.js', 'Simulation']
+  },
+  {
+    slug: 'soma',
+    category: 'robot',
+    title: { zh: 'SOMA 仿人机器人解剖图谱', en: 'SOMA Humanoid Anatomy Atlas' },
+    description: {
+      zh: '拟人机器人「瓷壳仿生验证单元 H-01」的 3D 解剖交互：25 个可选中零件、7 大结构总成、5 大功能系统，支持常规/X-Ray/线框三种显示模式、整机/总成/系统三级爆炸拆解、视角预设，还能跑两圈拟人步态行走演示——眼睛会跟着鼠标看。',
+      en: 'Interactive 3D anatomy of SOMA H-01, a porcelain-bionic humanoid validation unit: 25 selectable parts across 7 assemblies and 5 functional systems, solid/x-ray/wireframe modes, unit/assembly/system explode scopes, preset views and an anthropomorphic walk demo — the eyes even follow your pointer.'
+    },
+    howItWorks: {
+      zh: '机器人由圆角盒/胶囊/椭球/管线等基础几何拼成 25 个零件组，每组带一个爆炸偏移向量与爆炸阶段区间（外壳先出、精密核心后出），滑杆驱动「目标值 → 指数插值 → 阶段映射」的连续爆炸。材质统一 MeshPhysicalMaterial（瓷漆清漆 + 自发光核心），EffectComposer 的 OutlinePass 做悬停/选中描边，CSS2DRenderer 渲染零件标签，PMREM RoomEnvironment 提供环境反射。行走演示用两连杆逆运动学：足端轨迹（摆动相抬起 + 支撑相后蹬）解算髋角与膝角，手臂反相摆动，躯干加侧倾/扭转/起伏包络，两圈往返后自动归位；眼睛用指针驱动的 yaw/pitch 缓动 + 周期性眨眼缩放实现「注视感」。',
+      en: 'The robot is assembled from 25 part groups built from rounded boxes, capsules, ellipsoids and tube cables; each group carries an explode offset and a stage interval (shell first, precision core last), so the slider drives a continuous explode via target → exponential easing → stage mapping. Materials are unified MeshPhysicalMaterial (porcelain clearcoat + emissive core), OutlinePass adds hover/selection outlines, CSS2DRenderer draws part labels, and a PMREM RoomEnvironment provides reflections. The walk demo solves a two-link inverse kinematics chain from a foot trajectory (swing lift + stance push), swings the arms in counter-phase, adds torso roll/twist/bob envelopes, and auto-resets after two laps; the eyes follow the pointer with eased yaw/pitch plus periodic blink scaling.'
+    },
+    icon: 'i-lucide-bot',
+    status: 'ready',
+    tags: ['Robotics', 'Humanoid', 'Exploded View', 'Anatomy', 'Three.js', 'Gait']
+  },
+  {
+    slug: 'avsim',
+    category: 'robot',
+    title: { zh: 'AutoDrive 智能驾驶仿真', en: 'AutoDrive Autonomous Driving Sim' },
+    description: {
+      zh: '小镇路网里的自动驾驶车 EGO-01：LiDAR 点云 / 相机 / 毫米波雷达三层感知可视化、检测框与标签、轨迹与行人过街意图预测，规划器会红灯停车、绕行障碍、让行行人；支持日/夜/雨三种天气与追踪/环绕/俯视/舱内四种机位。',
+      en: 'An AV (EGO-01) in a small-town road network: LiDAR point cloud, camera and radar perception layers, detection boxes and labels, trajectory and pedestrian-intent prediction — the planner stops at red lights, swerves around obstacles and yields to crossing pedestrians, under day/night/rain weather with four camera views.'
+    },
+    howItWorks: {
+      zh: 'EGO 沿矩形环路按弧长参数采样位姿；规划器每帧扫描同车道前方 60 m 内的车辆与行人、55 m 内的红绿灯与 34 m 内有过街意图的行人，按 v=√(2a·d) 制动曲线限制允许速度，并以 ±5.5 m 横移绕行障碍。红绿灯是 9 s 相位机（红 50% / 黄 20% / 绿 30%），NPC 车流同样受红灯约束。LiDAR 点云隔帧对场景投射 200 条射线求交；检测框/标签按相机视锥与距离门限筛选；迷你地图与 HUD 由 Canvas 2D 绘制。Three.js 走 npm 依赖，无 CDN。',
+      en: 'The ego samples its pose along a rectangular loop by arc length. Each frame the planner scans same-lane vehicles and pedestrians within 60 m, traffic lights within 55 m and crossing-intent pedestrians within 34 m, caps the allowed speed with the v=√(2a·d) braking curve and swerves with a ±5.5 m lateral offset. Lights run a 9 s phase machine (red 50% / yellow 20% / green 30%) and NPC traffic obeys them too. The LiDAR point cloud casts 200 rays against the scene every other frame; detection boxes/labels are gated by camera FOV and range; the minimap and HUD are Canvas 2D. Three.js comes from npm — no CDN.'
+    },
+    icon: 'i-lucide-car',
+    status: 'ready',
+    tags: ['Robotics', 'Autonomous Driving', 'Perception', 'Planning', 'LiDAR', 'Three.js']
+  },
+  {
+    slug: 'auto-drive',
+    category: 'robot',
+    title: { zh: 'AutoDrive Lab 智能驾驶实验室', en: 'AutoDrive Lab Driving Simulator' },
+    description: {
+      zh: '可动手操作的智能驾驶课堂：点击车身查看摄像头/LiDAR/雷达/计算单元硬件，切换 4 个教学场景（巡航/红灯/行人/障碍），在障碍工坊里往路面放锥桶货箱并拖拽摆位，还能切手动模式用 WASD 开车——虚拟行车记录仪实时叠加检测框。',
+      en: 'A hands-on autonomous-driving classroom: click the car to inspect camera/LiDAR/radar/compute hardware, switch four teaching scenarios (cruise/signal/pedestrian/hazard), place and drag cones and crates in the obstacle workshop, or take manual control with WASD — with a virtual dashcam overlaying live detection boxes.'
+    },
+    howItWorks: {
+      zh: '城市由 5 条纵向路与 12 条横向路组成，车道线用 InstancedMesh 批量渲染；背景车流在路口按「纵向优先」规则让行，所有碰撞用 2D OBB（分离轴）检测，车辆足迹必须留在路面上。自动驾驶沿车道按目标车速巡航，依据场景（红灯距离、行人过街相位、障碍投影距离）计算安全刹停；手动模式用自行车模型转向（转向权限随速度增长、倒车自然反向）。行车记录仪是第二渲染器 + Canvas 2D 叠加层，渲染时临时隐藏可视化网格。Three.js 走 npm 依赖，无 CDN。',
+      en: 'The city is a grid of 5 north-south and 12 east-west roads with lane markings batched into InstancedMeshes; background traffic yields at junctions with a north-south priority rule, all collisions use 2D OBB separating-axis tests, and the vehicle footprint must stay on the road. Autonomy cruises at a target speed and brakes safely from scenario state (signal distance, pedestrian-crossing phase, obstacle projection); manual driving uses a bicycle model (steering authority grows with speed and reverses naturally in reverse). The dashcam is a second renderer plus a Canvas 2D overlay, with visualization meshes hidden during its render pass. Three.js comes from npm — no CDN.'
+    },
+    icon: 'i-lucide-car-front',
+    status: 'ready',
+    tags: ['Robotics', 'Autonomous Driving', 'Manual Control', 'Sensor Fusion', 'Dashcam', 'Three.js']
+  },
+  {
+    slug: 'drone',
+    category: 'robot',
+    title: { zh: 'DroneSim 无人机飞行仿真', en: 'DroneSim UAV & FPV Simulation' },
+    description: {
+      zh: '四旋翼无人机的飞行操作台：起飞/悬停/降落/一键返航、WASD + 方向键盘飞行、撞楼坠落与电量信号模拟，8 类部件（机身/机臂/电机/桨/电池/云台/GPS/起落架）可点选抽出、爆炸拆解、分离装回，CAM-1 实时 FPV 云台画面。',
+      en: 'A quadcopter operations console: takeoff/hover/land/return-to-launch, WASD + on-screen pad flying, building collisions with battery and signal drain, and eight detachable components (fuselage/arms/motors/props/battery/gimbal/GPS/legs) you can extract, explode, detach and reattach — with a live CAM-1 FPV gimbal feed.'
+    },
+    howItWorks: {
+      zh: '无人机由 8 类部件组拼装，每类部件带爆炸偏移向量，选中即指数插值抽出、爆炸视图整体展开；分离只隐藏网格、装回恢复。飞行用速度控制模型：目标高度悬停（指数趋近）、推杆式 WASD 平移（S/↓ 前进）、姿态随输入倾斜，撞楼时先推出包围盒再强制下坠。电量按垂直速度耗电，信号随离 home 距离衰减。FPV 是挂在机身上的第二透视相机经独立渲染器输出到画布。飞行中水平 3 m 内即判定抵达航点环。',
+      en: 'The quadcopter is assembled from 8 component groups, each with an explode offset: selecting a part pulls it out with exponential easing, the exploded view spreads everything, and Detach hides meshes until Reattach. Flight uses a velocity-controlled model: exponential altitude hold, stick-style WASD translation (S/↓ forward), attitude tilting with input, and crash handling that pushes the craft out of the building box before a forced fall. Battery drains with vertical speed and signal decays with distance from home. The FPV feed is a second perspective camera parented to the drone rendered through its own renderer. A waypoint ring counts as reached within 3 m horizontally while flying.'
+    },
+    icon: 'i-lucide-plane',
+    status: 'ready',
+    tags: ['Robotics', 'UAV', 'Flight Control', 'FPV', 'Exploded View', 'Three.js']
+  },
+  {
+    slug: 'drone_dance',
+    category: 'robot',
+    title: { zh: 'Swarm Studio 无人机灯光秀', en: 'Swarm Studio Drone Light Show' },
+    description: {
+      zh: '无人机编队灯光秀编排台：100–800 架机队实时仿真，13 种几何编队（球体/爱心/星形/轨道/螺旋链/星系/波浪/立方体/无限/箭头/蝴蝶/散飞…）与自定义文字编队一键变换，四套 LED 色彩主题、自动编排、编队拖尾与航迹可视化，并带实时遥测与帧率监视。',
+      en: 'A drone-swarm light-show choreographer: 100–800 drones simulated in real time, 13 geometric formations (globe/heart/star/orbit/helix/spiral/wave/cube/infinity/arrow/butterfly/scatter…) plus custom text formations, four LED colour themes, auto choreography, formation trails and flight-path overlays, with live telemetry and an FPS monitor.'
+    },
+    howItWorks: {
+      zh: '机队用 InstancedMesh 批量渲染：机身/机臂/桨/电机/LED 五类实例共用一份几何与材质，每帧逐机写入矩阵，几百架也只是一次 draw call。每个编队由参数方程生成目标点（球面用斐波那契球均匀铺点、文字编队把 Canvas 2D 栅格化的字形采样成点云），变换时按缓动曲线在起点与目标间插值，结束后叠加悬停抖动与编队专属的漂移动画（波浪起伏、轨道环行、星系扩张、散飞扰动）。Three.js 走 npm 依赖，无 CDN，全部本地实时仿真。',
+      en: 'The fleet is batch-rendered with InstancedMeshes: fuselage/arms/props/motors/LEDs share one geometry and material each, and per-drone matrices are written every frame — hundreds of drones still cost a single draw call. Each formation generates target points from a parametric equation (Fibonacci sphere for the globe; text formations rasterise glyphs on a Canvas 2D and sample them into a point cloud), transitions ease between start and target, and settled drones add hover jitter plus formation-specific drift (wave undulation, orbiting rings, expanding spiral, scatter wander). Three.js comes from npm — no CDN, everything simulated locally in real time.'
+    },
+    icon: 'i-lucide-sparkles',
+    status: 'ready',
+    tags: ['Robotics', 'UAV', 'Swarm', 'Formation', 'InstancedMesh', 'Light Show', 'Three.js']
   }
 ]
 
