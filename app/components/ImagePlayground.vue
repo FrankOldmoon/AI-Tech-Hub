@@ -134,6 +134,18 @@ function kindLabel(kind: ImageToolKind): string {
   return kindLabels[kind]
 }
 
+// ===== 实时模式状态（ImageTool.live：摄像头逐帧推理）=====
+// 必须声明在下面的 watcher 之前：activeToolId 的 immediate watcher 在 setup 期间
+// 就会触发 runLater -> scheduleRun，那里要读 liveActive（晚了就是 TDZ 报错）
+const liveRequested = ref(false)
+const liveActive = ref(false)
+const liveStarting = ref(false)
+const liveVideo = ref<HTMLVideoElement>()
+let liveStream: MediaStream | null = null
+let liveRaf = 0
+let liveLastTime = -1
+let liveInferring = false
+
 // ===== 运行时可观测：单次耗时 + 实际后端 =====
 // 能力页的价值在于「同一任务多实现对比」，因此必须把耗时与后端显式呈现，
 // 否则学生会把「后端差距」误读成「模型差距」。
@@ -368,15 +380,7 @@ function clearPrompt() {
 }
 
 // ===== 实时模式（ImageTool.live：摄像头逐帧推理）=====
-
-const liveRequested = ref(false)
-const liveActive = ref(false)
-const liveStarting = ref(false)
-const liveVideo = ref<HTMLVideoElement>()
-let liveStream: MediaStream | null = null
-let liveRaf = 0
-let liveLastTime = -1
-let liveInferring = false
+// 状态声明见文件前部（必须在各 watcher 之前初始化）
 
 const liveSupported = computed(() => Boolean(activeTool.value?.live))
 /** 单画面工具的产物直接叠在图上（如分类的 top5 标注）→ 只显示结果这一张图，不做左右对比 */
@@ -490,7 +494,9 @@ function loopLive() {
   liveRaf = requestAnimationFrame(loopLive)
 }
 
-function stopLive() {
+function stopLive(capture = true) {
+  /* wasLive：只有真的在实时中才收帧；startLive 失败回滚等场景不该触发 loadFile */
+  const wasLive = liveActive.value
   liveActive.value = false
   liveRequested.value = false
   if (liveRaf) {
@@ -499,16 +505,28 @@ function stopLive() {
   }
   liveInferring = false
   liveLastTime = -1
+  const video = liveVideo.value
+  /* 关摄像头 = 收下最后一帧作为当前「原图」：实时期间左栏一直在刷摄像头画面，
+     数据侧却停在开启实时那一刻的第一帧（往往还没出画面，是黑的）——
+     不收帧的话，关掉后点「运行」跑的是这张看不见的旧图，结果与所见完全对不上。
+     抓帧必须在停轨道之前（轨道一停 drawImage 拿到的就是黑帧）。 */
+  if (capture && wasLive && video && video.readyState >= 2 && video.videoWidth) {
+    void frameToFile(video, 'camera.jpg').then((file) => {
+      /* await 期间用户可能又开了实时：数据侧由实时自己接管，不要覆盖 */
+      if (file && !liveActive.value && !liveRequested.value) void loadFile(file)
+    })
+  }
   if (liveStream) {
     liveStream.getTracks().forEach(tr => tr.stop())
     liveStream = null
   }
-  if (liveVideo.value) liveVideo.value.srcObject = null
+  if (video) video.srcObject = null
   activeTool.value?.live?.dispose?.()
 }
 
 onBeforeUnmount(() => {
-  stopLive()
+  /* 组件要卸载了，收帧没有意义（loadFile 还会反过来写已销毁组件的 ref） */
+  stopLive(false)
 })
 
 // ===== 手绘输入（needsDrawing 工具，如简笔画识别）=====
@@ -536,6 +554,9 @@ function isImmediateTool() {
 }
 
 function scheduleRun() {
+  /* 实时进行中：参数变化由逐帧推理消费（runFrame 里 mergedParams + setOptions），
+     静态 run 不参与 —— 否则双路写 result 互相覆盖，还会拿旧 original 跑出黑图 */
+  if (liveActive.value) return
   ++latestReq
   if (isImmediateTool()) {
     if (activeTool.value?.id === 'resize') {
@@ -569,7 +590,9 @@ function runLater() {
 
 async function run(req = latestReq) {
   const tool = activeTool.value
-  if (!tool || !original.value) return
+  /* liveActive 时静态 run 一律不跑：实时结果由 runFrame 逐帧写，静态路只会在
+     实时结束后由收帧 loadFile 的 runLater 触发（那时 liveActive 已为 false） */
+  if (!tool || !original.value || liveActive.value) return
   // 运行中收到新请求：标记 pending，当前完成后立即补跑最新参数（不再丢弃）
   if (running.value) {
     pending = true
@@ -645,7 +668,9 @@ function reset() {
 
 /** 回到「选择图片」的初始界面：清掉当前图片与结果，拖拽 / 示例 / 摄像头入口重新出现 */
 function back() {
-  if (liveActive.value) stopLive()
+  /* 不收帧：这一步的语义就是「丢掉当前画面回到选图」，收帧会立刻被下面的清空覆盖，
+     反而可能异步 loadFile 把摄像头帧又写回来 */
+  if (liveActive.value) stopLive(false)
   resizeDisplayMode.value = null
   clearPrompt()
   original.value = null
@@ -1202,21 +1227,24 @@ const modeText = computed(() => {
           @sample="onSample"
         />
 
-        <!-- 支持实时的工具：空状态一次点击即进实时，不必先拍一张再点一次实时 -->
+        <!-- 支持实时的工具：空状态一次点击即进实时，不必先拍一张再点一次实时。
+             按钮做成开/关切换：极端情况下（首帧抓取失败、original 没建成）工作台
+             不会出现，这里必须是唯一的「关摄像头」出口 -->
         <div
           v-if="!original && !needsDrawing && liveSupported"
           class="space-y-2"
         >
           <UButton
-            icon="i-lucide-video"
+            :icon="liveActive ? 'i-lucide-square' : 'i-lucide-video'"
             size="lg"
             class="w-full"
             data-testid="live-camera"
+            :color="liveActive ? 'error' : 'primary'"
             :loading="liveStarting"
             :disabled="liveStarting"
-            @click="startLive()"
+            @click="liveActive ? stopLive() : startLive()"
           >
-            {{ t('image.liveStart') }}
+            {{ liveActive ? t('image.liveStop') : t('image.liveStart') }}
           </UButton>
           <p class="text-xs text-dimmed text-center">
             {{ t('image.liveCameraHint') }}
@@ -1263,7 +1291,10 @@ const modeText = computed(() => {
             />
 
             <div class="flex flex-wrap items-center gap-2">
+              <!-- 实时进行中隐藏「运行」：逐帧推理已经在跑，手动 Run 只会拿到
+                   实时开始时留下的旧 original（往往是黑帧），产出误导性结果 -->
               <UButton
+                v-if="!liveActive"
                 icon="i-lucide-play"
                 :loading="running"
                 @click="runNow"
