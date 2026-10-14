@@ -1459,6 +1459,230 @@ export function sceneVacuSim(rand: () => number): CoverShape[] {
   return shapes
 }
 
+/** 智能驾驶仿真：小镇路网俯视 + EGO 车与感知扇面 + 轨迹规划线 + 红绿灯 */
+export function sceneAvSim(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    rect(28, 26, 264, 130, 0.05, 8),
+    // 路网：两条横向路 + 两条纵向路
+    rect(28, 62, 264, 14, 0.16, 2),
+    rect(28, 110, 264, 14, 0.16, 2),
+    rect(196, 26, 14, 130, 0.16, 2),
+    // 街区房屋
+    rect(34, 32, 30, 22, 0.13, 3),
+    rect(130, 32, 36, 22, 0.1, 3),
+    rect(240, 32, 40, 22, 0.13, 3),
+    rect(34, 84, 24, 18, 0.08, 3),
+    rect(240, 84, 30, 18, 0.08, 3),
+    rect(34, 132, 26, 16, 0.1, 3),
+    rect(130, 132, 34, 16, 0.12, 3),
+    rect(240, 132, 30, 16, 0.1, 3)
+  ]
+  // 规划轨迹：沿右侧纵路直行 → 路口左转（虚线）
+  shapes.push(...routePath([[0.663, 0.37], [0.663, 0.66], [0.35, 0.66]], 28, 26, 264, 130, 0.5, '7 6'))
+  // EGO 车身（沿底部横向路向左行驶）
+  shapes.push(rect(150, 114, 24, 9, 0.95, 4))
+  shapes.push(...arrow(146, 118.5, 128, 118.5, 0.85, 2.4, 7))
+  // LiDAR 感知扇面
+  shapes.push(strokePoly(arcPoints(150, 118.5, 26, Math.PI - 0.55, Math.PI + 0.55), 0.55, 2))
+  shapes.push(line(150, 118.5, 128, 132, 0.35, 1.6))
+  shapes.push(line(150, 118.5, 128, 105, 0.35, 1.6))
+  // 前方目标车辆 + 检测框
+  shapes.push(strokePoly([[74, 110], [102, 110], [102, 128], [74, 128]], 0.4, 2, { close: true }))
+  shapes.push(rect(80, 115, 16, 7, 0.5, 3))
+  // 对向车辆 + 检测框（上路）
+  shapes.push(strokePoly([[140, 60], [170, 60], [170, 78], [140, 78]], 0.45, 2, { close: true }))
+  shapes.push(rect(146, 66, 18, 7, 0.55, 3))
+  // 过街行人 + 意图线
+  shapes.push(circle(203, 96, 2.8, 0.85))
+  shapes.push(line(203, 100, 203, 110, 0.5, 2))
+  // 红绿灯（右侧路口，红灯亮）
+  shapes.push(rect(216, 78, 8, 24, 0.6, 2.5))
+  shapes.push(circle(220, 84, 2.4, 0.85))
+  shapes.push(circle(220, 91, 2.4, 0.3))
+  shapes.push(circle(220, 97, 2.4, 0.25))
+  // 环境噪点
+  shapes.push(...scatter(34, 30, 250, 118, 6, rand, 2))
+  return shapes
+}
+
+/** 仿人机器人解剖图谱：人形轮廓 + 选中描边 + 向外爆炸的零件 */
+export function sceneSoma(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    // 地面
+    line(96, 164, 224, 164, 0.25, 2.4),
+    // 头部 + 选中描边环
+    circle(160, 58, 11, 0.9),
+    strokePoly(ellipsePoints(160, 58, 16, 16, 18), 0.45, 2),
+    // 颈 + 躯干
+    line(160, 69, 160, 78, 0.85, 3),
+    strokePoly(ellipsePoints(160, 104, 17, 26, 20), 0.85, 3, { close: true }),
+    // 四肢（轻微迈步相）
+    line(143, 86, 122, 116, 0.8, 3),
+    line(177, 86, 198, 116, 0.8, 3),
+    line(122, 116, 116, 126, 0.6, 2.6),
+    line(198, 116, 204, 126, 0.6, 2.6),
+    line(152, 130, 146, 158, 0.8, 3.4),
+    line(168, 130, 174, 158, 0.8, 3.4),
+    line(146, 158, 138, 158, 0.6, 2.6),
+    line(174, 158, 182, 158, 0.6, 2.6),
+    // 爆炸零件：左右各一枚，带向外箭头
+    ...arrow(136, 104, 118, 104, 0.55, 2.2, 6),
+    circle(108, 104, 6, 0.55),
+    ...arrow(184, 104, 202, 104, 0.55, 2.2, 6),
+    circle(212, 104, 6, 0.55)
+  ]
+  // 环境噪点
+  shapes.push(...scatter(60, 40, 200, 110, 5, rand, 1.8))
+  return shapes
+}
+
+/** AutoDrive Lab：行车记录仪画面 + 城市道路俯视 + 障碍工坊 + 手动按键 */
+export function sceneAutoDrive(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    // 行车记录仪画面
+    rect(24, 34, 150, 84, 0.08, 8),
+    strokePoly([[24, 34], [174, 34], [174, 118], [24, 118]], 0.5, 2.4, { close: true }),
+    // 车道引导线（V 形）
+    line(66, 118, 92, 70, 0.5, 2),
+    line(126, 118, 100, 70, 0.5, 2),
+    // 记录仪检测框 + 标签
+    strokePoly([[100, 52], [132, 52], [132, 72], [100, 72]], 0.6, 2, { close: true }),
+    rect(100, 44, 26, 8, 0.65, 2),
+    strokePoly([[138, 86], [158, 86], [158, 100], [138, 100]], 0.45, 1.8, { close: true }),
+    circle(162, 42, 3, 0.9),
+    // 城市道路俯视（右）
+    rect(196, 26, 36, 130, 0.16, 2),
+    rect(198, 34, 4, 8, 0.4, 1),
+    rect(205, 34, 4, 8, 0.4, 1),
+    rect(212, 34, 4, 8, 0.4, 1),
+    rect(219, 34, 4, 8, 0.4, 1),
+    rect(214.8, 52, 2.4, 9, 0.5, 1),
+    rect(214.8, 70, 2.4, 9, 0.5, 1),
+    rect(214.8, 124, 2.4, 9, 0.5, 1),
+    rect(214.8, 142, 2.4, 9, 0.5, 1),
+    // EGO 车与 LiDAR 环
+    circle(214, 102, 15, 0.35),
+    rect(202, 96, 24, 13, 0.95, 4),
+    strokePoly(arcPoints(214, 96, 22, -Math.PI / 2 - 0.5, -Math.PI / 2 + 0.5), 0.55, 2),
+    line(214, 96, 203, 77, 0.35, 1.6),
+    line(214, 96, 225, 77, 0.35, 1.6),
+    // 障碍工坊：锥桶 + 护栏
+    strokePoly([[252, 58], [246, 74], [258, 74]], 0.8, 2.4, { close: true }),
+    line(244, 77, 260, 77, 0.6, 2),
+    rect(246, 96, 26, 10, 0.5, 3),
+    rect(251, 96, 4, 10, 0.85, 1),
+    rect(259, 96, 4, 10, 0.85, 1),
+    rect(267, 96, 4, 10, 0.85, 1),
+    // 红绿灯
+    circle(284, 44, 3.2, 0.9),
+    circle(284, 53, 3.2, 0.25),
+    // 手动驾驶按键（WASD）
+    rect(246, 126, 16, 16, 0.5, 4),
+    fillPoly([[254, 130], [250, 138], [258, 138]], 0.85),
+    rect(228, 146, 16, 16, 0.4, 4),
+    fillPoly([[232, 154], [232, 162], [239, 158]], 0.7),
+    rect(246, 146, 16, 16, 0.6, 4),
+    fillPoly([[250, 154], [258, 154], [254, 161]], 0.85),
+    rect(264, 146, 16, 16, 0.4, 4),
+    fillPoly([[268, 154], [268, 162], [275, 158]], 0.7)
+  ]
+  // 环境噪点
+  shapes.push(...scatter(30, 130, 150, 36, 4, rand, 1.8))
+  return shapes
+}
+
+/** DroneSim：四旋翼俯视（X 形臂 + 4 桨盘）+ 停机坪 H + 航点环 + 爆炸指示 */
+export function sceneDrone(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    // 停机坪 + H 标识
+    strokePoly(ellipsePoints(96, 96, 34, 34, 24), 0.45, 2.4, { close: true }),
+    line(86, 82, 86, 110, 0.7, 4),
+    line(106, 82, 106, 110, 0.7, 4),
+    line(86, 96, 106, 96, 0.7, 4)
+  ]
+  // 四旋翼：X 形机臂 + 4 个桨盘
+  const cx = 160
+  const cy = 88
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const px = cx + sx * 34
+    const py = cy + sy * 26
+    shapes.push(line(cx, cy, px, py, 0.85, 4))
+    shapes.push(strokePoly(ellipsePoints(px, py, 15, 15, 18), 0.6, 2.2, { close: true }))
+    shapes.push(line(px - 10, py - 10 * sy * 0.3, px + 10, py + 10 * sy * 0.3, 0.4, 1.8))
+  }
+  shapes.push(rect(cx - 14, cy - 10, 28, 20, 0.9, 5))
+  shapes.push(circle(cx, cy - 2, 4, 0.95))
+  // FPV 视场锥
+  shapes.push(strokePoly(arcPoints(cx, cy + 10, 26, Math.PI * 0.32, Math.PI * 0.68), 0.5, 2))
+  shapes.push(line(cx, cy + 10, cx - 21, cy + 32, 0.35, 1.6))
+  shapes.push(line(cx, cy + 10, cx + 21, cy + 32, 0.35, 1.6))
+  // 航点环 ×3
+  shapes.push(strokePoly(ellipsePoints(62, 148, 11, 7, 16), 0.8, 2.4, { close: true }))
+  shapes.push(strokePoly(ellipsePoints(228, 146, 11, 7, 16), 0.55, 2.4, { close: true }))
+  shapes.push(strokePoly(ellipsePoints(268, 62, 11, 7, 16), 0.55, 2.4, { close: true }))
+  // 虚线航线
+  shapes.push(...routePath([[0.32, 0.82], [0.62, 0.62], [0.8, 0.36]], 30, 20, 270, 140, 0.4, '7 6'))
+  // 电池条
+  rect(238, 96, 46, 10, 0.18, 3)
+  shapes.push(rect(238, 96, 34, 10, 0.75, 3))
+  // 环境噪点
+  shapes.push(...scatter(34, 30, 250, 120, 6, rand, 2))
+  return shapes
+}
+
+/** 小四旋翼符号（灯光秀里的单机，用来交代「这是一支机队」） */
+function swarmGlyph(cx: number, cy: number, s: number, opacity: number): CoverShape[] {
+  const shapes: CoverShape[] = []
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const px = cx + sx * 13 * s
+    const py = cy + sy * 9 * s
+    shapes.push(line(cx, cy, px, py, opacity, 2 * s))
+    shapes.push(strokePoly(ellipsePoints(px, py, 6 * s, 6 * s, 14), opacity * 0.72, 1.6 * s, { close: true }))
+  }
+  shapes.push(rect(cx - 6 * s, cy - 4 * s, 12 * s, 8 * s, opacity, 2.5 * s))
+  return shapes
+}
+
+/** Swarm Studio：LED 编队球体（斐波那契铺点）+ 拖尾 + 下一编队虚线 + 地面网格 */
+export function sceneDroneDance(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = []
+  const cx = 156
+  const cy = 72
+  const R = 44
+  const count = 44
+
+  // 球面均匀铺点后投影到 2D：仍然读得出是一个立体编队，而不是一盘散沙
+  for (let i = 0; i < count; i++) {
+    const t = (i + 0.5) / count
+    const phi = Math.acos(1 - 2 * t)
+    const theta = i * 2.399963
+    const depth = Math.cos(phi)
+    const x = cx + R * Math.sin(phi) * Math.cos(theta)
+    const y = cy - R * depth * 0.98
+    // 每隔几台画一小段拖尾，交代「编队是飞出来的」
+    if (i % 3 === 0) shapes.push(line(x, y, x + 7, y + 6, 0.15, 1.4))
+    shapes.push(circle(x, y, 1.3 + (depth + 1) * 0.9, 0.4 + (depth + 1) * 0.28))
+  }
+
+  // 下一套编队的虚线轮廓 + 从球体飞过去的航线
+  shapes.push(strokePoly(ellipsePoints(268, 56, 26, 24, 22), 0.34, 2, { close: true, dash: '6 5' }))
+  shapes.push(strokePoly([[0.70, 0.30], [0.60, 0.38], [0.53, 0.42]].map(([px, py]) => [px * 320, py * 180] as Point), 0.26, 2, { dash: '6 5' }))
+
+  // 单机 + 起飞航线
+  shapes.push(...swarmGlyph(48, 46, 1.1, 0.85))
+  shapes.push(strokePoly([[70, 54], [92, 62], [108, 66]], 0.24, 1.8, { dash: '5 5' }))
+
+  // 地面 + 透视网格 + 电池/遥测条
+  shapes.push(line(18, 146, 302, 146, 0.22, 2.2))
+  shapes.push(...gridLines(38, 150, 244, 20, 12, 3, 0.12))
+  shapes.push(rect(24, 158, 64, 8, 0.18, 3))
+  shapes.push(rect(24, 158, 46, 8, 0.7, 3))
+
+  // 环境光点
+  shapes.push(...scatter(28, 24, 264, 112, 7, rand, 1.8))
+  return shapes
+}
+
 // ==================== 兜底 ====================
 
 /**
@@ -1611,5 +1835,10 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'robot/uaibot-kinematics': sceneUaibotKinematics,
   'robot/embodied': sceneEmbodied,
   'robot/envsense': sceneEnvSense,
-  'robot/vacusim': sceneVacuSim
+  'robot/vacusim': sceneVacuSim,
+  'robot/avsim': sceneAvSim,
+  'robot/auto-drive': sceneAutoDrive,
+  'robot/drone': sceneDrone,
+  'robot/soma': sceneSoma,
+  'robot/drone_dance': sceneDroneDance
 }
