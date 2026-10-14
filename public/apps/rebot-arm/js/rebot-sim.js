@@ -9,23 +9,50 @@
   const GRIPPER_ANIMATION_MS = 520;
  const URDF_HAS_BUILTIN_GRIPPER = true;
  const GRIPPER_MESH_VERSION = 'rs-v1';
-  const FAKE_GRASP_LOCAL_OFFSET = new THREE.Vector3(-0.05, 0, -0.02);
-  const TABLE_CENTER_X = 0.35;
-  const TABLE_WIDTH = 0.36;
-  const TABLE_DEPTH = 0.36;
-  const TABLE_SURFACE_Y = 0.10;
-  const TABLE_THICKNESS = 0.03;
-  const MUJOCO_OBJECT_COLORS = Object.freeze({
-    red_cube: 'red',
-    blue_block: 'blue',
-    yellow_cylinder: 'yellow'
-  });
-  const ROS_TO_THREE_FRAME = new THREE.Quaternion().setFromAxisAngle(
-    new THREE.Vector3(1, 0, 0),
-    -Math.PI / 2
-  );
-  const THREE_TO_ROS_FRAME = ROS_TO_THREE_FRAME.clone().invert();
-
+  // 闭合宽度：夹爪两指内侧面间距约等于 1.4×该值，取 0.0325 ≈ 45mm，
+  // 正好等于方块边长 —— 指面贴住方块而不是插进方块里
+  const GRIPPER_GRASP_WIDTH = 0.0325;
+  // —— 视觉分拣场景（传送带 + 分拣盒）——
+  const BELT_CENTER_X = 0.33;          // three X（保证工具朝下时可达）
+  const BELT_WIDTH = 0.16;
+  const BELT_HALF_LENGTH = 0.42;       // three Z ∈ [-0.42, 0.42]
+  const BELT_TOP_Y = 0.118;
+  const BELT_SPEED = 0.055;            // m/s，向 +Z 输送
+  const ROLLER_RADIUS = 0.032;
+  const PICK_ZONE_Z = [-0.20, 0.10];   // 抓取区（three Z）
+  // 从选中目标到夹爪闭合期间，方块仍随带面前进的距离；选目标时必须预留，
+  // 否则整个抓取流程会跑出抓取区（也会撞到工位边界）
+  const PICK_LEAD_Z = 0.13;
+  const BLOCK_SIZE = 0.045;
+  const BLOCK_COLORS = Object.freeze({ red: 0xeb140f, yellow: 0xffb80a, blue: 0x086bf0 });
+  const BLOCK_HALF = BLOCK_SIZE / 2;
+  const MAX_BLOCKS_ON_BELT = 4;
+  const SPAWN_INTERVAL_MS = 3400;
+  // 相邻方块中心的最小间距：比时间间隔更可靠（低帧率下 dt 被截断也不会堆叠穿模）
+  const MIN_BLOCK_SPACING = 0.18;
+  const BLOCK_SPAWN_Z = -BELT_HALF_LENGTH + BLOCK_HALF + 0.008;
+  // 分拣盒整体挪到传送带左侧，与带面 / 导轨 / 支腿 / 端辊留出净空
+  const BIN_CENTER = { x: 0.12, z: 0.26 };
+  const BIN_SIZE = { x: 0.22, z: 0.20 };   // 外径
+  const BIN_WALL = 0.009;
+  // 盒壁高度受机械臂限制：工具竖直朝下时，TCP 在盒子上方只能到 ~0.18，
+  // 再高 IK 就会为了保住姿态而放弃位置精度。所以盒子做得浅一些，
+  // 让「在盒壁上方松手」的高度落在可靠可达的区间里。
+  const BIN_HEIGHT = 0.12;
+  const BIN_FLOOR_TOP = 0.018;
+  const BIN_PLATE_H = 0.004;
+  // 方块落在色板上面，而不是穿进色板里
+  const BIN_STACK_BASE = BIN_FLOOR_TOP + BIN_PLATE_H;
+  const SLOT_ORDER = ['red', 'yellow', 'blue'];
+  // 三格的实际几何中心（内净空 0.182 去掉两条隔板后均分），居中放置才不会蹭到隔板
+  const SLOT_Z = { red: 0.197, yellow: 0.26, blue: 0.323 };
+  const SLOT_PITCH = SLOT_Z.yellow - SLOT_Z.red;
+  const MAX_STACK_PER_SLOT = 2;
+  const APPROACH_HOVER = 0.025;
+  // 在盒壁上方这么高处松手，让方块自己落进分格：夹爪不必伸进 56mm 窄格，
+  // 也就不会和隔板互相穿模
+  const DROP_CLEARANCE = 0.03;
+  const GRASP_STICKOUT = 0.015;        // TCP（指尖）到被抓方块中心的距离（自校正）
   // The URDF supplies the colour. These Web-specific PBR values compensate for
   // Three.js running without an environment map; copying MuJoCo's high metal
   // value directly makes anodized silver render nearly black in the browser.
@@ -68,7 +95,8 @@
   let hardwareFeedbackDriven = false;
   let gripperGroup;
   let ghostGripperGroup;
-  let mujocoSceneGroup;
+  let taskSceneGroup;
+  let beltSurfaceTexture = null;
   let envelopeGroup;
   let workspacePlanarReach = NOMINAL_REACH;
   let workspaceVerticalReach = NOMINAL_REACH;
@@ -111,8 +139,27 @@
  const commandListeners = new Set();
  const axisLabelSprites = [];
   let carriedObject = null;
-  let mujocoObjectFeedbackAt = 0;
-  const taskObjects = new Map();
+  // —— 分拣任务运行时状态 ——
+  const blocks = new Set();            // { id, color, mesh, state, vy, restY, lockHint }
+  const binCounts = { red: 0, yellow: 0, blue: 0 };   // 累计分拣数（HUD 用）
+  const binStacks = { red: [], yellow: [], blue: [] }; // 当前格内堆叠的方块（自下往上）
+  let conveyorRunning = true;
+  let spawnTimerMs = 0;
+  // 机械臂加载完成、初始方块就位之前不自动落料，否则会和初始方块撞在一起
+  let spawnEnabled = false;
+  let blockIdSeq = 0;
+  let motionEpoch = 0;
+  const moveWaiters = new Set();       // { resolve, epoch }
+  const gripperWaiters = new Set();
+  // 抓取自校正：方块中心相对 TCP 的世界偏移。实测夹爪竖直朝下时方块中心略高于
+  // TCP 原点，先给个经验值，第一次抓取后会用真实值覆盖。
+  let graspOffsetHint = new THREE.Vector3(0, 0.005, 0);
+  // —— 实时相机视图 ——
+  let camViewRenderer = null;
+  let camViewCamera = null;
+  let camViewOverlay = null;
+  let camViewOverlayCtx = null;
+  let lastFrameTime = 0;
 
   const els = {
     host: document.getElementById('scene-host'),
@@ -312,66 +359,297 @@
     grid.position.y = 0;
     scene.add(grid);
 
-    mujocoSceneGroup = new THREE.Group();
-    mujocoSceneGroup.name = 'mujoco-task-scene';
-
-    const table = new THREE.Mesh(
-      new THREE.BoxGeometry(TABLE_WIDTH, TABLE_THICKNESS, TABLE_DEPTH),
-      new THREE.MeshStandardMaterial({
-        color: 0x575e5c,
-        map: createTableTexture(),
-        roughness: 0.66,
-        metalness: 0.08
-      })
-    );
-    table.name = 'mujoco-task-table';
-    table.position.set(TABLE_CENTER_X, TABLE_SURFACE_Y - TABLE_THICKNESS / 2, 0);
-    table.castShadow = true;
-    table.receiveShadow = true;
-    table.userData.collisionKind = 'table';
-    mujocoSceneGroup.add(table);
-
-    const tableOutline = new THREE.LineSegments(
-      new THREE.EdgesGeometry(table.geometry, 28),
-      new THREE.LineBasicMaterial({ color: 0xb9c3c0, transparent: true, opacity: 0.34 })
-    );
-    tableOutline.position.copy(table.position);
-    mujocoSceneGroup.add(tableOutline);
-    mujocoSceneGroup.add(createTaskSpace());
-
-    const sceneToggle = document.getElementById('toggle-mujoco-scene');
-    mujocoSceneGroup.visible = !sceneToggle || sceneToggle.checked;
-    scene.add(mujocoSceneGroup);
+    taskSceneGroup = new THREE.Group();
+    taskSceneGroup.name = 'sorting-task-scene';
+    buildConveyor();
+    buildBin();
+    buildPickZoneMarker();
+    scene.add(taskSceneGroup);
   }
 
-  function createTableTexture() {
+  function buildConveyor() {
+    const group = new THREE.Group();
+    group.name = 'conveyor';
+
+    const frameMat = new THREE.MeshStandardMaterial({ color: 0x39413e, roughness: 0.55, metalness: 0.35 });
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(0.10, 0.06, BELT_HALF_LENGTH * 2),
+      frameMat
+    );
+    body.position.set(BELT_CENTER_X, BELT_TOP_Y - 0.031, 0);
+    body.castShadow = true;
+    body.receiveShadow = true;
+    group.add(body);
+
+    // 传送面：条纹纹理随时间滚动，制造输送效果
+    beltSurfaceTexture = createBeltTexture();
+    const surface = new THREE.Mesh(
+      new THREE.PlaneGeometry(BELT_WIDTH, BELT_HALF_LENGTH * 2),
+      new THREE.MeshStandardMaterial({ map: beltSurfaceTexture, roughness: 0.82, metalness: 0.05 })
+    );
+    surface.rotation.x = -Math.PI / 2;
+    surface.position.set(BELT_CENTER_X, BELT_TOP_Y, 0);
+    surface.receiveShadow = true;
+    group.add(surface);
+
+    // 两侧导轨
+    const railMat = new THREE.MeshStandardMaterial({ color: 0x566059, roughness: 0.4, metalness: 0.5 });
+    [-1, 1].forEach((side) => {
+      const rail = new THREE.Mesh(
+        new THREE.BoxGeometry(0.012, 0.028, BELT_HALF_LENGTH * 2),
+        railMat
+      );
+      rail.position.set(BELT_CENTER_X + side * (BELT_WIDTH / 2 + 0.008), BELT_TOP_Y + 0.013, 0);
+      rail.castShadow = true;
+      group.add(rail);
+    });
+
+    // 两端滚筒：顶面与带面齐平，否则会高出一截把方块「埋」进辊子里
+    [-1, 1].forEach((side) => {
+      const roller = new THREE.Mesh(
+        new THREE.CylinderGeometry(ROLLER_RADIUS, ROLLER_RADIUS, BELT_WIDTH + 0.02, 24),
+        new THREE.MeshStandardMaterial({ color: 0x8b958f, roughness: 0.3, metalness: 0.7 })
+      );
+      roller.rotation.x = Math.PI / 2;
+      roller.position.set(BELT_CENTER_X, BELT_TOP_Y - ROLLER_RADIUS - 0.001, side * BELT_HALF_LENGTH);
+      roller.castShadow = true;
+      group.add(roller);
+    });
+
+    // 支腿
+    const legMat = new THREE.MeshStandardMaterial({ color: 0x2c332f, roughness: 0.6, metalness: 0.3 });
+    [-1, 1].forEach((sideZ) => {
+      [-1, 1].forEach((sideX) => {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.03, BELT_TOP_Y - 0.06, 0.03), legMat);
+        leg.position.set(
+          BELT_CENTER_X + sideX * 0.045,
+          (BELT_TOP_Y - 0.06) / 2,
+          sideZ * (BELT_HALF_LENGTH - 0.08)
+        );
+        leg.castShadow = true;
+        group.add(leg);
+      });
+    });
+
+    taskSceneGroup.add(group);
+  }
+
+  function createBeltTexture() {
     const canvas = document.createElement('canvas');
-    canvas.width = 192;
-    canvas.height = 192;
+    canvas.width = 128;
+    canvas.height = 128;
     const ctx = canvas.getContext('2d');
-    const image = ctx.createImageData(canvas.width, canvas.height);
-    let seed = 601;
-    for (let y = 0; y < canvas.height; y += 1) {
-      for (let x = 0; x < canvas.width; x += 1) {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        const grain = ((seed >>> 24) / 255 - 0.5) * 10;
-        const streak = Math.sin(y * 0.19) * 1.8;
-        const index = (y * canvas.width + x) * 4;
-        image.data[index] = clamp(88 + grain + streak, 0, 255);
-        image.data[index + 1] = clamp(96 + grain + streak, 0, 255);
-        image.data[index + 2] = clamp(93 + grain + streak, 0, 255);
-        image.data[index + 3] = 255;
-      }
+    ctx.fillStyle = '#23282a';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#3a4245';
+    for (let i = 0; i < canvas.height; i += 32) {
+      ctx.fillRect(0, i, canvas.width, 12);
     }
-    ctx.putImageData(image, 0, 0);
+    ctx.fillStyle = '#4d585c';
+    for (let i = 0; i < canvas.width; i += 64) {
+      ctx.fillRect(i, 0, 3, canvas.height);
+    }
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.repeat.set(2.8, 2.8);
+    texture.repeat.set(1, 10);
     texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     if ('colorSpace' in texture && THREE.SRGBColorSpace) texture.colorSpace = THREE.SRGBColorSpace;
     else if (THREE.sRGBEncoding !== undefined) texture.encoding = THREE.sRGBEncoding;
     return texture;
+  }
+
+  function buildBin() {
+    const group = new THREE.Group();
+    group.name = 'sorting-bin';
+    const wallMat = new THREE.MeshStandardMaterial({ color: 0x4a5350, roughness: 0.5, metalness: 0.25 });
+
+    const floor = new THREE.Mesh(
+      new THREE.BoxGeometry(BIN_SIZE.x, 0.014, BIN_SIZE.z),
+      new THREE.MeshStandardMaterial({ color: 0x333a37, roughness: 0.7, metalness: 0.1 })
+    );
+    floor.position.set(BIN_CENTER.x, BIN_FLOOR_TOP - 0.007, BIN_CENTER.z);
+    floor.receiveShadow = true;
+    group.add(floor);
+
+    // 三色格底板：沿 Z 分成三格，所以底板只在 Z 方向占一格宽度，
+    // 否则会互相重叠、并捅出盒壁
+    SLOT_ORDER.forEach((color) => {
+      const plate = new THREE.Mesh(
+        new THREE.BoxGeometry(BIN_SIZE.x - BIN_WALL * 2 - 0.004, BIN_PLATE_H, SLOT_PITCH - 0.009),
+        new THREE.MeshStandardMaterial({ color: BLOCK_COLORS[color], roughness: 0.5, metalness: 0.05 })
+      );
+      plate.position.set(BIN_CENTER.x, BIN_FLOOR_TOP + BIN_PLATE_H / 2, SLOT_Z[color]);
+      plate.receiveShadow = true;
+      group.add(plate);
+    });
+
+    const wallH = BIN_HEIGHT - BIN_FLOOR_TOP;
+    // 沿 z 的两块外侧墙 + 两块隔板 + 沿 x 的两块外侧墙
+    const outerZ = [
+      BIN_CENTER.z - BIN_SIZE.z / 2 + BIN_WALL / 2,
+      BIN_CENTER.z + BIN_SIZE.z / 2 - BIN_WALL / 2
+    ];
+    outerZ.forEach((z) => {
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(BIN_SIZE.x, wallH, BIN_WALL),
+        wallMat
+      );
+      wall.position.set(BIN_CENTER.x, BIN_FLOOR_TOP + wallH / 2, z);
+      wall.castShadow = true;
+      group.add(wall);
+    });
+    const outerX = [
+      BIN_CENTER.x - BIN_SIZE.x / 2 + BIN_WALL / 2,
+      BIN_CENTER.x + BIN_SIZE.x / 2 - BIN_WALL / 2
+    ];
+    outerX.forEach((x) => {
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(BIN_WALL, wallH, BIN_SIZE.z),
+        wallMat
+      );
+      wall.position.set(x, BIN_FLOOR_TOP + wallH / 2, BIN_CENTER.z);
+      wall.castShadow = true;
+      group.add(wall);
+    });
+    // 两条内隔板（把盒子分成 3 格），与盒壁等高，保证 3 层方块都在格内
+    [(SLOT_Z.red + SLOT_Z.yellow) / 2, (SLOT_Z.yellow + SLOT_Z.blue) / 2].forEach((z) => {
+      const divider = new THREE.Mesh(
+        new THREE.BoxGeometry(BIN_SIZE.x - BIN_WALL * 2, wallH, BIN_WALL * 0.8),
+        new THREE.MeshStandardMaterial({ color: 0x3d4542, roughness: 0.55, metalness: 0.2 })
+      );
+      divider.position.set(BIN_CENTER.x, BIN_FLOOR_TOP + wallH / 2, z);
+      divider.castShadow = true;
+      group.add(divider);
+    });
+
+    taskSceneGroup.add(group);
+  }
+
+  function buildPickZoneMarker() {
+    const zCenter = (PICK_ZONE_Z[0] + PICK_ZONE_Z[1]) / 2;
+    const zLen = PICK_ZONE_Z[1] - PICK_ZONE_Z[0];
+    const marker = new THREE.Mesh(
+      new THREE.PlaneGeometry(BELT_WIDTH, zLen),
+      new THREE.MeshBasicMaterial({ color: 0x33d6b0, transparent: true, opacity: 0.12, depthWrite: false })
+    );
+    marker.rotation.x = -Math.PI / 2;
+    marker.position.set(BELT_CENTER_X, BELT_TOP_Y + 0.002, zCenter);
+    taskSceneGroup.add(marker);
+
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(new THREE.PlaneGeometry(BELT_WIDTH, zLen)),
+      new THREE.LineBasicMaterial({ color: 0x33d6b0, transparent: true, opacity: 0.5 })
+    );
+    outline.rotation.x = -Math.PI / 2;
+    outline.position.set(BELT_CENTER_X, BELT_TOP_Y + 0.003, zCenter);
+    taskSceneGroup.add(outline);
+  }
+
+  // 落料位置要保证与带上已有方块至少隔开 MIN_BLOCK_SPACING；
+  // 让不开就干脆不生成，避免出现两块叠在一起（穿模）
+  function resolveSpawnZ(desiredZ) {
+    let z = desiredZ;
+    blocks.forEach((block) => {
+      if (block.state !== 'belt' && block.state !== 'locked') return;
+      // 取「所有已有方块后退一个间距」的最靠后位置，与遍历顺序无关
+      z = Math.min(z, block.mesh.position.z - MIN_BLOCK_SPACING);
+    });
+    return z < -BELT_HALF_LENGTH - 0.005 ? null : z;
+  }
+
+  function spawnBlock(colorKey, zPos) {
+    const z = resolveSpawnZ(zPos != null ? zPos : BLOCK_SPAWN_Z);
+    if (z == null) return null;
+    const color = colorKey || Object.keys(BLOCK_COLORS)[Math.floor(Math.random() * 3)];
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE),
+      new THREE.MeshStandardMaterial({ color: BLOCK_COLORS[color], roughness: 0.34, metalness: 0.06 })
+    );
+    const outline = new THREE.LineSegments(
+      new THREE.EdgesGeometry(mesh.geometry, 32),
+      new THREE.LineBasicMaterial({ color: 0x18201e, transparent: true, opacity: 0.4 })
+    );
+    mesh.add(outline);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.position.set(
+      BELT_CENTER_X + (Math.random() - 0.5) * 0.02,
+      BELT_TOP_Y + BLOCK_HALF,
+      z
+    );
+    const block = {
+      id: ++blockIdSeq,
+      color,
+      mesh,
+      state: 'belt',   // belt | locked | carried | falling | binned | idle
+      vy: 0,
+      restY: BELT_TOP_Y + BLOCK_HALF
+    };
+    mesh.userData.block = block;
+    taskSceneGroup.add(mesh);
+    blocks.add(block);
+    return block;
+  }
+
+  function removeBlock(block) {
+    if (carriedObject && carriedObject.block === block) carriedObject = null;
+    if (block.mesh.parent) block.mesh.parent.remove(block.mesh);
+    blocks.delete(block);
+    const stack = binStacks[block.color];
+    if (stack) {
+      const index = stack.indexOf(block);
+      if (index >= 0) stack.splice(index, 1);
+    }
+  }
+
+  function updateBlocks(dtMs) {
+    // 下落积分用较小的步长；带面则按真实时间走 —— 抓取时的预判行程要能和它对上，
+    // 帧率一低就把带面拖慢会让机械臂每次都「抢跑」
+    const dt = Math.min(dtMs, 100) / 1000;
+    const beltDt = Math.min(dtMs, 500) / 1000;
+    const beltBlocks = [];
+    blocks.forEach((block) => {
+      // 自愈：没有任何 carriedObject 持有的方块不得停留在 carried 状态
+      if (block.state === 'carried' && (!carriedObject || carriedObject.block !== block)) {
+        settleBlockFrom(block, block.mesh.position);
+      }
+      if (block.state === 'belt' || block.state === 'locked') {
+        // 锁定只是「预留给机械臂」，方块本身照旧随带面前进：
+        // 抓取时由机械臂去追，而不是把方块钉在原地
+        if (conveyorRunning) {
+          block.mesh.position.z += BELT_SPEED * beltDt;
+        }
+        if (block.mesh.position.z > BELT_HALF_LENGTH + 0.02) {
+          beltBlocks.push(block);
+        }
+      } else if (block.state === 'falling') {
+        block.vy -= 4.2 * dt;
+        block.mesh.position.y += block.vy * dt;
+        if (block.vy < 0 && block.mesh.position.y <= block.restY) {
+          block.mesh.position.y = block.restY;
+          block.vy = 0;
+          block.state = block.nextState || 'idle';
+        }
+      }
+    });
+    beltBlocks.forEach(removeBlock);
+
+    spawnTimerMs += dtMs;
+    if (spawnEnabled && spawnTimerMs >= SPAWN_INTERVAL_MS) {
+      // 时间到了还要再看间距：帧率低时方块实际前进得慢，只按时间补料会叠在一起
+      let onBelt = 0;
+      let tooClose = false;
+      blocks.forEach((block) => {
+        if (block.state !== 'belt' && block.state !== 'locked') return;
+        onBelt += 1;
+        if (block.mesh.position.z < BLOCK_SPAWN_Z + MIN_BLOCK_SPACING) tooClose = true;
+      });
+      if (!tooClose && onBelt < MAX_BLOCKS_ON_BELT) {
+        spawnTimerMs = 0;
+        spawnBlock();
+      }
+    }
   }
 
   function createDirectionAxes() {
@@ -433,64 +711,6 @@
     return new THREE.Line(new THREE.BufferGeometry().setFromPoints(points), mat);
   }
 
-  function createTaskSpace() {
-    const group = new THREE.Group();
-    group.name = 'mujoco-task-objects';
-    const objects = [
-      {
-        key: 'red',
-        label: 'sim.redBlock',
-        color: 0xeb140f,
-        position: [0.31, -0.09, 0.1225],
-        geometry: new THREE.BoxGeometry(0.045, 0.045, 0.045)
-      },
-      {
-        key: 'blue',
-        label: 'sim.blueBlock',
-        color: 0x086bf0,
-        position: [0.32, 0.08, 0.119],
-        geometry: new THREE.BoxGeometry(0.052, 0.038, 0.032)
-      },
-      {
-        key: 'yellow',
-        label: 'sim.cylinder',
-        color: 0xffb80a,
-        position: [0.25, 0.10, 0.126],
-        geometry: new THREE.CylinderGeometry(0.020, 0.020, 0.052, 32)
-      }
-    ];
-
-    objects.forEach((object) => {
-      const item = new THREE.Mesh(
-        object.geometry,
-        new THREE.MeshStandardMaterial({
-          color: object.color,
-          roughness: 0.34,
-          metalness: 0.06
-        })
-      );
-      const [rosX, rosY, rosZ] = object.position;
-      item.position.set(rosX, rosZ, -rosY);
-      item.castShadow = true;
-      item.receiveShadow = true;
-      item.userData.clickTarget = true;
-      item.userData.targetKind = 'object';
-      item.userData.targetLabel = t(object.label);
-      item.userData.targetColor = object.key;
-      item.userData.tableY = rosZ;
-      item.userData.restPosition = item.position.clone();
-      taskObjects.set(object.key, item);
-      group.add(item);
-
-      const outline = new THREE.LineSegments(
-        new THREE.EdgesGeometry(object.geometry, 32),
-        new THREE.LineBasicMaterial({ color: 0x18201e, transparent: true, opacity: 0.36 })
-      );
-      item.add(outline);
-    });
-    return group;
-  }
-
   function loadRobot() {
     if (typeof URDFLoader === 'undefined') {
       failLoad('URDFLoader is not loaded.');
@@ -511,12 +731,15 @@
       rebotarm_bringup: `${window.location.origin}/api/apps/rebot-arm`
     };
 
-    loader.load('/api/apps/rebot-arm/urdf', (loadedRobot) => {
-      robot = loadedRobot;
-      robotFrame.add(robot);
-    }, undefined, (error) => {
-      failLoad(`URDF load failed: ${error && error.message ? error.message : error}`);
-    });
+    // URDF 命中缓存时回调可能同步触发；延后一拍确保 IKSolver 等模块级定义已完成初始化
+    setTimeout(() => {
+      loader.load('/api/apps/rebot-arm/urdf', (loadedRobot) => {
+        robot = loadedRobot;
+        robotFrame.add(robot);
+      }, undefined, (error) => {
+        failLoad(`URDF load failed: ${error && error.message ? error.message : error}`);
+      });
+    }, 0);
   }
 
   async function finishRobotLoad() {
@@ -532,7 +755,12 @@
         }
       }
       createGhostRobot();
-      applyPreset('ready', true);
+      applyPreset('forward', true);
+      // 初始在传送带上放两块方块，场景即刻可见分拣素材
+      spawnBlock('red', -0.16);
+      spawnBlock('yellow', -0.34);
+      spawnTimerMs = 0;
+      spawnEnabled = true;
       estimateWorkspaceEnvelope();
       rebuildEnvelope();
       syncGhostToRobot();
@@ -728,9 +956,9 @@
       sceneResizeObserver = new ResizeObserver(() => resize());
       sceneResizeObserver.observe(els.host);
     }
-    document.getElementById('reset-camera').addEventListener('click', resetCamera);
-    document.getElementById('play-path').addEventListener('click', playPath);
-    document.getElementById('stop-path').addEventListener('click', () => {
+    document.getElementById('reset-camera')?.addEventListener('click', resetCamera);
+    document.getElementById('play-path')?.addEventListener('click', playPath);
+    document.getElementById('stop-path')?.addEventListener('click', () => {
       stopActiveMotion();
     });
     if (els.planTrajectory) els.planTrajectory.addEventListener('click', generateTrajectory);
@@ -746,15 +974,12 @@
     window.addEventListener('pointerup', endTcpDrag);
     window.addEventListener('pointercancel', endTcpDrag);
     document.getElementById('open-gripper')?.addEventListener('click', () => setGripperWidth(GRIPPER_COMMAND_MAX));
-    document.getElementById('close-gripper')?.addEventListener('click', () => setGripperWidth(0));
+    document.getElementById('close-gripper')?.addEventListener('click', () => setGripperWidth(GRIPPER_COMMAND_MAX - GRIPPER_GRASP_WIDTH));
 
-    document.getElementById('toggle-envelope').addEventListener('change', (event) => {
+    document.getElementById('toggle-envelope')?.addEventListener('change', (event) => {
       envelopeGroup.visible = event.target.checked;
     });
-    document.getElementById('toggle-mujoco-scene')?.addEventListener('change', (event) => {
-      if (mujocoSceneGroup) mujocoSceneGroup.visible = event.target.checked;
-    });
-    document.getElementById('toggle-ghost').addEventListener('change', (event) => {
+    document.getElementById('toggle-ghost')?.addEventListener('change', (event) => {
       if (ghostRobot) ghostRobot.visible = ghostDisplayActive && event.target.checked;
       if (targetGhost) targetGhost.visible = false;
     });
@@ -912,6 +1137,8 @@
 
   function moveToAngles(nextAngles, duration, options) {
     teachingPlayback = null;
+    // 新轨迹会取代未完成的等待（任务编排据此感知被打断）
+    flushMoveWaiters(false);
     moveStartAngles = { ...currentAngles };
     targetAngles = { ...nextAngles };
     moveStart = performance.now();
@@ -935,7 +1162,18 @@
     if (t >= 1) {
       moveStart = 0;
       setGhostDisplay(false);
+      flushMoveWaiters(true);
     }
+  }
+
+  function flushMoveWaiters(completed) {
+    const waiters = Array.from(moveWaiters);
+    moveWaiters.clear();
+    waiters.forEach((waiter) => {
+      try {
+        waiter.resolve({ ok: Boolean(completed), epoch: motionEpoch });
+      } catch (_) {}
+    });
   }
 
   function updateGhostTarget(angles) {
@@ -1606,21 +1844,288 @@
     setDragStatus(t('sim.planTarget', { label: label || '点击位置', mm: (solved.error * 1000).toFixed(1) }));
   }
 
-  function solveIKTarget(target, maxIter, timeoutMs) {
+  function solveIKTarget(target, maxIter, timeoutMs, orientation) {
     const started = performance.now();
     let result = null;
+    let bestScore = Infinity;
+    let bestAngles = null;
 
     for (let i = 0; i < maxIter; i += 1) {
-      result = IKSolver.servoStep(target, 0.016, { source: 'solver' });
+      result = IKSolver.servoStep(target, 0.016, { source: 'solver', orientation });
+      // 记录历史最优（位置 + 朝向加权），迭代发散时回滚，保证单调不退化
+      const pos = getTcpPosition(robot);
+      const posErr = pos ? pos.distanceTo(target) : Infinity;
+      const rotErr = orientation
+        ? 1 - clamp(getToolAxis(robot).dot(orientation), -1, 1)
+        : 0;
+      const score = posErr + rotErr * 0.08;
+      if (score < bestScore) {
+        bestScore = score;
+        bestAngles = { ...currentAngles };
+      }
       if (result && result.reached) break;
       if (performance.now() - started > timeoutMs) break;
     }
 
+    if (bestAngles) {
+      Object.entries(bestAngles).forEach(([name, value]) => {
+        if (Number.isFinite(Number(value))) setJoint(name, Number(value), false, { source: 'solver', emit: false });
+      });
+      robot.updateMatrixWorld(true);
+    }
+    const finalPos = getTcpPosition(robot);
+    const finalError = finalPos ? finalPos.distanceTo(target) : Infinity;
+    const finalRot = orientation ? 1 - clamp(getToolAxis(robot).dot(orientation), -1, 1) : 0;
     return {
       angles: { ...currentAngles },
-      error: result ? result.error : Infinity,
-      reached: result ? result.reached : false
+      error: finalError,
+      reached: finalError < 0.0015 && finalRot < 0.03
     };
+  }
+
+  const ORIENTATION_DOWN = new THREE.Vector3(0, -1, 0);
+
+  // 网格全局播种：在 (j1±yaw, j2, j3, j4) 粗网格上做 FK，
+  // 找“工具轴竖直朝下且 TCP 离目标最近”的关节种子，供姿态抛光收敛
+  function findTopDownSeed(target) {
+    if (!robot) return null;
+    const j2def = jointDefs.find((joint) => joint.name === 'joint2');
+    const j3def = jointDefs.find((joint) => joint.name === 'joint3');
+    const j4def = jointDefs.find((joint) => joint.name === 'joint4');
+    if (!j2def || !j3def || !j4def) return null;
+
+    const yaw = Math.atan2(-target.z, target.x);
+    const startAngles = { ...currentAngles };
+    let best = null;
+
+    const trySeed = (j1, j2, j3, j4, j5) => {
+      setJoint('joint1', j1, false, { source: 'seed', emit: false });
+      setJoint('joint2', j2, false, { source: 'seed', emit: false });
+      setJoint('joint3', j3, false, { source: 'seed', emit: false });
+      setJoint('joint4', j4, false, { source: 'seed', emit: false });
+      setJoint('joint5', j5, false, { source: 'seed', emit: false });
+      robot.updateMatrixWorld(true);
+      const pos = getTcpPosition(robot);
+      if (!pos) return;
+      if (getToolAxis(robot).y > -0.88) return;
+      const d = pos.distanceTo(target);
+      if (!best || d < best.d) {
+        best = {
+          d,
+          angles: {
+            ...startAngles,
+            joint1: j1, joint2: j2, joint3: j3, joint4: j4, joint5: j5
+          }
+        };
+      }
+    };
+
+    for (const j1 of [yaw, -yaw]) {
+      for (let a = 0.35; a <= 2.75; a += 0.48) {
+        for (let b = 0.2; b <= 2.8; b += 0.52) {
+          for (const c of [-1.5, -0.75, 0, 0.75, 1.5]) {
+            for (const e of [-1.5, -0.75, 0, 0.75, 1.5]) {
+              trySeed(j1, a, b, c, e);
+            }
+          }
+        }
+      }
+    }
+
+    // 恢复当前姿态（种子只是求解起点）
+    applyRobotAngles(robot, startAngles);
+    Object.entries(startAngles).forEach(([name, value]) => {
+      setJoint(name, value, false, { source: 'seed', emit: false });
+    });
+    robot.updateMatrixWorld(true);
+    return best;
+  }
+
+  // 任务编排专用：TCP 目标运动（ROS 坐标，米），返回 Promise<{ok, error, epoch}>
+  function moveTcpTo(targetRos, durationMs, options) {
+    return new Promise((resolve) => {
+      if (!robot) {
+        resolve({ ok: false, error: Infinity, epoch: motionEpoch });
+        return;
+      }
+      const opts = options || {};
+      if (dragMode) {
+        resolve({ ok: false, error: Infinity, epoch: motionEpoch, reason: 'drag' });
+        return;
+      }
+      const target = new THREE.Vector3(
+        Number(targetRos.x) || 0,
+        Number(targetRos.z) || 0,
+        -(Number(targetRos.y) || 0)
+      );
+      const bounded = clampToWorkspaceEnvelope(target);
+      stopPath();
+      teachingPlayback = null;
+      moveStart = 0;
+
+      const start = { ...currentAngles };
+      // 抓取类移动：先网格全局播种（工具朝下 + TCP 靠近目标），
+      // 再从种子做位置 + 姿态的 DLS 抛光，保证稳定收敛
+      if (opts.orientation) {
+        const seed = findTopDownSeed(bounded.point);
+        if (seed) {
+          Object.entries(seed.angles).forEach(([name, value]) => {
+            if (Number.isFinite(Number(value))) setJoint(name, Number(value), false, { source: 'seed', emit: false });
+          });
+          robot.updateMatrixWorld(true);
+        }
+      } else {
+        solveIKTarget(bounded.point, opts.maxIterA || 300, opts.timeoutMsA || 1200, null);
+      }
+      const solved = solveIKTarget(
+        bounded.point,
+        opts.maxIter || 560,
+        opts.timeoutMs || 2400,
+        opts.orientation ? ORIENTATION_DOWN : null
+      );
+      // 抓取类移动要求工具轴充分朝下（允许 ~35° 内倾斜换可达性）
+      if (opts.orientation) {
+        const axis = getToolAxis(robot);
+        if (axis.y > -0.82) {
+          applyRobotAngles(robot, start);
+          Object.entries(start).forEach(([name, value]) => {
+            setJoint(name, value, false, { source: 'ros' });
+          });
+          syncGhostToRobot();
+          resolve({ ok: false, error: solved.error, epoch: motionEpoch, reason: 'orient' });
+          return;
+        }
+      }
+      // 恢复起始姿态后按求解结果插值播放
+      applyRobotAngles(robot, start);
+      Object.entries(start).forEach(([name, value]) => {
+        setJoint(name, value, false, { source: 'ros' });
+      });
+      syncGhostToRobot();
+
+      if (!solved.reached && solved.error > 0.035) {
+        let seedD = null;
+        let seedAxisY = null;
+        if (opts.orientation) {
+          const probe = findTopDownSeed(bounded.point);
+          if (probe) {
+            seedD = probe.d;
+            Object.entries(probe.angles).forEach(([name, value]) => {
+              if (Number.isFinite(Number(value))) setJoint(name, Number(value), false, { source: 'seed', emit: false });
+            });
+            robot.updateMatrixWorld(true);
+            seedAxisY = getToolAxis(robot).y;
+          }
+        }
+        resolve({ ok: false, error: solved.error, epoch: motionEpoch, reason: 'ik', seedD, seedAxisY });
+        return;
+      }
+
+      // 先启动轨迹再登记等待：moveToAngles 会 flush 掉旧的 waiter
+      const waiter = { resolve, epoch: motionEpoch };
+      moveToAngles({ ...start, ...solved.angles }, Math.max(durationMs || 1200, 200), {
+        source: 'task'
+      });
+      moveWaiters.add(waiter);
+    });
+  }
+
+  // 传送带跟随：每帧把 TCP 伺服到「方块实时位置 + offset」。
+  // 抓取时方块不会被钉住，而是机械臂追着它走 —— 夹爪始终罩在方块上，
+  // 不会出现方块从夹爪侧面「穿」过去的情况。
+  function trackBlockTo(snapshot, offset, options) {
+    return new Promise((resolve) => {
+      const opts = options || {};
+      const epoch = motionEpoch;
+      const offsetVec = new THREE.Vector3(offset.x || 0, offset.y || 0, offset.z || 0);
+      const timeoutMs = Math.max(200, opts.timeoutMs || 1500);
+      const tolerance = opts.tolerance || 0.004;
+      const settleFrames = opts.settleFrames == null ? 3 : opts.settleFrames;
+      const started = performance.now();
+      let lastStep = started;
+      let settledAt = 0;
+      let done = false;
+
+      stopPath();
+      teachingPlayback = null;
+      moveStart = 0;
+      flushMoveWaiters(false);
+      syncGhostToRobot();
+
+      const finish = (ok, error) => {
+        if (done) return;
+        done = true;
+        resolve({ ok, error, epoch });
+      };
+
+      const step = () => {
+        if (done) return;
+        if (epoch !== motionEpoch || !robot) {
+          finish(false, Infinity);
+          return;
+        }
+        const block = findBlockBySnapshot(snapshot);
+        if (!block) {
+          finish(false, Infinity);
+          return;
+        }
+        const goal = block.mesh.position.clone().add(offsetVec);
+        // 按真实经过时间拆成多个子步，帧率高低都不会改变跟随速度
+        const frameNow = performance.now();
+        const stepDt = Math.min(0.08, Math.max(0.012, (frameNow - lastStep) / 1000 || 0.016));
+        lastStep = frameNow;
+        const substeps = Math.max(1, Math.ceil(stepDt / 0.016));
+        let result = null;
+        for (let i = 0; i < substeps; i += 1) {
+          result = IKSolver.servoStep(goal, stepDt / substeps, {
+            orientation: opts.orientation === false ? null : ORIENTATION_DOWN,
+            source: 'task-track'
+          });
+        }
+        const error = result ? result.error : Infinity;
+        const elapsed = performance.now() - started;
+        // 伺服天然会落后运动中的目标约一帧行程，判定阈值要把这一帧补回来，
+        // 否则帧率一低就永远「到不了位」
+        const frameLag = (conveyorRunning ? BELT_SPEED : 0) * stepDt;
+        if (error <= tolerance + frameLag) {
+          if (!settledAt) settledAt = elapsed;
+        } else {
+          settledAt = 0;
+        }
+        if (settledAt && elapsed - settledAt > settleFrames * 17) {
+          finish(true, error);
+          return;
+        }
+        if (elapsed > timeoutMs) {
+          finish(error <= tolerance * 3 + frameLag, error);
+          return;
+        }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  function openGripper(durationMs) {
+    return new Promise((resolve) => {
+      gripperWaiters.add(resolve);
+      setGripperWidth(GRIPPER_COMMAND_MAX, { source: 'task', duration: durationMs || 420 });
+      if (!gripperMotion) {
+        gripperWaiters.delete(resolve);
+        resolve();
+      }
+    });
+  }
+
+  function closeGripper(durationMs) {
+    return new Promise((resolve) => {
+      gripperWaiters.add(resolve);
+      setGripperWidth(GRIPPER_GRASP_WIDTH, { source: 'task', duration: durationMs || 480 });
+      if (!gripperMotion) {
+        gripperWaiters.delete(resolve);
+        resolve();
+      }
+    });
   }
 
   function applyRobotAngles(root, angles) {
@@ -1645,18 +2150,28 @@
     maxDamping: 0.075,
     singularityThreshold: 0.08,
     maxJointSpeed: 2.8,
+    orientationGain: 1.0,
 
     servoStep(target, dt, options) {
       if (!target || !robot || dt <= 0) return null;
       const current = getTcpPosition(robot);
       if (!current) return null;
+      const desiredDir = options && options.orientation ? options.orientation : null;
+      const toolDir = getToolAxis(robot);
       const error = new THREE.Vector3().subVectors(target, current);
       const errorNorm = error.length();
-      if (errorNorm < 0.0015) return { error: errorNorm, reached: true };
+      // 姿态误差：向量差（Gauss-Newton 意义下的速度方向），而非旋转轴
+      const rotError = desiredDir
+        ? new THREE.Vector3().subVectors(desiredDir, toolDir)
+        : null;
+      const rotNorm = rotError ? rotError.length() : 0;
+      if (errorNorm < 0.0015 && rotNorm < 0.04) {
+        return { error: errorNorm, reached: true };
+      }
 
       const stepError = error.multiplyScalar(Math.min(0.65, Math.max(0.08, this.gain * dt)));
       const jacobian = this.computeJacobian(currentAngles);
-      const delta = this.solveDampedLeastSquares(jacobian, stepError);
+      const delta = this.solveDampedLeastSquares(jacobian, stepError, desiredDir, toolDir);
       if (!delta) return { error: errorNorm, reached: false };
 
       this.jointNames.forEach((name, index) => {
@@ -1684,8 +2199,23 @@
       const eps = 0.004;
       const saved = { ...baseAngles };
       const rows = [[], [], []];
+      const axes = [];
 
       this.jointNames.forEach((name, index) => {
+        const joint = getJoint(robot, name);
+        if (joint) {
+          const axis = new THREE.Vector3(
+            joint.axis ? joint.axis.x : 0,
+            joint.axis ? joint.axis.y : 0,
+            joint.axis ? joint.axis.z : 1
+          );
+          axis.applyQuaternion(joint.getWorldQuaternion(new THREE.Quaternion()));
+          if (axis.lengthSq() > 1e-9) axis.normalize();
+          axes.push(axis);
+        } else {
+          axes.push(new THREE.Vector3(0, 1, 0));
+        }
+
         const plus = { ...saved, [name]: (saved[name] || 0) + eps };
         const minus = { ...saved, [name]: (saved[name] || 0) - eps };
 
@@ -1700,19 +2230,43 @@
       });
 
       applyRobotAngles(robot, saved);
-      return rows;
+      return { pos: rows, axes, toolDir: getToolAxis(robot) };
     },
 
-    solveDampedLeastSquares(j, error) {
-      const gram = [
-        [dotRows(j[0], j[0]), dotRows(j[0], j[1]), dotRows(j[0], j[2])],
-        [dotRows(j[1], j[0]), dotRows(j[1], j[1]), dotRows(j[1], j[2])],
-        [dotRows(j[2], j[0]), dotRows(j[2], j[1]), dotRows(j[2], j[2])]
-      ];
+    solveDampedLeastSquares(jac, error, desiredDir, toolDir) {
+      const pos = jac.pos;
+      const n = this.jointNames.length;
+      const hasOri = Boolean(desiredDir && toolDir);
+      const oriWeight = 0.45;
+      const jRows = hasOri
+        ? [
+          pos[0],
+          pos[1],
+          pos[2],
+          jac.axes.map((axis) => axis.clone().cross(toolDir).x * oriWeight),
+          jac.axes.map((axis) => axis.clone().cross(toolDir).y * oriWeight),
+          jac.axes.map((axis) => axis.clone().cross(toolDir).z * oriWeight)
+        ]
+        : [pos[0], pos[1], pos[2]];
+      const m = jRows.length;
+
+      const gram = [];
+      for (let r = 0; r < m; r += 1) {
+        gram.push([]);
+        for (let c = 0; c < m; c += 1) {
+          gram[r].push(dotRows(jRows[r], jRows[c]));
+        }
+      }
+
       // det(JJ^T) normalized by its mean eigenvalue is scale-independent:
       // close to zero means the TCP Jacobian is approaching a singular pose.
-      const scale = Math.max((gram[0][0] + gram[1][1] + gram[2][2]) / 3, 1e-9);
-      const normalizedDeterminant = Math.max(0, determinant3x3(gram)) /
+      const posGram = [
+        [dotRows(pos[0], pos[0]), dotRows(pos[0], pos[1]), dotRows(pos[0], pos[2])],
+        [dotRows(pos[1], pos[0]), dotRows(pos[1], pos[1]), dotRows(pos[1], pos[2])],
+        [dotRows(pos[2], pos[0]), dotRows(pos[2], pos[1]), dotRows(pos[2], pos[2])]
+      ];
+      const scale = Math.max((posGram[0][0] + posGram[1][1] + posGram[2][2]) / 3, 1e-9);
+      const normalizedDeterminant = Math.max(0, determinant3x3(posGram)) /
         Math.max(scale * scale * scale, 1e-12);
       const singularity = clamp(
         1 - normalizedDeterminant / this.singularityThreshold,
@@ -1722,26 +2276,22 @@
       const damping = this.minDamping +
         (this.maxDamping - this.minDamping) * singularity * singularity;
       const lambda2 = damping * damping;
-      const a = [
-        [
-          gram[0][0] + lambda2,
-          gram[0][1],
-          gram[0][2]
-        ],
-        [
-          gram[1][0],
-          gram[1][1] + lambda2,
-          gram[1][2]
-        ],
-        [
-          gram[2][0],
-          gram[2][1],
-          gram[2][2] + lambda2
-        ]
-      ];
-      const y = solve3x3(a, [error.x, error.y, error.z]);
+      const a = gram.map((row, r) => row.map((value, c) => (r === c ? value + lambda2 : value)));
+      const oriError = hasOri
+        ? new THREE.Vector3().subVectors(desiredDir, toolDir).multiplyScalar(this.orientationGain)
+        : null;
+      const b = hasOri
+        ? [error.x, error.y, error.z, oriError.x * oriWeight, oriError.y * oriWeight, oriError.z * oriWeight]
+        : [error.x, error.y, error.z];
+      const y = solveLinear(a, b);
       if (!y) return null;
-      return this.jointNames.map((name, index) => j[0][index] * y[0] + j[1][index] * y[1] + j[2][index] * y[2]);
+      const delta = new Array(n).fill(0);
+      for (let r = 0; r < m; r += 1) {
+        for (let i = 0; i < n; i += 1) {
+          delta[i] += jRows[r][i] * y[r];
+        }
+      }
+      return delta;
     }
   };
 
@@ -1757,36 +2307,31 @@
     );
   }
 
-  function solve3x3(a, b) {
-    const det =
-      a[0][0] * (a[1][1] * a[2][2] - a[1][2] * a[2][1]) -
-      a[0][1] * (a[1][0] * a[2][2] - a[1][2] * a[2][0]) +
-      a[0][2] * (a[1][0] * a[2][1] - a[1][1] * a[2][0]);
-    if (Math.abs(det) < 1e-9) return null;
-
-    const inv = [
-      [
-        (a[1][1] * a[2][2] - a[1][2] * a[2][1]) / det,
-        (a[0][2] * a[2][1] - a[0][1] * a[2][2]) / det,
-        (a[0][1] * a[1][2] - a[0][2] * a[1][1]) / det
-      ],
-      [
-        (a[1][2] * a[2][0] - a[1][0] * a[2][2]) / det,
-        (a[0][0] * a[2][2] - a[0][2] * a[2][0]) / det,
-        (a[0][2] * a[1][0] - a[0][0] * a[1][2]) / det
-      ],
-      [
-        (a[1][0] * a[2][1] - a[1][1] * a[2][0]) / det,
-        (a[0][1] * a[2][0] - a[0][0] * a[2][1]) / det,
-        (a[0][0] * a[1][1] - a[0][1] * a[1][0]) / det
-      ]
-    ];
-
-    return [
-      inv[0][0] * b[0] + inv[0][1] * b[1] + inv[0][2] * b[2],
-      inv[1][0] * b[0] + inv[1][1] * b[1] + inv[1][2] * b[2],
-      inv[2][0] * b[0] + inv[2][1] * b[1] + inv[2][2] * b[2]
-    ];
+  // 通用高斯消元（带部分主元），用于 DLS 正规方程
+  function solveLinear(a, b) {
+    const n = b.length;
+    const m = a.map((row, i) => [...row, b[i]]);
+    for (let col = 0; col < n; col += 1) {
+      let pivot = col;
+      for (let row = col + 1; row < n; row += 1) {
+        if (Math.abs(m[row][col]) > Math.abs(m[pivot][col])) pivot = row;
+      }
+      if (Math.abs(m[pivot][col]) < 1e-9) return null;
+      if (pivot !== col) {
+        const tmp = m[pivot];
+        m[pivot] = m[col];
+        m[col] = tmp;
+      }
+      for (let row = 0; row < n; row += 1) {
+        if (row === col) continue;
+        const factor = m[row][col] / m[col][col];
+        if (!factor) continue;
+        for (let c = col; c <= n; c += 1) {
+          m[row][c] -= factor * m[col][c];
+        }
+      }
+    }
+    return m.map((row, i) => row[n] / row[i]);
   }
 
   function updateJointLabel(name) {
@@ -1852,6 +2397,9 @@
     gripperMotion = null;
     draggingTcp = false;
     dragSettling = false;
+    motionEpoch += 1;
+    flushMoveWaiters(false);
+    flushGripperWaiters();
     setGhostDisplay(false);
     if (dragMode) toggleDragMode();
     updateTeachingStatus();
@@ -1878,9 +2426,14 @@
     els.reach.style.color = planar <= workspacePlanarReach ? '#d7fff4' : '#ffd1c9';
   }
 
+  function getTcpLink(root) {
+    if (!root) return null;
+    return root.getObjectByName('gripper_end') || root.getObjectByName('end_link') || root.getObjectByName('link6') || root;
+  }
+
   function getTcpPosition(root) {
     if (!root) return null;
-    const link = root.getObjectByName('gripper_end') || root.getObjectByName('end_link') || root.getObjectByName('link6') || root;
+    const link = getTcpLink(root);
     link.updateMatrixWorld(true);
     const pos = new THREE.Vector3();
     link.getWorldPosition(pos);
@@ -1895,102 +2448,196 @@
     return t('sim.mmShort', { val: Math.round(value * 1000) });
   }
 
-  function getEndLink(root) {
-    if (!root) return null;
-    return root.getObjectByName('end_link') || root.getObjectByName('link6') || root;
+  function getToolAxis(root) {
+    if (!root) return new THREE.Vector3(0, -1, 0);
+    const j1 = getJoint(root, 'gripper_joint1');
+    const j2 = getJoint(root, 'gripper_joint2');
+    if (!j1 || !j2) return new THREE.Vector3(0, -1, 0);
+    const p1 = new THREE.Vector3();
+    const p2 = new THREE.Vector3();
+    j1.getWorldPosition(p1);
+    j2.getWorldPosition(p2);
+    const tcp = getTcpPosition(root);
+    if (!tcp) return new THREE.Vector3(0, -1, 0);
+    // TCP（gripper_end 原点）位于指尖侧，指关节在其后方：工具指向 = 指关节 → TCP
+    const dir = tcp.clone().sub(p1.add(p2).multiplyScalar(0.5));
+    if (dir.lengthSq() < 1e-8) return new THREE.Vector3(0, -1, 0);
+    return dir.normalize();
   }
 
-  function getFakeGraspPosition(root) {
-    const link = getEndLink(root);
-    if (!link) return null;
-    link.updateMatrixWorld(true);
-    return link.localToWorld(FAKE_GRASP_LOCAL_OFFSET.clone());
+  // 夹爪指尖抓取点（世界坐标）：TCP 沿工具轴外推
+  function getGraspPoint(root) {
+    const tcp = getTcpPosition(root);
+    if (!tcp) return null;
+    return tcp.clone().add(getToolAxis(root).clone().multiplyScalar(GRASP_STICKOUT));
   }
 
+  // 握持时按「抓取瞬间记录下来的相对位姿」跟随 TCP。
+  // 早期实现固定把方块沿工具轴外推 GRASP_STICKOUT，会把方块压进带面里。
   function updateCarriedObject() {
-    if (!carriedObject || !carriedObject.mesh || !robot) return;
-    if (hasFreshMujocoObjectFeedback()) return;
-    const grip = getFakeGraspPosition(robot) || getTcpPosition(robot);
-    if (!grip) return;
-    carriedObject.mesh.position.lerp(grip, 0.55);
+    if (!carriedObject || !carriedObject.block || !robot) return;
+    const link = getTcpLink(robot);
+    if (!link) return;
+    link.updateMatrixWorld(true);
+    const tcp = new THREE.Vector3();
+    link.getWorldPosition(tcp);
+    const target = carriedObject.offset.clone()
+      .applyQuaternion(link.getWorldQuaternion(new THREE.Quaternion()))
+      .add(tcp);
+    carriedObject.block.mesh.position.lerp(target, 0.55);
   }
 
-  function hasFreshMujocoObjectFeedback() {
-    return mujocoObjectFeedbackAt > 0 && performance.now() - mujocoObjectFeedbackAt < 500;
+  // 闭合夹爪后调用：抓取 TCP 附近的方块
+  function tryGraspNearTcp() {
+    if (!robot) return null;
+    const grasp = getGraspPoint(robot);
+    if (!grasp) return null;
+    let best = null;
+    let bestScore = Infinity;
+    blocks.forEach((block) => {
+      if (block.state === 'carried' || block.state === 'binned' || block.state === 'falling') return;
+      const p = block.mesh.position;
+      const planar = Math.hypot(p.x - grasp.x, p.z - grasp.z);
+      const dy = Math.abs(p.y - grasp.y);
+      if (planar > 0.058 || dy > 0.095) return;
+      const score = planar + dy * 0.5;
+      if (score < bestScore) {
+        bestScore = score;
+        best = block;
+      }
+    });
+    if (!best) return null;
+    attachBlock(best);
+    return best.color;
   }
 
-  function attachObject(color) {
-    const key = String(color || '').toLowerCase();
-    const mesh = taskObjects.get(key);
-    if (!mesh) return false;
-    if (carriedObject && carriedObject.mesh !== mesh) {
-      releaseObject({ settleOnTable: true });
+  function attachBlock(block) {
+    if (carriedObject && carriedObject.block === block) return true;
+    if (carriedObject) releaseObject();
+    const link = getTcpLink(robot);
+    const offset = new THREE.Vector3();
+    if (link) {
+      link.updateMatrixWorld(true);
+      const tcp = new THREE.Vector3();
+      link.getWorldPosition(tcp);
+      const delta = block.mesh.position.clone().sub(tcp);
+      // 局部坐标系里保存偏移，机械臂姿态变化时方块才会跟着转，而不是漂在原地
+      offset.copy(delta).applyQuaternion(link.getWorldQuaternion(new THREE.Quaternion()).invert());
+      // 自校正：记录方块相对 TCP 的实际偏移，供 moveTcpTo 估算下探目标
+      graspOffsetHint.copy(delta);
     }
-    carriedObject = { color: key, mesh };
-    mesh.userData.fakeCarried = true;
+    carriedObject = { color: block.color, block, offset };
+    block.state = 'carried';
     updateCarriedObject();
     return true;
   }
 
-  function releaseObject(options) {
-    if (!carriedObject || !carriedObject.mesh) {
+  // 按 id 找回方块；id 缺失时退化为「同色 + 最近位置」。
+  // 传送带一直在跑，抓取流程里方块可能已经挪开十几厘米，所以阈值放宽到 0.35。
+  function findBlockBySnapshot(snapshot) {
+    if (!snapshot) return null;
+    if (snapshot.id != null) {
+      let hit = null;
+      blocks.forEach((block) => {
+        if (block.id === snapshot.id) hit = block;
+      });
+      if (hit) return hit;
+    }
+    if (!snapshot.pos) return null;
+    let best = null;
+    let bestDist = Infinity;
+    blocks.forEach((block) => {
+      if (block.color !== snapshot.color) return;
+      const p = block.mesh.position;
+      const d = Math.hypot(
+        p.x - snapshot.pos.x,
+        p.y - snapshot.pos.y,
+        p.z - snapshot.pos.z
+      );
+      if (d < bestDist) {
+        bestDist = d;
+        best = block;
+      }
+    });
+    return bestDist < 0.35 ? best : null;
+  }
+
+  // 落入分格时维护该格的堆叠高度；格子已满就把最下面一块移走，
+  // 否则方块会越堆越高、穿出盒壁
+  function binSlotRestY(block) {
+    const stack = binStacks[block.color];
+    if (stack.length >= MAX_STACK_PER_SLOT) {
+      const oldest = stack.shift();
+      removeBlock(oldest);
+      stack.forEach((item, index) => {
+        const y = BIN_STACK_BASE + BLOCK_HALF + index * BLOCK_SIZE * 1.02;
+        item.restY = y;
+        item.mesh.position.y = y;
+      });
+    }
+    const level = stack.length;
+    stack.push(block);
+    return BIN_STACK_BASE + BLOCK_HALF + level * BLOCK_SIZE * 1.02;
+  }
+
+  // 按方块当前位置决定落点（盒内分格 / 传送带 / 地面），进入下落状态
+  function settleBlockFrom(block, pos) {
+    // 判定用「盒口外沿」而不是「盒内净空」：只要落在盒口范围内就归到该颜色的分格，
+    // 否则刚好压在隔板/盒壁上的方块会掉到地面、再从盒子中间穿过去
+    const inBinX = Math.abs(pos.x - BIN_CENTER.x) < BIN_SIZE.x / 2;
+    const inBinZ = Math.abs(pos.z - BIN_CENTER.z) < BIN_SIZE.z / 2;
+    const overBelt = Math.abs(pos.x - BELT_CENTER_X) < BELT_WIDTH / 2 + 0.02 &&
+      pos.z > -BELT_HALF_LENGTH && pos.z < BELT_HALF_LENGTH;
+
+    block.vy = 0;
+    if (inBinX && inBinZ) {
+      binCounts[block.color] = (binCounts[block.color] || 0) + 1;
+      block.state = 'falling';
+      block.nextState = 'binned';
+      block.restY = binSlotRestY(block);
+      // 格宽只有 56mm、方块 45mm，横向抖动必须留出余量，否则会插进隔板
+      block.mesh.position.x = BIN_CENTER.x + (Math.random() - 0.5) * 0.016;
+      block.mesh.position.z = SLOT_Z[block.color] + (Math.random() - 0.5) * 0.004;
+    } else if (overBelt) {
+      block.state = 'falling';
+      block.nextState = 'belt';
+      block.restY = BELT_TOP_Y + BLOCK_HALF;
+    } else {
+      block.state = 'falling';
+      block.nextState = 'idle';
+      block.restY = BLOCK_HALF;
+    }
+  }
+
+  // 释放当前物体：按位置路由到 盒内分格 / 传送带 / 地面
+  function releaseObject() {
+    if (!carriedObject || !carriedObject.block) {
       carriedObject = null;
       return false;
     }
-    const mesh = carriedObject.mesh;
-    mesh.userData.fakeCarried = false;
-    if (!options || options.settleOnTable !== false) {
-      if (!hasFreshMujocoObjectFeedback()) {
-        mesh.position.y = Number(mesh.userData.tableY) || mesh.position.y;
-      }
-    }
+    const block = carriedObject.block;
+    const pos = block.mesh.position.clone();
     carriedObject = null;
+    settleBlockFrom(block, pos);
     return true;
-  }
-
-  function applyMujocoObjectStates(objects) {
-    if (!Array.isArray(objects)) return;
-    let updated = false;
-    objects.forEach((state) => {
-      const color = MUJOCO_OBJECT_COLORS[String(state && state.name || '')];
-      const mesh = color ? taskObjects.get(color) : null;
-      const position = state && state.position;
-      if (!mesh || !Array.isArray(position) || position.length < 3) return;
-      const rosX = Number(position[0]);
-      const rosY = Number(position[1]);
-      const rosZ = Number(position[2]);
-      if (![rosX, rosY, rosZ].every(Number.isFinite)) return;
-      mesh.position.set(rosX, rosZ, -rosY);
-
-      const quat = state.quat_wxyz || state.quaternion;
-      if (Array.isArray(quat) && quat.length >= 4) {
-        const rosQuat = new THREE.Quaternion(
-          Number(quat[1]),
-          Number(quat[2]),
-          Number(quat[3]),
-          Number(quat[0])
-        );
-        if ([rosQuat.x, rosQuat.y, rosQuat.z, rosQuat.w].every(Number.isFinite)) {
-          mesh.quaternion.copy(ROS_TO_THREE_FRAME)
-            .multiply(rosQuat.normalize())
-            .multiply(THREE_TO_ROS_FRAME);
-        }
-      }
-      mesh.userData.restPosition = mesh.position.clone();
-      updated = true;
-    });
-    if (updated) mujocoObjectFeedbackAt = performance.now();
   }
 
   function animate(now) {
     requestAnimationFrame(animate);
     const frameNow = now || performance.now();
+    const dt = lastFrameTime ? frameNow - lastFrameTime : 16;
+    lastFrameTime = frameNow;
     updateMotion(frameNow);
     updateGripperMotion(frameNow);
     updatePath(frameNow);
     updateTeachingPlayback(frameNow);
     updateDragSettling(frameNow);
     updateAxisLabelVisibility(frameNow);
+    updateBlocks(dt);
+    if (beltSurfaceTexture) {
+      // 带面沿 +Z 输送：纹理 offset 反向滚动形成运动感
+      beltSurfaceTexture.offset.y -= (BELT_SPEED * dt / 1000) * beltSurfaceTexture.repeat.y / (BELT_HALF_LENGTH * 2);
+    }
     if (robot) {
       robot.updateMatrixWorld(true);
       if (teachingRecording) recordTeachingWaypoint(false);
@@ -2001,6 +2648,93 @@
     }
     if (controls) controls.update();
     renderer.render(scene, camera);
+    renderCameraView();
+  }
+
+  function renderCameraView() {
+    if (!camViewRenderer || !camViewCamera) return;
+    camViewRenderer.render(scene, camViewCamera);
+    drawCameraOverlay();
+  }
+
+  function drawCameraOverlay() {
+    if (!camViewOverlayCtx || !camViewCamera) return;
+    const ctx = camViewOverlayCtx;
+    const w = camViewOverlay.width;
+    const h = camViewOverlay.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const camRight = new THREE.Vector3();
+    const camUp = new THREE.Vector3(0, 1, 0);
+    camViewCamera.getWorldDirection(camRight);
+    camRight.cross(camUp).normalize();
+
+    const center = new THREE.Vector3();
+    const edgeX = new THREE.Vector3();
+    const projected = new THREE.Vector3();
+
+    blocks.forEach((block) => {
+      center.copy(block.mesh.position);
+      projected.copy(center).project(camViewCamera);
+      if (projected.z > 1 || projected.z < -1) return;
+      const sx = (projected.x + 1) / 2 * w;
+      const sy = (1 - projected.y) / 2 * h;
+
+      edgeX.copy(center).add(camRight.clone().multiplyScalar(BLOCK_HALF));
+      const edgeProjected = edgeX.project(camViewCamera);
+      const halfW = Math.abs((edgeProjected.x - projected.x) / 2 * w) + 3;
+
+      const carried = block.state === 'carried';
+      ctx.lineWidth = carried ? 3 : 2;
+      ctx.strokeStyle = `#${BLOCK_COLORS[block.color].toString(16).padStart(6, '0')}`;
+      ctx.shadowColor = ctx.strokeStyle;
+      ctx.shadowBlur = 6;
+      ctx.strokeRect(sx - halfW, sy - halfW, halfW * 2, halfW * 2);
+      ctx.shadowBlur = 0;
+
+      const label = `${t(`vision.color${block.color.charAt(0).toUpperCase()}${block.color.slice(1)}`)} ${96 + (block.id % 4)}%`;
+      ctx.font = '600 15px Inter, "Microsoft YaHei", Arial, sans-serif';
+      const textWidth = ctx.measureText(label).width;
+      const ly = sy - halfW - 8 < 12 ? sy + halfW + 18 : sy - halfW - 8;
+      ctx.fillStyle = 'rgba(10, 14, 12, 0.78)';
+      ctx.fillRect(sx - halfW - 1, ly - 15, textWidth + 10, 20);
+      ctx.fillStyle = '#eafff7';
+      ctx.fillText(label, sx - halfW + 4, ly);
+    });
+  }
+
+  function attachCameraView(container) {
+    if (!container || camViewRenderer) return;
+    const webgl = document.createElement('canvas');
+    webgl.className = 'cam-webgl';
+    webgl.width = 640;
+    webgl.height = 480;
+    const overlay = document.createElement('canvas');
+    overlay.className = 'cam-overlay';
+    overlay.width = 640;
+    overlay.height = 480;
+    container.appendChild(webgl);
+    container.appendChild(overlay);
+
+    try {
+      camViewRenderer = new THREE.WebGLRenderer({ canvas: webgl, antialias: true });
+      camViewRenderer.setSize(640, 480, false);
+      if ('outputColorSpace' in camViewRenderer && THREE.SRGBColorSpace) {
+        camViewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+      } else if (THREE.sRGBEncoding !== undefined) {
+        camViewRenderer.outputEncoding = THREE.sRGBEncoding;
+      }
+      camViewRenderer.toneMapping = THREE.ACESFilmicToneMapping;
+    } catch (error) {
+      console.warn('Camera view renderer unavailable:', error);
+      return;
+    }
+
+    camViewCamera = new THREE.PerspectiveCamera(46, 640 / 480, 0.05, 4);
+    camViewCamera.position.set(0.86, 0.66, 0.34);
+    camViewCamera.lookAt(0.33, 0.08, 0.12);
+    camViewOverlay = overlay;
+    camViewOverlayCtx = overlay.getContext('2d');
   }
 
   function updateAxisLabelVisibility(now) {
@@ -2111,7 +2845,18 @@
     });
     syncGhostToRobot();
 
-    if (t >= 1) gripperMotion = null;
+    if (t >= 1) {
+      gripperMotion = null;
+      flushGripperWaiters();
+    }
+  }
+
+  function flushGripperWaiters() {
+    const waiters = Array.from(gripperWaiters);
+    gripperWaiters.clear();
+    waiters.forEach((resolve) => {
+      try { resolve(); } catch (_) {}
+    });
   }
 
   window.reBotSim = {
@@ -2216,21 +2961,16 @@
         return Number.isFinite(Number(value)) ? Number(value) : NaN;
       };
       return {
-        mujocoSceneVisible: Boolean(mujocoSceneGroup && mujocoSceneGroup.visible),
-        table: {
-          centerX: TABLE_CENTER_X,
-          width: TABLE_WIDTH,
-          depth: TABLE_DEPTH,
-          surfaceY: TABLE_SURFACE_Y,
-          thickness: TABLE_THICKNESS
-        },
-        taskObjects: Object.fromEntries(
-          Array.from(taskObjects.entries()).map(([key, mesh]) => [key, {
-            x: mesh.position.x,
-            y: mesh.position.y,
-            z: mesh.position.z
-          }])
-        ),
+        taskSceneVisible: Boolean(taskSceneGroup && taskSceneGroup.visible),
+        bin: { centerX: BIN_CENTER.x, centerZ: BIN_CENTER.z, sizeX: BIN_SIZE.x, sizeZ: BIN_SIZE.z },
+        belt: { centerX: BELT_CENTER_X, topY: BELT_TOP_Y, halfLength: BELT_HALF_LENGTH, running: conveyorRunning },
+        blocks: Array.from(blocks).map((block) => ({
+          color: block.color,
+          state: block.state,
+          x: block.mesh.position.x,
+          y: block.mesh.position.y,
+          z: block.mesh.position.z
+        })),
         gripper: {
           commandWidth: currentAngles.gripper,
           leftTravel: readJoint(left),
@@ -2242,17 +2982,138 @@
     setDragMode(enabled) {
       if (Boolean(enabled) !== dragMode) toggleDragMode();
     },
-    attachObject(color) {
-      return attachObject(color);
+    // —— 视觉分拣任务 API ——
+    moveTcpTo,
+    trackBlockTo,
+    openGripper,
+    closeGripper,
+    tryGraspNearTcp() {
+      return tryGraspNearTcp();
     },
-    releaseObject(options) {
-      return releaseObject(options || {});
+    releaseCurrent() {
+      return releaseObject();
     },
     getCarriedObject() {
       return carriedObject ? carriedObject.color : null;
     },
-    syncMujocoObjectStates(objects) {
-      applyMujocoObjectStates(objects);
+    getTcpRos() {
+      const pos = getTcpPosition(robot);
+      return pos ? threeToRos(pos) : null;
+    },
+    getGraspOffsetHint() {
+      return { x: graspOffsetHint.x, y: graspOffsetHint.y, z: graspOffsetHint.z };
+    },
+    getToolAxis() {
+      const axis = getToolAxis(robot);
+      return { x: axis.x, y: axis.y, z: axis.z };
+    },
+    getGraspPointRos() {
+      const grasp = getGraspPoint(robot);
+      return grasp ? threeToRos(grasp) : null;
+    },
+    // 选择抓取目标：只抓抓取区内传送带上的方块（保证工具朝下可达），其次近处地面方块。
+    // 目标在抓取流程中仍随带面前进，所以只挑「还留得下 PICK_LEAD_Z 行程」的方块。
+    selectTargetBlock(colorPref) {
+      const pref = colorPref && colorPref !== 'auto' ? String(colorPref).toLowerCase() : null;
+      let best = null;
+      let bestScore = Infinity;
+      blocks.forEach((block) => {
+        if (block.state !== 'belt' && block.state !== 'idle') return;
+        if (pref && block.color !== pref) return;
+        const p = block.mesh.position;
+        const zoneExit = PICK_ZONE_Z[1] - PICK_LEAD_Z;
+        const inZone = block.state === 'belt' && p.z >= PICK_ZONE_Z[0] && p.z <= zoneExit;
+        if (!inZone && block.state !== 'idle') return;
+        const planar = Math.hypot(p.x, p.z);
+        if (planar > 0.42) return;
+        // 区内越靠近可用窗口末端越优先（马上要走完了）；地面方块次之
+        const score = inZone ? (zoneExit - p.z) : 10 + planar;
+        if (score < bestScore) {
+          bestScore = score;
+          best = block;
+        }
+      });
+      if (!best) return null;
+      const p = best.mesh.position;
+      return {
+        id: best.id,
+        color: best.color,
+        state: best.state,
+        pos: { x: p.x, y: p.y, z: p.z }
+      };
+    },
+    // 抓取流程中随时取回目标方块的实时位置（方块一直在随带面移动）
+    getBlockPos(snapshot) {
+      const block = findBlockBySnapshot(snapshot);
+      if (!block) return null;
+      const p = block.mesh.position;
+      return { x: p.x, y: p.y, z: p.z };
+    },
+    getConveyorSpeed() {
+      return conveyorRunning ? BELT_SPEED : 0;
+    },
+    lockTargetBlock(snapshot) {
+      const target = findBlockBySnapshot(snapshot);
+      if (target) target.state = 'locked';
+      return Boolean(target);
+    },
+    unlockTargetBlock(snapshot) {
+      const target = findBlockBySnapshot(snapshot);
+      if (target && target.state === 'locked') target.state = 'belt';
+    },
+    // 落点：松手位置抬到盒壁上方（DROP_CLEARANCE），方块自己落进 55mm 的分格。
+    // 夹爪不伸进格子里，就不会和隔板互相穿模。
+    getSlotPose(color) {
+      const count = Math.min(binCounts[color] || 0, MAX_STACK_PER_SLOT);
+      const restY = BIN_STACK_BASE + BLOCK_HALF + count * BLOCK_SIZE * 1.02;
+      const drop = {
+        x: BIN_CENTER.x,
+        y: BIN_HEIGHT + DROP_CLEARANCE,
+        z: SLOT_Z[color]
+      };
+      return {
+        drop,
+        above: { x: drop.x, y: drop.y + APPROACH_HOVER, z: drop.z },
+        restY,
+        count
+      };
+    },
+    getBinCounts() {
+      return { ...binCounts };
+    },
+    setConveyorRunning(running) {
+      conveyorRunning = Boolean(running);
+    },
+    isConveyorRunning() {
+      return conveyorRunning;
+    },
+    getMotionEpoch() {
+      return motionEpoch;
+    },
+    getCameraStatus() {
+      let visible = 0;
+      const targets = [];
+      blocks.forEach((block) => {
+        if (block.state === 'binned' && (binCounts[block.color] || 0) > 4) return;
+        visible += 1;
+        if (block.state === 'belt' || block.state === 'locked' || block.state === 'idle') {
+          const ros = threeToRos(block.mesh.position);
+          targets.push({ color: block.color, state: block.state, ...ros });
+        }
+      });
+      return {
+        total: visible,
+        targets,
+        counts: { ...binCounts },
+        holding: carriedObject ? carriedObject.color : null,
+        conveyor: conveyorRunning
+      };
+    },
+    attachCameraView(container) {
+      attachCameraView(container);
+    },
+    home() {
+      applyPreset('forward', false);
     },
     stopMotion() {
       stopActiveMotion();
