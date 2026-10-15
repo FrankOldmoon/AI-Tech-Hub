@@ -82,7 +82,8 @@ export const visionGroupKeys = [
   'capability',
   'engine',
   'lesson',
-  'media'
+  'media',
+  'xr'
 ] as const
 export type VisionGroupKey = typeof visionGroupKeys[number]
 
@@ -94,7 +95,9 @@ export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
   engine: { zh: '引擎全览', en: 'Engine Overview' },
   lesson: { zh: '教学', en: 'Lessons' },
   // 录制这类「不是图像处理」的媒体工具单列一组，避免混进「图像处理工坊」造成误导
-  media: { zh: '媒体工具', en: 'Media Tools' }
+  media: { zh: '媒体工具', en: 'Media Tools' },
+  // WebXR/3D 交互演示单列一组
+  xr: { zh: 'XR 与 3D', en: 'XR & 3D' }
 }
 
 export const categories: Category[] = [
@@ -1471,6 +1474,24 @@ export const demos: Demo[] = [
     icon: 'i-lucide-minimize-2',
     status: 'ready',
     tags: ['Compress', 'Bitrate', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'vr',
+    group: 'xr',
+    category: 'vision',
+    title: { zh: 'WebXR 射击训练场', en: 'WebXR Shooting Range' },
+    description: {
+      zh: 'Quest Range 射击训练场：进入 VR 后用任一手柄体感瞄准、扣扳机打浮动目标，金色高分靶 +20；桌面模式可用鼠标 + WASD 先热身。60 秒一局，实时统计得分、命中与命中率。',
+      en: 'Quest Range: enter VR and aim with either motion controller, squeeze the trigger to pop floating targets — gold ones score double. Warm up on desktop with mouse + WASD. 60-second rounds with live score, hits and accuracy.'
+    },
+    howItWorks: {
+      zh: '桌面预览与 VR 共用同一条射击逻辑：从手柄（WebXR selectstart 事件 + gamepad 扳机兜底）或相机发一条射线，与目标网格求交即命中；命中后目标消失、0.35 秒后随机补位，粒子特效纯几何生成。VR 会话用 local-floor 参考系，手柄握位挂一把自发光小枪指示朝向；所有几何体（靶道标线、城市剪影、目标）程序化生成，无外部资源、无上传。',
+      en: 'Desktop preview and VR share one shooting path: a ray from the controller (WebXR selectstart, with a gamepad-trigger fallback) or the camera is intersected with target meshes; a hit pops the target, respawns a random one after 0.35 s and plays a geometric particle burst. The VR session runs on a local-floor reference space, with a glowing blaster on each grip to show orientation. All geometry (lane markers, skyline, targets) is generated procedurally — no external assets, nothing uploaded.'
+    },
+    icon: 'i-lucide-crosshair',
+    status: 'ready',
+    classroomSafe: true,
+    tags: ['WebXR', 'Three.js', 'VR', 'Raycasting', 'Controller']
   },
   {
     slug: 'rebot-arm',

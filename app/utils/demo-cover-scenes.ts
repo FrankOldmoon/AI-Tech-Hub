@@ -1683,6 +1683,36 @@ export function sceneDroneDance(rand: () => number): CoverShape[] {
   return shapes
 }
 
+/** WebXR 射击训练场：准星 + 瞄准射线 + 三个浮动靶环 + 靶道透视线 */
+export function sceneVrRange(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = []
+
+  // 地面与靶道透视线
+  shapes.push(line(16, 150, 304, 150, 0.3, 2))
+  shapes.push(line(52, 150, 150, 98, 0.2, 1.6))
+  shapes.push(line(268, 150, 186, 98, 0.2, 1.6))
+
+  // 三个浮动目标：外环 + 内核（同心的圆），位置带确定性抖动
+  const targets: [number, number, number][] = [
+    [196, 48, 1],
+    [252, 92, 0.9],
+    [290, 44, 0.75]
+  ]
+  for (const [tx, ty, s] of targets) {
+    const x = tx + (rand() - 0.5) * 6
+    const y = ty + (rand() - 0.5) * 6
+    shapes.push(circle(x, y, 13 * s, 0.85))
+    shapes.push(circle(x, y, 7.5 * s, 0.3))
+    shapes.push(circle(x, y, 2.6 * s, 0.9))
+  }
+
+  // 准星与两条瞄准射线
+  shapes.push(...crosshair(64, 106, 1.2))
+  shapes.push(line(72, 102, 190, 54, 0.4, 1.8))
+  shapes.push(line(72, 110, 246, 92, 0.4, 1.8))
+  return shapes
+}
+
 // ==================== 兜底 ====================
 
 /**
@@ -1770,6 +1800,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'vision/image-compress': sceneImageCompress,
   'vision/video-trim': sceneVideoTrim,
   'vision/video-compress': sceneVideoCompress,
+  'vision/vr': sceneVrRange,
 
   // NLP
   'nlp/text-classifier': sceneTextClassify,
