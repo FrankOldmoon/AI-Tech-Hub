@@ -3,9 +3,11 @@
  *
  * - 模型解析必须命中 llm-providers 注册表（外部调用方按 /v1/models 里的 id 传参）；
  * - Bearer Key 白名单是 /v1 唯一一道门，三类结果（未配置 / 命中 / 未命中）都要覆盖；
- * - 错误必须是 OpenAI 风格 { error: { message, type, code } }，SDK 才能正常解析。
+ * - 错误必须是 OpenAI 风格 { error: { message, type, code } }，SDK 才能正常解析；
+ * - 自定义上游（LLM_PROVIDER_* 环境变量）必须与内置供应商合并进同一注册表。
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getCustomProviders } from '../server/utils/llm-providers'
 import {
   accessError,
   checkAccessKey,
@@ -69,6 +71,48 @@ describe('checkAccessKey', () => {
     expect(checkAccessKey(fakeEvent('Bearer nope').event)).toBe('invalid-key')
     expect(checkAccessKey(fakeEvent().event)).toBe('invalid-key')
     expect(checkAccessKey(fakeEvent('k1').event)).toBe('invalid-key')
+  })
+})
+
+describe('自定义上游供应商（LLM_PROVIDER_*）', () => {
+  it('从环境变量解析：id 小写、去尾斜杠、模型清单与 thinking 标记', () => {
+    vi.stubEnv('LLM_PROVIDER_FOO_BASE_URL', 'https://api.foo.com/v1/')
+    vi.stubEnv('LLM_PROVIDER_FOO_API_KEY', 'sk-custom')
+    vi.stubEnv('LLM_PROVIDER_FOO_MODELS', 'foo-large, foo-mini')
+    vi.stubEnv('LLM_PROVIDER_FOO_LABEL', 'Foo AI')
+    vi.stubEnv('LLM_PROVIDER_FOO_THINKING_MODELS', 'foo-large')
+    expect(getCustomProviders()).toEqual([
+      {
+        id: 'foo',
+        label: 'Foo AI',
+        baseUrl: 'https://api.foo.com/v1',
+        keyEnv: 'LLM_PROVIDER_FOO_API_KEY',
+        models: [{ value: 'foo-large', thinking: true }, { value: 'foo-mini' }]
+      }
+    ])
+  })
+
+  it('缺 MODELS / BASE_URL 跳过；未设 API_KEY 视为无密钥上游', () => {
+    vi.stubEnv('LLM_PROVIDER_BROKEN_BASE_URL', 'https://api.foo.com/v1')
+    expect(getCustomProviders()).toHaveLength(0)
+
+    vi.stubEnv('LLM_PROVIDER_LOCAL_BASE_URL', 'http://localhost:11434/v1')
+    vi.stubEnv('LLM_PROVIDER_LOCAL_MODELS', 'qwen3')
+    const providers = getCustomProviders()
+    expect(providers).toHaveLength(1)
+    expect(providers[0]?.keyEnv).toBeUndefined()
+    expect(providers[0]?.models).toEqual([{ value: 'qwen3' }])
+  })
+
+  it('自定义模型并入统一注册表：resolveModel / listModelIds 都可见', () => {
+    vi.stubEnv('LLM_PROVIDER_FOO_BASE_URL', 'https://api.foo.com/v1')
+    vi.stubEnv('LLM_PROVIDER_FOO_MODELS', 'foo-large')
+    expect(resolveModel('foo-large')?.provider.id).toBe('foo')
+    expect(listModelIds().map(m => m.id)).toContain('foo-large')
+    // 环境变量还原后自定义模型消失，内置模型不受影响
+    vi.unstubAllEnvs()
+    expect(resolveModel('foo-large')).toBeUndefined()
+    expect(resolveModel('deepseek-v4-pro')).toBeDefined()
   })
 })
 

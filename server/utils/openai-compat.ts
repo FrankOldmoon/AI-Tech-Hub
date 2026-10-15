@@ -9,7 +9,7 @@
  *   而是 setResponseStatus + 直接返回 OpenAI 风格 `{"error": { message, type, code }}`。
  */
 import { getHeader, setResponseStatus, type H3Event } from 'h3'
-import { llmProviders, type LlmModel, type LlmProvider } from './llm-providers'
+import { getAllProviders, type LlmModel, type LlmProvider } from './llm-providers'
 
 export interface ResolvedModel {
   provider: LlmProvider
@@ -20,9 +20,9 @@ export interface OpenAiErrorBody {
   error: { message: string, type: string, code: string }
 }
 
-/** 裸模型 id -> { provider, model }，未命中返回 undefined */
+/** 裸模型 id -> { provider, model }，未命中返回 undefined（内置 + 自定义供应商） */
 export function resolveModel(model: string): ResolvedModel | undefined {
-  for (const provider of llmProviders) {
+  for (const provider of getAllProviders()) {
     const found = provider.models.find(m => m.value === model)
     if (found) return { provider, model: found }
   }
@@ -31,7 +31,7 @@ export function resolveModel(model: string): ResolvedModel | undefined {
 
 /** 已知模型 id 的去重清单（/v1/models 用） */
 export function listModelIds(): { id: string, ownedBy: string }[] {
-  return llmProviders.flatMap(p => p.models.map(m => ({ id: m.value, ownedBy: p.id })))
+  return getAllProviders().flatMap(p => p.models.map(m => ({ id: m.value, ownedBy: p.id })))
 }
 
 export type AccessCheck = 'ok' | 'missing-config' | 'invalid-key'

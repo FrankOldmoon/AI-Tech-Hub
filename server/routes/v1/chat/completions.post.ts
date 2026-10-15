@@ -27,19 +27,19 @@ export default defineEventHandler(async (event) => {
     return openAiError(event, 400, 'messages is required and must be a non-empty array', 'invalid_request_error')
   }
 
-  const apiKey = process.env[resolved.provider.keyEnv]
-  if (!apiKey) {
+  // 内置供应商必须配 key；自定义上游可不配（无密钥服务如本地 Ollama）
+  const apiKey = resolved.provider.keyEnv ? process.env[resolved.provider.keyEnv] : undefined
+  if (resolved.provider.keyEnv && !apiKey) {
     return openAiError(event, 500, `server key missing: set ${resolved.provider.keyEnv} in .env`, 'upstream_key_missing')
   }
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) authHeaders.Authorization = `Bearer ${apiKey}`
 
   // OpenAI 默认非流式；透传其余字段（temperature/top_p/max_tokens/stop/tools...）
   const stream = body.stream === true
   const upstream = await fetch(`${resolved.provider.baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
+    headers: authHeaders,
     body: JSON.stringify({
       ...body,
       model: resolved.model.value,

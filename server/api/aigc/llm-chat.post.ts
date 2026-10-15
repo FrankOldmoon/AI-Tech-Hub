@@ -34,23 +34,23 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'messages is required' })
   }
 
-  const apiKey = process.env[provider.keyEnv]
-  if (!apiKey) {
+  // 内置供应商必须配 key；自定义上游（keyEnv 缺省）为无密钥服务
+  const apiKey = provider.keyEnv ? process.env[provider.keyEnv] : undefined
+  if (provider.keyEnv && !apiKey) {
     throw createError({
       statusCode: 500,
       statusMessage: `server key missing: set ${provider.keyEnv} in .env`
     })
   }
+  const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (apiKey) authHeaders.Authorization = `Bearer ${apiKey}`
 
   const stream = body.stream !== false
   // 思考/推理类模型（如 kimi-k3）上游只允许 temperature=1，否则 400
   const temperature = model.thinking ? 1 : (body.temperature ?? 0.7)
   const upstream = await fetch(`${provider.baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
-    },
+    headers: authHeaders,
     body: JSON.stringify({
       model: model.value,
       messages: body.messages,
