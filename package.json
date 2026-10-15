@@ -61,6 +61,7 @@
     "@vitejs/plugin-vue": "^6.0.9",
     "@vue/test-utils": "^2.4.6",
     "eslint": "^10.8.0",
+    "h3": "^1.15.11",
     "happy-dom": "^15.11.7",
     "long": "4.0.0",
     "typescript": "^6.0.3",

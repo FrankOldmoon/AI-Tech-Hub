@@ -114,6 +114,9 @@ importers:
       eslint:
         specifier: ^10.8.0
         version: 10.8.0(jiti@2.7.0)
+      h3:
+        specifier: ^1.15.11
+        version: 1.15.11
       happy-dom:
         specifier: ^15.11.7
         version: 15.11.7
