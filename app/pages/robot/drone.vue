@@ -180,6 +180,46 @@ onBeforeUnmount(() => {
         {{ pick({ zh: 'WASD / 方向键 = 飞行（S/↓ 前进）· Q/E = 偏航 · 空格/Shift = 升降 · 点机身部件可抽出查看', en: 'WASD / Arrows = fly (S/↓ forward) · Q/E = yaw · Space/Shift = up/down · Click a drone part to pull it out & inspect' }) }}
       </p>
 
+      <!-- 右上角全屏按钮：悬浮独立于 HUD/FPV 之上，避免被面板遮挡 -->
+      <button
+        class="fsbtn"
+        type="button"
+        :title="fsLabel"
+        :aria-label="fsLabel"
+        @click="toggleFullscreen"
+      >
+        <svg
+          v-if="!isFullscreen"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+          <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+          <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+          <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+        </svg>
+        <svg
+          v-else
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2.2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+          <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+          <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+          <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+        </svg>
+      </button>
+
       <!-- 顶部 HUD -->
       <div
         id="ds-hud"
@@ -268,44 +308,6 @@ onBeforeUnmount(() => {
             type="button"
           >
             🎥 {{ pick({ zh: '跟随', en: 'Follow' }) }}
-          </button>
-          <button
-            class="fsbtn"
-            type="button"
-            :title="fsLabel"
-            :aria-label="fsLabel"
-            @click="toggleFullscreen"
-          >
-            <svg
-              v-if="!isFullscreen"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-              <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
-              <path d="M3 16v3a2 2 0 0 0 2 2h3" />
-              <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-            </svg>
-            <svg
-              v-else
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 3v3a2 2 0 0 1-2 2H3" />
-              <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
-              <path d="M3 16h3a2 2 0 0 1 2 2v3" />
-              <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
-            </svg>
           </button>
           <button
             id="ds-takeoff"
@@ -617,9 +619,14 @@ onBeforeUnmount(() => {
 .hud-block.batt-block { min-width:130px; }
 .batt-wrap { width:100%; height:6px; background:rgba(255,255,255,.1); border-radius:4px; margin-top:4px; overflow:hidden; }
 .batt-bar { height:100%; background:linear-gradient(90deg,#39e6a0,#9be86a); transition:width .2s, background .2s; }
-.hud-actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-.fsbtn { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; padding:0; }
-.fsbtn svg { width:14px; height:14px; }
+.hud-actions { margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; padding-right:46px; }
+/* 右上角全屏按钮：悬浮独立，高于 HUD/侧栏/FPV 的 z-index，品牌青发光更醒目 */
+.ds-root .fsbtn { position:absolute; top:14px; right:14px; z-index:30; display:inline-flex;
+  align-items:center; justify-content:center; width:38px; height:38px; padding:0; flex:none;
+  background:rgba(54,211,255,.16); border:1px solid rgba(54,211,255,.5); border-radius:10px;
+  color:var(--accent); box-shadow:0 0 14px rgba(54,211,255,.28); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); }
+.ds-root .fsbtn:hover { background:rgba(54,211,255,.32); border-color:var(--accent); box-shadow:0 0 18px rgba(54,211,255,.5); }
+.fsbtn svg { width:17px; height:17px; }
 .ds-root:fullscreen { height:100vh; min-height:0; border-radius:0; }
 .ds-root:-webkit-full-screen { height:100vh; min-height:0; border-radius:0; }
 
