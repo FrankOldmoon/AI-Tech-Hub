@@ -535,7 +535,8 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
 
   /* ---------- 状态 ---------- */
   const ROBOT_HOME = new THREE.Vector3(0, 0, 0)
-  const sim = { follow: true, rtl: false }
+  // follow=false：默认自由第三人称（OrbitControls 手动环视）；follow=true：第一人称（相机贴机头）
+  const sim = { follow: false, rtl: false }
   const d = {
     pos: new THREE.Vector3(0, 0, 0),
     yaw: 0, pitch: 0, roll: 0,
@@ -953,6 +954,11 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
 
   /* ---------- 视觉更新 ---------- */
   const tmpTarget = new THREE.Vector3()
+  // 第一人称退出后的回位过渡目标：与初始机位一致（自由第三人称）
+  const HOME_POS = new THREE.Vector3(14, 12, 16)
+  const HOME_TGT = new THREE.Vector3(0, 1.5, 0)
+  const tmpFwd = new THREE.Vector3()
+  let returning = false
   function updateVisuals(dt: number) {
     comps.forEach((c) => {
       if (c.spin && !c.detached) c.root.rotation.y += dt * 30
@@ -963,10 +969,29 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
       c.root.position.lerp(tgt, 0.12)
     })
     if (sim.follow) {
-      const tp = new THREE.Vector3(d.pos.x, d.pos.y + 1.5, d.pos.z)
-      controls.target.lerp(tp, 0.1)
-      const desired = tp.clone().add(new THREE.Vector3(10, 7, 12))
-      camera.position.lerp(desired, 0.05)
+      // 第一人称（FPV 舱内视角）：相机贴机头前上方，视线随机头 yaw 朝前、微微下俯
+      if (controls.enabled) {
+        controls.enabled = false
+        returning = false
+      }
+      tmpFwd.set(Math.sin(d.yaw), 0, Math.cos(d.yaw))
+      camera.position.copy(d.pos).addScaledVector(tmpFwd, 0.95)
+      camera.position.y += 0.3
+      tmpTarget.copy(d.pos).addScaledVector(tmpFwd, 14)
+      tmpTarget.y += 0.3 - 1.2
+      controls.target.copy(tmpTarget)
+      camera.lookAt(tmpTarget)
+    } else {
+      if (!controls.enabled) {
+        // 刚从第一人称退回：解锁手动环视，并把相机平滑送回默认第三人称机位
+        controls.enabled = true
+        returning = true
+      }
+      if (returning) {
+        camera.position.lerp(HOME_POS, Math.min(1, dt * 3.2))
+        controls.target.lerp(HOME_TGT, Math.min(1, dt * 3.2))
+        if (camera.position.distanceTo(HOME_POS) < 0.3) returning = false
+      }
     }
     const wp = new THREE.Vector3()
     camTarget.getWorldPosition(wp)
@@ -999,7 +1024,8 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
     if (disposed) return
     rafId = requestAnimationFrame(animate)
     const dt = Math.min(clock.getDelta(), 0.05)
-    controls.update()
+    // OrbitControls.update() 不看 enabled 标志：第一人称相机直控时必须跳过，否则每帧被重置
+    if (controls.enabled) controls.update()
     updateFlight(dt)
     updateVisuals(dt)
 

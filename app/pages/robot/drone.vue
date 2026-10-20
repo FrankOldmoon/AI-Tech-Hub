@@ -304,10 +304,9 @@ onBeforeUnmount(() => {
         <div class="hud-actions">
           <button
             id="ds-follow"
-            class="active"
             type="button"
           >
-            🎥 {{ pick({ zh: '跟随', en: 'Follow' }) }}
+            🎥 {{ pick({ zh: '第一人称', en: 'FPV View' }) }}
           </button>
           <button
             id="ds-takeoff"
