@@ -1683,6 +1683,68 @@ export function sceneDroneDance(rand: () => number): CoverShape[] {
   return shapes
 }
 
+/**
+ * 多模态无人机指令台：中央停机坪上空的四旋翼，三条控制通道符号
+ * （屏幕按钮 / 麦克风 / 手掌）以虚线汇聚到机体。
+ */
+export function sceneMultimodalDrone(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = []
+
+  // 中央停机坪（椭圆 + H 标识）
+  shapes.push(strokePoly(ellipsePoints(160, 134, 34, 12, 24), 0.45, 2.4, { close: true }))
+  shapes.push(line(152, 128, 152, 140, 0.7, 3))
+  shapes.push(line(168, 128, 168, 140, 0.7, 3))
+  shapes.push(line(152, 134, 168, 134, 0.7, 3))
+
+  // 起飞虚线轨迹：停机坪 → 半空
+  shapes.push(strokePoly([[160, 126], [160, 112], [160, 96]], 0.4, 2, { dash: '5 5' }))
+
+  // 半空四旋翼：X 形机臂 + 4 个桨盘 + 机身
+  const cx = 160
+  const cy = 62
+  for (const [sx, sy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]] as const) {
+    const px = cx + sx * 26
+    const py = cy + sy * 15
+    shapes.push(line(cx, cy, px, py, 0.85, 3.4))
+    shapes.push(strokePoly(ellipsePoints(px, py, 11, 11, 16), 0.6, 2, { close: true }))
+    shapes.push(line(px - 8, py - 8 * sy * 0.3, px + 8, py + 8 * sy * 0.3, 0.4, 1.6))
+  }
+  shapes.push(rect(cx - 11, cy - 8, 22, 16, 0.9, 5))
+  shapes.push(circle(cx, cy - 2, 3.4, 0.95))
+
+  // 通道 1（左上）：屏幕按钮 —— 两枚圆角按钮 + 内部指示点
+  shapes.push(strokePoly(roundRectPoints(30, 30, 40, 17, 8), 0.7, 2.2, { close: true }))
+  shapes.push(circle(38, 38.5, 3, 0.8))
+  shapes.push(line(46, 38.5, 62, 38.5, 0.5, 2.4))
+  shapes.push(strokePoly(roundRectPoints(30, 54, 40, 17, 8), 0.5, 2.2, { close: true }))
+  shapes.push(circle(38, 62.5, 3, 0.6))
+  shapes.push(line(46, 62.5, 62, 62.5, 0.4, 2.4))
+
+  // 通道 2（左下）：麦克风 —— 胶囊拾音头 + 支架弧 + 底座 + 声波弧
+  shapes.push(strokePoly(roundRectPoints(40, 96, 14, 28, 7), 0.85, 2.4, { close: true }))
+  shapes.push(strokePoly(arcPoints(47, 112, 15, Math.PI * 0.15, Math.PI * 0.85), 0.6, 2.2))
+  shapes.push(line(47, 127, 47, 136, 0.6, 2.4))
+  shapes.push(line(38, 136, 56, 136, 0.6, 2.4))
+  shapes.push(strokePoly(arcPoints(47, 104, 24, Math.PI * 0.25, Math.PI * 0.75), 0.35, 1.8))
+  shapes.push(strokePoly(arcPoints(47, 104, 32, Math.PI * 0.3, Math.PI * 0.7), 0.2, 1.6))
+
+  // 通道 3（右中）：手掌 —— 掌心圆角矩形 + 五指
+  shapes.push(strokePoly(roundRectPoints(246, 92, 24, 22, 9), 0.85, 2.4, { close: true }))
+  for (const [fx, fh] of [[249, 16], [255.5, 22], [262, 24], [268.5, 20]] as const) {
+    shapes.push(line(fx, 92, fx, 92 - fh, 0.8, 3.2))
+  }
+  shapes.push(line(246, 108, 240, 116, 0.7, 3.2))
+
+  // 三条通道虚线汇聚到无人机
+  shapes.push(strokePoly([[70, 38], [104, 44], [136, 52]], 0.35, 1.8, { dash: '5 5' }))
+  shapes.push(strokePoly([[62, 104], [96, 96], [130, 76]], 0.35, 1.8, { dash: '5 5' }))
+  shapes.push(strokePoly([[244, 96], [214, 88], [188, 74]], 0.35, 1.8, { dash: '5 5' }))
+
+  // 环境光点
+  shapes.push(...scatter(24, 22, 272, 120, 6, rand, 1.8))
+  return shapes
+}
+
 /** WebXR 射击训练场：准星 + 瞄准射线 + 三个浮动靶环 + 靶道透视线 */
 export function sceneVrRange(rand: () => number): CoverShape[] {
   const shapes: CoverShape[] = []
@@ -1870,6 +1932,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'robot/avsim': sceneAvSim,
   'robot/auto-drive': sceneAutoDrive,
   'robot/drone': sceneDrone,
+  'robot/multimodal': sceneMultimodalDrone,
   'robot/soma': sceneSoma,
   'robot/drone_dance': sceneDroneDance
 }
