@@ -1,14 +1,14 @@
-const CACHE_NAME = 'rebot-arm-sort-v1-20261014';
+const CACHE_NAME = 'rebot-arm-sort-v1-20261020';
 const APP_SHELL = [
   '/',
   '/index.html',
   '/apps/rebot-arm/manifest.webmanifest',
   '/apps/rebot-arm/favicon.png',
-  '/apps/rebot-arm/css/rebot-sim.css?v=20261014-track23',
-  '/apps/rebot-arm/js/pwa.js?v=20261014-track23',
-  '/apps/rebot-arm/js/i18n.js?v=20261014-track23',
-  '/apps/rebot-arm/js/rebot-sim.js?v=20261014-track23',
-  '/apps/rebot-arm/js/rebot-task.js?v=20261014-track23',
+  '/apps/rebot-arm/css/rebot-sim.css?v=20261020-grip24',
+  '/apps/rebot-arm/js/pwa.js?v=20261020-grip24',
+  '/apps/rebot-arm/js/i18n.js?v=20261020-grip24',
+  '/apps/rebot-arm/js/rebot-sim.js?v=20261020-grip24',
+  '/apps/rebot-arm/js/rebot-task.js?v=20261020-grip24',
   '/apps/rebot-arm/lib/three-r128.min.js',
   '/apps/rebot-arm/lib/STLLoader-umd.js',
   '/apps/rebot-arm/lib/URDFLoader.js'

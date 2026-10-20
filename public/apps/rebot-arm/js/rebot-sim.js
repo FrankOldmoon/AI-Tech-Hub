@@ -9,8 +9,10 @@
   const GRIPPER_ANIMATION_MS = 520;
  const URDF_HAS_BUILTIN_GRIPPER = true;
  const GRIPPER_MESH_VERSION = 'rs-v1';
-  // 闭合宽度：夹爪两指内侧面间距约等于 1.4×该值，取 0.0325 ≈ 45mm，
-  // 正好等于方块边长 —— 指面贴住方块而不是插进方块里
+  // 指令值 → 两指内侧面间距：实测 URDF 指关节网格，间隙 = 2×行程，
+  // 行程 = 指令/GRIPPER_COMMAND_MAX × GRIPPER_FINGER_TRAVEL_M
+  const GRIPPER_GAP_PER_COMMAND = (2 * GRIPPER_FINGER_TRAVEL_M) / GRIPPER_COMMAND_MAX;
+  // 空夹爪闭合（夹爪附近没有方块时）用的指令值
   const GRIPPER_GRASP_WIDTH = 0.0325;
   // —— 视觉分拣场景（传送带 + 分拣盒）——
   const BELT_CENTER_X = 0.33;          // three X（保证工具朝下时可达）
@@ -24,6 +26,13 @@
   // 否则整个抓取流程会跑出抓取区（也会撞到工位边界）
   const PICK_LEAD_Z = 0.13;
   const BLOCK_SIZE = 0.045;
+  // 闭合后指面与方块之间的单侧余量。原来固定闭合到 45.4mm（正好等于方块边长），
+  // 只留 0.45mm 间隙 —— 方块稍微没对正，指面就切进方块里（穿模）。
+  // 现在按方块的实测位姿现算闭合宽度，见 gripWidthForBlock()。
+  const GRASP_CLEARANCE = 0.0015;
+  // 「夹爪附近」的接受半径：超出就不算夹得住，免得把旁边的方块吸进来
+  const GRASP_ACCEPT_PLANAR = 0.030;
+  const GRASP_ACCEPT_DY = 0.055;
   const BLOCK_COLORS = Object.freeze({ red: 0xeb140f, yellow: 0xffb80a, blue: 0x086bf0 });
   const BLOCK_HALF = BLOCK_SIZE / 2;
   const MAX_BLOCKS_ON_BELT = 4;
@@ -2070,6 +2079,10 @@
           return;
         }
         const goal = block.mesh.position.clone().add(offsetVec);
+        // 比例伺服跟匀速目标必然留下 v/gain 的稳态滞后（这里约 4.6mm）。
+        // 不补这份滞后：方块永远偏在夹爪后面几毫米 —— 判定阈值够不着（每次都靠超时
+        // 兜底），夹爪闭合时也得为这份偏心让出空间，看着就像「夹了个空气」。
+        if (conveyorRunning) goal.z += BELT_SPEED / IKSolver.gain;
         // 按真实经过时间拆成多个子步，帧率高低都不会改变跟随速度
         const frameNow = performance.now();
         const stepDt = Math.min(0.08, Math.max(0.012, (frameNow - lastStep) / 1000 || 0.016));
@@ -2120,7 +2133,10 @@
   function closeGripper(durationMs) {
     return new Promise((resolve) => {
       gripperWaiters.add(resolve);
-      setGripperWidth(GRIPPER_GRASP_WIDTH, { source: 'task', duration: durationMs || 480 });
+      setGripperWidth(gripWidthForBlock(nearestGraspableBlock()), {
+        source: 'task',
+        duration: durationMs || 480
+      });
       if (!gripperMotion) {
         gripperWaiters.delete(resolve);
         resolve();
@@ -2147,7 +2163,9 @@
     jointNames: jointDefs.filter((joint) => joint.name !== 'gripper').map((joint) => joint.name),
     gain: 12,
     minDamping: 0.018,
-    maxDamping: 0.075,
+    // 奇异度拉满时的阻尼上限。基线阻尼已经按 gram 量级取到 ~0.15，
+    // 所以这个上限必须比它高，否则「靠近奇异时加阻尼」这一档等于没开
+    maxDamping: 0.35,
     singularityThreshold: 0.08,
     maxJointSpeed: 2.8,
     orientationGain: 1.0,
@@ -2174,12 +2192,20 @@
       const delta = this.solveDampedLeastSquares(jacobian, stepError, desiredDir, toolDir);
       if (!delta) return { error: errorNorm, reached: false };
 
+      // 关节步长整体等比缩放，而不是逐关节裁剪：逐关节裁剪会改变解的方向，
+      // 饱和的关节不动、其它关节照走，TCP 反而越走越偏（抓取下探时手臂乱甩的根源之一）。
+      const maxStep = this.maxJointSpeed * dt;
+      let peak = 0;
+      for (let i = 0; i < delta.length; i += 1) {
+        peak = Math.max(peak, Math.abs(delta[i] || 0));
+      }
+      const stepScale = peak > maxStep ? maxStep / peak : 1;
       this.jointNames.forEach((name, index) => {
         const def = jointDefs.find((joint) => joint.name === name);
-        const limitedDelta = clamp(delta[index] || 0, -this.maxJointSpeed * dt, this.maxJointSpeed * dt);
+        const scaledDelta = (delta[index] || 0) * stepScale;
         setJoint(
           name,
-          clamp((currentAngles[name] || 0) + limitedDelta, def.min, def.max),
+          clamp((currentAngles[name] || 0) + scaledDelta, def.min, def.max),
           false,
           {
             source: options && options.source ? options.source : 'drag',
@@ -2273,8 +2299,20 @@
         0,
         1
       );
-      const damping = this.minDamping +
-        (this.maxDamping - this.minDamping) * singularity * singularity;
+      // 阻尼要跟着 gram 的量级走，这是 DLS 的常规做法。这个臂的 j2/j3/j4 轴互相平行，
+      // 姿态误差又用了 3 行「工具轴向量差」（其中沿工具轴那一维根本不可控），
+      // 所以 J·Jᵀ 天生秩亏，最小特征值只有 ~1e-3：固定 lambda=0.018 等于把这条
+      // 不可控方向放大几百倍，解出来的关节速度全是噪声 —— 抓取下探时手臂被甩到关节
+      // 限位、夹爪斜着插进方块，根因就在这里。
+      const gramScale = Math.max(
+        gram.reduce((sum, row, index) => sum + row[index], 0) / m,
+        1e-9
+      );
+      const damping = Math.max(
+        this.minDamping,
+        Math.sqrt(gramScale) * 0.35,
+        this.maxDamping * singularity * singularity
+      );
       const lambda2 = damping * damping;
       const a = gram.map((row, r) => row.map((value, c) => (r === c ? value + lambda2 : value)));
       const oriError = hasOri
@@ -2487,8 +2525,8 @@
     carriedObject.block.mesh.position.lerp(target, 0.55);
   }
 
-  // 闭合夹爪后调用：抓取 TCP 附近的方块
-  function tryGraspNearTcp() {
+  // 夹爪附近、真正夹得住的那一块（闭合与吸附共用同一套判定）
+  function nearestGraspableBlock() {
     if (!robot) return null;
     const grasp = getGraspPoint(robot);
     if (!grasp) return null;
@@ -2499,13 +2537,44 @@
       const p = block.mesh.position;
       const planar = Math.hypot(p.x - grasp.x, p.z - grasp.z);
       const dy = Math.abs(p.y - grasp.y);
-      if (planar > 0.058 || dy > 0.095) return;
+      if (planar > GRASP_ACCEPT_PLANAR || dy > GRASP_ACCEPT_DY) return;
       const score = planar + dy * 0.5;
       if (score < bestScore) {
         bestScore = score;
         best = block;
       }
     });
+    return best;
+  }
+
+  // 闭合指令：指面内侧面在 gripper_end 局部系里恒为 y = ±行程，
+  // 要不切进方块就得 间隙 = 2×方块沿闭合方向的半宽 + 2×余量。
+  // 方块偏心时半宽自动变大 —— 指面跟着停在方块外面，而不是按固定 45mm 硬夹。
+  function gripWidthForBlock(block) {
+    if (!block || !robot) return GRIPPER_GRASP_WIDTH;
+    const link = getTcpLink(robot);
+    if (!link) return GRIPPER_GRASP_WIDTH;
+    link.updateMatrixWorld(true);
+    const toLocal = new THREE.Matrix4().copy(link.matrixWorld).invert();
+    const p = block.mesh.position;
+    const corner = new THREE.Vector3();
+    let half = 0;
+    for (let sx = -1; sx <= 1; sx += 2) {
+      for (let sy = -1; sy <= 1; sy += 2) {
+        for (let sz = -1; sz <= 1; sz += 2) {
+          corner
+            .set(p.x + sx * BLOCK_HALF, p.y + sy * BLOCK_HALF, p.z + sz * BLOCK_HALF)
+            .applyMatrix4(toLocal);
+          half = Math.max(half, Math.abs(corner.y));
+        }
+      }
+    }
+    return clamp((2 * half + 2 * GRASP_CLEARANCE) / GRIPPER_GAP_PER_COMMAND, 0, GRIPPER_COMMAND_MAX);
+  }
+
+  // 闭合夹爪后调用：抓取 TCP 附近的方块
+  function tryGraspNearTcp() {
+    const best = nearestGraspableBlock();
     if (!best) return null;
     attachBlock(best);
     return best.color;
