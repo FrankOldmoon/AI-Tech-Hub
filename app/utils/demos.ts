@@ -1686,6 +1686,23 @@ export const demos: Demo[] = [
     tags: ['Robotics', 'UAV', 'Flight Control', 'FPV', 'Exploded View', 'Three.js']
   },
   {
+    slug: 'multimodal',
+    category: 'robot',
+    title: { zh: '多模态无人机指令台', en: 'Multimodal Drone Console' },
+    description: {
+      zh: '最简易的无人机飞行场景 × 三种控制通道：屏幕按钮、麦克风语音口令（Web Speech 识别「起飞/降落」）、摄像头手势（MediaPipe 手势识别，👍 起飞 / 🖐 降落）。三条通道驱动同一架四旋翼完成起飞→悬停→降落，实时遥测与指令日志一目了然。',
+      en: 'A minimal drone flight scene driven through three control channels: on-screen buttons, microphone voice commands (Web Speech recognises "take off / land") and camera gestures (MediaPipe gesture recognition — 👍 take off / 🖐 land). All three channels fly the same quadcopter through takeoff→hover→land, with live telemetry and a command log.'
+    },
+    howItWorks: {
+      zh: '3D 场景用 Three.js 搭建：停机坪 + 一架四旋翼（机身/四臂/电机/桨/状态灯），相位机在待命→起飞→悬停→降落间流转，桨速平滑趋近目标转速，状态灯颜色随相位切换（红/黄/绿/橙）。三条控制通道最终都汇入同一个指令出口 command()：屏幕按钮直接调用；语音走 Web Speech API（SpeechRecognition），识别文本归一化后匹配「起飞/降落」等中英文口令；手势走 MediaPipe GestureRecognizer（与视觉分类同款模型与 WASM），Thumb_Up 映射起飞、Open_Palm 映射降落，手势需连续 6 帧稳定才触发、触发后 1.5 s 冷却防抖。摄像头画面经 Canvas 镜像绘制并叠加 21 点手部骨架。',
+      en: 'The 3D scene is built with Three.js: a helipad plus one quadcopter (fuselage, four arms, motors, props, status LEDs) driven by a phase machine (standby → takeoff → hover → land), with prop speed easing toward target and LED colour per phase (red/yellow/green/orange). All three channels converge into one command() exit: buttons call it directly; voice uses the Web Speech API (SpeechRecognition), normalising transcripts and matching bilingual keywords like "take off / land"; gestures use MediaPipe GestureRecognizer (same model and WASM as the vision pages), mapping Thumb_Up to take off and Open_Palm to land, with a 6-frame stability gate and a 1.5 s cooldown against jitter. The camera frame is mirrored onto a canvas with a 21-point hand skeleton overlaid.'
+    },
+    icon: 'i-lucide-radio-tower',
+    status: 'ready',
+    requirements: { camera: true, mic: true, modelSizeMB: 10 },
+    tags: ['Robotics', 'UAV', 'Multimodal', 'Voice Control', 'Gesture Recognition', 'Web Speech', 'MediaPipe', 'Three.js']
+  },
+  {
     slug: 'drone_dance',
     category: 'robot',
     title: { zh: 'Swarm Studio 无人机灯光秀', en: 'Swarm Studio Drone Light Show' },
