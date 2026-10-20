@@ -19,7 +19,7 @@
   const DESCEND_MS = 2600;
   const OPEN_MS = 220;
   const CLOSE_MS = 440;
-  const TRACK_TOLERANCE = 0.005;
+  const TRACK_TOLERANCE = 0.0025;
 
   function $(id) {
     return document.getElementById(id);
