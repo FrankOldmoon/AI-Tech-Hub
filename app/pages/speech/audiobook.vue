@@ -1,19 +1,25 @@
 <script setup lang="ts">
 /**
- * 多角色有声书：把「角色：台词」剧本按角色分配不同 Kokoro 音色，
- * 逐句合成后拼接成一条完整 WAV（纯本地推理，模型已在 .models/transformers/）。
+ * 多角色有声书：把「角色：台词」剧本按角色分配不同 Edge-TTS 音色，
+ * 逐句合成后拼接成一条完整 WAV（服务端 Edge-TTS，学生机无需外网）。
  */
 /* eslint-disable @stylistic/max-statements-per-line */
 import type { ParamSpec } from '~/utils/params'
 import { paramDefaults } from '~/utils/params'
 import { humanError } from '~/utils/errors'
-import { kokoroVoices, kokoroSynthesize, loadKokoroModel, rawAudioToWavBlob, voiceOptionLabel, type KokoroProgress } from '~/utils/kokoro'
 import { VOICE_POOLS, assignVoices, collectRoles, concatChunks, parseScript } from '~/utils/audiobook'
-import { downloadBlob, formatClock } from '~/utils/wav'
+import { downloadBlob, encodeWav, formatClock } from '~/utils/wav'
 
 const { t } = useI18n()
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('speech', 'audiobook')!)
+
+interface EdgeVoice {
+  shortName: string
+  locale: string
+  gender: string
+  friendlyName: string
+}
 
 // ===== 剧本 =====
 const ZH_SCRIPT = '小明：你好呀，今天怎么这么早？\n小红：我要去图书馆还书，顺便占个位置。\n两人相视一笑，一起走向校门。'
@@ -28,18 +34,41 @@ const rawScript = ref(ZH_SCRIPT)
 const lines = computed(() => parseScript(rawScript.value))
 const roles = computed(() => collectRoles(lines.value))
 
+// ===== Edge-TTS 音色 =====
+const edgeVoices = ref<EdgeVoice[]>([])
+
+/** 从已拉取的 voice 列表里挑出当前语言可用音色；列表未就绪时退回内置池 */
+function poolFor(l: 'zh' | 'en'): string[] {
+  const available = new Set(edgeVoices.value.map(v => v.shortName))
+  const preferred = VOICE_POOLS[l] || []
+  const present = preferred.filter(v => available.has(v))
+  const extra = edgeVoices.value
+    .filter(v => v.locale.startsWith(l) && !present.includes(v.shortName))
+    .map(v => v.shortName)
+  const list = [...present, ...extra]
+  return (list.length ? list : preferred).slice(0, 12)
+}
+const pools = computed(() => ({ zh: poolFor('zh'), en: poolFor('en') }))
+
+const voiceOptions = computed(() => {
+  const list = edgeVoices.value.filter(v => v.locale.startsWith(lang.value))
+  if (list.length) {
+    return list.map(v => ({ label: `${v.friendlyName} · ${v.locale} · ${v.gender}`, value: v.shortName }))
+  }
+  return (VOICE_POOLS[lang.value] || []).map(v => ({ label: v, value: v }))
+})
+
 /** 角色 → 音色；新角色自动分配，已分配的保持不变 */
 const voices = ref<Record<string, string>>({})
-watch(roles, (rs) => {
-  const auto = assignVoices(rs, VOICE_POOLS[lang.value] || [])
+function reassignVoices() {
+  const auto = assignVoices(roles.value, pools.value[lang.value] || [])
   const next: Record<string, string> = {}
-  for (const r of rs) next[r] = voices.value[r] || auto[r] || ''
+  for (const r of roles.value) next[r] = voices.value[r] || auto[r] || ''
   voices.value = next
-}, { immediate: true })
+}
+watch([roles, pools], reassignVoices, { immediate: true })
 /** 切换语言：整套音色重新分配（中文用中文音色池） */
-watch(lang, () => { voices.value = assignVoices(roles.value, VOICE_POOLS[lang.value] || []) })
-
-const voiceOptions = computed(() => kokoroVoices.map(v => ({ label: voiceOptionLabel(v), value: v.id })))
+watch(lang, () => { voices.value = assignVoices(roles.value, pools.value[lang.value] || []) })
 
 function useExample() {
   rawScript.value = lang.value === 'zh' ? ZH_SCRIPT : EN_SCRIPT
@@ -54,11 +83,9 @@ const params = ref<Record<string, number | string | boolean>>(paramDefaults(spec
 
 // ===== 运行状态 =====
 const generating = ref(false)
-const loadingModel = ref(false)
 const progress = ref(0)
 const statusText = ref('')
 const currentLine = ref(0)
-const device = ref('')
 const error = ref<string | null>(null)
 let cancelled = false
 
@@ -77,33 +104,67 @@ function revoke(url: string): string {
   return ''
 }
 
-function onProgress(p: KokoroProgress) {
-  if (typeof p.progress === 'number') progress.value = Math.round(p.progress)
-  statusText.value = p.file ? `${p.status} · ${String(p.file).split('/').pop()}` : p.status
-}
-
 function voiceOf(line: { role: string }): string {
-  return voices.value[line.role] || voices.value[''] || 'af_heart'
+  return voices.value[line.role] || pools.value[lang.value]?.[0] || VOICE_POOLS[lang.value]?.[0] || ''
 }
 
-/** 合成整本：逐句 generate → 拼接 → 编码一次 WAV */
+/** 语速 0.5~2.0 → Edge-TTS rate 百分比（如 +20% / -30%） */
+function edgeRate(speed: number): string {
+  const pct = Math.round((speed - 1) * 100)
+  return `${pct >= 0 ? '+' : ''}${pct}%`
+}
+
+async function edgeBlob(text: string, voice: string, speed: number): Promise<Blob> {
+  const res = await fetch('/api/speech/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, voice, rate: edgeRate(speed) })
+  })
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '')
+    throw new Error(msg || `Edge-TTS HTTP ${res.status}`)
+  }
+  return await res.blob()
+}
+
+let audioCtx: AudioContext | null = null
+function getAudioContext(): AudioContext {
+  if (!audioCtx) audioCtx = new AudioContext()
+  if (audioCtx.state === 'suspended') audioCtx.resume()
+  return audioCtx
+}
+
+/** MP3 → 单声道 PCM（用 AudioContext 解码，采样率由同一个 context 统一） */
+async function decodeMono(blob: Blob): Promise<{ pcm: Float32Array, rate: number, duration: number }> {
+  const buf = await getAudioContext().decodeAudioData(await blob.arrayBuffer())
+  let pcm: Float32Array
+  if (buf.numberOfChannels === 1) {
+    pcm = buf.getChannelData(0).slice()
+  } else {
+    pcm = new Float32Array(buf.length)
+    for (let c = 0; c < buf.numberOfChannels; c++) {
+      const data = buf.getChannelData(c)
+      for (let i = 0; i < buf.length; i++) pcm[i] = (pcm[i] ?? 0) + (data[i] ?? 0) / buf.numberOfChannels
+    }
+  }
+  return { pcm, rate: buf.sampleRate, duration: buf.duration }
+}
+
+/** 合成整本：逐句请求 Edge-TTS → 解码 → 拼接 → 编码一次 WAV */
 async function generate() {
   if (!lines.value.length) { error.value = t('ab.noScript'); return }
+  // 在用户点击的同步阶段创建/恢复 AudioContext，避免自动播放策略把解码上下文挂起
+  getAudioContext()
   error.value = null
   generating.value = true
   cancelled = false
   progress.value = 0
-  statusText.value = t('ab.loadingModel')
   durations.value = []
   resultBlob.value = null
   resultUrl.value = revoke(resultUrl.value)
   previewUrl.value = revoke(previewUrl.value)
   resultSeconds.value = 0
   try {
-    const loaded = await loadKokoroModel(onProgress)
-    device.value = loaded.device
-    loadingModel.value = false
-
     const chunks: Float32Array[] = []
     const durs: number[] = []
     let rate = 24000
@@ -111,27 +172,26 @@ async function generate() {
     for (let i = 0; i < all.length; i++) {
       if (cancelled) return
       currentLine.value = i + 1
+      progress.value = Math.round((i / all.length) * 100)
       statusText.value = t('ab.synthesizing', { i: i + 1, total: all.length })
       const line = all[i]!
-      const raw = await loaded.tts.generate(line.text, {
-        voice: voiceOf(line),
-        speed: Number(params.value.speed) || 1
-      })
-      rate = raw.sampling_rate
-      chunks.push(raw.audio)
-      durs.push(Math.round((raw.audio.length / raw.sampling_rate) * 10) / 10)
+      const blob = await edgeBlob(line.text, voiceOf(line), Number(params.value.speed) || 1)
+      const { pcm, rate: r, duration } = await decodeMono(blob)
+      rate = r
+      chunks.push(pcm)
+      durs.push(Math.round(duration * 10) / 10)
     }
     if (cancelled) return
+    progress.value = 100
     const merged = concatChunks(chunks, rate, Number(params.value.gap) || 0)
     durations.value = durs
     resultSeconds.value = Math.round((merged.length / rate) * 10) / 10
-    resultBlob.value = rawAudioToWavBlob(merged, rate)
+    resultBlob.value = encodeWav(merged, rate)
     resultUrl.value = URL.createObjectURL(resultBlob.value)
   } catch (e) {
     error.value = humanError(e, t)
   } finally {
     generating.value = false
-    loadingModel.value = false
     currentLine.value = 0
     statusText.value = ''
   }
@@ -142,39 +202,47 @@ async function preview(i: number) {
   if (generating.value) return
   const line = lines.value[i]
   if (!line) return
+  getAudioContext()
   error.value = null
   previewIndex.value = i
   previewUrl.value = revoke(previewUrl.value)
-  loadingModel.value = true
   try {
-    const { blob } = await kokoroSynthesize(line.text, voiceOf(line), Number(params.value.speed) || 1, onProgress)
+    const blob = await edgeBlob(line.text, voiceOf(line), Number(params.value.speed) || 1)
     previewUrl.value = URL.createObjectURL(blob)
     await nextTick()
     audioEl.value?.play().catch(() => {})
   } catch (e) {
     error.value = humanError(e, t)
   } finally {
-    loadingModel.value = false
     previewIndex.value = -1
   }
 }
 
-function cancel() { cancelled = true; generating.value = false; loadingModel.value = false; statusText.value = '' }
+function cancel() { cancelled = true; generating.value = false; statusText.value = '' }
 
-// 下载交给公共 downloadBlob：它自建 objectURL 并立即回收，
-// 于是「下载」不再依赖给 <audio> 用的那个常驻 URL（此前是手写 a.click() 样板）
 function download() {
   if (!resultBlob.value) return
   downloadBlob(resultBlob.value, 'audiobook.wav')
 }
 
 const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length, 0))
+
+// 启动时拉取 Edge-TTS 音色列表（失败则使用 VOICE_POOLS 兜底）
+onMounted(async () => {
+  try {
+    const res = await $fetch<{ voices: EdgeVoice[] }>('/api/speech/tts-voices')
+    if (res?.voices?.length) edgeVoices.value = res.voices
+  } catch {
+    /* 保留内置兜底池 */
+  }
+})
+
 </script>
 
 <template>
   <MediaDemoShell :demo="demo">
     <DemoRunner
-      :loading="generating || loadingModel"
+      :loading="generating"
       :error="error"
     >
       <!-- 输入 -->
@@ -238,12 +306,12 @@ const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length
           icon="i-lucide-book-audio"
           :label="t('ab.generate')"
           color="primary"
-          :loading="generating || loadingModel"
+          :loading="generating"
           :disabled="!lines.length"
           @click="generate"
         />
         <UButton
-          v-if="generating || loadingModel"
+          v-if="generating"
           icon="i-lucide-x"
           :label="t('speech.cancel')"
           color="neutral"
@@ -259,10 +327,10 @@ const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length
           @click="download"
         />
         <span
-          v-if="generating || loadingModel"
+          v-if="generating"
           class="text-sm text-muted"
         >
-          {{ statusText }}<template v-if="progress && !currentLine"> {{ progress }}%</template>
+          {{ statusText }}<template v-if="progress"> {{ progress }}%</template>
         </span>
       </template>
 
@@ -279,7 +347,7 @@ const totalChars = computed(() => lines.value.reduce((s, l) => s + l.text.length
           />
           <p class="text-xs text-dimmed">
             {{ t('ab.totalDuration') }} {{ formatClock(resultSeconds) }} ·
-            {{ t('ab.chars', { n: totalChars }) }} · {{ t('vp.device') }} {{ device }}
+            {{ t('ab.chars', { n: totalChars }) }} · Edge-TTS
             <template v-if="generating">
               · {{ t('ab.synthesizing', { i: currentLine, total: lines.length }) }}
             </template>

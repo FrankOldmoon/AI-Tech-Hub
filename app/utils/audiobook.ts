@@ -9,10 +9,16 @@ export interface ScriptLine {
   text: string
 }
 
-/** 各语言的候选音色池（Kokoro voice id，见 utils/kokoro.ts 的 kokoroVoices） */
+/** 各语言的候选音色池（Edge-TTS shortName，见 /api/speech/tts-voices） */
 export const VOICE_POOLS: Record<string, string[]> = {
-  zh: ['zf_xiaoxiao', 'zm_yunjian', 'zf_xiaoni', 'zm_yunxi', 'zf_xiaobei', 'zm_yunxia', 'zf_xiaoyi', 'zm_yunyang'],
-  en: ['af_heart', 'am_adam', 'af_bella', 'am_michael', 'af_nova', 'am_puck', 'af_sarah', 'am_eric']
+  zh: [
+    'zh-CN-XiaoxiaoNeural', 'zh-CN-YunjianNeural', 'zh-CN-XiaoyiNeural', 'zh-CN-YunxiNeural',
+    'zh-CN-YunxiaNeural', 'zh-CN-YunyangNeural', 'zh-CN-liaoning-XiaobeiNeural', 'zh-CN-shaanxi-XiaoniNeural'
+  ],
+  en: [
+    'en-US-EmmaMultilingualNeural', 'en-US-AriaNeural', 'en-US-GuyNeural', 'en-US-JennyNeural',
+    'en-GB-SoniaNeural', 'en-GB-RyanNeural', 'en-US-DavisNeural', 'en-GB-LibbyNeural'
+  ]
 }
 
 /**
