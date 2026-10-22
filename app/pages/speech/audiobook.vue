@@ -45,7 +45,8 @@ function poolFor(l: 'zh' | 'en'): string[] {
   const extra = edgeVoices.value
     .filter(v => v.locale.startsWith(l) && !present.includes(v.shortName))
     .map(v => v.shortName)
-  const list = [...present, ...extra]
+  // 首选音色足够时不再混入随机音色，保证旁白音色稳定（assignVoices 用池尾做旁白）
+  const list = present.length >= 2 ? present : [...present, ...extra]
   return (list.length ? list : preferred).slice(0, 12)
 }
 const pools = computed(() => ({ zh: poolFor('zh'), en: poolFor('en') }))
@@ -114,17 +115,25 @@ function edgeRate(speed: number): string {
   return `${pct >= 0 ? '+' : ''}${pct}%`
 }
 
-async function edgeBlob(text: string, voice: string, speed: number): Promise<Blob> {
-  const res = await fetch('/api/speech/tts', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, voice, rate: edgeRate(speed) })
-  })
-  if (!res.ok) {
-    const msg = await res.text().catch(() => '')
-    throw new Error(msg || `Edge-TTS HTTP ${res.status}`)
+async function edgeBlob(text: string, voice: string, speed: number, retries = 2): Promise<Blob> {
+  let lastError: unknown
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch('/api/speech/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, voice, rate: edgeRate(speed) })
+    })
+    if (!res.ok) {
+      const msg = await res.text().catch(() => '')
+      throw new Error(msg || `Edge-TTS HTTP ${res.status}`)
+    }
+    const blob = await res.blob()
+    if (blob.size > 0) return blob
+    // Edge-TTS 偶发返回空音频：短暂等待后重试
+    lastError = new Error('Edge-TTS returned empty audio')
+    if (attempt < retries) await new Promise(r => setTimeout(r, 500))
   }
-  return await res.blob()
+  throw lastError
 }
 
 let audioCtx: AudioContext | null = null
@@ -136,7 +145,12 @@ function getAudioContext(): AudioContext {
 
 /** MP3 → 单声道 PCM（用 AudioContext 解码，采样率由同一个 context 统一） */
 async function decodeMono(blob: Blob): Promise<{ pcm: Float32Array, rate: number, duration: number }> {
-  const buf = await getAudioContext().decodeAudioData(await blob.arrayBuffer())
+  let buf: AudioBuffer
+  try {
+    buf = await getAudioContext().decodeAudioData(await blob.arrayBuffer())
+  } catch (e) {
+    throw new Error(`Audio decode failed (${blob.size} bytes): ${e instanceof Error ? e.message : String(e)}`)
+  }
   let pcm: Float32Array
   if (buf.numberOfChannels === 1) {
     pcm = buf.getChannelData(0).slice()
