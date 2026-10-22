@@ -32,10 +32,10 @@ import { defineEventHandler, readBody, createError, setResponseHeader } from 'h3
 
 // ===== 常量 (对齐 rany2/edge-tts master 分支) =====
 const TRUSTED_CLIENT_TOKEN = '6A5AA1D4EAFF4E9FB37E23D68491D6F4'
-const BASE_URL = 'speech.platform.bing.com/consumer/speech/synthesize/readaloud'
-const WSS_URL = `wss://${BASE_URL}/edge/v1?TrustedClientToken=${TRUSTED_CLIENT_TOKEN}`
+// 2026-10: Microsoft 已把合成端点迁到 api.msedgeservices.com（旧 speech.platform.bing.com/edge/v1 返回 403）
+const WSS_URL = 'wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1'
 
-const CHROMIUM_FULL_VERSION = '143.0.3650.75'
+const CHROMIUM_FULL_VERSION = '155.0.4283.45'
 const CHROMIUM_MAJOR_VERSION = CHROMIUM_FULL_VERSION.split('.', 1)[0]
 const SEC_MS_GEC_VERSION = `1-${CHROMIUM_FULL_VERSION}`
 
@@ -260,6 +260,7 @@ async function synthesize(
 
     const url =
         `${WSS_URL}` +
+        `?Ocp-Apim-Subscription-Key=${TRUSTED_CLIENT_TOKEN}` +
         `&ConnectionId=${connectionId}` +
         `&Sec-MS-GEC=${token}` +
         `&Sec-MS-GEC-Version=${SEC_MS_GEC_VERSION}`
