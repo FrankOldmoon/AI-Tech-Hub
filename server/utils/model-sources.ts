@@ -53,9 +53,20 @@ export const FACEAPI_BASES = [
 /** 简笔画 DoodleNet（ml5 硬编码此地址；345 个标签烘焙在 ml5 包内，故只本地化权重） */
 export const DOODLE_BASE = 'https://cdn.jsdelivr.net/gh/ml5js/ml5-data-and-models@master/models/doodlenet'
 
+/**
+ * UVR MDX-Net 人声分离模型。
+ * 官方发布在 GitHub Release（TRvlvr/model_repo），HuggingFace 上也有同名镜像；
+ * 这里用 GitHub 作为本地缺失时的回退源。
+ */
+export const UVR_MODELS: Record<string, string> = {
+  'uvr/Kim_Vocal_2.onnx': 'https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx'
+}
+
 /** 本地相对路径 → 远程 URL；无远程对应返回 null */
 export function remoteUrlFor(localRel: string): string | null {
   const rel = localRel.replace(/^\/+/, '')
+
+  if (UVR_MODELS[rel]) return UVR_MODELS[rel]
 
   for (const [remotePath, local] of Object.entries(MEDIAPIPE_MODELS)) {
     if (rel === local) return `${MEDIAPIPE_BASE}/${remotePath}`

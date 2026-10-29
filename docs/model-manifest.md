@@ -14,6 +14,7 @@
 | `.models/tfjs/` | TensorFlow.js（MobileNet + Speech Commands） | 19 MB | 预下载 | ❌ 不打包 |
 | `.models/webllm/` | WebLLM Q4 小模型 + WASM libs | 20 MB | 预下载 | ❌ 不打包 |
 | `.models/faceapi/` | 人脸检测/关键点/识别（6 文件） | 6.7 MB | 预下载 | ❌ 不打包 |
+| `.models/uvr/` | 人声分离 MDX-Net（Kim_Vocal_2） | 67 MB | 预下载 + `/model/*` 302 回退 GitHub Release | ❌ 不打包 |
 | `public/vendor/wavesurfer/` | wavesurfer.js 7.12.12 ESM（音频可视化） | 84 KB | 站点自带（vendor 自托管） | ✅ 随构建产物 |
 
 **合计**：预置模型 ≈ 9.3 GB。模型文件不再进入 `public/`，**构建产物不含任何模型**；运行时由 `server/routes/model/[...].ts` 以 HTTP Range(206) 从 `.models/` 提供给浏览器端推理库（前端 URL 仍为 `/model/*`，保持不变）。
@@ -31,6 +32,7 @@
 | WebLLM | Qwen2.5-0.5B/1.5B-Instruct、Llama-3.2-1B/3B-Instruct（q4f16_1） | mlc-ai MLC 仓库 + binary-mlc-llm-libs（v0_2_84） | `.models/webllm/{model}/resolve/main/...` + `.models/webllm/libs/*.wasm` | 20 MB |
 | TensorFlow.js | MobileNet v2 1.0（tfhub.dev）、Speech Commands v0.5 18w（Google Storage） | weight manifest 动态拉取 | `.models/tfjs/{mobilenet,speech-commands}/*` | 19 MB |
 | face-api | tiny_face_detector / face_landmark_68 / face_recognition | vladmandic/face-api master（jsdelivr → GitHub raw 回退） | `.models/faceapi/*`（6 文件） | 6.7 MB |
+| UVR MDX-Net | `Kim_Vocal_2.onnx`（人声分离，2 轨） | TRvlvr/model_repo GitHub Release（HF 同名镜像） | `.models/uvr/Kim_Vocal_2.onnx` | 67 MB |
 
 ### 1.1 语音模型逐仓明细（2026-09-11 实测）
 

@@ -11,7 +11,7 @@
  * 由下一帧取走（无新结果时返回 null）。滑窗状态机本身复用 utils/emotion-stream.ts 的纯函数。
  */
 import type { AudioTool, AudioToolContext, AudioToolResult } from '~/utils/audio-tools'
-import { setupTransformersEnv, preferredDevice } from '~/utils/transformers'
+import { setupTransformersEnv, hasWebGPU } from '~/utils/transformers'
 import { parseDownloadProgress } from '~/utils/audio-progress'
 import {
   createWindowState, pushSamples, latestWindow, enoughStep, windowTime,
@@ -71,6 +71,21 @@ let classifierPromise: Promise<any> | null = null
 /** 首次加载时探测；WebGPU 初始化失败后改写为 wasm，后续结果里的 device 即取自它 */
 let activeDevice: 'webgpu' | 'wasm' | null = null
 
+/**
+ * 只凭 `'gpu' in navigator` 判断会把「有 navigator.gpu 但拿不到 adapter」的环境
+ * （无头浏览器、禁用 GPU 的浏览器）误判成 WebGPU：pipeline 会卡在初始化且不抛错。
+ * 这里先真正请求一次 adapter，拿不到就直接走 WASM。
+ */
+async function pickDevice(): Promise<'webgpu' | 'wasm'> {
+  if (!hasWebGPU()) return 'wasm'
+  try {
+    const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu
+    return (await gpu?.requestAdapter()) ? 'webgpu' : 'wasm'
+  } catch {
+    return 'wasm'
+  }
+}
+
 function loadClassifier(ctx: AudioToolContext): Promise<any> {
   if (classifierPromise) return classifierPromise
   const p = (async () => {
@@ -82,9 +97,15 @@ function loadClassifier(ctx: AudioToolContext): Promise<any> {
       if (parsed) ctx.onProgress?.(parsed)
     }
     // 设备探测延到首次调用（模块在 SSR 阶段也会被 import，那时没有 navigator）
-    activeDevice = preferredDevice()
+    activeDevice = await pickDevice()
     const first = activeDevice
-    const options = { device: first, progress_callback: onProgress }
+    // WASM 用 q8（91MB）：fp32 权重 361MB，浏览器首载与单线程推理都过重
+    // （实测会先拉 fp32 再回退 q8）；WebGPU 保持 fp32，量化算子未必被 GPU EP 支持。
+    const options = {
+      device: first,
+      dtype: (first === 'webgpu' ? 'fp32' : 'q8') as 'fp32' | 'q8',
+      progress_callback: onProgress
+    }
     try {
       return await pipeline('audio-classification', MODEL_ID, options)
     } catch (e) {
@@ -164,8 +185,12 @@ async function analyzeWindow(
 
 const speechEmotion: AudioTool = {
   id: 'speech-emotion',
-  pages: ['audio-classification'],
-  section: { 'audio-classification': 'speech.sections.transformers', '*': 'speech.sections.emotion' },
+  pages: ['audio-classification', 'emotion'],
+  section: {
+    'audio-classification': 'speech.sections.transformers',
+    'emotion': 'speech.sections.transformers',
+    '*': 'speech.sections.emotion'
+  },
   name: { zh: '语音情感识别 (SER)', en: 'Speech Emotion Recognition (SER)' },
   description: {
     zh: 'wav2vec2 情绪分类：上传语音整段分析，或开麦按 3 秒窗口实时评估（首次需下载模型）。',

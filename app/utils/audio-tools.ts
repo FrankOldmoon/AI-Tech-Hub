@@ -26,7 +26,7 @@ import { mediapipeAudioTools } from '~/utils/audio-engines/mediapipe'
 import { transformersAudioTools } from '~/utils/audio-engines/transformers'
 import { webSpeechAudioTools } from '~/utils/audio-engines/web-speech'
 
-export type AudioPageSlug = 'asr' | 'tts' | 'audio-classification' | 'whisper' | 'kokoro' | 'yamnet'
+export type AudioPageSlug = 'asr' | 'tts' | 'audio-classification' | 'emotion' | 'whisper' | 'kokoro' | 'yamnet'
 // ↑ 一行写完：@stylistic/operator-linebreak 要求换行时 `=` 必须行首，多行并集反而更难读
 
 /** 实现层（侧栏第二行展示为大写） */
@@ -174,6 +174,11 @@ export const audioPageSamples: Partial<Record<AudioPageSlug, AudioPageSample[]>>
   'audio-classification': [
     { labelKey: 'samples.speech', url: '/samples/audio/speech.wav' },
     { labelKey: 'samples.music', url: '/samples/audio/music.wav' },
+    { labelKey: 'samples.noisySpeech', url: '/samples/audio/noisy-speech.wav' }
+  ],
+  'emotion': [
+    { labelKey: 'samples.speechZh', url: '/samples/audio/speech-zh.wav' },
+    { labelKey: 'samples.speech', url: '/samples/audio/speech.wav' },
     { labelKey: 'samples.noisySpeech', url: '/samples/audio/noisy-speech.wav' }
   ],
   'yamnet': [

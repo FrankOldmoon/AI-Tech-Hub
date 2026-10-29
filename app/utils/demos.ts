@@ -220,6 +220,18 @@ export const demos: Demo[] = [
     tags: ['Audio', 'MediaPipe', 'YAMNet', 'wav2vec2']
   },
   {
+    slug: 'emotion',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '语音情感分析', en: 'Speech Emotion Analysis' },
+    description: { zh: '上传语音或直接开麦，识别说话人的情绪（生气/厌恶/害怕/开心/平静/悲伤/惊讶）。', en: 'Upload a clip or speak live to detect the speaker’s emotion (angry, disgust, fear, happy, neutral, sad, surprise).' },
+    howItWorks: { zh: 'wav2vec2 先在大量无标注语音上自监督预训练，再在情绪标签数据上微调；推理时把 16kHz 波形编码成隐状态并做 7 类分类。实时模式用 3 秒滑动窗口、每 1.5 秒推理一次，因此情绪结果会随语气变化而更新。', en: 'wav2vec2 is self-supervised pretrained on unlabeled speech and fine-tuned on emotion labels; inference encodes 16kHz audio into hidden states and classifies 7 emotions. Live mode uses a 3-second sliding window with a 1.5-second step, so the result updates as the tone changes.' },
+    icon: 'i-lucide-smile',
+    status: 'ready',
+    requirements: { mic: true, modelSizeMB: 361 },
+    tags: ['SER', 'wav2vec2', 'Transformers.js', 'WebGPU']
+  },
+  {
     slug: 'yamnet',
     category: 'speech',
     title: { zh: 'YAMNet 引擎', en: 'YAMNet Engine' },
@@ -429,6 +441,18 @@ export const demos: Demo[] = [
     icon: 'i-lucide-audio-waveform',
     status: 'ready',
     tags: ['Trim', 'Waveform', 'ffmpeg.wasm']
+  },
+  {
+    slug: 'vocal-remover',
+    classroomSafe: true,
+    category: 'speech',
+    title: { zh: '人声分离（Vocal Remover）', en: 'Vocal Remover & Isolation' },
+    description: { zh: '一键从歌曲里分离出人声与伴奏，AI 模型在浏览器本地运行，音频不上传。', en: 'Separate vocals and instrumental from a song with an AI model that runs entirely in your browser — audio never leaves the device.' },
+    howItWorks: { zh: 'MDX-Net 把音频切成固定长度片段，逐段做 STFT 得到频谱，用卷积网络预测人声掩码，再逆变换回波形并按重叠相加拼接；重叠区加权平均避免拼接痕迹。推理由 onnxruntime-web 在本地完成，WebGPU 优先、WASM 兜底，首次使用需下载约 67MB 模型。', en: 'MDX-Net splits the track into fixed-length chunks, computes an STFT per chunk, predicts a vocal mask with a CNN, inverse-transforms back to audio and overlap-adds the chunks with a weighted average to hide seams. Inference runs locally via onnxruntime-web — WebGPU first, WASM as fallback — with a one-time ~67MB model download.' },
+    icon: 'i-lucide-mic-vocal',
+    status: 'ready',
+    requirements: { modelSizeMB: 67 },
+    tags: ['Vocal Remover', 'MDX-Net', 'ONNX', 'WebGPU']
   },
   {
     slug: 'yolo',

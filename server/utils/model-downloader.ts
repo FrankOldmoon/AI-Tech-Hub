@@ -19,7 +19,7 @@ import { pipeline } from 'node:stream/promises'
 // 手动预取入口见 scripts/fetch-models.mjs（pnpm models:fetch）
 import { SPEECH_REPOS, fetchModelRepo } from './model-fetch.mjs'
 // 远程来源清单（与 server/routes/model/[...].ts 的回退重定向共用同一事实来源）
-import { DOODLE_BASE, FACEAPI_BASES, MEDIAPIPE_BASE, MEDIAPIPE_MODELS, MEDIAPIPE_WASM, TFJS_MOBILENET_BASE, TFJS_SPEECH_BASE } from './model-sources'
+import { DOODLE_BASE, FACEAPI_BASES, MEDIAPIPE_BASE, MEDIAPIPE_MODELS, MEDIAPIPE_WASM, TFJS_MOBILENET_BASE, TFJS_SPEECH_BASE, UVR_MODELS } from './model-sources'
 
 // 模型根目录：默认 <cwd>/.models，可用 MODELS_DIR 环境变量覆盖
 // （与 server/routes/model/[...].ts 的服务路径保持一致；
@@ -304,6 +304,18 @@ async function downloadDoodleNet(): Promise<void> {
   }
 }
 
+/**
+ * 8. UVR MDX-Net 人声分离模型（/speech/vocal-remover）
+ * ============================================================
+ * 约 67MB 的单个 ONNX 文件，本地缺失时 /model/* 会 302 回退到 GitHub Release。
+ */
+async function downloadUvrModels(): Promise<void> {
+  console.log('\n=== UVR MDX-Net（人声分离） ===')
+  for (const [local, remote] of Object.entries(UVR_MODELS)) {
+    await downloadFile(remote, join(BASE, local))
+  }
+}
+
 /** 统计目录总大小（MB）。 */
 function totalSizeMb(dir: string): number {
   let total = 0
@@ -341,6 +353,7 @@ export async function downloadAllModels(): Promise<void> {
     await downloadWebllmModels()
     await downloadFaceApiModels()
     await downloadDoodleNet()
+    await downloadUvrModels()
     const elapsed = ((Date.now() - t0) / 1000).toFixed(1)
     console.log(`\n[model-downloader] 下载完成，总大小 ${totalSizeMb(BASE).toFixed(1)} MB，耗时 ${elapsed}s`)
   } catch (e: any) {

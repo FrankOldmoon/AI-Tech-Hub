@@ -69,10 +69,8 @@ export default defineNuxtConfig({
         }
       : {}),
     // 语音侧信息架构重构（能力 × 引擎双轴）：被吸收进能力页/引擎页的旧 slug 301 迁移。
-    // audio-classifier 顺带修掉 "-er" 的别扭命名；emotion 并入 audio-classification 能力页
-    // （情绪识别是「音频分类」任务的一种标签空间，不再单独成页）。
+    // audio-classifier 顺带修掉 "-er" 的别扭命名；emotion 已恢复为独立功能页。
     '/speech/audio-classifier': { redirect: { to: '/speech/audio-classification', statusCode: 301 } },
-    '/speech/emotion': { redirect: { to: '/speech/audio-classification', statusCode: 301 } },
     '/vision/face-detection': { redirect: { to: '/vision/face', statusCode: 301 } },
     '/vision/face-landmarker': { redirect: { to: '/vision/face', statusCode: 301 } },
     '/vision/object-detector': { redirect: { to: '/vision/detection', statusCode: 301 } },
