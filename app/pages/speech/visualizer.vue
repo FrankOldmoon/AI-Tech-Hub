@@ -39,7 +39,7 @@ let micCtx: AudioContext | null = null
 let analyser: AnalyserNode | null = null
 let micRaf: number | null = null
 
-/** wavesurfer ESM 自托管在 public/vendor/wavesurfer（与 public/vendor/onnx 同一策略），
+/** wavesurfer ESM 自托管在 public/vendor/wavesurfer（小体积入库；大的 ort wasm 走 /model/vendor/onnx），
  *  避免运行时依赖 unpkg CDN —— 内网/离线部署时 CDN 不通会让「上传文件」模式直接失效 */
 const WAVESURFER_BASE = '/vendor/wavesurfer'
 

@@ -12,8 +12,8 @@ import type { SeparationProgress } from 'web-audio-separation'
 
 const MODEL_NAME = 'Kim_Vocal_2' as const
 const MODEL_URL = '/model/uvr/Kim_Vocal_2.onnx'
-/** 自托管的 onnxruntime wasm 目录（见 public/vendor/onnx 与 scripts/sync-runtime-libs.mjs） */
-const ORT_WASM_PATH = '/vendor/onnx/'
+/** 自托管的 onnxruntime wasm 目录（.models/vendor/onnx，由 scripts/sync-runtime-libs.mjs 从 npm 同步） */
+const ORT_WASM_PATH = '/model/vendor/onnx/'
 
 export type VocalStage = 'loading' | 'demixing' | 'writing'
 

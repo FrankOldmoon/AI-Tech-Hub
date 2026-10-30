@@ -14,9 +14,9 @@ export async function setupTransformersEnv() {
   env.remotePathTemplate = '{model}/resolve/{revision}/'
   // WASM 后端放到 worker，避免阻塞主线程
   env.backends.onnx!.wasm!.proxy = true
-  // onnxruntime WASM 自托管到 public/vendor/onnx，避免默认从 jsdelivr CDN 拉取
+  // onnxruntime WASM 自托管到 .models/vendor/onnx（/model/vendor/onnx/，Range 服务），避免默认从 jsdelivr CDN 拉取
   // （CDN 被拦截/网络不通时 transformers 工具会卡在加载一直转圈）
-  env.backends.onnx!.wasm!.wasmPaths = '/vendor/onnx/'
+  env.backends.onnx!.wasm!.wasmPaths = '/model/vendor/onnx/'
   return env
 }
 

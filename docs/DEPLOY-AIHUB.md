@@ -136,6 +136,6 @@ systemctl restart aihub
 - **需离线模型**：把模型放在服务器 `.models/`（或 `MODELS_DIR` 指向目录）即可，无需任何构建期操作
 - 服务器侧 `.models`（60G 持久资产）与 `.output` 互不影响，构建时暂移流程照旧
 
-**onnxruntime WASM 现状**：`public/vendor/onnx`（76MB，共享 ort 运行时）供站点内部推理使用；`microduck / g1-cartpole / g1-motion-tracking` 三个子应用内置各自的 ort 副本（13-27MB 不等，且 `ort.min.mjs` 与共享版文件名/版本不一致，暂无法无损去重）。后续子应用升级依赖时可统一引用 `/vendor/onnx/` 公共路径，删除内置副本。
+**onnxruntime WASM 现状**（2026-10-30 迁移）：共享 ort 运行时原本入库在 `public/vendor/onnx`（76MB，历史里还积了多版本共 150MB），现已移出仓库 —— `scripts/sync-runtime-libs.mjs`（`postinstall` 自动执行）从 `node_modules/onnxruntime-web/dist` 复制 `ort-wasm-simd-threaded*.{mjs,wasm}` 到 `.models/vendor/onnx/`，浏览器端四条链路（`useYolo` / `transformers.ts` / `kokoro.ts` / `vocal-remover.ts`）统一指向 `/model/vendor/onnx/`，由 `/model/*` 路由以 Range(206) 提供，构建产物也不再含这 76MB。`microduck / g1-cartpole / g1-motion-tracking` 三个子应用仍内置各自的 ort 副本（13-27MB，文件名/版本与共享版不一致），要去重得重新构建子应用，暂不动。
 
 **大 iframe 按需加载**：7 个重型子应用页（microduck / g1-cartpole / g1-motion-tracking / rebot-arm / uaibot-kinematics / cnn-explainer / neural-sandbox）已用 `DemoIframeLoader.vue` 占位（点击后才创建 iframe + `loading="lazy"`），首屏不拉取子应用任何资源，实测微鸭占位→点击→iframe 加载（src 带 `?locale=`）正常。

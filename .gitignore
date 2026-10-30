@@ -36,9 +36,10 @@ __pycache__/
 # 理由：单个 onnx 动辄 60MB+，进仓库会让 clone 变慢且几乎不可回退。
 .models/*
 
-# onnxruntime WASM 自托管（node_modules/onnxruntime-web/dist 复制，部署时需同步）
-# 注：为让 YOLO 页面部署后开箱可用，此处跟随需求把 vendored WASM 一并入库
-# public/vendor/onnx/
+# onnxruntime WASM 不再入库（76MB；历史里还积了多版本 150MB）
+# 由 postinstall 的 scripts/sync-runtime-libs.mjs 从 node_modules/onnxruntime-web/dist
+# 复制到 .models/vendor/onnx/，运行时经 /model/vendor/onnx/ 以 Range(206) 提供
+public/vendor/onnx/
 
 # ??????????????????
 public/generated/

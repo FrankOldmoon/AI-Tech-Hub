@@ -150,8 +150,8 @@ export async function loadKokoroWebModule(): Promise<KokoroWebModule> {
     console.info('[kokoro] bundle 首次加载（约 2MB），仅此一次')
     kokoroModulePromise = import('~/vendor/kokoro-web.js').then((mod) => {
       const m = mod as unknown as KokoroWebModule
-      // WASM 后端复用项目 public/vendor/onnx 自托管产物，避免外网 CDN
-      m.env.wasmPaths = '/vendor/onnx/'
+      // WASM 后端走自托管的 ort 运行时（.models/vendor/onnx，经 /model/* Range 服务），不碰外网 CDN
+      m.env.wasmPaths = '/model/vendor/onnx/'
       // bundle 内置 voice 白名单仅 28 个英文 voice；绕过校验，allow 全部 55 个
       // voice bin（含 zf_/zm_ 中文等）。voices/*.bin 已随模型本地化，由 fetch 重
       // 定向打到 /model/transformers/…/voices/，离线可用。

@@ -15,6 +15,7 @@
 | `.models/webllm/` | WebLLM Q4 小模型 + WASM libs | 20 MB | 预下载 | ❌ 不打包 |
 | `.models/faceapi/` | 人脸检测/关键点/识别（6 文件） | 6.7 MB | 预下载 | ❌ 不打包 |
 | `.models/uvr/` | 人声分离 MDX-Net（Kim_Vocal_2） | 67 MB | 预下载（GitHub Release，内网多半拉不动 → 手动上传） | ❌ 不入库 |
+| `.models/vendor/onnx/` | onnxruntime-web 的 WASM 运行时（4 组 simd-threaded） | 87 MB | `postinstall` 跑 `scripts/sync-runtime-libs.mjs` 从 npm 复制 | ❌ 不打包（2026-10-30 移出仓库） |
 | `public/vendor/wavesurfer/` | wavesurfer.js 7.12.12 ESM（音频可视化） | 84 KB | 站点自带（vendor 自托管） | ✅ 随构建产物 |
 
 **合计**：预置模型 ≈ 9.3 GB。模型文件不再进入 `public/`，**构建产物不含任何模型**；运行时由 `server/routes/model/[...].ts` 以 HTTP Range(206) 从 `.models/` 提供给浏览器端推理库（前端 URL 仍为 `/model/*`，保持不变）。

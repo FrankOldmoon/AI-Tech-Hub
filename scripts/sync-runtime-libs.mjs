@@ -235,4 +235,15 @@ for (const lang of LANGS) {
   await fetchLang(lang)
 }
 
+// ===== 4. onnxruntime-web 的 WASM 运行时 =====
+// 浏览器端 ort 通过 env.wasm.wasmPaths 指向这里，走 /model/vendor/onnx/（Range/206）。
+// 以前这批文件入库在 public/vendor/onnx/（76MB，历史里还积了多版本共 150MB），
+// 与其它运行时库一样改成「装依赖时同步、不进仓库」。
+const ortDist = join(pkgDir('onnxruntime-web'), 'dist')
+const ortOut = join(OUT, 'onnx')
+for (const file of readdirSync(ortDist)) {
+  if (!/^ort-wasm-simd-threaded.*\.(mjs|wasm)$/.test(file)) continue
+  put(join(ortDist, file), join(ortOut, file))
+}
+
 console.log(`[sync-runtime-libs] 完成：复制 ${copied} 项，跳过 ${skipped} 项（已是最新）`)
