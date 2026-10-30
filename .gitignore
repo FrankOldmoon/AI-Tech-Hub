@@ -30,10 +30,11 @@ logs
 .venv/
 __pycache__/
 
-# AI 模型文件不入库（.models/，由 model-downloader 预下载，model API 路由 Range 服务）
+# AI 模型文件一律不入库（.models/）：
+#   本地开发 → model-downloader 预下载 / scripts/fetch-models.mjs
+#   部署机   → 同样跑下载脚本，或直接把已下好的 .models/ scp 上去
+# 理由：单个 onnx 动辄 60MB+，进仓库会让 clone 变慢且几乎不可回退。
 .models/*
-# 需要分发到内网的 yolo 子目录：反转目录本身使 git 能进入遍历
-!.models/yolo/
 
 # onnxruntime WASM 自托管（node_modules/onnxruntime-web/dist 复制，部署时需同步）
 # 注：为让 YOLO 页面部署后开箱可用，此处跟随需求把 vendored WASM 一并入库
@@ -59,12 +60,6 @@ tmp/
 !public/apps/g1-cartpole/oursim/assets/**/*.onnx
 # g1-motion-tracking（humanoid-policy-viewer）G1 追踪策略 ONNX
 !public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
-# YOLO26 全任务检测模型（.models/yolo/*.onnx）需随应用分发到内网
-!.models/yolo/yolo26*.onnx
-# UVR MDX-Net 人声分离模型（.models/uvr/Kim_Vocal_2.onnx）需随应用分发到内网
-# 仅 GitHub Release 有源，局域网/校园网拉不动，故随仓库分发，避免使用 302 回退被墙的 GitHub
-!.models/uvr/
-!.models/uvr/Kim_Vocal_2.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
