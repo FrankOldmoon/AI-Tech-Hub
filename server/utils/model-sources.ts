@@ -92,7 +92,7 @@ export function remoteUrlFor(localRel: string): string | null {
   }
 
   // 无远程回退的目录：
-  // - yolo/         随仓库分发（.gitignore 有 yolo 入库例外），无远程同构地址
+  // - yolo/         无远程同构地址，也不入库 —— 部署时从已下好的机器 rsync/scp 上传
   // - transformers/  transformers.js 自带 allowRemoteModels 回退，且经 /api/hf 自家代理
   // - webllm/       由 web-llm 自身按 CDN 回退
   // - vendor/       来自 npm（scripts/sync-runtime-libs.mjs），无远程对应

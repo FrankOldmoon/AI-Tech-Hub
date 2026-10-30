@@ -22,8 +22,7 @@ import { SPEECH_REPOS, fetchModelRepo } from './model-fetch.mjs'
 import { DOODLE_BASE, FACEAPI_BASES, MEDIAPIPE_BASE, MEDIAPIPE_MODELS, MEDIAPIPE_WASM, TFJS_MOBILENET_BASE, TFJS_SPEECH_BASE, UVR_MODELS } from './model-sources'
 
 // 模型根目录：默认 <cwd>/.models，可用 MODELS_DIR 环境变量覆盖
-// （与 server/routes/model/[...].ts 的服务路径保持一致；
-//  不用 storage/：全局 gitignore 有 storage 规则会阻断 yolo 入库例外）
+// （与 server/routes/model/[...].ts 的服务路径保持一致；模型一律不入库，.gitignore 全忽略 .models/*）
 const BASE = process.env.MODELS_DIR || join(process.cwd(), '.models')
 
 // 防止并发重复执行

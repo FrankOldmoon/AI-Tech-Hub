@@ -11,9 +11,10 @@
  * - 安全防护：拒绝路径穿越（..），仅暴露模型目录内文件
  * - 文件不存在返回 404；模型目录不存在时同样 404
  *
- * 注意：未用 storage/ 命名模型目录，因为全局 gitignore（~/.gitignore_global）
- * 有 storage 规则，会使 yolo 模型的入库例外失效（git 无法反转父目录被全局
- * 排除的情况）；.models/ 与 /model/* URL 解耦，磁盘名无感知。
+ * 注意：模型一律不入库（.gitignore 全忽略 .models/*），目录名只是磁盘约定；
+ * 未用 storage/ 是因为全局 gitignore（~/.gitignore_global）有 storage 规则，
+ * 命名成 storage/ 会让「模型不入库、但要能读到」这件事变得绕。
+ * .models/ 与 /model/* URL 解耦，磁盘名无感知。
  *
  * 模型目录默认 <cwd>/.models，可用 MODELS_DIR 环境变量覆盖
  * （与 server/utils/model-downloader.ts 的写入路径保持一致）。

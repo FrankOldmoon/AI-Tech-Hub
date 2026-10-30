@@ -129,7 +129,8 @@ systemctl restart aihub
 
 - **为什么**：`public/` 里的文件会被 Nitro 构建复制进 `.output/public`（历史实测 5.2GB+），拖慢构建；迁出后构建产物不再含任何模型
 - **怎么服务**：新增 `server/routes/model/[...].ts` 接管 `/model/*`，从 `.models/` 以 HTTP Range(206) 提供（onnxruntime-web / transformers.js / mediapipe 等推理库按段下载必需 206）；前端所有 `/model/...` 引用保持不变
-- **为什么是 `.models`**：全局 gitignore（`~/.gitignore_global`）有 `storage` 规则，git 无法反转被全局排除的父目录，yolo 入库例外会失效；`.models` 与 URL 解耦，可用 `MODELS_DIR` 环境变量覆盖（下载器与路由共用）
+- **为什么是 `.models`**：全局 gitignore 有 `storage` 规则，命名成 `storage/` 会让「模型不入库但服务器要读」变绕；`.models` 与 URL 解耦，并可用 `MODELS_DIR` 环境变量覆盖（下载器与路由共用）
+- **模型一律不入库**（2026-10-30 起）：`.gitignore` 的 `.models/*` 无任何例外，`git ls-files .models` 必须为空。`yolo/`（78MB）与 `uvr/`（67MB）不再随代码分发 —— 新机器部署时从已下好的机器 `rsync -av .models/yolo .models/uvr server:/www/wwwroot/aihub/.models/` 补齐，漏传表现为 `/model/*` 404
 - **部署同步**：nginx `/model/` alias 需改为指向 `.models/`（长缓存 + Range 直出不变）；deploy.sh 暂移/放回、`chown` 目标同步改为 `.models`
 - **防御清理**：`scripts/trim-production-assets.mjs` 现在是防御性清理——若产物残留 `.output/public/model`（旧产物/意外复制）则整体删除；`SKIP_TRIM_MODELS=1` 可跳过
 - **需离线模型**：把模型放在服务器 `.models/`（或 `MODELS_DIR` 指向目录）即可，无需任何构建期操作

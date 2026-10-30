@@ -8,16 +8,19 @@
 
 | 目录 | 用途 | 磁盘占用 | 加载方式 | 是否随构建产物 |
 | --- | --- | --- | --- | --- |
-| `.models/yolo/` | YOLO26 全任务检测（7 个 onnx） | 78 MB | 站点自带（gitignore 例外） | ❌ 不入库，随代码分发例外 |
+| `.models/yolo/` | YOLO26 全任务检测（7 个 onnx） | 78 MB | **手动上传**（无远程同构源） | ❌ 不入库 |
 | `.models/transformers/` | Transformers.js（Xenova/onnx-community 16 仓，含语音 7 仓） | 9.7 GB | 预下载 + `/api/hf` 回退 | ❌ 不打包 |
 | `.models/mediapipe/` | MediaPipe Tasks（16 模型 + WASM） | 209 MB | 预下载 | ❌ 不打包 |
 | `.models/tfjs/` | TensorFlow.js（MobileNet + Speech Commands） | 19 MB | 预下载 | ❌ 不打包 |
 | `.models/webllm/` | WebLLM Q4 小模型 + WASM libs | 20 MB | 预下载 | ❌ 不打包 |
 | `.models/faceapi/` | 人脸检测/关键点/识别（6 文件） | 6.7 MB | 预下载 | ❌ 不打包 |
-| `.models/uvr/` | 人声分离 MDX-Net（Kim_Vocal_2） | 67 MB | 预下载 + `/model/*` 302 回退 GitHub Release | ❌ 不打包 |
+| `.models/uvr/` | 人声分离 MDX-Net（Kim_Vocal_2） | 67 MB | 预下载（GitHub Release，内网多半拉不动 → 手动上传） | ❌ 不入库 |
 | `public/vendor/wavesurfer/` | wavesurfer.js 7.12.12 ESM（音频可视化） | 84 KB | 站点自带（vendor 自托管） | ✅ 随构建产物 |
 
 **合计**：预置模型 ≈ 9.3 GB。模型文件不再进入 `public/`，**构建产物不含任何模型**；运行时由 `server/routes/model/[...].ts` 以 HTTP Range(206) 从 `.models/` 提供给浏览器端推理库（前端 URL 仍为 `/model/*`，保持不变）。
+
+**仓库也不含任何模型**（2026-10-30 起）：`.gitignore` 的 `.models/*` 无例外，`git ls-files .models` 必须为空。
+目的是别让 clone 被几十 MB 的 onnx 拖慢——单文件超过 GitHub 50MB 推荐上限时还会在 push 时报警告。
 
 ## 1. 预下载清单（server/utils/model-downloader.ts）
 
@@ -69,8 +72,15 @@
 
 - 来源：`app/utils/yolo/models.ts` 配置 7 个任务模型，全部 ONNX、路由 `/model/yolo/*`：
   - `yolo26n.onnx`（检测 9.5M）/ `yolo26n-seg.onnx`（分割 11M）/ `yolo26n-sem.onnx`（语义 6.0M）/ `yolo26n-depth.onnx`（深度 20M）/ `yolo26n-cls.onnx`（分类 11M）/ `yolo26n-pose.onnx`（姿态 12M）/ `yolo26n-obb.onnx`（有向检测 9.7M）
-- 特殊规则（`.gitignore`）：`.models/*` 全排除，但 `!.models/yolo/` 与 `!.models/yolo/yolo26*.onnx` 例外——**必须随代码分发**（内网离线可用）。
-- YOLO 推理走 `app/composables/useYolo.ts` + `app/utils/yolo/models.ts`，运行时即已自带，无需下载。
+- **模型一律不入库**（2026-10-30 起撤销了此前 yolo/uvr 的 gitignore 例外）：`.models/*` 全忽略，
+  这些 onnx 不随代码分发，也不在 `scripts/fetch-models.mjs` 的下载清单里（无可用的远程同构源）。
+  新环境部署时从已下好的机器上传：
+  ```bash
+  rsync -av --progress .models/yolo .models/uvr user@server:/www/wwwroot/aihub/.models/
+  # 或 scp -r .models/yolo user@server:/www/wwwroot/aihub/.models/
+  ```
+  漏传的表现：`/model/yolo/*.onnx` 与 `/model/uvr/*.onnx` 返回 404，页面报「模型加载失败」。
+- YOLO 推理走 `app/composables/useYolo.ts` + `app/utils/yolo/models.ts`，模型就位后无需联网。
 
 ## 4. 裁剪 / 运维方法
 
@@ -79,6 +89,7 @@
 | 构建产物瘦身（默认） | 模型已迁至 `.models/`，构建产物不再含模型；`pnpm build`（内含 `node scripts/trim-production-assets.mjs`）作防御性清理，若产物残留 `.output/public/model` 则删除 |
 | 指定模型目录 | `MODELS_DIR=/path/to/models` 环境变量覆盖默认 `.models/`（下载器与模型 API 路由共用） |
 | 需要离线预置全部模型 | 把模型目录放到服务器 `.models/`（或 `MODELS_DIR` 指向的目录），模型 API 路由自动服务（Range/206，见 `docs/DEPLOY-AIHUB.md` 第八节） |
+| **补 yolo / uvr 模型（仓库里没有）** | 从已下好的机器 `rsync -av .models/yolo .models/uvr server:/www/wwwroot/aihub/.models/`；这两组无远程同构源，也不在 `pnpm models:fetch` 清单内 |
 | **手动预取语音模型** | `pnpm models:list`（看清单与体积）→ `pnpm models:fetch`（全部）或 `pnpm models:fetch whisper-base ser`（按别名）。走 ModelScope 优先源，已存在文件跳过、中断可重跑续传 |
 | 跳过构建后防御清理 | `SKIP_TRIM_MODELS=1 node scripts/trim-production-assets.mjs` |
 | 服务器生产启动自动补齐 | `server/plugins/download-models.ts`：生产模式 + 非 Vercel + 未设 `NUXT_SKIP_MODEL_DOWNLOAD=1` 时自动运行 |
