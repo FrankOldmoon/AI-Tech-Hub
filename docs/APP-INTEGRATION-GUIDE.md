@@ -51,6 +51,13 @@ scripts/adapt-app-paths.py               路径适配脚本（把应用内绝对
 - 应用内导航/链接保持相对路径或加 `/apps/<slug>/` 前缀
 - WebSocket（rosbridge/motorbridge）不受同源限制，iframe 内可直接连外部地址
 - 应用是**纯前端无 API** 时，第 2 步可省略，模型直接放 `public/apps/<slug>/` 由静态服务
+- **模型交给站点、不随子应用分发**：子应用需要的 MediaPipe/ONNX 模型若站点已经有（放在 `.models/`，
+  远程部署走 CDN），让壳页面算好当前生效的地址，用 query 传给 iframe（如 fitness-tetris 的
+  `?wasm=&model=`，值取自 `app/utils/mediapipe.ts`）。子应用不必知道部署形态，也不用把
+  同一份模型再拷一遍进 `public/`
+- 应用是给**全屏/大屏**设计的（HUD 浮层、多栏控制台）时，壳页面用 `definePageMeta({ layout: 'bare', fullscreen: true })`
+  —— app.vue 会隐藏 AppHeader/Footer/CookieConsent，iframe 拿到整屏宽高；否则塞进带侧栏的内容区会被
+  应用自身的响应式断点压成手机单列。若应用有自己的窄屏断点，再加 `?embed=1` 之类开关让它保留主布局
 
 ## 六、注意事项（踩坑）
 
@@ -72,6 +79,7 @@ scripts/adapt-app-paths.py               路径适配脚本（把应用内绝对
 | Orion 具身智能五机器人实验室 | robot | embodied | **原生页面** | 见第八节；three 走 npm |
 | EnvSense 多传感器环境监测仿真 | robot | envsense | **原生页面** | 见第八节；7 路传感器 + 阈值告警，进度上报 |
 | VacuSim 扫地机器人仿真 | robot | vacusim | **原生页面** | 见第八节；覆盖率栅格 + LiDAR + 6 张知识卡，进度上报 |
+| 体感俄罗斯方块（Fitness Tetris） | vision | fitness-tetris | iframe 壳 | MediaPipe Pose 驱动俄罗斯方块（头移/手转/双手瞬降）；bare+fullscreen 页给整屏，进度上报 |
 
 > microduck 是"纯静态无 API"示例：构建产物整体放 `public/apps/<slug>/`（含本地化的 MuJoCo/onnxruntime wasm 于 `vendor/`），
 > 无需 server API；原应用的多玩家 ghosts（Trystero/Nostr）依赖公网，内网自动静默禁用，见 `app-manifest.json`。

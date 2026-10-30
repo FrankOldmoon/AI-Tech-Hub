@@ -82,6 +82,7 @@ export const visionGroupKeys = [
   'capability',
   'engine',
   'lesson',
+  'motion',
   'media',
   'xr'
 ] as const
@@ -94,6 +95,8 @@ export const visionGroupLabels: Record<VisionGroupKey, Localized> = {
   capability: { zh: '能力对比', en: 'Capability Comparison' },
   engine: { zh: '引擎全览', en: 'Engine Overview' },
   lesson: { zh: '教学', en: 'Lessons' },
+  // 身体动作直接驱动画面的互动演示（体感操控），既不是图像处理也不是分析工具
+  motion: { zh: '体感互动', en: 'Motion Play' },
   // 录制这类「不是图像处理」的媒体工具单列一组，避免混进「图像处理工坊」造成误导
   media: { zh: '媒体工具', en: 'Media Tools' },
   // WebXR/3D 交互演示单列一组
@@ -1516,6 +1519,25 @@ export const demos: Demo[] = [
     status: 'ready',
     classroomSafe: true,
     tags: ['WebXR', 'Three.js', 'VR', 'Raycasting', 'Controller']
+  },
+  {
+    slug: 'fitness-tetris',
+    group: 'motion',
+    classroomSafe: true,
+    category: 'vision',
+    title: { zh: '体感俄罗斯方块', en: 'Fitness Tetris (Body-Controlled)' },
+    description: {
+      zh: '站在摄像头前用身体玩俄罗斯方块：头左右倾斜移动方块，左手/右手向下翻转，双手同时向下瞬降。第一关是教导关，四个动作逐一练过才放行。',
+      en: 'Play Tetris with your body: tilt your head to steer, push a hand down to rotate, both hands down to hard-drop. Level 1 is a tutorial that walks you through all four moves.'
+    },
+    howItWorks: {
+      zh: 'MediaPipe Pose 逐帧给出 33 个身体关键点。移动用「鼻尖 x 减去站定后的基准位置」，并按肩宽缩放步长——偏得越多走得越多，头回到中间不会把方块带回（单向棘轮）；旋转/瞬降用「手腕 y 减肩 y ÷ 肩宽」得到手下压量，配合 EMA 平滑与迟滞阈值（进入 0.55 / 退出 0.40）避免抖动误触。判定逻辑、方块规则、BGM 与全部音效都在本地运行，摄像头画面不出浏览器。',
+      en: 'MediaPipe Pose returns 33 body landmarks per frame. Steering compares the nose x against a calibrated neutral position, scaled by shoulder width — tilt further to move more cells, and returning to centre never drags the piece back (an outward-only ratchet). Rotation and hard-drop come from the wrist-to-shoulder drop normalised by shoulder width, with EMA smoothing and hysteresis (enter 0.55 / exit 0.40) so jitter cannot double-fire. Game logic, block rules, BGM and every sound effect run locally; the camera feed never leaves the browser.'
+    },
+    icon: 'i-lucide-blocks',
+    status: 'ready',
+    requirements: { camera: true, modelSizeMB: 6 },
+    tags: ['MediaPipe Pose', 'Motion Control', 'Canvas 2D', 'WebAudio']
   },
   {
     slug: 'rebot-arm',

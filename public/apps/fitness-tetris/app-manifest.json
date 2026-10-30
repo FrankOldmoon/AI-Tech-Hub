@@ -1,0 +1,26 @@
+{
+  "slug": "fitness-tetris",
+  "name": "体感俄罗斯方块",
+  "upstream": {
+    "repo": "https://github.com/ikeee/ai-fitness-tetris",
+    "commit": "05640015c2822ca548f5b00d73f77ec05127fd11",
+    "version": "v0.02",
+    "license": "上游仓库未声明 LICENSE（README 仅注明字体 SIL OFL 1.1、MediaPipe Apache-2.0）；仅作校内教学集成，公开分发前需向上游确认授权",
+    "build": {
+      "date": "2026-10-30",
+      "stack": "原生 HTML/CSS/ES Module + Canvas 2D + WebAudio（无构建步骤）",
+      "command": "无 —— 直接拷贝 index.html / styles.css / app.js / fonts/"
+    }
+  },
+  "localization": {
+    "note": "移除全部 CDN 外链：① MediaPipe Tasks Vision 改用 vendor/mediapipe/vision_bundle.mjs（从 node_modules/@mediapipe/tasks-vision 复制）；② wasm 文件集与姿态模型不随子应用分发，由壳页面 vision/fitness-tetris.vue 通过 ?wasm=&model= 传入站点当前生效的地址（本地 .models/ 或远程 CDN）；③ 字体已在上游 fonts/ 内，无外链。",
+    "assets": "fonts/ 5 个 woff2（Orbitron 700/900、Rajdhani 500/600/700，SIL OFL 1.1）"
+  },
+  "changes": [
+    "app.js：import 改本地 vendor；WASM_BASE / POSE_MODEL 支持 ?wasm=&model= 覆盖（缺省回落 CDN，单独打开本页仍可跑）",
+    "app.js：新增 reportProgress()，被 iframe 嵌时 postMessage { type:'correct_rate', rate, finished, ... }，与 app/utils/embed-report.ts 契约一致",
+    "模型：上游用 pose_landmarker_full，本站复用已有的 pose_landmarker_lite（省 9.4MB 分发体积，头/手粗动作判定稳定）"
+  ],
+  "external": {},
+  "size_mb": 0.3
+}

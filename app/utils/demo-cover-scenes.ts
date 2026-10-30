@@ -255,6 +255,29 @@ export function sceneAudioTrim(rand: () => number): CoverShape[] {
   return shapes
 }
 
+/** 语音情感分析：麦克风 + 声弧 + 一段波形 + 七类情绪概率条 */
+export function sceneSpeechEmotion(rand: () => number): CoverShape[] {
+  return [
+    ...mic(56, 72, 1),
+    ...soundArcs(80, 72, 1.45, 3),
+    ...bars(56, 143, 84, 36, 10, rand),
+    ...probBars(216, 90, 116, 7, rand)
+  ]
+}
+
+/** 人声分离：混合频谱向下分叉成「人声 / 伴奏」两条轨道 */
+export function sceneVocalRemover(rand: () => number): CoverShape[] {
+  const shapes: CoverShape[] = [
+    ...spectrum(160, 42, 220, 40, 14, rand),
+    ...arrow(160, 66, 160, 84, 0.6, 2.4, 8),
+    rect(40, 92, 240, 34, 0.16, 6),
+    rect(40, 132, 240, 34, 0.16, 6)
+  ]
+  shapes.push(...bars(160, 109, 196, 22, 14, rand))
+  shapes.push(...bars(160, 149, 196, 22, 9, rand))
+  return shapes
+}
+
 // ==================== NLP ====================
 
 /** 文本分类：段落 + 概率条 */
@@ -1775,6 +1798,39 @@ export function sceneVrRange(rand: () => number): CoverShape[] {
   return shapes
 }
 
+/** 体感俄罗斯方块：10×16 棋盘 + 残局方块堆 + 正在下落的 T 块，左侧是驱动它的身体骨架 */
+export function sceneFitnessTetris(rand: () => number): CoverShape[] {
+  const bx = 190, by = 14
+  const cols = 10, rows = 16
+  const bw = 100, bh = 148
+  const shapes: CoverShape[] = [
+    rect(bx - 6, by - 6, bw + 12, bh + 12, 0.12, 8),
+    ...gridLines(bx, by, bw, bh, cols, rows, 0.14)
+  ]
+
+  // 残局：每列随机堆 1~4 行，越靠下越实（透明度逐层加深，模拟堆叠厚度）
+  for (let c = 0; c < cols; c++) {
+    const height = 1 + Math.floor(rand() * 4)
+    for (let k = 0; k < height; k++) {
+      const row = rows - 1 - k
+      shapes.push(gridCell(bx, by, bw, bh, cols, rows, c, row, 0.2 + 0.13 * k + rand() * 0.08, 1.5))
+    }
+  }
+
+  // 下落中的 T 块（亮，用来和残局区分）
+  const tCol = 4, tRow = rows - 8
+  shapes.push(gridCell(bx, by, bw, bh, cols, rows, tCol, tRow, 0.95, 1.5))
+  for (let i = 0; i < 3; i++) {
+    shapes.push(gridCell(bx, by, bw, bh, cols, rows, tCol - 1 + i, tRow + 1, 0.95, 1.5))
+  }
+
+  // 体感输入：站姿骨架 + 头部横移箭头 + 双手下压箭头
+  shapes.push(...skeleton(74, 96, 0.58, 'stand'))
+  shapes.push(...arrow(96, 66, 128, 58, 0.55, 2.4, 7))
+  shapes.push(...arrow(44, 108, 44, 140, 0.5, 2.4, 7))
+  return shapes
+}
+
 // ==================== 兜底 ====================
 
 /**
@@ -1825,6 +1881,8 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'speech/video-to-audio': sceneVideoToAudio,
   'speech/audio-compress': sceneAudioCompress,
   'speech/audio-trim': sceneAudioTrim,
+  'speech/emotion': sceneSpeechEmotion,
+  'speech/vocal-remover': sceneVocalRemover,
 
   // 视觉
   'vision/yolo': sceneYolo,
@@ -1863,6 +1921,7 @@ export const DEMO_SCENES: Record<string, CoverScene> = {
   'vision/video-trim': sceneVideoTrim,
   'vision/video-compress': sceneVideoCompress,
   'vision/vr': sceneVrRange,
+  'vision/fitness-tetris': sceneFitnessTetris,
 
   // NLP
   'nlp/text-classifier': sceneTextClassify,
