@@ -61,6 +61,10 @@ tmp/
 !public/apps/g1-motion-tracking/examples/checkpoints/g1/policy_latest.onnx
 # YOLO26 全任务检测模型（.models/yolo/*.onnx）需随应用分发到内网
 !.models/yolo/yolo26*.onnx
+# UVR MDX-Net 人声分离模型（.models/uvr/Kim_Vocal_2.onnx）需随应用分发到内网
+# 仅 GitHub Release 有源，局域网/校园网拉不动，故随仓库分发，避免使用 302 回退被墙的 GitHub
+!.models/uvr/
+!.models/uvr/Kim_Vocal_2.onnx
 
 # Playwright CLI ????????
 .playwright-cli/
