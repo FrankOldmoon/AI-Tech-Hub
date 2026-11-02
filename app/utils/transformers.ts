@@ -12,8 +12,10 @@ export async function setupTransformersEnv() {
   env.allowRemoteModels = true
   env.remoteHost = `${window.location.origin}/api/hf`
   env.remotePathTemplate = '{model}/resolve/{revision}/'
-  // WASM 后端放到 worker，避免阻塞主线程
-  env.backends.onnx!.wasm!.proxy = true
+  // WASM 后端在 Worker 中会因 worker 环境没有 window 而初始化失败
+  // （no available backend found: ReferenceError: window is not defined）。
+  // 改为主线程执行，保证无 WebGPU 的机器可用；代价是推理瞬间 UI 会卡顿。
+  env.backends.onnx!.wasm!.proxy = false
   // onnxruntime WASM 自托管到 .models/vendor/onnx（/model/vendor/onnx/，Range 服务），避免默认从 jsdelivr CDN 拉取
   // （CDN 被拦截/网络不通时 transformers 工具会卡在加载一直转圈）
   env.backends.onnx!.wasm!.wasmPaths = '/model/vendor/onnx/'
