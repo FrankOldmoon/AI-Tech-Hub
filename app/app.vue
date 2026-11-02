@@ -16,7 +16,14 @@ useHead({
     { rel: 'manifest', href: '/manifest.webmanifest' }
   ],
   htmlAttrs: {
-    lang: computed(() => (locale.value === 'zh' ? 'zh' : 'en'))
+    // 用完整的 locale code：zh-Hans / zh-Hant-HK 让浏览器的断行、字体回退、
+    // 朗读都按对应字形走（只写 zh / en 的话，香港繁体页面会拿到简体字形的字体栈）
+    lang: computed(() => {
+      const lc = String(locale.value).toLowerCase()
+      if (lc.startsWith('zh-hk')) return 'zh-Hant-HK'
+      if (lc.startsWith('zh')) return 'zh-Hans'
+      return 'en'
+    })
   }
 })
 

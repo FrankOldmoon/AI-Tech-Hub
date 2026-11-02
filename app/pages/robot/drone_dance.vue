@@ -22,14 +22,18 @@
 import { createDroneDance, type DroneDanceTask, type Lang } from '~/utils/drone-dance/engine'
 import { reportCorrectRate } from '~/utils/embed-report'
 import { pickText, type LocalizedText } from '~/utils/localized'
+import { engineLangOf, uiLangOf } from '~/utils/zh-hk'
 
 const APP_ID = 'robot/drone_dance'
 
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('robot', 'drone_dance')!)
 const { locale } = useI18n()
-const lang = computed<Lang>(() => (locale.value === 'zh' ? 'zh' : 'en'))
-const pick = (o: LocalizedText) => pickText(o, lang.value)
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+/** 引擎文案用：three 场景里的字典只有 zh / en 两份 */
+const lang = computed<Lang>(() => engineLangOf(String(locale.value)))
+const pick = (o: LocalizedText) => pickText(o, uiLang.value)
 
 const rootEl = ref<HTMLElement | null>(null)
 const errorMsg = ref('')

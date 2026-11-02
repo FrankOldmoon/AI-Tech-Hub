@@ -2,6 +2,8 @@ import {
   categories, demos, visionGroupKeys, visionGroupLabels,
   type DemoCategory, type Localized, type LocalizedCategory, type LocalizedDemo, type VisionGroupKey
 } from '~/utils/demos'
+import { pickText } from '~/utils/localized'
+import { uiLangOf } from '~/utils/zh-hk'
 
 /**
  * 以当前 locale 解析后的 demo / category 访问器
@@ -9,8 +11,11 @@ import {
  */
 export function useDemos() {
   const { t, locale } = useI18n()
-  const lang = computed(() => locale.value as 'zh' | 'en')
-  const pick = (obj?: Localized) => obj?.[lang.value] ?? obj?.en ?? ''
+  // 三语：zhHK 在 pickText 里逐字繁化 zh（内联文案没有第三份字段）
+  const lang = computed(() => uiLangOf(String(locale.value)))
+  /** localeCompare 要 BCP-47 标签，'zhHK' 不是合法值 → 映射回 'zh-HK' */
+  const cmpLocale = computed(() => (lang.value === 'zhHK' ? 'zh-HK' : lang.value))
+  const pick = (obj?: Localized) => (obj ? pickText(obj, lang.value) : '')
 
   const localizedCategories = computed<LocalizedCategory[]>(() =>
     categories.map(c => ({
@@ -34,7 +39,7 @@ export function useDemos() {
     localizedDemos.value
       .filter(d => d.category === slug || d.alsoIn?.includes(slug as DemoCategory))
       .slice()
-      .sort((a, b) => a.title.localeCompare(b.title, lang.value))
+      .sort((a, b) => a.title.localeCompare(b.title, cmpLocale.value))
 
   /**
    * 按子分组（demo.group）聚合某个分类的 demo。组顺序 = visionGroupKeys。

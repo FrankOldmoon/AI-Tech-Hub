@@ -1483,7 +1483,8 @@
     "decline": "Decline"
   },
   "lazyIframe": {
-    "clickToLoad": "Click to load demo"
+    "clickToLoad": "Click to load demo",
+    "loading": "Loading simulation…"
   },
   "neuralSandbox": {
     "externalNote": "This demo is a standalone HTML sub-app; all models run locally in your browser, data never leaves your device."
@@ -1646,5 +1647,14 @@
     "modeSize": "Target size",
     "modeQuality": "Quality preset",
     "over": "The result overshoots the target a little — bitrate is an average and complex scenes push it up. Try one step lower on resolution or bitrate."
+  },
+  "learning": {
+    "title": "Learn more",
+    "subtitle": "Minimal code and the principle behind this demo",
+    "python": "Python · minimal",
+    "javascript": "JavaScript · minimal",
+    "principle": "How it works",
+    "copy": "Copy code",
+    "copied": "Copied"
   }
 }

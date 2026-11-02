@@ -1483,7 +1483,8 @@
     "decline": "拒绝"
   },
   "lazyIframe": {
-    "clickToLoad": "点击加载演示内容"
+    "clickToLoad": "点击加载演示内容",
+    "loading": "正在加载仿真…"
   },
   "neuralSandbox": {
     "externalNote": "本演示为独立 HTML 子应用，模型全部在浏览器本地运行，数据不出设备。"
@@ -1646,5 +1647,14 @@
     "modeSize": "按目标体积",
     "modeQuality": "按清晰度",
     "over": "实际体积略超目标 —— 码率是平均值，画面复杂时会浮动；可再降一档分辨率或码率。"
+  },
+  "learning": {
+    "title": "延伸学习",
+    "subtitle": "本演示的最简代码与原理说明",
+    "python": "Python · 最简实现",
+    "javascript": "JavaScript · 最简实现",
+    "principle": "原理说明",
+    "copy": "复制代码",
+    "copied": "已复制"
   }
 }

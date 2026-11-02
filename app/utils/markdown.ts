@@ -103,3 +103,42 @@ marked.use({
 export function renderMarkdown(src: string | null | undefined): string {
   return marked.parse(src ?? '', { async: false })
 }
+
+/**
+ * 单独高亮一段代码（不走 Markdown 解析）。
+ *
+ * 学习区的 Python / JavaScript 代码段用得上：代码是注册表里的裸字符串，
+ * 包成 Markdown 再解析一遍纯属浪费，还会被缩进规则误伤（Python 全是缩进）。
+ * 产物同样可以直接 v-html —— shiki 自己转义 `<` `&`。
+ */
+export function highlightCodeToHtml(code: string, lang: string): string {
+  return highlightCode(code ?? '', lang)
+}
+
+/**
+ * Markdown 产物的排版类。
+ *
+ * 抽成常量是因为 `v-html` 渲染出来的节点拿不到 scoped 属性，`:deep()` 也没用，
+ * 只能靠父容器的 Tailwind 子选择器变体（`[&_p]:...`）喂样式。
+ * 聊天回复（aigc/webllm）与学习区原理说明共用同一套，避免两处排版慢慢跑偏。
+ */
+export const MARKDOWN_CLASS = `text-sm leading-relaxed
+  [&_p]:my-1.5 [&_p:first-child]:mt-0 [&_p:last-child]:mb-0
+  [&_h1]:mt-3 [&_h1]:mb-1.5 [&_h1]:text-base [&_h1]:font-semibold
+  [&_h2]:mt-4 [&_h2]:mb-1.5 [&_h2]:text-base [&_h2]:font-semibold
+  [&_h3]:mt-3 [&_h3]:mb-1 [&_h3]:font-semibold
+  [&_h4]:mt-2 [&_h4]:mb-1 [&_h4]:font-semibold
+  [&_ul]:my-1.5 [&_ul]:list-disc [&_ul]:ps-5
+  [&_ol]:my-1.5 [&_ol]:list-decimal [&_ol]:ps-5
+  [&_li]:my-0.5
+  [&_strong]:font-semibold
+  [&_a]:text-primary [&_a]:underline [&_a]:underline-offset-2
+  [&_code]:rounded [&_code]:bg-elevated [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[0.85em]
+  [&_pre]:my-2 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-elevated [&_pre]:p-3
+  [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:text-[0.8rem]
+  [&_blockquote]:my-2 [&_blockquote]:border-s-2 [&_blockquote]:border-default [&_blockquote]:ps-3 [&_blockquote]:text-muted
+  [&_hr]:my-3 [&_hr]:border-default
+  [&_table]:my-2 [&_table]:w-full [&_table]:text-xs
+  [&_th]:border [&_th]:border-default [&_th]:px-2 [&_th]:py-1 [&_th]:text-start
+  [&_td]:border [&_td]:border-default [&_td]:px-2 [&_td]:py-1
+  [&_img]:my-2 [&_img]:max-w-full [&_img]:rounded`

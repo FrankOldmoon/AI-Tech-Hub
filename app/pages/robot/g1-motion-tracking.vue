@@ -23,6 +23,11 @@ const iframeSrc = computed(() => withLocale('/apps/g1-motion-tracking/index.html
       :title="t('g1MotionTracking.externalNote')"
       class="mb-3"
     />
-    <DemoIframeLoader :key="locale" :src="iframeSrc" :title="demo.title" />
+    <DemoIframeLoader
+      :key="locale"
+      :src="iframeSrc"
+      :title="demo.title"
+      eager
+    />
   </MediaDemoShell>
 </template>

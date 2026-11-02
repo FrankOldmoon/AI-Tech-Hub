@@ -13,14 +13,16 @@
  */
 import { ROBOTS, initRobot } from '~/utils/embodied/engine'
 import { pickText, type LocalizedText } from '~/utils/localized'
+import { uiLangOf } from '~/utils/zh-hk'
 
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('robot', 'embodied')!)
 
 /** 页面外壳文案走站点双语；机器人自身的说明与解剖学文案沿用原应用的英文原文 */
 const { locale } = useI18n()
-const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
-const pick = (o: LocalizedText) => pickText(o, lang.value)
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+const pick = (o: LocalizedText) => pickText(o, uiLang.value)
 
 const activeKey = ref(ROBOTS[0]!.key)
 const active = computed(() => ROBOTS.find(r => r.key === activeKey.value)!)

@@ -169,10 +169,16 @@ export default defineNuxtConfig({
     // 那个中间件把它改成「英文优先 + 记住手动切换」，所以这里的检测配置要留着（cookie 读写归它管）。
     defaultLocale: 'en',
     strategy: 'no_prefix',
+    // 三语：英语 / 繁體中文（香港）/ 简体中文。name 是 header 里语言按钮的文字，
+    // 用短名 —— 右上角还有 GitHub、主题切换，全称「繁體中文（香港）」会把中屏导航挤掉。
     locales: [
-      { code: 'zh', name: '中文', file: 'zh.json' },
-      { code: 'en', name: 'English', file: 'en.json' }
+      { code: 'en', name: 'English', file: 'en.json' },
+      { code: 'zh-HK', name: '繁體', file: 'zh-HK.json' },
+      { code: 'zh', name: '简体', file: 'zh.json' }
     ],
+    // 注意：不要在这里写 fallbackLocale —— @nuxtjs/i18n v10 的类型里已经没有这个字段
+    //（vue-i18n 的选项挪到了单独的 i18n.config.ts）。本项目也不需要：
+    // zh-HK.json 由 scripts/gen-zh-hk.mjs 从 zh.json **全量**生成，key 一个不少。
     detectBrowserLanguage: {
       useCookie: true,
       cookieKey: 'i18n_locale',

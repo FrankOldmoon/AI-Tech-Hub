@@ -23,6 +23,11 @@ const iframeSrc = computed(() => withLocale('/apps/uaibot-kinematics/index.html'
       :title="t('uaibotKinematics.externalNote')"
       class="mb-3"
     />
-    <DemoIframeLoader :key="locale" :src="iframeSrc" :title="demo.title" />
+    <DemoIframeLoader
+      :key="locale"
+      :src="iframeSrc"
+      :title="demo.title"
+      eager
+    />
   </MediaDemoShell>
 </template>

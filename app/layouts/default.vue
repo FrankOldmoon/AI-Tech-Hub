@@ -21,6 +21,9 @@ const mobileOpen = ref(false)
         />
       </div>
       <slot />
+
+      <!-- 每页底部的延伸学习（Python / JavaScript / 原理）；未登记内容的页面整段不渲染 -->
+      <DemoLearningDock />
     </div>
 
     <!-- 小屏：Slideover 弹出侧边栏 -->

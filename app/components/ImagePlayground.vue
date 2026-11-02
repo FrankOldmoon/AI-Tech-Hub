@@ -12,6 +12,7 @@ import { humanError, mediaError } from '~/utils/errors'
 import type { ImageTool, ImageToolKind } from '~/utils/image-tools'
 import type { ToolSidebarItem } from '~/components/ToolSidebar.vue'
 import { buildParamSpecs, pickText } from '~/utils/localized'
+import { engineLangOf, uiLangOf } from '~/utils/zh-hk'
 import { formatBytes } from '~/utils/format'
 import { paramDefaults } from '~/utils/params'
 import { processImageFile } from '~/utils/image'
@@ -25,7 +26,10 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+/** 引擎文案用：three 场景里的字典只有 zh / en 两份 */
+const lang = computed<'zh' | 'en'>(() => engineLangOf(String(locale.value)))
 
 useSeoMeta({
   title: () => props.demo.title,
@@ -74,7 +78,7 @@ const specs = computed(() => {
   // MediaPipe 任务复用 visionTasks 的参数（label 走 i18n key），其余走 LocalizedParamSpec
   const resolved = activeTool.value?.resolvedParams?.(t)
   if (resolved) return resolved
-  const base = buildParamSpecs(activeTool.value?.params, lang.value)
+  const base = buildParamSpecs(activeTool.value?.params, uiLang.value)
   if (activeTool.value?.id === 'resize' && original.value) {
     return base.map((s) => {
       if (s.key === 'width' || s.key === 'height') {
@@ -297,7 +301,7 @@ function sectionFor(tool: ImageTool): string | undefined {
 
 const toolItems = computed<ToolSidebarItem[]>(() => props.tools.map(tool => ({
   id: tool.id,
-  label: pickText(tool.name, lang.value),
+  label: pickText(tool.name, uiLang.value),
   kind: kindLabel(tool.kind),
   badge: tool.planned ? t('image.planned') : undefined,
   section: sectionFor(tool)

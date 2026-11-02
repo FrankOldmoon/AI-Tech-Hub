@@ -68,8 +68,13 @@ function emotionRows(list: EmotionScore[], lang: 'zh' | 'en'): InfoRow[] {
 // ===== 分类器单例（file 与 live 共用，等价源页面脚本里的 classifierPromise）=====
 
 let classifierPromise: Promise<any> | null = null
-/** 首次加载时探测；WebGPU 初始化失败后改写为 wasm，后续结果里的 device 即取自它 */
+/** 模型真正加载成功后的后端；结果里的 device 即取自它 */
 let activeDevice: 'webgpu' | 'wasm' | null = null
+/**
+ * WebGPU 推理阶段失败后钉死为 wasm：只清 classifierPromise 不够，
+ * 下一次 loadClassifier 仍会被 pickDevice 探测回 webgpu，导致反复踩同一个坑。
+ */
+let deviceOverride: 'wasm' | null = null
 
 /**
  * 只凭 `'gpu' in navigator` 判断会把「有 navigator.gpu 但拿不到 adapter」的环境
@@ -77,6 +82,7 @@ let activeDevice: 'webgpu' | 'wasm' | null = null
  * 这里先真正请求一次 adapter，拿不到就直接走 WASM。
  */
 async function pickDevice(): Promise<'webgpu' | 'wasm'> {
+  if (deviceOverride) return deviceOverride
   if (!hasWebGPU()) return 'wasm'
   try {
     const gpu = (navigator as unknown as { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu
@@ -86,33 +92,44 @@ async function pickDevice(): Promise<'webgpu' | 'wasm'> {
   }
 }
 
+/**
+ * 按指定后端建 pipeline。dtype 必须跟随后端：
+ * WASM 用 q8（91MB），fp32 权重 361MB，浏览器首载与单线程推理都过重；
+ * WebGPU 用 fp32，量化算子未必被 GPU EP 支持。
+ */
+async function createClassifier(
+  device: 'webgpu' | 'wasm',
+  onProgress: (raw: any) => void
+): Promise<any> {
+  const { pipeline } = await import('@huggingface/transformers')
+  return pipeline('audio-classification', MODEL_ID, {
+    device,
+    dtype: device === 'webgpu' ? 'fp32' : 'q8',
+    progress_callback: onProgress
+  })
+}
+
 function loadClassifier(ctx: AudioToolContext): Promise<any> {
   if (classifierPromise) return classifierPromise
   const p = (async () => {
     await setupTransformersEnv()
-    const { pipeline } = await import('@huggingface/transformers')
     const onProgress = (raw: any) => {
       // 下载进度样板统一走 parseDownloadProgress；文案由 playground 渲染
       const parsed = parseDownloadProgress(raw)
       if (parsed) ctx.onProgress?.(parsed)
     }
     // 设备探测延到首次调用（模块在 SSR 阶段也会被 import，那时没有 navigator）
-    activeDevice = await pickDevice()
-    const first = activeDevice
-    // WASM 用 q8（91MB）：fp32 权重 361MB，浏览器首载与单线程推理都过重
-    // （实测会先拉 fp32 再回退 q8）；WebGPU 保持 fp32，量化算子未必被 GPU EP 支持。
-    const options = {
-      device: first,
-      dtype: (first === 'webgpu' ? 'fp32' : 'q8') as 'fp32' | 'q8',
-      progress_callback: onProgress
-    }
+    const first = await pickDevice()
     try {
-      return await pipeline('audio-classification', MODEL_ID, options)
+      const cls = await createClassifier(first, onProgress)
+      activeDevice = first
+      return cls
     } catch (e) {
-      // 源页面同款回退：WebGPU 起不来（驱动/显存）时用 WASM 重建
+      // WebGPU 起不来（驱动/显存）时用 WASM 重建；dtype 要跟着切到 q8
       if (first === 'webgpu') {
+        const cls = await createClassifier('wasm', onProgress)
         activeDevice = 'wasm'
-        return await pipeline('audio-classification', MODEL_ID, { ...options, device: 'wasm' })
+        return cls
       }
       throw e
     }
@@ -126,6 +143,24 @@ function loadClassifier(ctx: AudioToolContext): Promise<any> {
   return p
 }
 
+/**
+ * 推理入口：会话建成功但首次推理失败（显存/算子/驱动）时也必须回退，
+ * 否则错误会被映射成「当前环境不支持 WebGPU」，而页面其实什么都没回退。
+ */
+async function classify(ctx: AudioToolContext, audio: Float32Array): Promise<any> {
+  let cls = await loadClassifier(ctx)
+  try {
+    return await cls(audio)
+  } catch (e) {
+    if (activeDevice !== 'webgpu') throw e
+    deviceOverride = 'wasm'
+    classifierPromise = null
+    activeDevice = null
+    cls = await loadClassifier(ctx)
+    return await cls(audio)
+  }
+}
+
 // ===== 文件模式：整段分析（源页面 analyzeFile）=====
 
 async function runEmotion(ctx: AudioToolContext): Promise<AudioToolResult> {
@@ -135,10 +170,8 @@ async function runEmotion(ctx: AudioToolContext): Promise<AudioToolResult> {
     return { info: [hintRow(lang, '请先选择音频文件', 'Choose an audio file first')] }
   }
   if (ctx.isCancelled?.()) return { info: [] }
-  const cls = await loadClassifier(ctx)
-  if (ctx.isCancelled?.()) return { info: [] }
   // 源页面对整段音频直接推理（不分窗），此处保持一致
-  const out = await cls(ctx.samples)
+  const out = await classify(ctx, ctx.samples)
   if (ctx.isCancelled?.()) return { info: [] }
   return { info: emotionRows(mapOut(out), lang), device: activeDevice ?? undefined }
 }
@@ -162,8 +195,7 @@ async function analyzeWindow(
   session: number
 ): Promise<void> {
   try {
-    const cls = await loadClassifier(ctx)
-    const out = await cls(audio)
+    const out = await classify(ctx, audio)
     if (session !== sessionId) return
     pendingResult = {
       info: [

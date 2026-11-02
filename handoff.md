@@ -99,3 +99,71 @@ const { poll, stop: stopPolling } = useTaskPoller({
 | P2-1 | 模型清单 lock | `docs/model-manifest.md`（含裁剪方法，与 download-models.ts 联动） |
 | P2-2 | 教学纵深 | `RuntimeStats.vue`（fps 徽章，接入 flappy）；Runner 模型卡（TransformersTextRunner/MediaTextRunner）；robot 分类文案去「敬请期待」；本文档架构速查刷新 |
 | P2-3 | 合规与提示 | cookie 告知组件 + WebGPU 兼容提示（见下批次备注） |
+
+## 七、2026-10 迭代：底部「延伸学习」区 + 三语（含繁体香港）
+
+**需求**：每个功能页最下方给出该 demo 的最简 Python / JavaScript 代码 + 详细原理说明，三段默认收起，点击展开；原理区预留 HTML 可视化插槽。同时把全站语言扩到 **English / 繁體中文（香港）/ 简体中文**。
+
+### 1. 学习区（一处注入，全站生效）
+
+| 文件 | 职责 |
+| --- | --- |
+| `app/components/DemoLearningDock.vue` | 三段 `UCollapsible`（Python / JavaScript / 原理），默认收起；代码用 shiki 高亮 + 复制按钮；原理用 `renderMarkdown` + `MARKDOWN_CLASS`；`note.htmlDemo` 有值才嵌 16:9 iframe（**预留位**） |
+| `app/utils/demo-notes/index.ts` | 类型 `DemoNote` + `loadDemoNote(path)`；用 `import.meta.glob` 按**路由首段**懒加载分类模块，未登记的页面不发请求 |
+| `app/utils/demo-notes/<分类>.ts` | 内容，`export const notes: NoteMap`；key 形如 `/robot/auto-drive` |
+| `app/layouts/{default,bare}.vue` | `<slot />` 之后挂 `<DemoLearningDock />`，132 个 demo 页无需各自加代码 |
+
+要点：
+- 内容按分类拆文件 + 懒加载：132 条中英文案约 300 KB，静态聚合会顶高首页 bundle；
+- 未登记 → 整段 `v-if` 不渲染，分类页/首页不受影响；
+- `tests/demo-notes.test.ts` 做**双向校验**：key 必须对上 `demos.ts` 的真实路由（拼错 slug 是最容易出的错，页面照常渲染但内容永不出现），且分类里每个 ready demo 都必须有内容；
+- 新增分类 = 加一个 `<分类>.ts`，不用改 index（glob 自动收录）。
+
+**当前覆盖**：robot 分类 14/14（auto-drive、drone、vacusim、avsim、drone_dance、embodied、envsense、g1-cartpole、g1-motion-tracking、microduck、multimodal、rebot-arm、soma、uaibot-kinematics）。其余分类（vision/speech/nlp/aigc/ml）待按同一模式补。
+
+写作约定（重要，保证内容是教学材料而不是通稿）：
+- 代码注释用**英文**（避免繁简混排），代码可独立运行；
+- 原理说明必须对应**本页真实实现**，简化点要明说（例：auto-drive 的 LiDAR 是 160 个固定点的动画，真射线在 avsim；rebot-arm 的"视觉"是 `project()` 画的框，没有模型）。
+
+### 2. 三语：en / zh-HK / zh
+
+| 文件 | 说明 |
+| --- | --- |
+| `i18n/locales/zh-HK.json` | **生成物**，勿手改；由 `scripts/gen-zh-hk.mjs` 从 `zh.json` 全量转换（opencc s2hk + 人工订正表） |
+| `app/utils/zh-hk-map.ts` | **生成物**；2627 对单字映射，供运行时繁化内联文案 |
+| `app/utils/zh-hk.ts` | `UiLang` 类型、`uiLangOf` / `engineLangOf` / `toHK` / `zhByLang` |
+| `app/utils/localized.ts` | `LocalizedText.zhHK?` 可选字段；`pickText` 在 zhHK 下走 `t.zhHK ?? toHK(t.zh)` |
+
+- 加/改中文文案后必须跑 `pnpm i18n:gen`（`check:i18n` 已扩展校验 zh-HK，漏跑会红）；
+- **两套语言语义要分清**：`uiLang` 给模板文案（三值，zhHK 繁化）；`engineLang` 给 three/canvas 引擎（只有 zh/en，因为引擎内是 `Record<'zh'|'en'>` 编译期字典）；
+- `app.vue` 的 `htmlAttrs.lang` 输出 `zh-Hant-HK` / `zh-Hans` / `en`，让字体回退与朗读走对字形；
+- **已知残留**：引擎内部（3D 场景 sprite、canvas 文本）在 zhHK 下仍是简体。要彻底解决需给引擎字典加第三份，收益低，暂不做；
+- 单字映射覆盖不到「整词换说法」（如 视频→影片 由词表侧的 opencc 处理），内联短句出现「視頻」这类写法属可接受残留。
+
+### 3. robot 仿真页改为「进入即加载」（2026-10-30 追加）
+
+原先 5 个 iframe 壳页面（`g1-cartpole` / `g1-motion-tracking` / `microduck` / `rebot-arm` / `uaibot-kinematics`）
+用 `DemoIframeLoader` 的「点击加载」占位，用户要多点一次才进仿真。现改为进入页面即加载：
+
+- 组件加 `eager` prop（默认 false，`ml/cnn-explainer` 仍走点击加载，行为不变）；
+- 5 个 robot 页面传 `eager`，iframe 的 `loading` 也随之从 `lazy` 变 `eager`；
+- 加载期间盖一层遮罩（`lazyIframe.loading`），带 15 s 兜底 —— 重型应用（g1-motion-tracking 12 MB + 9.8 MB onnx）不能只给白屏。
+
+**坑（重要）**：eager 的 iframe **不能在 SSR 里输出**。SSR 出的 `<iframe>` 标签在 HTML 到达时就开始加载，
+等 hydration 绑上 `@load` 时事件早过去了，遮罩会永远不消失（本地资源快时 100% 复现）。
+所以 `loaded` 在 `onMounted` 里才置 true，让 `@load` 监听先于加载挂好。
+
+### 4. vision 分类内容补齐（37/37，2026-10-30 追加）
+
+`app/utils/demo-notes/vision.ts` 覆盖 vision 全部 37 个 demo（23 个动态能力页 + 14 个独立页），
+写作标准同 robot，但 vision 有几个坑值得记：
+
+- **一个页面挂多个工具**：`yolo` 页 7 个任务、`mediapipe` 页 11 个、`segmentation` 4 个、`ocr` 4 个。
+  原理说明写**页面这一层**（对比同一任务的多种实现），代码挑最能代表该页主题的一个。
+- **必须点破「名字比实现牛」的工具**：`enhancement` 页的 super-res 只是双线性放大 + USM（无模型）、
+  beautify 是双边滤波（无模型）；`rebot-arm` 的"视觉"是 `project()` 画的框；`object` 页全是传统 CV。
+  这些不说明，学生会形成错误认知。
+- **图片压缩能算、视频压缩也能算，但只有视频有公式**：视频码率就是体积旋钮
+  （`bytes = (v_kbps + a_kbps)/8 × 1000 × s`），图片只能逐档试。
+- 模板字符串里写 Markdown 行内代码必须转义反引号（`\`code\``）。`vision.ts` 里漏了一处
+  导致整文件语法错误，用 `tsc --ignoreConfig --noEmit` 定位最快（vitest 只报 transform 失败，不给行列）。

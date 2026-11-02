@@ -18,6 +18,7 @@ import type { LocalizedDemo } from '~/utils/demos'
 import type { NlpTool, NlpToolResult } from '~/utils/nlp-tools'
 import { nlpKindLabels } from '~/utils/nlp-tools'
 import { buildParamSpecs } from '~/utils/localized'
+import { engineLangOf, uiLangOf } from '~/utils/zh-hk'
 import { paramDefaults } from '~/utils/params'
 import { humanError } from '~/utils/errors'
 
@@ -27,13 +28,16 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+/** 引擎文案用：three 场景里的字典只有 zh / en 两份 */
+const lang = computed<'zh' | 'en'>(() => engineLangOf(String(locale.value)))
 
 // ===== 工具切换 =====
 const activeToolId = ref(props.tools[0]?.id ?? '')
 const activeTool = computed<NlpTool | undefined>(() => props.tools.find(x => x.id === activeToolId.value))
 
-const specs = computed(() => buildParamSpecs(activeTool.value?.params, lang.value))
+const specs = computed(() => buildParamSpecs(activeTool.value?.params, uiLang.value))
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
 /** 侧栏：分组按当前页 slug 解析 —— 能力页显示引擎名，引擎页显示任务族 */

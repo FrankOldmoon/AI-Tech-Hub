@@ -18,6 +18,7 @@ import type { LocalizedDemo } from '~/utils/demos'
 import type { AudioTool, AudioInputKind, AudioToolResult } from '~/utils/audio-tools'
 import { audioKindLabels } from '~/utils/audio-tools'
 import { buildParamSpecs } from '~/utils/localized'
+import { engineLangOf, uiLangOf } from '~/utils/zh-hk'
 import type { LocalizedParamSpec } from '~/utils/localized'
 import { paramDefaults } from '~/utils/params'
 import { humanError, mediaError } from '~/utils/errors'
@@ -31,7 +32,10 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+/** 引擎文案用：three 场景里的字典只有 zh / en 两份 */
+const lang = computed<'zh' | 'en'>(() => engineLangOf(String(locale.value)))
 
 // ===== 工具切换 =====
 const activeToolId = ref(props.tools[0]?.id ?? '')
@@ -39,7 +43,7 @@ const activeTool = computed<AudioTool | undefined>(() => props.tools.find(x => x
 
 /** 接口来源的参数（如 Edge TTS 的音色列表）：拿到后覆盖静态 params */
 const dynamicSpecs = ref<LocalizedParamSpec[] | null>(null)
-const specs = computed(() => buildParamSpecs(dynamicSpecs.value ?? activeTool.value?.params, lang.value))
+const specs = computed(() => buildParamSpecs(dynamicSpecs.value ?? activeTool.value?.params, uiLang.value))
 const params = ref<Record<string, number | string | boolean>>(paramDefaults(specs.value))
 
 /** 侧栏：分组按当前页 slug 解析——能力页显示引擎名，引擎页显示任务族 */

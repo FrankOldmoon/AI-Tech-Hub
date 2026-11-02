@@ -23,6 +23,12 @@ const iframeSrc = computed(() => withLocale('/apps/rebot-arm/index.html'))
       :title="t('robotArm.externalNote')"
       class="mb-3"
     />
-    <DemoIframeLoader :key="locale" :src="iframeSrc" :title="demo.title" allow="microphone; camera" />
+    <DemoIframeLoader
+      :key="locale"
+      :src="iframeSrc"
+      :title="demo.title"
+      allow="microphone; camera"
+      eager
+    />
   </MediaDemoShell>
 </template>

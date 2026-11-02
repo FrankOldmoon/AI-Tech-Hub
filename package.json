@@ -21,7 +21,8 @@
     "test:e2e:ops": "playwright test tests/e2e/operations.spec.ts",
     "test:e2e:tools": "playwright test tests/e2e/tools.spec.ts",
     "test:e2e:report": "playwright show-report tests/e2e/.report",
-    "test:program-world": "node scripts/test-program-world.mjs"
+    "test:program-world": "node scripts/test-program-world.mjs",
+    "i18n:gen": "node scripts/gen-zh-hk.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.6",
@@ -65,6 +66,7 @@
     "h3": "^1.15.11",
     "happy-dom": "^15.11.7",
     "long": "4.0.0",
+    "opencc-js": "^1.4.2",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10",
     "vue": "^3.5.41",

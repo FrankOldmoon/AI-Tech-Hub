@@ -23,6 +23,11 @@ const iframeSrc = computed(() => withLocale('/apps/g1-cartpole/index.html'))
       :title="t('g1Cartpole.externalNote')"
       class="mb-3"
     />
-    <DemoIframeLoader :key="locale" :src="iframeSrc" :title="demo.title" />
+    <DemoIframeLoader
+      :key="locale"
+      :src="iframeSrc"
+      :title="demo.title"
+      eager
+    />
   </MediaDemoShell>
 </template>

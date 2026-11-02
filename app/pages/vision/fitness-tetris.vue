@@ -15,14 +15,16 @@
  */
 import { mediapipeModels, mediapipeWasm } from '~/utils/mediapipe'
 import { pickText, type LocalizedText } from '~/utils/localized'
+import { uiLangOf } from '~/utils/zh-hk'
 
 definePageMeta({ layout: 'bare', fullscreen: true })
 
 const { getDemo } = useDemos()
 const demo = computed(() => getDemo('vision', 'fitness-tetris')!)
 const { locale, withLocale } = useIframeLocale()
-const lang = computed<'zh' | 'en'>(() => (locale.value === 'zh' ? 'zh' : 'en'))
-const pick = (o: LocalizedText) => pickText(o, lang.value)
+/** 模板文案用（zhHK 走逐字繁化） */
+const uiLang = computed(() => uiLangOf(String(locale.value)))
+const pick = (o: LocalizedText) => pickText(o, uiLang.value)
 
 const wrapEl = ref<HTMLElement | null>(null)
 const iframeSrc = ref('')

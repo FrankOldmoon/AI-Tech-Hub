@@ -49,6 +49,7 @@ function flatten(obj, prefix = '', out = new Set()) {
 
 const en = flatten(JSON.parse(readFileSync(join(ROOT, 'i18n/locales/en.json'), 'utf8')))
 const zh = flatten(JSON.parse(readFileSync(join(ROOT, 'i18n/locales/zh.json'), 'utf8')))
+const zhHK = flatten(JSON.parse(readFileSync(join(ROOT, 'i18n/locales/zh-HK.json'), 'utf8')))
 
 // 字符串字面量 key：t('...') / $t("...")，前一个字符不能是 [\w.$]（避免 ctx.text( 等误匹配）
 const RE = /(?<![\w$.])(?:\$?t)\(\s*['"]([^'"]+)['"]/g
@@ -67,6 +68,8 @@ for (const file of SRC_DIRS.flatMap(d => (statSync(join(ROOT, d), { throwIfNoEnt
     referenced.add(key)
     if (!en.has(key)) problems.push(`${file.replace(ROOT + '/', '')}: key 在 en.json 中缺失: ${key}`)
     if (!zh.has(key)) problems.push(`${file.replace(ROOT + '/', '')}: key 在 zh.json 中缺失: ${key}`)
+    // zh-HK 是从 zh.json 全量生成的（scripts/gen-zh-hk.mjs），缺 key 说明忘了重跑生成脚本
+    if (!zhHK.has(key)) problems.push(`${file.replace(ROOT + '/', '')}: key 在 zh-HK.json 中缺失（跑 node scripts/gen-zh-hk.mjs）: ${key}`)
   }
 }
 
@@ -76,5 +79,5 @@ if (problems.length) {
   for (const p of problems) console.error('  ' + p)
   process.exit(1)
 }
-console.log('✔ OK：所有引用的 i18n key 在 en.json 与 zh.json 中均存在')
+console.log('✔ OK：所有引用的 i18n key 在 en.json / zh.json / zh-HK.json 中均存在')
 process.exit(0)
