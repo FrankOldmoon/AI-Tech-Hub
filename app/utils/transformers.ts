@@ -18,7 +18,8 @@ export async function setupTransformersEnv() {
   env.backends.onnx!.wasm!.proxy = false
   // onnxruntime WASM 自托管到 .models/vendor/onnx（/model/vendor/onnx/，Range 服务），避免默认从 jsdelivr CDN 拉取
   // （CDN 被拦截/网络不通时 transformers 工具会卡在加载一直转圈）
-  env.backends.onnx!.wasm!.wasmPaths = '/model/vendor/onnx/'
+  // 版本化路径：绕过浏览器对旧 .mjs/.wasm 的 immutable 缓存（symlink 指向 onnx 原目录）
+  env.backends.onnx!.wasm!.wasmPaths = '/model/vendor/onnx-20261102/'
   return env
 }
 
