@@ -25,6 +25,18 @@ const { data: note } = await useAsyncData(
   { watch: [() => route.path], lazy: true, default: () => undefined }
 )
 
+/**
+ * 告诉页面上方的「工作原理」折叠块：本页还有更详细的内容。
+ *
+ * 为什么需要：同一个页面上有两处原理入口 —— 页头那个「工作原理」只有两三句话，
+ * 这里的「原理说明」有好几个小节加代码。大多数人展开上面那个、看完就以为完了，
+ * 根本不会往下滚（实测反馈就是这个）。所以由这边主动登记，让上面那个能给出跳转。
+ */
+const noteOwner = useState<string>('demo-note-owner', () => '')
+watchEffect(() => {
+  if (note.value) noteOwner.value = route.path
+})
+
 /** 三段各自的展开状态（彼此独立，允许同时打开做对照） */
 const open = ref<Record<string, boolean>>({ python: false, javascript: false, principle: false })
 
@@ -68,6 +80,7 @@ onBeforeUnmount(() => {
 <template>
   <section
     v-if="note"
+    id="demo-learning"
     class="border-t border-default"
   >
     <UContainer>

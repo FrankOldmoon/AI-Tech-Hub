@@ -54,8 +54,15 @@ export async function loadDemoNote(path: string): Promise<DemoNote | undefined> 
   if (!category) return undefined
   const loader = modules[`./${category}.ts`]
   if (!loader) return undefined
-  const mod = await loader()
-  return mod.notes[key]
+  try {
+    const mod = await loader()
+    return mod.notes[key]
+  } catch (err) {
+    // 加载失败时学习区会整段消失，页面上看不出任何异常（不报错、不占位）。
+    // 这种情况几乎只有一个原因：分类文件里有语法错。留一条日志，避免排查时凭猜。
+    console.error('[demo-notes] failed to load', category, err)
+    return undefined
+  }
 }
 
 /** 同步查表（测试与脚本用：把所有分类模块扁平化成一张表） */

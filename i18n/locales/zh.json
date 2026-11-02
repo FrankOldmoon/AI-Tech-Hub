@@ -1655,6 +1655,7 @@
     "javascript": "JavaScript · 最简实现",
     "principle": "原理说明",
     "copy": "复制代码",
-    "copied": "已复制"
+    "copied": "已复制",
+    "jumpToDetail": "完整原理与可运行代码见下方"
   }
 }

@@ -229,8 +229,19 @@ def detect_tflite(interpreter, img, score_thresh=0.5, max_results=5):
 
 
 # ---------- route 2: ONNX, you write the letterbox AND read 300 rows ----------
+def letterbox(img, size=640, pad=128):
+    """Scale to fit, centre-pad. PIL does the resize -- no external helper."""
+    from PIL import Image
+    im = Image.fromarray(img)
+    r = min(size / im.height, size / im.width)
+    im = im.resize((round(im.width * r), round(im.height * r)), Image.BILINEAR)
+    canvas = Image.new('RGB', (size, size), (pad, pad, pad))
+    ox, oy = (size - im.width) // 2, (size - im.height) // 2
+    canvas.paste(im, (ox, oy))
+    return np.array(canvas), r, ox, oy
+
+
 def detect_onnx(session, img, size=640, conf=0.25):
-    from yolo_helpers import letterbox           # same helper as the /vision/yolo page
     canvas, r, dx, dy = letterbox(img, size, pad=128)
     x = canvas[:, :, ::-1].transpose(2, 0, 1)[None].astype(np.float32) / 255.0
     rows = session.run(None, {'images': x})[0][0]               # (300, 6)
@@ -244,6 +255,17 @@ def detect_onnx(session, img, size=640, conf=0.25):
 # Which one to use?
 #   TFLite  : ~14 MB, 5 results, boxes normalised, everything inside the graph
 #   ONNX    : ~10 MB, 300 slots, boxes in letterboxed pixels, preprocessing is yours
+
+
+if __name__ == "__main__":
+    import onnxruntime as ort
+    from PIL import Image
+
+    # pip install onnxruntime pillow numpy
+    sess = ort.InferenceSession('yolo26n.onnx', providers=['CPUExecutionProvider'])
+    img = np.array(Image.open('street.jpg').convert('RGB'))
+    for x1, y1, x2, y2, score, cls in detect_onnx(sess, img):
+        print(f"class {int(cls):2d}  {score:.2f}  [{x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}]")
 `,
 
     javascript: `// Both routes, browser side. MediaPipe hides the decode; ONNX does not.
@@ -854,7 +876,8 @@ def top_k(scores, k=5, labels=None):
 
 
 if __name__ == "__main__":
-    img = crop_to_square(load('cat.jpg'))     # your loader
+    from PIL import Image
+    img = np.array(Image.open('cat.jpg').convert('RGB'))   # HxWx3 uint8
     x = centre_crop(img)[None].astype(np.float32) / 255.0
     logits = session.run(None, {'images': x})[0]
     for cls, score, name in top_k(logits):
@@ -1469,8 +1492,19 @@ with vision.PoseLandmarker.create_from_options(opts) as pose:
 
 
 # ---------- YOLO26-pose: 17 COCO points, pixel coords, has a visibility score
+def letterbox(img, size=640, pad=128):
+    """Scale to fit, centre-pad. PIL does the resize -- no external helper."""
+    from PIL import Image
+    im = Image.fromarray(img)
+    r = min(size / im.height, size / im.width)
+    im = im.resize((round(im.width * r), round(im.height * r)), Image.BILINEAR)
+    canvas = Image.new('RGB', (size, size), (pad, pad, pad))
+    ox, oy = (size - im.width) // 2, (size - im.height) // 2
+    canvas.paste(im, (ox, oy))
+    return np.array(canvas), r, ox, oy
+
+
 def yolo_pose(session, img, conf=0.25, vis_thresh=0.3):
-    from yolo_helpers import letterbox
     canvas, r, dx, dy = letterbox(img, 640, pad=128)
     x = canvas[:, :, ::-1].transpose(2, 0, 1)[None].astype('float32') / 255
     rows = session.run(None, {'images': x})[0][0]        # (300, 57)
@@ -2939,7 +2973,8 @@ def apply(img, table):
 
 
 if __name__ == "__main__":
-    img = load('photo.jpg')                      # HxWx3 uint8
+    from PIL import Image
+    img = np.array(Image.open('photo.jpg').convert('RGB'))   # HxWx3 uint8
     t = lut(lambda v: levels(v, black=20, white=235, gamma=1.2))
     out = apply(img, t)
 `,
