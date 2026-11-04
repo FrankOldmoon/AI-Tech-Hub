@@ -6,11 +6,13 @@
  *
  * 上游（Kimi / DeepSeek）本身即 OpenAI 协议，body 原样透传，仅：
  * - 替换 model 为注册表中的真实模型；
+ * - messages 过一遍学习诚信策略（见 server/utils/ai-policy.ts），客户端 system 消息无法绕过；
  * - thinking 模型（如 kimi-k3）上游只允许 temperature=1，强制之（与 llm-chat 一致）；
  * - stream 缺省为 false（OpenAI 默认非流式）。
  * - 流式：透明转发上游 SSE；非流式：直接返回上游 JSON（天然 OpenAI 格式）。
  */
-import { sendStream } from 'h3'
+import { sendStream, setHeader } from 'h3'
+import { enforceLearningPolicy, type ChatMessageLike } from '../../../utils/ai-policy'
 import { accessError, openAiError, resolveModel } from '../../../utils/openai-compat'
 
 export default defineEventHandler(async (event) => {
@@ -26,6 +28,11 @@ export default defineEventHandler(async (event) => {
   if (!body || !Array.isArray(body.messages) || body.messages.length === 0) {
     return openAiError(event, 400, 'messages is required and must be a non-empty array', 'invalid_request_error')
   }
+
+  // 学习诚信规则：禁止借本 API 自动获取/代答学习平台答案、代做课程作业与测验。
+  // 客户端自带的 system 消息在这里被摘掉并降级并入固定策略，所以删不掉、也覆盖不了。
+  body.messages = enforceLearningPolicy(body.messages as ChatMessageLike[])
+  setHeader(event, 'x-ai-policy', 'learning-integrity')
 
   // 内置供应商必须配 key；自定义上游可不配（无密钥服务如本地 Ollama）
   const apiKey = resolved.provider.keyEnv ? process.env[resolved.provider.keyEnv] : undefined
