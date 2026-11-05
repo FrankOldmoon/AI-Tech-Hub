@@ -224,3 +224,27 @@ letterbox 还原并对比错解；depth 页真做 min-max 量化与色带映射�
 就是未终止字符串。`reasoning-chat` 那条又栽了一次，改成数组 `.join('<br>')` 才彻底避开。
 
 **剩余**：speech 25、ml 28、robot 14（robot 已有内容，需把 `javascript` 升级为 `html`）。
+
+### 7. speech 分类内容补齐（25/25，2026-11-06）
+
+`app/utils/demo-notes/speech.ts`，25 个条目，浏览器执行 25/25，Python AST 全过。
+
+**这一分类有三种技术形态，原理说明必须分开讲**（写之前先核实，别按印象归类）：
+
+| 形态 | 页面 | 关键事实 |
+| --- | --- | --- |
+| 纯 DSP / Web Audio | pitch-detector / hum-to-notes / visualizer / metronome / mini-synth / voice-changer | YIN（CMND + 抛物线插值）；AnalyserNode fftSize 2048、只取前 60% bin、`pow(i/96,1.5)` 非线性分桶；前瞻调度（定时器只决定何时看，不决定何时响） |
+| 浏览器端模型 | whisper / kokoro / emotion / yamnet / voiceprint / voice-clone / vocal-remover / speech-translate | Whisper **30 s 定长窗 + 5 s 重叠**；Kokoro 是「一个模型 + 55 个 510 KB 音色嵌入」；YAMNet 3.9 MB / 521 类，帧→事件要合并；MDX-Net 输出**掩码**而非相减 |
+| 服务端 / 浏览器内建 | tts(Edge) / audiobook / asr(Web Speech) | Edge TTS 走 server WebSocket（无 key，需外网）；**Web Speech API 不是本地识别**，音频会上传到浏览器厂商 |
+
+**要点破的简化**：
+- `voice-changer` 的五种效果**没有真正的变调**（无 pitch shifter）——"chipmunk" 是 4 Hz 环形调制，
+  产生边带而非升调。这是这页最需要说明的地方。
+- `asr` 页两个工具一个本地一个云端，隐私差别比精度差别更重要。
+
+**踩坑（第三次同类）**：模板字符串里的**裸反引号**会终止字符串。这次不是 `\n`，是 Python docstring
+里的 `` `start` ``、Markdown 行内代码、以及 `en: \`## 标题: \`-vn\`` 这种写法。
+一个运算符没转义，整文件语法崩，tsc 只报「Invalid character」不给原因。
+**写 Python 段时也要检查反引号** —— python 段本身也是模板字符串。
+
+**剩余**：ml 28、robot 14（robot 已有内容，需把 `javascript` 升级为可运行 `html`）。
