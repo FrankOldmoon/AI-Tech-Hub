@@ -17,20 +17,25 @@ export interface DemoNote {
    * 讲清楚「这一段对应页面里的哪个动作」。
    */
   python: string
-  /** 最简 JavaScript 实现，与 python 同一套逻辑，便于对照阅读 */
-  javascript: string
+  /**
+   * **能直接在浏览器里跑起来的完整 HTML**（含 <style> / <script>，零外部依赖）。
+   *
+   * 学习区在这段代码右上角给一个「运行」按钮，点了就在沙箱 iframe 里执行 —
+   * 所以它必须自包含：图片用 canvas 画、不引 CDN、不读本地文件。
+   * 模型类页面不加载真模型，而是用**真实后处理逻辑 + 合成输入**演示原理
+   * （例如 YOLO 页用固定的 300 行输出演示 letterbox 还原与阈值过滤）。
+   */
+  html?: string
+  /**
+   * 纯 JS 片段（旧字段，robot 分类仍在用）。
+   * 只有它、没有 html 时，学习区不给「运行」按钮 —— 片段本身跑不起来。
+   */
+  javascript?: string
   /**
    * 原理说明（Markdown）。zh 必填，en 必填；繁体由 zh-hk.ts 的 toHK 逐字转换，
    * 需要整词订正时再加可选 zhHK 字段。
    */
   principle: LocalizedText
-  /**
-   * 【预留】HTML 原理可视化：站内路径，例如 `/learning/robot/auto-drive.html`。
-   *
-   * 填了就在「原理说明」下方嵌一个 16:9 iframe（同源子文档，可自由用 canvas/three），
-   * 空着则什么都不渲染 —— 先把位置留好，后续按页补可视化，不必再改组件。
-   */
-  htmlDemo?: string
 }
 
 export type NoteMap = Record<string, DemoNote>

@@ -167,3 +167,36 @@ const { poll, stop: stopPolling } = useTaskPoller({
   （`bytes = (v_kbps + a_kbps)/8 × 1000 × s`），图片只能逐档试。
 - 模板字符串里写 Markdown 行内代码必须转义反引号（`\`code\``）。`vision.ts` 里漏了一处
   导致整文件语法错误，用 `tsc --ignoreConfig --noEmit` 定位最快（vitest 只报 transform 失败，不给行列）。
+
+### 5. vision 示例代码改为「可运行 HTML + 运行按钮」（2026-11-05）
+
+需求：Python 示例要真能本地跑；JS 改成能独立打开的 HTML；代码块右上角加「运行」按钮，点了真的跑起来。
+
+**数据结构**（`app/utils/demo-notes/index.ts`）
+- `DemoNote.html?`：完整 HTML 文档（含 `<style>`/`<script>`，**零外部依赖**），学习区给它配运行按钮
+- `DemoNote.javascript?`：保留给 robot 分类（只有片段，不给运行按钮 —— 片段本身跑不起来）
+- `htmlDemo` 已废弃（被 `html` 取代）
+
+**组件**（`DemoLearningDock.vue`）
+- 第二段标题随内容变：「HTML · 可直接运行」或「JavaScript · 最简实现」
+- 运行 = `iframe :srcdoc` + `sandbox="allow-scripts"`（不给 same-origin，碰不到父页面和 storage）
+- 「重新运行」换 `:key` 强制重建 iframe，丢掉上一轮副作用
+- `:loading="eager"` 无关；高度固定 440px
+
+**内容策略**（模型类页面怎么做到「真能跑」）
+不加载真模型，用**真实后处理逻辑 + 合成输入**：YOLO 页用 5 个重叠候选真跑 NMS；detection 页真算
+letterbox 还原并对比错解；depth 页真做 min-max 量化与色带映射；OCR 页真跑自适应阈值 + 四步。
+纯算法页面（filters / morphology / color / transform / edge…）完全复现，可直接拖滑块看结果。
+
+**验证方法（可复用）**
+1. `tmp/extract-html.mjs`：从 `vision.ts` 提取 37 段 HTML，用 `new Function('return `'+raw+'`')()`
+   解码模板字符串转义（**源码里的内容不是最终字符串**，直接喂给解析器会误报）
+2. 逐段 `new Function(script)` 查语法 —— 比浏览器快，能一次报全
+3. `tmp/run-all-html.mjs`：真实浏览器逐个塞进 sandbox iframe，检查 canvas 是否真的画了东西
+4. Python 侧：`tmp/check-python2.py` 做 AST 解析 + **函数内未绑定名字**检查（抓 `x, y, w, h`
+   这类会 NameError 的占位），顺手修了 4 处未定义 helper
+
+**踩的坑**
+- 模板字符串里写 `\n` 会变成真换行，`'...\n...'` 在产物里就成了未终止字符串 → "Invalid or unexpected token"。
+  要写 `\\n`
+- 注释里写 Markdown 的反引号会直接终止 TS 模板字符串（之前栽过一次）

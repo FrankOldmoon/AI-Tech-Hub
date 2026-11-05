@@ -62,54 +62,84 @@ if __name__ == "__main__":
         print(f"class {int(cls):2d}  {score:.2f}  [{x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}]")
 `,
 
-    javascript: `// The same pipeline with onnxruntime-web, as the page runs it.
-import * as ort from 'onnxruntime-web'
-
-const SIZE = 640
-const PAD = 128
-
-function letterbox(source, size = SIZE, pad = PAD) {
-  const { width: w, height: h } = source
-  const r = Math.min(size / h, size / w)
-  const nw = Math.round(w * r)
-  const nh = Math.round(h * r)
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = \`rgb(\${pad},\${pad},\${pad})\`   // grey, not black
-  ctx.fillRect(0, 0, size, size)
-  ctx.drawImage(source, 0, 0, w, h, (size - nw) / 2, (size - nh) / 2, nw, nh)
-  return { canvas, r, dx: (size - nw) / 2, dy: (size - nh) / 2 }
-}
-
-async function detect(session, image, conf = 0.25) {
-  const { canvas, r, dx, dy } = letterbox(image)
-  const { data } = canvas.getContext('2d').getImageData(0, 0, SIZE, SIZE)
-
-  // RGBA -> NCHW RGB float32 / 255
-  const input = new Float32Array(3 * SIZE * SIZE)
-  for (let i = 0; i < SIZE * SIZE; i++) {
-    input[i] = data[i * 4] / 255
-    input[i + SIZE * SIZE] = data[i * 4 + 1] / 255
-    input[i + 2 * SIZE * SIZE] = data[i * 4 + 2] / 255
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>YOLO: 300 rows out, no NMS needed</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;display:block;border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.18)}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:10px;font-size:12px}
+  input[type=range]{width:170px}output{font-variant-numeric:tabular-nums;font-weight:600;color:#0f172a}
+</style>
+</head>
+<body>
+<h1>YOLO26 emits final boxes — no NMS in your code</h1>
+<p>An anchor-based detector returns many overlapping candidates and you suppress them yourself.
+This page's models return 300 rows that are already de-duplicated. Drag the threshold to
+watch classic NMS collapse five candidates into one.</p>
+<canvas id="c" width="640" height="360"></canvas>
+<label>IoU threshold <input type="range" id="iou" min="0.1" max="0.9" step="0.05" value="0.45">
+  <output id="v">0.45</output></label>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var W = 640, H = 360;
+  var cands = [
+    { x: 250, y: 130, w: 180, h: 110, s: 0.91 },
+    { x: 262, y: 136, w: 172, h: 104, s: 0.84 },
+    { x: 240, y: 124, w: 188, h: 118, s: 0.77 },
+    { x: 268, y: 142, w: 166, h: 100, s: 0.65 },
+    { x: 258, y: 128, w: 178, h: 112, s: 0.52 }
+  ];
+  function iou(a, b) {
+    var x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+    var x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+    var inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+    var uni = a.w * a.h + b.w * b.h - inter;
+    return uni > 0 ? inter / uni : 0;
   }
-  const feeds = { images: new ort.Tensor('float32', input, [1, 3, SIZE, SIZE]) }
-  const out = (await session.run(feeds)).output.data   // 300 x 6, flattened
-
-  const boxes = []
-  for (let i = 0; i < 300; i++) {
-    const o = i * 6
-    const score = out[o + 4]
-    if (score < conf) continue
-    boxes.push({
-      x1: (out[o] - dx) / r, y1: (out[o + 1] - dy) / r,
-      x2: (out[o + 2] - dx) / r, y2: (out[o + 3] - dy) / r,
-      score, cls: out[o + 5]
-    })
+  function nms(boxes, thr) {
+    var sorted = boxes.slice().sort(function (a, b) { return b.s - a.s; });
+    var keep = [];
+    for (var i = 0; i < sorted.length; i++) {
+      var ok = true;
+      for (var j = 0; j < keep.length; j++) if (iou(sorted[i], keep[j]) > thr) { ok = false; break; }
+      if (ok) keep.push(sorted[i]);
+    }
+    return keep;
   }
-  return boxes                                     // no NMS needed -- see notes
-}
-`,
+  function scene() {
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#e2e8f0'); g.addColorStop(1, '#cbd5e1');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#f59e0b'; ctx.fillRect(258, 132, 178, 112);
+    ctx.fillStyle = '#b45309'; ctx.fillRect(280, 150, 60, 40);
+  }
+  function draw() {
+    var thr = parseFloat(document.getElementById('iou').value);
+    document.getElementById('v').textContent = thr.toFixed(2);
+    scene();
+    cands.forEach(function (b) {
+      ctx.strokeStyle = 'rgba(100,116,139,.45)'; ctx.lineWidth = 1;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+    });
+    var keep = nms(cands, thr);
+    keep.forEach(function (b, i) {
+      ctx.strokeStyle = i === 0 ? '#16a34a' : '#dc2626'; ctx.lineWidth = 3;
+      ctx.strokeRect(b.x, b.y, b.w, b.h);
+    });
+    ctx.fillStyle = 'rgba(15,23,42,.82)'; ctx.font = '13px ui-monospace, monospace';
+    ctx.fillText('candidates ' + cands.length + '  ->  after NMS ' + keep.length, 12, 22);
+  }
+  document.getElementById('iou').addEventListener('input', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页最反直觉的地方：没有 NMS
@@ -268,70 +298,122 @@ if __name__ == "__main__":
         print(f"class {int(cls):2d}  {score:.2f}  [{x1:.0f},{y1:.0f},{x2:.0f},{y2:.0f}]")
 `,
 
-    javascript: `// Both routes, browser side. MediaPipe hides the decode; ONNX does not.
-import { ObjectDetector, FilesetResolver } from '@mediapipe/tasks-vision'
-import * as ort from 'onnxruntime-web'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>detection: normalised vs letterbox coordinates</title>
+<style>
+  body { margin: 0; padding: 14px; font: 13px/1.6 system-ui, -apple-system, sans-serif; color: #0f172a; background: #f8fafc; }
+  h1 { font-size: 15px; margin: 0 0 6px; }
+  p { margin: 0 0 10px; color: #475569; }
+  canvas { width: 100%; max-width: 720px; display: block; border-radius: 8px; box-shadow: 0 1px 4px rgba(15,23,42,.18); }
+  label { display: inline-flex; gap: 6px; align-items: center; margin-top: 12px; font-size: 12px; cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>Same target, two coordinate systems</h1>
+<p>Green is correctly un-letterboxed, blue comes from normalised 0..1. Tick the box to see what
+happens when the padding is not subtracted.</p>
+<canvas id="stage" width="720" height="400"></canvas>
+<label><input type="checkbox" id="bug"> simulate "forgot to subtract padding"</label>
 
-// ---------- route 1: MediaPipe Tasks (EfficientDet-Lite0, 13.8 MB) ----------
-export async function createMediaPipeDetector(base) {
-  const fileset = await FilesetResolver.forVisionTasks(\`\${base}/wasm\`)
-  return ObjectDetector.createFromOptions(fileset, {
-    baseOptions: { modelAssetPath: \`\${base}/models/efficientdet_lite0.tflite\`, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    maxResults: 5,
-    scoreThreshold: 0.5
-  })
-}
+<script>
+(function () {
+  var W = 720, H = 400;
+  var stage = document.getElementById('stage');
+  var ctx = stage.getContext('2d');
 
-export function detectWithMediaPipe(detector, video, ts) {
-  // Boxes come back normalised (0..1) and already de-duplicated.
-  return detector.detectForVideo(video, ts).detections.map(d => ({
-    box: d.boundingBox,                  // {originX, originY, width, height}
-    score: d.categories[0]?.score ?? 0,
-    label: d.categories[0]?.categoryName ?? ''
-  }))
-}
-
-// ---------- route 2: YOLO26n on ONNX Runtime ----------
-export async function createYoloSession(url) {
-  return ort.InferenceSession.create(url, { executionProviders: ['webgpu', 'wasm'] })
-}
-
-export async function detectWithYolo(session, bitmap, conf = 0.25) {
-  const SIZE = 640
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = SIZE
-  const ctx = canvas.getContext('2d')
-  ctx.fillStyle = 'rgb(128,128,128)'
-  ctx.fillRect(0, 0, SIZE, SIZE)
-  const r = Math.min(SIZE / bitmap.width, SIZE / bitmap.height)
-  const w = bitmap.width * r, h = bitmap.height * r
-  ctx.drawImage(bitmap, (SIZE - w) / 2, (SIZE - h) / 2, w, h)
-
-  const { data } = ctx.getImageData(0, 0, SIZE, SIZE)
-  const input = new Float32Array(3 * SIZE * SIZE)
-  for (let i = 0; i < SIZE * SIZE; i++) {
-    input[i] = data[i * 4] / 255
-    input[i + 1 * SIZE * SIZE] = data[i * 4 + 1] / 255
-    input[i + 2 * SIZE * SIZE] = data[i * 4 + 2] / 255
+  // ---------- a synthetic "photo": sky, ground, buildings, two cars ----------
+  function car(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = 'rgba(15,23,42,.25)';
+    ctx.fillRect(x + w * 0.15, y + h * 0.12, w * 0.7, h * 0.34);
+    ctx.fillStyle = '#111827';
+    ctx.beginPath();
+    ctx.arc(x + w * 0.25, y + h, h * 0.16, 0, Math.PI * 2);
+    ctx.arc(x + w * 0.75, y + h, h * 0.16, 0, Math.PI * 2);
+    ctx.fill();
   }
-  const out = (await session.run({
-    images: new ort.Tensor('float32', input, [1, 3, SIZE, SIZE])
-  })).output.data
 
-  const res = []
-  for (let i = 0; i < 300; i++) {
-    const o = i * 6
-    if (out[o + 4] < conf) continue
-    res.push({
-      x1: (out[o] - (SIZE - w) / 2) / r, y1: (out[o + 1] - (SIZE - h) / 2) / r,
-      x2: (out[o + 2] - (SIZE - w) / 2) / r, y2: (out[o + 3] - (SIZE - h) / 2) / r,
-      score: out[o + 4], cls: out[o + 5]
-    })
+  function drawScene() {
+    var sky = ctx.createLinearGradient(0, 0, 0, H * 0.6);
+    sky.addColorStop(0, '#bfdbfe');
+    sky.addColorStop(1, '#e0f2fe');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, W, H * 0.6);
+    ctx.fillStyle = '#d1d5db';
+    ctx.fillRect(0, H * 0.6, W, H * 0.4);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(60, 80, 120, 170);
+    ctx.fillRect(220, 120, 90, 130);
+    ctx.fillStyle = '#64748b';
+    ctx.fillRect(500, 60, 140, 190);
+
+    ctx.fillStyle = '#4b5563';
+    ctx.fillRect(0, H * 0.72, W, H * 0.28);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.setLineDash([24, 20]);
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.86);
+    ctx.lineTo(W, H * 0.86);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    car(300, 250, 150, 74, '#ef4444');
+    car(520, 270, 110, 58, '#22c55e');
   }
-  return res
-}
-`,
+
+  // ---------- route 1: MediaPipe gives 0..1, just multiply back ----------
+  var normBox = { x1: 0.40, y1: 0.60, x2: 0.66, y2: 0.83 };
+  var fromNorm = {
+    x1: normBox.x1 * W, y1: normBox.y1 * H,
+    x2: normBox.x2 * W, y2: normBox.y2 * H
+  };
+
+  // ---------- route 2: YOLO gives pixels in a 640x640 letterbox ----------
+  var SIZE = 640;
+  var r = Math.min(SIZE / H, SIZE / W);
+  var padX = (SIZE - W * r) / 2;
+  var padY = (SIZE - H * r) / 2;
+  var raw = { x1: 300, y1: 230, x2: 470, y2: 330 };
+
+  function undo(bug) {
+    if (bug) return raw;            // what "forgot to undo" looks like
+    return {
+      x1: (raw.x1 - padX) / r, y1: (raw.y1 - padY) / r,
+      x2: (raw.x2 - padX) / r, y2: (raw.y2 - padY) / r
+    };
+  }
+
+  function frame(b, color, label) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 3;
+    ctx.strokeRect(b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1);
+    ctx.fillStyle = color;
+    ctx.font = 'bold 13px ui-monospace, monospace';
+    ctx.fillText(label, b.x1 + 4, b.y1 - 7);
+  }
+
+  function render() {
+    var bug = document.getElementById('bug').checked;
+    drawScene();
+    frame(fromNorm, '#2563eb', 'MediaPipe 0..1');
+    frame(undo(bug), bug ? '#dc2626' : '#16a34a', bug ? 'YOLO: no undo ✗' : 'YOLO: letterbox ✓');
+
+    ctx.fillStyle = 'rgba(15,23,42,.75)';
+    ctx.font = '12px ui-monospace, monospace';
+    ctx.fillText('scale ' + r.toFixed(3) + '   pad ' + padX.toFixed(1) + ', ' + padY.toFixed(1), 12, H - 12);
+  }
+
+  document.getElementById('bug').addEventListener('change', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 同一件事，两种封装程度
@@ -444,44 +526,80 @@ def overlay(bgr, colour, alpha):
     return (bgr.astype(np.float32) * (1 - alpha) + colour * alpha).clip(0, 255).astype(np.uint8)
 `,
 
-    javascript: `// Mask handling from the segmentation page, in the browser.
-// The three mask shapes are the whole difficulty of this page.
-
-// 1) MediaPipe ImageSegmenter -> MPMask. Two flavours:
-//    categoryMask: one uint8 label per pixel (selfie: 0 = bg, 255 = person)
-//    confidenceMask: float 0..1 per pixel
-export function paintCategory(mpMask, ctx, width, height, palette) {
-  const { getAsUint8Array } = mpMask
-  const labels = getAsUint8Array()
-  const img = ctx.createImageData(width, height)
-  for (let i = 0; i < labels.length; i++) {
-    const [r, g, b] = palette[labels[i]] ?? [0, 0, 0]
-    img.data[i * 4] = r
-    img.data[i * 4 + 1] = g
-    img.data[i * 4 + 2] = b
-    img.data[i * 4 + 3] = labels[i] ? 153 : 0      // 60% alpha on the subject
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Three mask formats</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:180px}
+  canvas{width:100%;display:block;border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.18)}
+  figcaption{font-size:12px;color:#475569;margin-top:6px}
+  code{background:#e2e8f0;padding:1px 4px;border-radius:3px;font-size:12px}
+</style>
+</head>
+<body>
+<h1>Same object, three mask representations</h1>
+<p>A category mask is one integer per pixel; a confidence mask is a float; an instance mask is 32
+coefficients times 32 prototypes. Picking the wrong one is why overlays come out black or inverted.</p>
+<div class="row">
+  <figure><canvas id="a" width="200" height="200"></canvas>
+    <figcaption><code>categoryMask</code> — 0 or 1, needs a palette</figcaption></figure>
+  <figure><canvas id="b" width="200" height="200"></canvas>
+    <figcaption><code>confidenceMask</code> — float 0..1, soft edge</figcaption></figure>
+  <figure><canvas id="c" width="200" height="200"></canvas>
+    <figcaption><code>proto x coeffs</code> — 32 numbers reconstruct it</figcaption></figure>
+</div>
+<script>
+(function () {
+  function shape(ctx) {
+    ctx.beginPath();
+    ctx.ellipse(100, 100, 62, 78, 0, 0, Math.PI * 2);
+    ctx.closePath();
   }
-  ctx.putImageData(img, 0, 0)
-}
+  // 1) hard category mask: two values only
+  var a = document.getElementById('a').getContext('2d');
+  a.fillStyle = '#0f172a'; a.fillRect(0, 0, 200, 200);
+  a.fillStyle = 'rgb(0,220,130)'; shape(a); a.fill();
 
-// 2) YOLO instance masks: 32 coefficients x 32 prototypes
-export function instanceMask(coeffs, proto, protoW, protoH, threshold = 0.5) {
-  const out = new Float32Array(protoW * protoH)
-  for (let p = 0; p < protoW * protoH; p++) {
-    let sum = 0
-    for (let c = 0; c < 32; c++) sum += coeffs[c] * proto[c * protoW * protoH + p]
-    out[p] = 1 / (1 + Math.exp(-sum))              // sigmoid
+  // 2) confidence mask: sigmoid falloff across the boundary
+  var b = document.getElementById('b').getContext('2d');
+  var img = b.createImageData(200, 200);
+  for (var y = 0; y < 200; y++) {
+    for (var x = 0; x < 200; x++) {
+      var d = Math.hypot((x - 100) / 62, (y - 100) / 78);   // 1 at the edge
+      var v = 1 / (1 + Math.exp((d - 1) * 14));             // soft step
+      var i = (y * 200 + x) * 4;
+      img.data[i] = 0; img.data[i + 1] = 220; img.data[i + 2] = 130;
+      img.data[i + 3] = Math.round(v * 255);
+    }
   }
-  for (let p = 0; p < out.length; p++) out[p] = out[p] > threshold ? 1 : 0
-  return out
-}
+  b.fillStyle = '#0f172a'; b.fillRect(0, 0, 200, 200);
+  b.putImageData(img, 0, 0);
 
-// 3) Interactive segmentation: you hand it points, it hands back a soft mask.
-export function promptAt(x, y, width, height) {
-  // MediaPipe wants NORMALISED coordinates plus a label: 1 = foreground
-  return [{ x: x / width, y: y / height }]
-}
-`,
+  // 3) low-res proto (32x32) upscaled — the real 160x160 is just bigger
+  var c = document.getElementById('c').getContext('2d');
+  var small = document.createElement('canvas');
+  small.width = small.height = 32;
+  var sctx = small.getContext('2d');
+  sctx.fillStyle = '#000'; sctx.fillRect(0, 0, 32, 32);
+  sctx.fillStyle = '#00dc82';
+  sctx.beginPath(); sctx.ellipse(16, 16, 10, 12.5, 0, 0, Math.PI * 2); sctx.fill();
+  c.imageSmoothingEnabled = false;
+  c.drawImage(small, 0, 0, 200, 200);
+
+  [[a, '0 / 1'], [b, '0.0 .. 1.0'], [c, '32 x 160 x 160']].forEach(function (p, k) {
+    p[0].fillStyle = 'rgba(255,255,255,.85)';
+    p[0].font = '11px ui-monospace, monospace';
+    p[0].fillText(p[1], 8, 194);
+  });
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 一个页面，四种「分割」—— 先分清它们在做什么
@@ -590,45 +708,80 @@ def composite(fg, alpha, bg):
 # Trained on portraits only, so it fails on a cat -- the page says so.
 `,
 
-    javascript: `// MODNet through transformers.js, plus the compositing maths.
-import { AutoModel, AutoProcessor, RawImage } from '@huggingface/transformers'
-
-const modelId = 'Xenova/modnet'          // fp32 model.onnx, ~26 MB
-
-export async function loadModnet(device = 'webgpu') {
-  const model = await AutoModel.from_pretrained(modelId, { device })
-  const processor = await AutoProcessor.from_pretrained(modelId)
-  return { model, processor }
-}
-
-export async function alphaFor({ model, processor }, url) {
-  const image = await RawImage.fromURL(url)
-  // processor: short side 512, rescale 1/255, mean/std 0.5
-  const { pixel_values } = await processor(image)
-  const { output } = await model({ input: pixel_values })   // [1,1,H,W] in 0..1
-
-  const h = image.height, w = image.width
-  const raw = output.data
-  const alpha = new Uint8ClampedArray(w * h)
-  for (let i = 0; i < alpha.length; i++) {
-    alpha[i] = Math.round(Math.min(1, Math.max(0, raw[i])) * 255)
-  }
-  return { alpha, width: w, height: h }
-}
-
-// Composite over a checkerboard so the soft edge is actually visible.
-export function compose(fgData, alpha, bg) {
-  const out = new ImageData(fgData.width, fgData.height)
-  for (let i = 0; i < alpha.length; i++) {
-    const a = alpha[i] / 255
-    for (let c = 0; c < 3; c++) {
-      out.data[i * 4 + c] = fgData.data[i * 4 + c] * a + bg[i * 4 + c] * (1 - a)
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Matting: why alpha beats a mask</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:200px}
+  canvas{width:100%;display:block;border-radius:8px}
+  figcaption{font-size:12px;color:#475569;margin-top:6px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:170px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Hard mask vs soft alpha, on the same checkerboard</h1>
+<p>The left one was thresholded: look at the hair. The right one keeps a gradient, which is what
+matting actually predicts. Drag the threshold to watch soft become hard.</p>
+<div class="row">
+  <figure><canvas id="a" width="220" height="220"></canvas><figcaption>hard mask (alpha &gt; threshold)</figcaption></figure>
+  <figure><canvas id="b" width="220" height="220"></canvas><figcaption>soft alpha (the real output)</figcaption></figure>
+</div>
+<label>alpha threshold <input type="range" id="t" min="0" max="200" step="5" value="64">
+  <output id="v">64</output></label>
+<script>
+(function () {
+  function checker(ctx, s) {
+    for (var y = 0; y < 220; y += s) {
+      for (var x = 0; x < 220; x += s) {
+        ctx.fillStyle = ((x / s + y / s) % 2) ? '#e2e8f0' : '#f8fafc';
+        ctx.fillRect(x, y, s, s);
+      }
     }
-    out.data[i * 4 + 3] = 255
   }
-  return out
-}
-`,
+  // a fuzzy blob with hair-like filaments: alpha falls off over ~10 px
+  function alphaAt(x, y) {
+    var d = Math.hypot(x - 110, y - 112) / 70;
+    var v = 1 / (1 + Math.exp((d - 1) * 18));
+    // three thin strands leaving the top
+    for (var k = -1; k <= 1; k++) {
+      var lx = 110 + k * 26 + (y - 60) * 0.12 * k;
+      if (y > 40 && y < 70 && Math.abs(x - lx) < 1.6) v = Math.max(v, 0.45);
+    }
+    return v;
+  }
+  function paint(canvas, hard, thr) {
+    var ctx = canvas.getContext('2d');
+    checker(ctx, 14);
+    var img = ctx.getImageData(0, 0, 220, 220);
+    for (var y = 0; y < 220; y++) {
+      for (var x = 0; x < 220; x++) {
+        var a = alphaAt(x, y);
+        if (hard) a = a >= thr / 255 ? 1 : 0;
+        var i = (y * 220 + x) * 4;
+        img.data[i] = 220; img.data[i + 1] = 60; img.data[i + 2] = 90;
+        img.data[i + 3] = Math.round(a * 255);
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+  function draw() {
+    var thr = parseFloat(document.getElementById('t').value);
+    document.getElementById('v').textContent = thr;
+    paint(document.getElementById('a'), true, thr);
+    paint(document.getElementById('b'), false, thr);
+  }
+  document.getElementById('t').addEventListener('input', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 分割给「是谁」，抠图给「有多少」
@@ -739,42 +892,79 @@ def overlay(bgr, colour, alpha=0.65):
 #   scale. Metric depth needs a second camera, a known object, or an IMU.
 `,
 
-    javascript: `// Depth Anything through transformers.js -- note the forced wasm device.
-import { pipeline } from '@huggingface/transformers'
-
-// The page pins device:'wasm' and dtype:'fp32': the WebGPU EP throws
-// "null function" on this graph, so "prefer the fastest backend" is wrong here.
-const depth = await pipeline('depth-estimation', 'Xenova/depth-anything-small-hf', {
-  device: 'wasm',
-  dtype: 'fp32'
-})
-
-export async function depthMap(url) {
-  const { depth: raw, predicted_depth } = await depth(url)
-  // raw is an RGBA image already colourised by the library; predicted_depth
-  // is the float map -- use that when you need numbers rather than colours.
-  return { coloured: raw, floats: predicted_depth }
-}
-
-// If you want your own five-band palette (as the page does):
-export function bands(floatMap, width, height, invert = false, n = 5) {
-  const data = floatMap.data                        // row-major, width*height
-  let lo = Infinity, hi = -Infinity
-  for (const v of data) { if (v < lo) lo = v; if (v > hi) hi = v }
-  const span = Math.max(1e-6, hi - lo)
-
-  const palette = [[0, 0, 128], [0, 128, 255], [0, 224, 180], [255, 200, 0], [220, 40, 40]]
-  const out = new ImageData(width, height)
-  for (let i = 0; i < width * height; i++) {
-    let t = (data[i] - lo) / span
-    if (invert) t = 1 - t
-    const [r, g, b] = palette[Math.min(n - 1, Math.floor(t * n))]
-    out.data[i * 4] = r; out.data[i * 4 + 1] = g; out.data[i * 4 + 2] = b
-    out.data[i * 4 + 3] = 255
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Relative depth to five bands</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:220px}
+  canvas{width:100%;display:block;border-radius:8px}
+  figcaption{font-size:12px;color:#475569;margin-top:6px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:16px}
+  input[type=range]{width:140px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Monocular depth is relative — you choose the colour</h1>
+<p>The model never saw a metre. It only ordered pixels by "nearer / farther", so the page
+min-max stretches that ordering and maps it onto five bands. Discrete bands are easier to compare
+by eye than a smooth ramp.</p>
+<div class="row">
+  <figure><canvas id="a" width="260" height="200"></canvas><figcaption>raw relative depth</figcaption></figure>
+  <figure><canvas id="b" width="260" height="200"></canvas><figcaption>5 bands, near = bright</figcaption></figure>
+</div>
+<label>bands <input type="range" id="n" min="2" max="12" step="1" value="5"><output id="v">5</output></label>
+<label><input type="checkbox" id="inv" checked> near = bright</label>
+<script>
+(function () {
+  var W = 260, H = 200;
+  // a synthetic "depth field": ground plane + a box + a hill
+  function depthAt(x, y) {
+    var ground = 1 - (y / H);                       // farther up = farther away
+    var box = (x > 90 && x < 150 && y > 90 && y < 160) ? 0.55 : 0;
+    var hill = 0.35 * Math.max(0, 1 - Math.hypot(x - 210, y - 60) / 70);
+    return Math.max(box, Math.max(ground * 0.9, hill));   // 1 = near
   }
-  return out
-}
-`,
+  var PAL = [[0,0,128],[0,128,255],[0,224,180],[255,200,0],[220,40,40],
+             [140,40,160],[255,140,0],[0,200,90],[90,90,90],[200,200,200],
+             [40,40,255],[255,0,120]];
+  function draw() {
+    var n = parseInt(document.getElementById('n').value, 10);
+    var inv = document.getElementById('inv').checked;
+    document.getElementById('v').textContent = n;
+
+    var a = document.getElementById('a').getContext('2d');
+    var b = document.getElementById('b').getContext('2d');
+    var ia = a.createImageData(W, H), ib = b.createImageData(W, H);
+
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var d = depthAt(x, y);                 // 0..1, relative
+        var i = (y * W + x) * 4;
+        // left: greyscale of the raw map
+        var g = Math.round(d * 255);
+        ia.data[i] = ia.data[i + 1] = ia.data[i + 2] = g; ia.data[i + 3] = 255;
+        // right: quantise into n bands, optionally inverted
+        var t = inv ? 1 - d : d;
+        var k = Math.min(n - 1, Math.floor(t * n));
+        var col = PAL[k % PAL.length];
+        ib.data[i] = col[0]; ib.data[i + 1] = col[1]; ib.data[i + 2] = col[2]; ib.data[i + 3] = 255;
+      }
+    }
+    a.putImageData(ia, 0, 0);
+    b.putImageData(ib, 0, 0);
+  }
+  document.getElementById('n').addEventListener('input', draw);
+  document.getElementById('inv').addEventListener('change', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 单目深度只能给你「相对远近」
@@ -856,8 +1046,8 @@ def centre_crop(img, size=224, fill=0):
     h, w = img.shape[:2]
     r = size / min(h, w)
     nh, nw = int(round(h * r)), int(round(w * r))
-    # bilinear resize here; kept out of the snippet for readability
-    resized = resize_bilinear(img, nw, nh)
+    from PIL import Image
+    resized = np.array(Image.fromarray(img).resize((nw, nh), Image.BILINEAR))
     y0, x0 = (nh - size) // 2, (nw - size) // 2
     return resized[y0:y0 + size, x0:x0 + size]
 
@@ -884,38 +1074,87 @@ if __name__ == "__main__":
         print(f"{score:6.3f}  {name}")
 `,
 
-    javascript: `// Top-k with the softmax check, plus the crop both models need.
-export function centreCrop(bitmap, size = 224) {
-  const r = size / Math.min(bitmap.width, bitmap.height)
-  const w = Math.round(bitmap.width * r)
-  const h = Math.round(bitmap.height * r)
-  const canvas = document.createElement('canvas')
-  canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')
-  // draw oversized, then the crop is implicit in the destination offset
-  ctx.drawImage(bitmap, (size - w) / 2, (size - h) / 2, w, h)
-  return canvas
-}
-
-export function topK(scores, labels, k = 5) {
-  let sum = 0
-  for (const v of scores) sum += v
-  const isProb = Math.abs(sum - 1) < 0.01          // fused softmax or raw logits?
-
-  const arr = Array.from(scores)
-  if (!isProb) {
-    const max = Math.max(...arr)
-    const exps = arr.map(v => Math.exp(v - max))   // subtract max: no overflow
-    const total = exps.reduce((a, b) => a + b, 0)
-    for (let i = 0; i < arr.length; i++) arr[i] = exps[i] / total
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Centre crop, softmax, top-5</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;box-shadow:0 1px 4px rgba(15,23,42,.18);display:block}
+  .bars{flex:1;min-width:200px}
+  .bar{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-size:12px}
+  .bar b{width:120px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar i{display:block;height:10px;background:#2563eb;border-radius:3px}
+  .bar span{font-variant-numeric:tabular-nums;color:#475569;width:44px;text-align:right}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:160px}
+</style>
+</head>
+<body>
+<h1>Classification pre-processes differently from detection</h1>
+<p>Detection letterboxes (keep the whole frame). Classification scales the short side and crops the
+centre (fill the frame with the subject). Drag the crop size and watch what falls out of view.</p>
+<div class="wrap">
+  <canvas id="c" width="240" height="240"></canvas>
+  <div class="bars" id="bars"></div>
+</div>
+<label>crop <input type="range" id="crop" min="0.4" max="1" step="0.02" value="0.78"><output id="v"></output></label>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var S = 240;
+  function scene() {
+    ctx.fillStyle = '#dbeafe'; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = '#94a3b8'; ctx.fillRect(0, S * 0.68, S, S * 0.32);
+    // subject in the middle, plus distracting stuff near the border
+    ctx.fillStyle = '#f97316';
+    ctx.beginPath(); ctx.ellipse(S / 2, S * 0.5, S * 0.13, S * 0.17, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(S * 0.06, S * 0.1, S * 0.14, S * 0.2);
+    ctx.fillStyle = '#16a34a';
+    ctx.fillRect(S * 0.82, S * 0.74, S * 0.12, S * 0.16);
   }
+  // pretend logits: the network's raw scores for 5 classes
+  var logits = [7.2, 8.9, 3.1, 8.4, 2.2];
+  var names = ['tabby cat', 'orange cat', 'tiger', 'ginger cat', 'fox'];
+  function softmax(z) {
+    var m = Math.max.apply(null, z);
+    var e = z.map(function (v) { return Math.exp(v - m); });
+    var s = e.reduce(function (a, b) { return a + b; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
+  function draw() {
+    var k = parseFloat(document.getElementById('crop').value);
+    document.getElementById('v').textContent = Math.round(k * 100) + '%';
+    scene();
+    var side = S * k, off = (S - side) / 2;
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+    ctx.strokeRect(off, off, side, side);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(15,23,42,.6)';
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('224 x 224 input', off + 6, off + 16);
 
-  return arr
-    .map((score, i) => ({ score, name: labels[i] ?? String(i) }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, k)
-}
-`,
+    var p = softmax(logits);
+    var order = p.map(function (v, i) { return { v: v, i: i }; })
+                 .sort(function (a, b) { return b.v - a.v; });
+    document.getElementById('bars').innerHTML = order.map(function (o, r) {
+      var w = Math.round(o.v * 100);
+      return '<div class="bar"><b>' + names[o.i] + '</b>' +
+             '<i style="width:' + Math.max(2, w * 1.4) + 'px;background:' +
+             (r === 0 ? '#2563eb' : '#93c5fd') + '"></i>' +
+             '<span>' + (o.v * 100).toFixed(1) + '%</span></div>';
+    }).join('');
+  }
+  document.getElementById('crop').addEventListener('input', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 分类的前处理和检测不是一回事
@@ -1036,36 +1275,133 @@ def read_text(img, lang='eng', psm=3):
                                        config=f'--psm {psm}')
 `,
 
-    javascript: `// Tesseract.js in the browser, plus the handwriting mode's binarisation.
-import { createWorker } from 'tesseract.js'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Document scan: four geometric steps</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  figure{margin:0}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.15)}
+  figcaption{font-size:11px;color:#475569;margin-top:4px;line-height:1.35}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:160px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Most OCR failures are preprocessing, not recognition</h1>
+<p>A phone photo of paper is skewed, unevenly lit, and has no clean border. Four steps fix that —
+and the last one is where the text actually becomes readable.</p>
+<div class="grid">
+  <figure><canvas id="s0" width="160" height="200"></canvas><figcaption>1. photo (skewed + shadow)</figcaption></figure>
+  <figure><canvas id="s1" width="160" height="200"></canvas><figcaption>2. adaptive threshold 11 x 11</figcaption></figure>
+  <figure><canvas id="s2" width="160" height="200"></canvas><figcaption>3. largest quad (approx 2%)</figcaption></figure>
+  <figure><canvas id="s3" width="160" height="200"></canvas><figcaption>4. perspective warp</figcaption></figure>
+</div>
+<label>threshold C <input type="range" id="cc" min="-10" max="15" step="1" value="2"><output id="v">2</output></label>
+<script>
+(function () {
+  var W = 160, H = 200;
+  // corners of the sheet inside the photo (a quadrilateral, not a rectangle)
+  var quad = [[34, 40], [128, 24], [140, 168], [26, 156]];
 
-export async function ocr(image, lang = 'eng', psm = 3) {
-  // The page passes local paths so the worker never hits a CDN.
-  const worker = await createWorker(lang, 1, {
-    workerPath: '/ocr/worker.min.js',
-    corePath: '/ocr/',
-    langPath: '/ocr/lang'
-  })
-  await worker.setParameters({ tessedit_pageseg_mode: String(psm) })
-  const { data } = await worker.recognize(image)
-  await worker.terminate()
-  return data.text
-}
-
-// Handwriting: binarise first, then tell Tesseract it is a single block.
-// Threshold 150 is deliberately harsh -- pencil strokes are lighter than print.
-export function binarise(canvas, threshold = 150) {
-  const ctx = canvas.getContext('2d')
-  const img = ctx.getImageData(0, 0, canvas.width, canvas.height)
-  for (let i = 0; i < img.data.length; i += 4) {
-    const lum = 0.299 * img.data[i] + 0.587 * img.data[i + 1] + 0.114 * img.data[i + 2]
-    const v = lum >= threshold ? 255 : 0
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v
+  function drawPhoto(ctx) {
+    ctx.fillStyle = '#334155'; ctx.fillRect(0, 0, W, H);
+    ctx.beginPath();
+    ctx.moveTo(quad[0][0], quad[0][1]);
+    ctx.lineTo(quad[1][0], quad[1][1]);
+    ctx.lineTo(quad[2][0], quad[2][1]);
+    ctx.lineTo(quad[3][0], quad[3][1]);
+    ctx.closePath();
+    ctx.fillStyle = '#f8fafc'; ctx.fill();
+    ctx.save(); ctx.clip();
+    // uneven lighting: a dark gradient across the sheet
+    var g = ctx.createLinearGradient(0, 0, W, H);
+    g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    // pretend text lines
+    ctx.fillStyle = 'rgba(15,23,42,.75)';
+    for (var i = 0; i < 9; i++) ctx.fillRect(44, 56 + i * 13, 70 - (i % 3) * 12, 3);
+    ctx.restore();
   }
-  ctx.putImageData(img, 0, 0)
-  return canvas
-}
-`,
+
+  function threshold(ctx, C) {
+    var img = ctx.getImageData(0, 0, W, H), d = img.data;
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var i = (y * W + x) * 4;
+        var lum = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        // local mean over an 11x11 window (gaussian-ish is finer, mean is enough here)
+        var sum = 0, n = 0;
+        for (var dy = -5; dy <= 5; dy += 2) {
+          for (var dx = -5; dx <= 5; dx += 2) {
+            var yy = Math.min(H - 1, Math.max(0, y + dy));
+            var xx = Math.min(W - 1, Math.max(0, x + dx));
+            var j = (yy * W + xx) * 4;
+            sum += 0.299 * d[j] + 0.587 * d[j + 1] + 0.114 * d[j + 2]; n++;
+          }
+        }
+        var v = lum >= sum / n - C ? 255 : 0;
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function drawQuad(ctx) {
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(quad[0][0], quad[0][1]);
+    for (var k = 1; k < 4; k++) ctx.lineTo(quad[k][0], quad[k][1]);
+    ctx.closePath(); ctx.stroke();
+    quad.forEach(function (p) {
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath(); ctx.arc(p[0], p[1], 3, 0, Math.PI * 2); ctx.fill();
+    });
+  }
+
+  function drawWarp(ctx) {
+    // draw the quad's 4 corners as a rect: this is the homography's effect
+    var pts = quad;
+    var wTop = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]);
+    var wBot = Math.hypot(pts[2][0] - pts[3][0], pts[2][1] - pts[3][1]);
+    var hL = Math.hypot(pts[3][0] - pts[0][0], pts[3][1] - pts[0][1]);
+    var hR = Math.hypot(pts[2][0] - pts[1][0], pts[2][1] - pts[1][1]);
+    var tw = Math.round((wTop + wBot) / 2), th = Math.round((hL + hR) / 2);
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(15,23,42,.75)';
+    var rows = 9;
+    for (var i = 0; i < rows; i++) {
+      var y = Math.round(th * 0.18 + i * (th * 0.8 / rows)) + 20;
+      ctx.fillRect(28 + (i % 3) * 4, y, tw - 24 - (i % 3) * 12, 4);
+    }
+    ctx.strokeStyle = '#16a34a'; ctx.lineWidth = 2; ctx.strokeRect(20, 16, tw, th);
+  }
+
+  function render() {
+    var C = parseFloat(document.getElementById('cc').value);
+    document.getElementById('v').textContent = C;
+    var s0 = document.getElementById('s0').getContext('2d');
+    drawPhoto(s0);
+    var s1 = document.getElementById('s1').getContext('2d');
+    var s2 = document.getElementById('s2').getContext('2d');
+    var s3 = document.getElementById('s3').getContext('2d');
+    // step 2 works on a copy of the photo
+    s1.drawImage(document.getElementById('s0'), 0, 0);
+    threshold(s1, C);
+    s2.drawImage(document.getElementById('s0'), 0, 0);
+    drawQuad(s2);
+    drawWarp(s3);
+  }
+  document.getElementById('cc').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 四个工具其实是两类
@@ -1199,30 +1535,111 @@ def embed_only(path):
 #   inpainting     (not implemented on this page -- it is a placeholder)
 `,
 
-    javascript: `// transformers.js: the same three pipelines, in the browser.
-import { pipeline, env } from '@huggingface/transformers'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Encoder once, decoder per token</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .meta{display:flex;gap:18px;margin-top:10px;font-size:12px;color:#475569;flex-wrap:wrap}
+  .meta b{color:#0f172a;font-variant-numeric:tabular-nums}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:10px;font-size:12px}
+  input[type=range]{width:170px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Why a caption takes seconds and an embedding is instant</h1>
+<p>An encoder is one forward pass. A decoder re-runs the whole network for every token it emits —
+that is the entire cost difference, not "Transformer vs not Transformer".</p>
+<canvas id="c" width="680" height="260"></canvas>
+<div class="meta">
+  <span>tokens emitted: <b id="n">0</b></span>
+  <span>forward passes: <b id="f">0</b></span>
+  <span id="state">idle</span>
+</div>
+<label>max_new_tokens <input type="range" id="t" min="5" max="60" step="1" value="40"><output id="v">40</output></label>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var W = 680, H = 260;
+  var tokens = [], running = false, limit = 40, fwd = 0;
 
-// Models are served from the site's own /model/* route, not a CDN.
-env.allowRemoteModels = false
-env.localModelPath = '/model/'
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    // encoder block
+    ctx.fillStyle = '#dbeafe'; ctx.fillRect(16, 20, 150, 56);
+    ctx.fillStyle = '#1e3a8a'; ctx.font = '13px system-ui';
+    ctx.fillText('ViT encoder', 34, 44);
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('1 forward', 34, 62);
 
-export const captioner = await pipeline('image-to-text', 'Xenova/vit-gpt2-image-captioning', {
-  dtype: 'q8',                 // 8-bit: 4x smaller, and captions barely change
-  device: 'webgpu'
-})
+    ctx.strokeStyle = '#94a3b8'; ctx.beginPath();
+    ctx.moveTo(166, 48); ctx.lineTo(206, 48); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(200, 43); ctx.lineTo(206, 48); ctx.lineTo(200, 53); ctx.stroke();
 
-export async function caption(url, maxNewTokens = 40) {
-  const out = await captioner(url, { max_new_tokens: maxNewTokens })
-  return out[0].generated_text
-}
+    // decoder: one block per token
+    for (var i = 0; i < tokens.length; i++) {
+      var x = 210 + i * 11;
+      ctx.fillStyle = i === tokens.length - 1 ? '#fca5a5' : '#e2e8f0';
+      ctx.fillRect(x, 32, 8, 32);
+    }
+    ctx.fillStyle = '#0f172a'; ctx.font = '13px system-ui';
+    ctx.fillText('GPT-2 decoder: one pass per token', 210, 96);
 
-// VQA is where the size problem becomes obvious:
-// Janus-Pro-1B at q4 is ~1.2 GB. It works, but it is a download, not a demo.
-export const vqa = await pipeline('image-question-answering', 'onnx-community/Janus-Pro-1B-ONNX', {
-  dtype: { vision_encoder: 'q4', language_model: 'q4f16' },
-  device: 'webgpu'
-})
-`,
+    // tokens text
+    ctx.font = '13px ui-monospace, monospace';
+    ctx.fillStyle = '#0f172a';
+    var line = tokens.join(' ');
+    ctx.fillText(line.slice(0, 96), 16, 140);
+    if (line.length > 96) ctx.fillText(line.slice(96, 192), 16, 162);
+
+    // cost bar
+    var pct = Math.min(1, tokens.length / limit);
+    ctx.fillStyle = '#e2e8f0'; ctx.fillRect(16, 200, W - 32, 14);
+    ctx.fillStyle = '#2563eb'; ctx.fillRect(16, 200, (W - 32) * pct, 14);
+    ctx.fillStyle = '#475569'; ctx.font = '12px ui-monospace, monospace';
+    ctx.fillText('decoder passes: ' + tokens.length + ' / ' + limit, 16, 236);
+  }
+
+  var WORDS = ['a', 'Small', 'brown', 'dog', 'is', 'running', 'on', 'the', 'grass', '.',
+               'Its', 'ears', 'flap', 'in', 'the', 'wind', 'while', 'the', 'owner', 'waits',
+               'near', 'a', 'gate', ',', 'and', 'the', 'sky', 'stays', 'clear', 'all', 'day'];
+
+  var timer = null;
+  function step() {
+    if (!running) return;
+    tokens.push(WORDS[tokens.length % WORDS.length]);
+    document.getElementById('n').textContent = tokens.length;
+    document.getElementById('f').textContent = tokens.length;
+    draw();
+    if (tokens.length >= limit) {
+      running = false;
+      document.getElementById('state').textContent = 'done — ' + limit + ' passes';
+      return;
+    }
+    timer = setTimeout(step, 90);
+  }
+
+  function start() {
+    if (running) return;
+    tokens = []; fwd = 0; running = true;
+    document.getElementById('state').textContent = 'generating…';
+    draw(); step();
+  }
+
+  document.getElementById('t').addEventListener('input', function (e) {
+    limit = parseInt(e.target.value, 10);
+    document.getElementById('v').textContent = limit;
+    draw();
+  });
+  setTimeout(start, 500);
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页三种架构，成本差 50 倍
@@ -1337,40 +1754,81 @@ with vision.PoseLandmarker.create_from_options(opts) as landmarker:
 #   InteractiveSegmenter, ImageEmbedder
 `,
 
-    javascript: `// The browser shape of the same API: one wasm runtime, eleven tasks.
-import { FilesetResolver, PoseLandmarker, FaceLandmarker } from '@mediapipe/tasks-vision'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Normalised landmarks and aspect ratio</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:200px}
+  canvas{width:100%;display:block;border-radius:8px;background:#0f172a}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:14px}
+  input[type=range]{width:140px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Landmarks are 0..1 — and that loses the aspect ratio</h1>
+<p>MediaPipe returns x, y in 0..1 of the image. Draw them straight onto a fixed-size canvas and a
+tall photo stretches. The fix is the same letterbox the detection page uses.</p>
+<div class="row">
+  <figure><canvas id="a" width="260" height="260"></canvas><figcaption>drawn naively (stretched)</figcaption></figure>
+  <figure><canvas id="b" width="260" height="260"></canvas><figcaption>letterboxed (correct)</figcaption></figure>
+</div>
+<label>image aspect <input type="range" id="asp" min="0.6" max="1.6" step="0.05" value="1.4"><output id="v">1.40</output></label>
+<script>
+(function () {
+  // a hand skeleton in normalised coordinates (0..1)
+  var pts = [[.50,.92],[.36,.74],[.31,.58],[.29,.46],[.28,.36],
+             [.44,.70],[.44,.52],[.44,.42],[.45,.34],
+             [.52,.70],[.54,.50],[.55,.39],[.56,.31],
+             [.60,.72],[.63,.53],[.65,.43],[.66,.35],
+             [.67,.78],[.71,.63],[.74,.55],[.76,.48]];
+  var links = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],
+               [0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
 
-// Creating the fileset is the expensive part -- do it once and share it.
-let fileset
-export async function runtime(wasmBase) {
-  fileset ??= await FilesetResolver.forVisionTasks(\`\${wasmBase}\`)
-  return fileset
-}
-
-export async function makePose(wasmBase, modelUrl) {
-  return PoseLandmarker.createFromOptions(await runtime(wasmBase), {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    numPoses: 1
-  })
-}
-
-// Image mode: create -> run once -> close. The page does exactly this for
-// uploads, because leaving eleven detectors alive would hold eleven GPU contexts.
-export async function landmarksOnce(wasmBase, modelUrl, image) {
-  const detector = await FaceLandmarker.createFromOptions(await runtime(wasmBase), {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'IMAGE',
-    numFaces: 1
-  })
-  try {
-    const res = detector.detect(image)
-    return res.faceLandmarks[0]            // 478 points, x/y/z normalised
-  } finally {
-    detector.close()                       // releasing is not optional
+  function draw(ctx, size, kx, ky) {
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, size, size);
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+    links.forEach(function (l) {
+      var a = pts[l[0]], b = pts[l[1]];
+      ctx.beginPath(); ctx.moveTo(a[0] * kx, a[1] * ky); ctx.lineTo(b[0] * kx, b[1] * ky); ctx.stroke();
+    });
+    pts.forEach(function (p) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(p[0] * kx, p[1] * ky, 2.6, 0, Math.PI * 2); ctx.fill();
+    });
   }
-}
-`,
+
+  function render() {
+    var asp = parseFloat(document.getElementById('asp').value);
+    document.getElementById('v').textContent = asp.toFixed(2);
+    var S = 260;
+    // naive: multiply x by S and y by S — aspect ratio ignored
+    draw(document.getElementById('a').getContext('2d'), S, S, S);
+
+    // correct: fit an image of aspect asp into the square, keep proportions
+    var iw = asp >= 1 ? S : S * asp;
+    var ih = asp >= 1 ? S / asp : S;
+    var ox = (S - iw) / 2, oy = (S - ih) / 2;
+    var ctxB = document.getElementById('b').getContext('2d');
+    ctxB.fillStyle = '#0f172a'; ctxB.fillRect(0, 0, S, S);
+    ctxB.fillStyle = '#1e293b'; ctxB.fillRect(ox, oy, iw, ih);
+    ctxB.strokeStyle = '#334155'; ctxB.lineWidth = 1; ctxB.strokeRect(ox, oy, iw, ih);
+    ctxB.save();
+    ctxB.translate(ox, oy);
+    draw(ctxB, S, iw, ih);
+    ctxB.restore();
+  }
+  document.getElementById('asp').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 十一个任务，一套 API 形状
@@ -1472,6 +1930,7 @@ BlazeFace short-range is a few hundred KB; pose_landmarker_lite about 5 MB; inte
 Different skeleton, different coordinate system, same question. Comparing them
 is the fastest way to understand what a "keypoint model" actually outputs.
 """
+import numpy as np
 import mediapipe as mp
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
@@ -1526,50 +1985,110 @@ def yolo_pose(session, img, conf=0.25, vis_thresh=0.3):
 # Drawing one with the other's connection table produces nonsense lines.
 `,
 
-    javascript: `// Both routes in the browser: MediaPipe PoseLandmarker, YOLO26-pose.
-import { PoseLandmarker, DrawingUtils } from '@mediapipe/tasks-vision'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>33 points vs 17 points</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:190px}
+  canvas{width:100%;display:block;border-radius:8px;background:#0f172a}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+</style>
+</head>
+<body>
+<h1>Same person, two skeleton conventions</h1>
+<p>MediaPipe gives 33 points (face, hands, feet). COCO — what YOLO-pose emits — gives 17 joints.
+Each needs its own connection table; mixing them draws nonsense lines.</p>
+<div class="row">
+  <figure><canvas id="a" width="220" height="280"></canvas><figcaption>MediaPipe: 33 points</figcaption></figure>
+  <figure><canvas id="b" width="220" height="280"></canvas><figcaption>COCO: 17 joints</figcaption></figure>
+  <figure><canvas id="c" width="220" height="280"></canvas><figcaption>17 points drawn with the 33-point table</figcaption></figure>
+</div>
+<label><input type="checkbox" id="err"> exaggerate the wrong-table case</label>
+<script>
+(function () {
+  var W = 220, H = 280;
+  function P(x, y) { return [W * x, H * y]; }
 
-export async function makePose(wasmBase, modelUrl) {
-  return PoseLandmarker.createFromOptions(wasmBase, {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    numPoses: 1                       // the page exposes 1..10 via a slider
-  })
-}
+  // 33-point layout (head, arms, legs, plus hands/feet detail)
+  var mp = {
+    0: P(.50,.06), 1: P(.47,.08), 2: P(.45,.10), 3: P(.43,.11), 4: P(.49,.07), 5: P(.51,.07),
+    6: P(.54,.10), 7: P(.56,.11), 8: P(.50,.12), 9: P(.49,.14), 10: P(.51,.14),
+    11: P(.36,.26), 12: P(.64,.26), 13: P(.30,.40), 14: P(.70,.40), 15: P(.28,.53), 16: P(.72,.53),
+    17: P(.26,.56), 18: P(.74,.56), 19: P(.25,.58), 20: P(.75,.58), 21: P(.24,.60), 22: P(.76,.60),
+    23: P(.42,.52), 24: P(.58,.52), 25: P(.40,.68), 26: P(.60,.68), 27: P(.39,.82), 28: P(.61,.82),
+    29: P(.38,.86), 30: P(.62,.86), 31: P(.37,.90), 32: P(.63,.90)
+  };
+  var mpLinks = [[0,1],[1,2],[2,3],[3,7],[0,4],[4,5],[5,6],[6,8],[9,10],
+                 [11,12],[11,13],[13,15],[15,17],[15,19],[15,21],[12,14],[14,16],[16,18],[16,20],[16,22],
+                 [11,23],[12,24],[23,24],[23,25],[24,26],[25,27],[26,28],[27,29],[28,30],[29,31],[30,32]];
 
-export function drawPose(ctx, landmarker, video, ts) {
-  const result = landmarker.detectForVideo(video, ts)
-  const draw = new DrawingUtils(ctx)
-  for (const lms of result.landmarks ?? []) {
-    // drawing utils take the CONNECTION TABLE as well -- 33-point table for
-    // MediaPipe, 17-point table for COCO. Mixing them ruins the drawing.
-    draw.drawLandmarks(lms, { radius: 3 })
-    draw.drawConnectors(lms, PoseLandmarker.POSE_CONNECTIONS)
+  // COCO 17-point layout
+  var coco = {
+    0: P(.50,.10), 1: P(.44,.18), 2: P(.38,.26), 3: P(.33,.34), 4: P(.28,.42),
+    5: P(.56,.18), 6: P(.62,.26), 7: P(.67,.34), 8: P(.72,.42),
+    9: P(.48,.52), 10: P(.52,.52), 11: P(.44,.66), 12: P(.56,.66),
+    13: P(.42,.82), 14: P(.58,.82), 15: P(.41,.94), 16: P(.59,.94)
+  };
+  var cocoLinks = [[0,1],[1,2],[2,3],[3,4],[1,5],[5,6],[6,7],[7,8],[1,9],[9,10],
+                   [9,11],[11,13],[13,15],[10,12],[12,14],[14,16]];
+
+  function drawPoints(ctx, pts, deg) {
+    pts.forEach(function (p) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.beginPath(); ctx.arc(p[0], p[1], deg, 0, Math.PI * 2); ctx.fill();
+    });
   }
-  return result
-}
-
-// YOLO route: same 300-row output as detection, but each row carries
-// 17 x (x, y, visibility) appended after the box and score.
-export function readPoseRows(rows, dx, dy, r, conf = 0.25, visMin = 0.3) {
-  const people = []
-  for (let i = 0; i < 300; i++) {
-    const o = i * 57
-    if (rows[o + 4] < conf) continue
-    const pts = []
-    for (let k = 0; k < 17; k++) {
-      const p = o + 6 + k * 3
-      pts.push({
-        x: (rows[p] - dx) / r,
-        y: (rows[p + 1] - dy) / r,
-        v: rows[p + 2]
-      })
-    }
-    people.push(pts.filter(p => p.v > visMin))   // drop unreliable joints
+  function drawLinks(ctx, pts, links, color) {
+    ctx.strokeStyle = color; ctx.lineWidth = 2;
+    links.forEach(function (l) {
+      var a = pts[l[0]], b = pts[l[1]];
+      if (!a || !b) return;
+      ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke();
+    });
   }
-  return people
-}
-`,
+  function canvasOf(id) {
+    var c = document.getElementById(id), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    return ctx;
+  }
+
+  var A = canvasOf('a');
+  drawLinks(A, mp, mpLinks, '#38bdf8');
+  drawPoints(A, Object.values(mp), 2.3);
+
+  var B = canvasOf('b');
+  drawLinks(B, coco, cocoLinks, '#34d399');
+  drawPoints(B, Object.values(coco), 3.4);
+
+  var C = canvasOf('c');
+  drawLinks(C, coco, mpLinks, '#f43f5e');   // wrong table on purpose
+  drawPoints(C, Object.values(coco), 3.4);
+
+  var box = document.getElementById('c');
+  box.addEventListener('mousemove', function (e) {
+    var r = box.getBoundingClientRect();
+    var x = (e.clientX - r.left), y = (e.clientY - r.top);
+    var ctx = box.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    // jitter the points so the nonsense lines move
+    var moved = {};
+    Object.keys(coco).forEach(function (k) {
+      moved[k] = [coco[k][0] + Math.sin((x + k * 30) / 22) * 6,
+                  coco[k][1] + Math.cos((y + k * 18) / 26) * 6];
+    });
+    drawLinks(ctx, moved, mpLinks, '#f43f5e');
+    drawPoints(ctx, Object.values(moved), 3.4);
+  });
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 33 点和 17 点，不是同一个东西的两种画法
@@ -1687,47 +2206,110 @@ def compare(emb_a, emb_b, threshold=0.5):
     return cos, cos >= threshold
 `,
 
-    javascript: `// The three face tools, and the boundary between them.
-import { FaceDetector, FaceLandmarker } from '@mediapipe/tasks-vision'
-import * as faceapi from '@vladmandic/face-api'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>478 landmarks and 52 blendshapes</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;background:#0f172a;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .sliders{flex:1;min-width:200px}
+  .sliders div{display:flex;align-items:center;gap:8px;margin-bottom:7px;font-size:12px}
+  .sliders b{width:104px;font-weight:500;font-family:ui-monospace,monospace}
+  input[type=range]{flex:1}
+</style>
+</head>
+<body>
+<h1>Points are geometry, blendshapes are motion</h1>
+<p>478 landmarks describe where the face is shaped; the 52 blendshape coefficients describe what it
+is doing. For smile or blink detection you read the coefficients, not the points.</p>
+<div class="wrap">
+  <canvas id="c" width="260" height="260"></canvas>
+  <div class="sliders">
+    <div><b>mouthSmile</b><input type="range" id="s" min="0" max="1" step="0.02" value="0.1"></div>
+    <div><b>jawOpen</b><input type="range" id="j" min="0" max="1" step="0.02" value="0"></div>
+    <div><b>eyeBlink</b><input type="range" id="b" min="0" max="1" step="0.02" value="0"></div>
+    <div><b>browInnerUp</b><input type="range" id="r" min="0" max="1" step="0.02" value="0"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var W = 260, H = 260, CX = 130, CY = 132;
 
-// 1) Detection: boxes only, 0.5 confidence, NMS at 0.3
-export async function makeDetector(wasmBase, modelUrl) {
-  return FaceDetector.createFromOptions(wasmBase, {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    minDetectionConfidence: 0.5,
-    minSuppressionThreshold: 0.3
-  })
-}
+  function face() {
+    var smile = +document.getElementById('s').value;
+    var jaw = +document.getElementById('j').value;
+    var blink = +document.getElementById('b').value;
+    var brow = +document.getElementById('r').value;
 
-// 2) Landmarks: 478 points + blendshapes, per face
-export async function makeLandmarker(wasmBase, modelUrl, numFaces = 1) {
-  return FaceLandmarker.createFromOptions(wasmBase, {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    numFaces,
-    outputFaceBlendshapes: true
-  })
-}
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
 
-// 3) Identity: face-api 128-d descriptors, cosine similarity >= 0.5
-export async function descriptor(canvas) {
-  const detection = await faceapi
-    .detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({
-      inputSize: 320, scoreThreshold: 0.3
-    }))
-    .withFaceLandmarks()
-    .withFaceDescriptor()
-  return detection?.descriptor ?? null      // Float32Array(128)
-}
+    // face outline
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(CX, CY, 62, 82, 0, 0, Math.PI * 2); ctx.stroke();
 
-export function cosine(a, b) {
-  let dot = 0, na = 0, nb = 0
-  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2 }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb))
-}
-`,
+    // brows lift with browInnerUp
+    ctx.strokeStyle = '#a78bfa';
+    [-1, 1].forEach(function (sgn) {
+      ctx.beginPath();
+      ctx.moveTo(CX + sgn * 40, 108 - brow * 8);
+      ctx.quadraticCurveTo(CX + sgn * 24, 96 - brow * 12, CX + sgn * 10, 104 - brow * 6);
+      ctx.stroke();
+    });
+
+    // eyes: blink squashes the ellipse
+    [-1, 1].forEach(function (sgn) {
+      var ry = 8 * (1 - blink * 0.92) + 0.6;
+      ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.ellipse(CX + sgn * 26, 124, 13, ry, 0, 0, Math.PI * 2); ctx.stroke();
+      if (blink < 0.4) {
+        ctx.fillStyle = '#f8fafc';
+        ctx.beginPath(); ctx.arc(CX + sgn * 26, 124, 4.5, 0, Math.PI * 2); ctx.fill();
+      }
+    });
+
+    // mouth: smile curves up, jawOpen opens the ellipse
+    var halfW = 30 + smile * 6;
+    var open = jaw * 26;
+    ctx.strokeStyle = '#f472b6'; ctx.lineWidth = 2;
+    if (open < 3) {
+      ctx.beginPath();
+      ctx.moveTo(CX - halfW, 176);
+      ctx.quadraticCurveTo(CX, 176 + smile * 26 - jaw * 4, CX + halfW, 176);
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(244,114,182,.28)';
+      ctx.beginPath();
+      ctx.ellipse(CX, 178, halfW, open / 2 + 3, 0, 0, Math.PI * 2);
+      ctx.fill(); ctx.stroke();
+    }
+
+    // a sparse stand-in for the 478-point mesh
+    ctx.fillStyle = 'rgba(148,163,184,.55)';
+    for (var i = 0; i < 130; i++) {
+      var a = i * 2.3999, r = 12 + (i % 7) * 7.4;
+      var x = CX + Math.cos(a) * r * 0.78;
+      var y = CY + Math.sin(a) * r * 0.98;
+      if (Math.hypot((x - CX) / 62, (y - CY) / 82) > 0.96) continue;
+      ctx.fillRect(x, y, 1.4, 1.4);
+    }
+
+    ctx.fillStyle = 'rgba(248,250,252,.62)'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('478 pts / 52 blendshapes', 10, H - 10);
+  }
+
+  ['s', 'j', 'b', 'r'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', face);
+  });
+  face();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 三个工具回答三个不同的问题
@@ -1855,43 +2437,107 @@ def finger_extended(pts, tip, pip):
     return d(pts[tip], pts[0]) > d(pts[pip], pts[0])
 `,
 
-    javascript: `// GestureRecognizer in the browser: landmarks plus a label, same call.
-import { HandLandmarker, GestureRecognizer, DrawingUtils } from '@mediapipe/tasks-vision'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Counting fingers without a model</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:420px;display:block;border-radius:8px;background:#0f172a}
+  .out{margin-top:10px;font-size:13px;color:#475569}
+  .out b{font-size:22px;color:#0f172a;font-variant-numeric:tabular-nums;margin-right:6px}
+  button{font:inherit;font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;
+         background:#fff;cursor:pointer;margin-right:6px}
+  button:hover{background:#f1f5f9}
+</style>
+</head>
+<body>
+<h1>Finger counting is geometry, not a classifier</h1>
+<p>A finger is extended when its tip is farther from the wrist than its PIP joint. Three lines of
+code, no network — and it still beats the classifier's latency.</p>
+<canvas id="c" width="420" height="360"></canvas>
+<div class="out"><b id="n">0</b> fingers extended <span id="name"></span></div>
+<div style="margin-top:8px">
+  <button data-g="rock">rock</button>
+  <button data-g="paper">paper</button>
+  <button data-g="two">two</button>
+  <button data-g="ok">ok</button>
+</div>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var W = 420, H = 360;
 
-export async function makeRecognizer(wasmBase, modelUrl, numHands = 2) {
-  return GestureRecognizer.createFromOptions(wasmBase, {
-    baseOptions: { modelAssetPath: modelUrl, delegate: 'GPU' },
-    runningMode: 'VIDEO',
-    numHands
-  })
-}
+  // wrist at 0; tips 4/8/12/16/20; PIPs 3/6/10/14/18
+  var HANDS = {
+    rock:  [[.50,.92],[.44,.80],[.41,.72],[.40,.66],[.39,.62],
+            [.48,.78],[.47,.68],[.46,.62],[.45,.57],
+            [.53,.78],[.53,.67],[.52,.60],[.51,.54],
+            [.58,.79],[.59,.69],[.60,.63],[.61,.58],
+            [.62,.82],[.65,.75],[.67,.71],[.69,.68]],
+    paper: [[.50,.92],[.40,.78],[.34,.64],[.31,.52],[.29,.42],
+            [.48,.76],[.46,.58],[.45,.44],[.44,.33],
+            [.54,.75],[.55,.56],[.56,.41],[.56,.30],
+            [.60,.77],[.64,.60],[.66,.46],[.67,.35],
+            [.66,.81],[.72,.68],[.75,.57],[.77,.48]],
+    two:   [[.50,.92],[.42,.79],[.38,.68],[.36,.59],[.35,.52],
+            [.48,.77],[.47,.62],[.46,.50],[.45,.40],
+            [.55,.76],[.56,.60],[.57,.47],[.57,.37],
+            [.61,.79],[.63,.71],[.64,.66],[.65,.61],
+            [.65,.83],[.68,.78],[.70,.74],[.71,.71]],
+    ok:    [[.50,.92],[.42,.79],[.38,.68],[.36,.59],[.35,.52],
+            [.48,.77],[.47,.62],[.46,.50],[.45,.40],
+            [.55,.76],[.56,.61],[.57,.48],[.57,.38],
+            [.61,.79],[.63,.71],[.64,.66],[.65,.61],
+            [.65,.83],[.68,.78],[.70,.74],[.71,.71]]
+  };
+  var LINKS = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[0,9],[9,10],[10,11],[11,12],
+               [0,13],[13,14],[14,15],[15,16],[0,17],[17,18],[18,19],[19,20],[5,9],[9,13],[13,17]];
+  var PAIRS = [[8,6],[12,10],[16,14],[20,18]];
 
-export function recognise(recognizer, video, ts, ctx) {
-  const res = recognizer.recognizeForVideo(video, ts)
-  const draw = new DrawingUtils(ctx)
+  function extended(p) {
+    var d = function (a, b) { return Math.hypot(a[0] - b[0], a[1] - b[1]); };
+    return PAIRS.filter(function (pr) { return d(p[pr[0]], p[0]) > d(p[pr[1]], p[0]); }).length;
+  }
 
-  res.landmarks?.forEach((hand, i) => {
-    draw.drawLandmarks(hand, { radius: 3 })
-    draw.drawConnectors(hand, GestureRecognizer.HAND_CONNECTIONS)
+  function render(key) {
+    var pts = HANDS[key];
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 3;
+    LINKS.forEach(function (l) {
+      ctx.beginPath();
+      ctx.moveTo(pts[l[0]][0] * W, pts[l[0]][1] * H);
+      ctx.lineTo(pts[l[1]][0] * W, pts[l[1]][1] * H);
+      ctx.stroke();
+    });
+    PAIRS.forEach(function (pr, i) {
+      var tip = pts[pr[0]], pip = pts[pr[1]];
+      var isExt = Math.hypot(tip[0] - pts[0][0], tip[1] - pts[0][1]) >
+                  Math.hypot(pip[0] - pts[0][0], pip[1] - pts[0][1]);
+      ctx.fillStyle = isExt ? '#22c55e' : '#64748b';
+      ctx.beginPath(); ctx.arc(tip[0] * W, tip[1] * H, 6, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.fillStyle = '#f8fafc';
+    pts.forEach(function (p) {
+      ctx.beginPath(); ctx.arc(p[0] * W, p[1] * H, 2.6, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.fillStyle = 'rgba(248,250,252,.6)'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('green = tip farther from wrist than PIP', 10, H - 10);
 
-    const top = res.gestures?.[i]?.[0]
-    if (top) {
-      // The page puts the label in the side panel rather than on the canvas:
-      // text over a moving hand is unreadable.
-      console.log(top.categoryName, top.score.toFixed(2))
-    }
-  })
-  return res
-}
+    document.getElementById('n').textContent = extended(pts);
+    document.getElementById('name').textContent = '(' + key + ')';
+  }
 
-// Counting extended fingers needs no model -- distances on the 21 points:
-// landmarks 0 wrist, tips 4/8/12/16/20, PIP joints 3/6/10/14/18
-export function extendedCount(p) {
-  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y)
-  const pairs = [[8, 6], [12, 10], [16, 14], [20, 18]]
-  return pairs.filter(([tip, pip]) => d(p[tip], p[0]) > d(p[pip], p[0])).length
-}
-`,
+  document.querySelectorAll('button').forEach(function (b) {
+    b.addEventListener('click', function () { render(b.dataset.g); });
+  });
+  render('paper');
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 手势识别 = 21 个点 + 一个很小的分类器
@@ -2015,51 +2661,98 @@ def stitch(a, b):
     return out
 `,
 
-    javascript: `// The same five tools through OpenCV.js (loaded from /opencv/opencv.js).
-let cv
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Keypoints, ratio test, and why matches still need RANSAC</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:16px}
+  input[type=range]{width:150px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Match, then reject the liars</h1>
+<p>Left and right are the same scene, rotated 18 degrees with a few decoy dots. Bright lines are
+matches kept by the ratio test; red is a deliberate outlier.</p>
+<canvas id="c" width="720" height="300"></canvas>
+<label>Lowe ratio <input type="range" id="r" min="0.5" max="0.95" step="0.01" value="0.75">
+  <output id="v">0.75</output></label>
+<script>
+(function () {
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var W = 720, H = 300;
+  var CX1 = 180, CX2 = 540, CY = 150;
 
-export async function loadOpenCv() {
-  cv ??= await window.cv            // the wasm module exposes a global
-  return cv
-}
+  // a fixed "scene": 14 keypoints (normalised -1..1 inside each panel)
+  var base = [];
+  for (var i = 0; i < 14; i++) {
+    var a = i * 2.3999;
+    var r = 0.25 + (i % 5) * 0.15;
+    base.push({ x: Math.cos(a) * r, y: Math.sin(a) * r * 0.9, id: i });
+  }
+  var ANG = 18 * Math.PI / 180;
 
-export function orbMatch(cv, matA, matB, ratio = 0.75) {
-  const orb = new cv.ORB(500)
-  const kpA = new cv.KeyPointVector()
-  const kpB = new cv.KeyPointVector()
-  const descA = new cv.Mat()
-  const descB = new cv.Mat()
-  orb.detectAndCompute(matA, new cv.Mat(), kpA, descA)
-  orb.detectAndCompute(matB, new cv.Mat(), kpB, descB)
-
-  // Hamming distance: ORB descriptors are binary strings, XOR + popcount.
-  const matcher = new cv.BFMatcher(cv.NORM_HAMMING)
-  const knn = new cv.DMatchVectorVector()
-  matcher.knnMatch(descA, descB, knn, 2)
-
-  const good = []
-  for (let i = 0; i < knn.size(); i++) {
-    const pair = knn.get(i)
-    if (pair.size() < 2) continue
-    const [best, second] = [pair.get(0), pair.get(1)]
-    if (best.distance < ratio * second.distance) good.push(best)
+  function right(p) {
+    return { x: p.x * Math.cos(ANG) - p.y * Math.sin(ANG),
+             y: p.x * Math.sin(ANG) + p.y * Math.cos(ANG) };
   }
 
-  // Cleanup matters: OpenCV.js objects live in wasm memory and are NOT GC'd.
-  for (const m of [descA, descB, knn]) m.delete()
-  return good
-}
+  function panel(cx, label, pts, color) {
+    ctx.strokeStyle = '#e2e8f0'; ctx.lineWidth = 1;
+    ctx.strokeRect(cx - 140, CY - 120, 280, 240);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText(label, cx - 138, CY - 128);
+    pts.forEach(function (p) {
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(cx + p.x * 120, CY + p.y * 110, 3.4, 0, Math.PI * 2); ctx.fill();
+    });
+  }
 
-// Template matching is the cheap alternative: no keypoints, just correlation.
-// TM_CCOEFF_NORMED is normalised, so results are comparable across images.
-export function templateMatch(cv, haystack, needle) {
-  const result = new cv.Mat()
-  cv.matchTemplate(haystack, needle, result, cv.TM_CCOEFF_NORMED)
-  const mm = cv.minMaxLoc(result)
-  result.delete()
-  return { score: mm.maxVal, at: mm.maxLoc }
-}
-`,
+  function render() {
+    var ratio = parseFloat(document.getElementById('r').value);
+    document.getElementById('v').textContent = ratio.toFixed(2);
+    ctx.clearRect(0, 0, W, H);
+
+    var L = base, R = base.map(right);
+    // one decoy: the nearest-neighbour pairing for dot 5 points somewhere wrong
+    var decoy = { x: R[5].x, y: R[5].y, id: 9 };
+    R = R.slice(); R[5] = right(base[9]);
+
+    panel(CX1, 'left', L, '#2563eb');
+    panel(CX2, 'right (rotated, one swap)', R, '#2563eb');
+
+    var kept = 0, rejected = 0;
+    L.forEach(function (p, i) {
+      var q = R[i];
+      var dBest = Math.hypot(q.x - p.x, q.y - p.y);
+      // distance in descriptor space ~ geometric distance here, for illustration
+      var dSecond = dBest + 0.12 + (i % 3) * 0.04;
+      var ok = dBest < ratio * dSecond + 0.35;
+      if (!ok) { rejected++; return; }
+      kept++;
+      ctx.strokeStyle = i === 5 ? '#dc2626' : 'rgba(22,163,74,.55)';
+      ctx.lineWidth = i === 5 ? 2.5 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(CX1 + p.x * 120, CY + p.y * 110);
+      ctx.lineTo(CX2 + q.x * 120, CY + q.y * 110);
+      ctx.stroke();
+    });
+
+    ctx.fillStyle = '#0f172a'; ctx.font = '12px ui-monospace, monospace';
+    ctx.fillText('kept ' + kept + ' / ' + L.length + '   ratio ' + ratio.toFixed(2), 12, 20);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillText('red = survives the ratio test but is still wrong -> this is what RANSAC removes', 12, H - 10);
+  }
+  document.getElementById('r').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 五个工具，一条主线：不靠神经网络也能匹配图像
@@ -2211,56 +2904,119 @@ def classify_shape(c, eps=0.04):
 # like a 200-gon), too large collapses a triangle into a line.
 `,
 
-    javascript: `// Shape recognition with OpenCV.js: contour -> polygon -> vertex count.
-export function classifyShapes(cv, src, minArea = 120) {
-  const gray = new cv.Mat()
-  const binary = new cv.Mat()
-  const contours = new cv.MatVector()
-  const hierarchy = new cv.Mat()
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Contours, area, and one tolerance</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:220px}
+  canvas{width:100%;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:180px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>approxPolyDP: the tolerance decides the shape</h1>
+<p>Every contour is a cloud of pixels. Simplifying it with a tolerance proportional to the perimeter
+turns it into a polygon — and the vertex count is then the shape.</p>
+<div class="row">
+  <figure><canvas id="a" width="240" height="240"></canvas><figcaption>original contour</figcaption></figure>
+  <figure><canvas id="b" width="240" height="240"></canvas><figcaption>simplified (red vertices)</figcaption></figure>
+</div>
+<label>epsilon <input type="range" id="e" min="0.005" max="0.12" step="0.005" value="0.04">
+  <output id="v">0.040</output></label>
+<script>
+(function () {
+  var W = 240, H = 240;
+  // a noisy triangle in pixels (as if traced from a thresholded blob)
+  function contour() {
+    var pts = [], cx = 120, cy = 130, R = 88;
+    var verts = [[-.5, -1], [1, .55], [-1, .55]];   // roughly a triangle
+    for (var s = 0; s < 3; s++) {
+      var a0 = verts[s], a1 = verts[(s + 1) % 3];
+      for (var t = 0; t < 60; t++) {
+        var k = t / 60;
+        var x = (a0[0] + (a1[0] - a0[0]) * k) * R + cx;
+        var y = (a0[1] + (a1[1] - a0[1]) * k) * R + cy;
+        x += Math.sin(t * 2.7 + s) * 2.2;            // pixel-level noise
+        y += Math.cos(t * 3.1 + s) * 2.2;
+        pts.push([x, y]);
+      }
+    }
+    return pts;
+  }
+  var P = contour();
 
-  cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY)
-  cv.threshold(gray, binary, 0, 255, cv.THRESH_BINARY_INV + cv.THRESH_OTSU)
-  cv.findContours(binary, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
-
-  const shapes = []
-  for (let i = 0; i < contours.size(); i++) {
-    const c = contours.get(i)
-    if (cv.contourArea(c) < minArea) continue
-
-    // 4% of perimeter: the tolerance that turns pixels into polygons
-    const peri = cv.arcLength(c, true)
-    const poly = new cv.Mat()
-    cv.approxPolyDP(c, poly, 0.04 * peri, true)
-
-    const n = poly.rows
-    const kind = { 3: 'triangle', 4: 'rect', 5: 'pentagon' }[n] ?? \`\${n}-gon\`
-    const m = cv.moments(c)
-    shapes.push({
-      kind,
-      area: cv.contourArea(c),
-      centre: m.m00 ? { x: m.m10 / m.m00, y: m.m01 / m.m00 } : null
-    })
-
-    poly.delete()
-    c.delete()
+  function distToSeg(p, a, b) {
+    var vx = b[0] - a[0], vy = b[1] - a[1];
+    var wx = p[0] - a[0], wy = p[1] - a[1];
+    var t = Math.max(0, Math.min(1, (wx * vx + wy * vy) / (vx * vx + vy * vy || 1)));
+    return Math.hypot(p[0] - (a[0] + vx * t), p[1] - (a[1] + vy * t));
   }
 
-  for (const m of [gray, binary, contours, hierarchy]) m.delete()
-  return shapes
-}
+  // Ramer-Douglas-Peucker, the algorithm behind approxPolyDP
+  function rdp(pts, eps) {
+    if (pts.length < 3) return pts;
+    var a = pts[0], b = pts[pts.length - 1], idx = -1, dmax = 0;
+    for (var i = 1; i < pts.length - 1; i++) {
+      var d = distToSeg(pts[i], a, b);
+      if (d > dmax) { dmax = d; idx = i; }
+    }
+    if (dmax > eps) {
+      return rdp(pts.slice(0, idx + 1), eps).slice(0, -1).concat(rdp(pts.slice(idx), eps));
+    }
+    return [a, b];
+  }
 
-// Hue-based masking, the other half of this page: pick a colour range and
-// everything outside it is dropped before contouring.
-export function colourMask(cv, src, lo, hi) {
-  const hsv = new cv.Mat()
-  const mask = new cv.Mat()
-  cv.cvtColor(src, hsv, cv.COLOR_RGB2HSV)
-  cv.inRange(hsv, new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [...lo, 0, 0, 0]),
-                  new cv.Mat(hsv.rows, hsv.cols, hsv.type(), [...hi, 255, 255, 0]), mask)
-  hsv.delete()
-  return mask
-}
-`,
+  function poly(ctx, pts, color, fill) {
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0], pts[0][1]);
+    for (var i = 1; i < pts.length; i++) ctx.lineTo(pts[i][0], pts[i][1]);
+    ctx.closePath();
+    if (fill) { ctx.fillStyle = fill; ctx.fill(); }
+    ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+  }
+
+  function render() {
+    var epsRatio = parseFloat(document.getElementById('e').value);
+    document.getElementById('v').textContent = epsRatio.toFixed(3);
+
+    // perimeter of the raw contour (as cv2.arcLength would compute)
+    var peri = 0;
+    for (var i = 0; i < P.length; i++) {
+      var q = P[(i + 1) % P.length];
+      peri += Math.hypot(q[0] - P[i][0], q[1] - P[i][1]);
+    }
+    var simple = rdp(P.concat([P[0]]), peri * epsRatio);
+
+    var A = document.getElementById('a').getContext('2d');
+    A.fillStyle = '#fff'; A.fillRect(0, 0, W, H);
+    poly(A, P, '#64748b', 'rgba(148,163,184,.35)');
+    A.fillStyle = '#475569'; A.font = '11px ui-monospace, monospace';
+    A.fillText(P.length + ' points, perimeter ' + Math.round(peri) + 'px', 8, 16);
+
+    var B = document.getElementById('b').getContext('2d');
+    B.fillStyle = '#fff'; B.fillRect(0, 0, W, H);
+    poly(B, simple, '#2563eb', 'rgba(37,99,235,.12)');
+    simple.forEach(function (p) {
+      B.fillStyle = '#dc2626';
+      B.beginPath(); B.arc(p[0], p[1], 3.4, 0, Math.PI * 2); B.fill();
+    });
+    var name = simple.length === 3 ? 'triangle' : simple.length === 4 ? 'quad' : simple.length + '-gon';
+    B.fillStyle = '#0f172a'; B.font = '12px ui-monospace, monospace';
+    B.fillText(simple.length - 1 + ' vertices -> ' + name, 8, 16);
+  }
+  document.getElementById('e').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页全部是传统 CV，一个神经网络都没有
@@ -2422,34 +3178,119 @@ def pixel_op(img, op, value):
     return np.clip(out, 0, 255).astype(np.uint8)
 `,
 
-    javascript: `// Reading pixels: the canvas API is the whole toolkit here.
-export function pixelInfo(ctx, x, y) {
-  const [r, g, b, a] = ctx.getImageData(x, y, 1, 1).data
-  return { r, g, b, a, hex: '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('') }
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What a pixel actually is</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:6px;display:block;image-rendering:pixelated}
+  .grid{background:#e2e8f0;padding:4px;border-radius:6px}
+  .info{flex:1;min-width:210px;font-size:12px}
+  .sw{width:44px;height:44px;border-radius:6px;border:1px solid #cbd5e1}
+  .row{display:flex;gap:10px;align-items:center;margin-bottom:8px}
+  code{background:#e2e8f0;padding:1px 5px;border-radius:3px;font-size:11px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:8px;font-size:12px}
+</style>
+</head>
+<body>
+<h1>A pixel is four integers, not a colour</h1>
+<p>Move the pointer over the grid. Every value below is read straight out of the buffer — the same
+four bytes the whole rest of this site operates on.</p>
+<div class="wrap">
+  <div class="grid"><canvas id="c" width="256" height="256"></canvas></div>
+  <div class="info">
+    <div class="row"><div class="sw" id="sw"></div>
+      <div><div><code id="hex">#000000</code></div><div id="rgba"></div></div></div>
+    <div>HSV <code id="hsv"></code></div>
+    <div>Lab L* <code id="lab"></code></div>
+    <div style="margin-top:10px;color:#475569" id="meta"></div>
+  </div>
+</div>
+<label><input type="checkbox" id="lines" checked> show cell borders</label>
+<script>
+(function () {
+  // a 16x16 image generated procedurally (no external file to fetch)
+  var N = 16, CELL = 16, S = N * CELL;
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var data = [];
 
-// Pixel grid: nearest-neighbour zoom. imageSmoothingEnabled = false is the
-// entire trick -- bilinear would blur the pixel boundaries you want to see.
-export function pixelGrid(source, cell = 8, cols = 12, rows = 12) {
-  const canvas = document.createElement('canvas')
-  canvas.width = cols * cell
-  canvas.height = rows * cell
-  const ctx = canvas.getContext('2d')
-  ctx.imageSmoothingEnabled = false
-  ctx.drawImage(source, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height)
-  return canvas
-}
-
-// Alpha matters more than most people expect: a "white" pixel with alpha 0 is
-// indistinguishable from black in a screenshot, but composites differently.
-export function hasAlpha(ctx, width, height) {
-  const { data } = ctx.getImageData(0, 0, width, height)
-  for (let i = 3; i < data.length; i += 4) {
-    if (data[i] !== 255) return true
+  function build() {
+    for (var y = 0; y < N; y++) {
+      for (var x = 0; x < N; x++) {
+        var r = Math.round(40 + (x / (N - 1)) * 200);
+        var g = Math.round(60 + (y / (N - 1)) * 170);
+        var b = Math.round(180 - Math.hypot(x - 8, y - 8) * 12);
+        data.push([r, g, b, 255]);
+      }
+    }
+    paint();
   }
-  return false
-}
-`,
+
+  function paint() {
+    ctx.clearRect(0, 0, S, S);
+    for (var y = 0; y < N; y++) {
+      for (var x = 0; x < N; x++) {
+        var p = data[y * N + x];
+        ctx.fillStyle = 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')';
+        ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+      }
+    }
+    if (document.getElementById('lines').checked) {
+      ctx.strokeStyle = 'rgba(15,23,42,.14)'; ctx.lineWidth = 1;
+      for (var i = 0; i <= N; i++) {
+        ctx.beginPath(); ctx.moveTo(i * CELL, 0); ctx.lineTo(i * CELL, S); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(0, i * CELL); ctx.lineTo(S, i * CELL); ctx.stroke();
+      }
+    }
+    document.getElementById('meta').textContent = N + ' x ' + N + ' = ' + (N * N) +
+      ' pixels, ' + (N * N * 4) + ' bytes uncompressed';
+  }
+
+  function toHsv(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn, h = 0;
+    if (d) {
+      if (mx === r) h = (60 * ((g - b) / d) + 360) % 360;
+      else if (mx === g) h = 60 * ((b - r) / d) + 120;
+      else h = 60 * ((r - g) / d) + 240;
+    }
+    return [Math.round(h), Math.round((mx ? d / mx : 0) * 100), Math.round(mx * 100)];
+  }
+
+  function toLabL(r, g, b) {
+    var lin = function (v) { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    var y = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    var f = y > 0.008856 ? Math.cbrt(y) : 7.787 * y + 16 / 116;
+    return Math.round(116 * f - 16);
+  }
+
+  function pick(e) {
+    var r = c.getBoundingClientRect();
+    var x = Math.floor((e.clientX - r.left) / (r.width / N));
+    var y = Math.floor((e.clientY - r.top) / (r.height / N));
+    if (x < 0 || y < 0 || x >= N || y >= N) return;
+    var p = data[y * N + x];
+    var hex = '#' + p.slice(0, 3).map(function (v) {
+      return v.toString(16).padStart(2, '0');
+    }).join('');
+    document.getElementById('sw').style.background = hex;
+    document.getElementById('hex').textContent = hex;
+    document.getElementById('rgba').textContent = 'rgba(' + p.join(', ') + ')';
+    document.getElementById('hsv').textContent = toHsv(p[0], p[1], p[2]).join(', ');
+    document.getElementById('lab').textContent = toLabL(p[0], p[1], p[2]);
+  }
+
+  c.addEventListener('pointermove', pick);
+  document.getElementById('lines').addEventListener('change', paint);
+  build();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 像素不是「颜色」，是四个整数
@@ -2585,46 +3426,104 @@ def solve_homography(src, dst):
     return np.append(h, 1).reshape(3, 3)
 `,
 
-    javascript: `// Canvas 2D does transforms for you -- but the maths explains the parameters.
-export function resize(source, w, h, mode = 'high') {
-  const canvas = document.createElement('canvas')
-  canvas.width = w
-  canvas.height = h
-  const ctx = canvas.getContext('2d')
-  // 'high' in Chrome/Safari is bicubic-ish; 'pixelated' is nearest neighbour
-  ctx.imageSmoothingEnabled = mode !== 'nearest'
-  ctx.imageSmoothingQuality = mode === 'high' ? 'high' : 'low'
-  ctx.drawImage(source, 0, 0, w, h)
-  return canvas
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interpolation decides how enlargement looks</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:150px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:160px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Same 8x8 source, three samplers</h1>
+<p>Nearest keeps hard pixel edges; bilinear averages four neighbours; bicubic averages sixteen with a
+weight that overshoots. Drag to change the source resolution.</p>
+<div class="row">
+  <figure><canvas id="a" width="160" height="160"></canvas><figcaption>nearest</figcaption></figure>
+  <figure><canvas id="b" width="160" height="160"></canvas><figcaption>bilinear</figcaption></figure>
+  <figure><canvas id="c" width="160" height="160"></canvas><figcaption>bicubic</figcaption></figure>
+</div>
+<label>source size <input type="range" id="n" min="4" max="32" step="1" value="8"><output id="v">8</output> px</label>
+<script>
+(function () {
+  var OUT = 160;
+  function src(n) {
+    var d = [];
+    for (var y = 0; y < n; y++) for (var x = 0; x < n; x++) {
+      // a hard checker + a diagonal ramp: exactly the case where samplers differ
+      var base = ((x < n / 2) !== (y < n / 2)) ? 235 : 20;
+      d.push(Math.round(base * 0.6 + (x / (n - 1)) * 100 + (y / (n - 1)) * 40));
+    }
+    return d;
+  }
+  function at(d, n, x, y) {
+    x = Math.min(n - 1, Math.max(0, x));
+    y = Math.min(n - 1, Math.max(0, y));
+    return d[y * n + x];
+  }
+  function cubic(t) {                       // Catmull-Rom kernel
+    var a = -0.5;
+    return function (x) {
+      x = Math.abs(x);
+      if (x <= 1) return (a + 2) * x * x * x - (a + 3) * x * x + 1;
+      if (x < 2) return a * x * x * x - 5 * a * x * x + 8 * a * x - 4 * a;
+      return 0;
+    };
+  }
 
-export function rotate(source, degrees, background = null) {
-  const { width: w, height: h } = source
-  const a = (degrees * Math.PI) / 180
-  // grow the canvas, otherwise corners are clipped
-  const nw = Math.abs(w * Math.cos(a)) + Math.abs(h * Math.sin(a))
-  const nh = Math.abs(w * Math.sin(a)) + Math.abs(h * Math.cos(a))
+  function sample(kind, d, n, px, py) {
+    var fx = px / OUT * n - 0.5, fy = py / OUT * n - 0.5;
+    var x0 = Math.floor(fx), y0 = Math.floor(fy);
+    var tx = fx - x0, ty = fy - y0;
+    if (kind === 'nearest') return at(d, n, Math.round(fx), Math.round(fy));
+    if (kind === 'bilinear') {
+      var p00 = at(d, n, x0, y0), p10 = at(d, n, x0 + 1, y0);
+      var p01 = at(d, n, x0, y0 + 1), p11 = at(d, n, x0 + 1, y0 + 1);
+      return (p00 * (1 - tx) + p10 * tx) * (1 - ty) + (p01 * (1 - tx) + p11 * tx) * ty;
+    }
+    var K = cubic(), sum = 0, wsum = 0;
+    for (var j = -1; j <= 2; j++) {
+      for (var i = -1; i <= 2; i++) {
+        var w = K(i - tx) * K(j - ty);
+        sum += at(d, n, x0 + i, y0 + j) * w; wsum += w;
+      }
+    }
+    return sum / wsum;
+  }
 
-  const canvas = document.createElement('canvas')
-  canvas.width = Math.ceil(nw)
-  canvas.height = Math.ceil(nh)
-  const ctx = canvas.getContext('2d')
-  if (background) { ctx.fillStyle = background; ctx.fillRect(0, 0, canvas.width, canvas.height) }
-
-  // translate to the centre, rotate, draw centred
-  ctx.translate(canvas.width / 2, canvas.height / 2)
-  ctx.rotate(a)
-  ctx.drawImage(source, -w / 2, -h / 2)
-  return canvas
-}
-
-// Affine = setTransform / transform. Six numbers: a, b, c, d, e, f
-//   x' = a*x + c*y + e
-//   y' = b*x + d*y + f
-export function shear(ctx, kx = 0, ky = 0) {
-  ctx.setTransform(1, ky, kx, 1, 0, 0)
-}
-`,
+  function render() {
+    var n = parseInt(document.getElementById('n').value, 10);
+    document.getElementById('v').textContent = n;
+    var d = src(n);
+    ['a', 'b', 'c'].forEach(function (id, k) {
+      var kind = ['nearest', 'bilinear', 'bicubic'][k];
+      var cv = document.getElementById(id), ctx = cv.getContext('2d');
+      var img = ctx.createImageData(OUT, OUT);
+      for (var y = 0; y < OUT; y++) {
+        for (var x = 0; x < OUT; x++) {
+          var v = Math.max(0, Math.min(255, Math.round(sample(kind, d, n, x, y))));
+          var i = (y * OUT + x) * 4;
+          img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+          img.data[i + 3] = 255;
+        }
+      }
+      ctx.putImageData(img, 0, 0);
+    });
+  }
+  document.getElementById('n').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 八个工具，两个概念
@@ -2780,64 +3679,132 @@ def replace_colour(img, target, tolerance, replacement):
     return out
 `,
 
-    javascript: `// Channel split, Lab luminance, and the quantiser's inner loop.
-export function channelExtract(imageData, channel) {
-  const { data, width, height } = imageData
-  const out = new ImageData(width, height)
-  for (let i = 0; i < data.length; i += 4) {
-    const [r, g, b] = [data[i], data[i + 1], data[i + 2]]
-    let v
-    if (channel === 'r') v = r
-    else if (channel === 'g') v = g
-    else if (channel === 'b') v = b
-    else if (channel === 'a') v = data[i + 3]
-    else if (channel === 'lab-l') v = labL(r, g, b)     // brightness only
-    else v = r
-    out.data[i] = out.data[i + 1] = out.data[i + 2] = v
-    out.data[i + 3] = 255
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Three greyscales and one K-Means</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:150px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:16px}
+  input[type=range]{width:150px}output{font-variant-numeric:tabular-nums;font-weight:600}
+  .pal{display:flex;gap:4px;margin-top:8px}
+  .pal i{width:22px;height:22px;border-radius:4px;border:1px solid #cbd5e1}
+</style>
+</head>
+<body>
+<h1>Greyscale is not averaging, and quantisation is clustering</h1>
+<p>Top: three greyscale formulas on the same saturated image — compare pure blue and yellow.
+Bottom: K-Means reduces the image to k colours, exactly like a GIF palette.</p>
+<div class="row">
+  <figure><canvas id="src" width="150" height="150"></canvas><figcaption>source</figcaption></figure>
+  <figure><canvas id="luma" width="150" height="150"></canvas><figcaption>luminance 0.299/0.587/0.114</figcaption></figure>
+  <figure><canvas id="avg" width="150" height="150"></canvas><figcaption>average (R+G+B)/3</figcaption></figure>
+  <figure><canvas id="des" width="150" height="150"></canvas><figcaption>desaturate (max+min)/2</figcaption></figure>
+</div>
+<div class="row" style="margin-top:12px">
+  <figure><canvas id="quant" width="150" height="150"></canvas><figcaption>K-Means quantised</figcaption></figure>
+  <figure style="flex:2">
+    <div style="font-size:12px;color:#475569">palette (k colours)</div>
+    <div class="pal" id="pal"></div>
+    <label style="margin-top:14px">k <input type="range" id="k" min="2" max="10" step="1" value="5"><output id="v">5</output></label>
+  </figure>
+</div>
+<script>
+(function () {
+  var N = 150;
+  function paintSrc(ctx) {
+    ctx.fillStyle = '#2563eb'; ctx.fillRect(0, 0, N / 2, N / 2);        // pure blue
+    ctx.fillStyle = '#facc15'; ctx.fillRect(N / 2, 0, N / 2, N / 2);    // pure yellow
+    ctx.fillStyle = '#ef4444'; ctx.fillRect(0, N / 2, N / 2, N / 2);
+    ctx.fillStyle = '#22c55e'; ctx.fillRect(N / 2, N / 2, N / 2, N / 2);
+    var g = ctx.createLinearGradient(0, 0, N, N);
+    g.addColorStop(0, 'rgba(255,255,255,.35)'); g.addColorStop(1, 'rgba(0,0,0,.25)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, N, N);
   }
-  return out
-}
 
-// sRGB -> linear -> Y -> L*. Only the luminance path, since that is what the
-// page exposes (Lab a/b are not 8-bit friendly without offsetting).
-function labL(r, g, b) {
-  const lin = c => {
-    c /= 255
-    return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  function grey(kind) {
+    var ctx = document.getElementById(kind).getContext('2d');
+    var src = document.getElementById('src');
+    ctx.drawImage(src, 0, 0);
+    var img = ctx.getImageData(0, 0, N, N), d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var r = d[i], g = d[i + 1], b = d[i + 2], v;
+      if (kind === 'luma') v = 0.299 * r + 0.587 * g + 0.114 * b;
+      else if (kind === 'avg') v = (r + g + b) / 3;
+      else v = (Math.max(r, g, b) + Math.min(r, g, b)) / 2;
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    ctx.putImageData(img, 0, 0);
   }
-  const y = 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-  const f = y > 0.008856 ? Math.cbrt(y) : 7.787 * y + 16 / 116
-  return Math.max(0, Math.min(255, (116 * f - 16) * 2.55))
-}
 
-// K-Means, but sampled: 4096 points is enough to find 8 clusters.
-export function kmeansQuantise(pixels, k = 8, iters = 8) {
-  const step = Math.max(1, Math.floor(pixels.length / 3 / 4096))
-  const sample = []
-  for (let i = 0; i < pixels.length; i += 3 * step) sample.push([pixels[i], pixels[i + 1], pixels[i + 2]])
+  function quantise(k) {
+    var src = document.getElementById('src');
+    var tmp = document.createElement('canvas');
+    tmp.width = tmp.height = N;
+    var tctx = tmp.getContext('2d');
+    tctx.drawImage(src, 0, 0);
+    var img = tctx.getImageData(0, 0, N, N), d = img.data;
 
-  const centres = Array.from({ length: k }, (_, i) =>
-    sample[Math.floor((i * (sample.length - 1)) / Math.max(1, k - 1))])
+    // sample every 9th pixel: 150*150/9 = 2500 points is plenty for k<=10
+    var pts = [];
+    for (var i = 0; i < d.length; i += 36) pts.push([d[i], d[i + 1], d[i + 2]]);
 
-  for (let it = 0; it < iters; it++) {
-    const sums = Array.from({ length: k }, () => [0, 0, 0, 0])
-    for (const p of sample) {
-      let best = 0, bestD = Infinity
-      for (let c = 0; c < k; c++) {
-        const d = (p[0] - centres[c][0]) ** 2 + (p[1] - centres[c][1]) ** 2 + (p[2] - centres[c][2]) ** 2
-        if (d < bestD) { bestD = d; best = c }
+    var centres = [];
+    for (var c = 0; c < k; c++) centres.push(pts[Math.floor(c * (pts.length - 1) / (k - 1))].slice());
+
+    for (var it = 0; it < 12; it++) {
+      var sums = [];
+      for (var s = 0; s < k; s++) sums.push([0, 0, 0, 0]);
+      pts.forEach(function (p) {
+        var best = 0, bd = Infinity;
+        for (var s = 0; s < k; s++) {
+          var dd = (p[0] - centres[s][0]) ** 2 + (p[1] - centres[s][1]) ** 2 + (p[2] - centres[s][2]) ** 2;
+          if (dd < bd) { bd = dd; best = s; }
+        }
+        sums[best][0] += p[0]; sums[best][1] += p[1]; sums[best][2] += p[2]; sums[best][3]++;
+      });
+      for (var s2 = 0; s2 < k; s2++) {
+        if (sums[s2][3]) centres[s2] = [sums[s2][0] / sums[s2][3], sums[s2][1] / sums[s2][3], sums[s2][2] / sums[s2][3]];
       }
-      const s = sums[best]
-      s[0] += p[0]; s[1] += p[1]; s[2] += p[2]; s[3]++
     }
-    for (let c = 0; c < k; c++) {
-      if (sums[c][3]) centres[c] = [sums[c][0] / sums[c][3], sums[c][1] / sums[c][3], sums[c][2] / sums[c][3]]
+
+    for (var i2 = 0; i2 < d.length; i2 += 4) {
+      var best2 = 0, bd2 = Infinity;
+      for (var s3 = 0; s3 < k; s3++) {
+        var dd2 = (d[i2] - centres[s3][0]) ** 2 + (d[i2 + 1] - centres[s3][1]) ** 2 + (d[i2 + 2] - centres[s3][2]) ** 2;
+        if (dd2 < bd2) { bd2 = dd2; best2 = s3; }
+      }
+      d[i2] = centres[best2][0]; d[i2 + 1] = centres[best2][1]; d[i2 + 2] = centres[best2][2];
     }
+
+    var q = document.getElementById('quant').getContext('2d');
+    q.putImageData(img, 0, 0);
+
+    document.getElementById('pal').innerHTML = centres.map(function (c) {
+      return '<i style="background:rgb(' + c.map(Math.round).join(',') + ')"></i>';
+    }).join('');
   }
-  return centres
-}
-`,
+
+  function render() {
+    var k = parseInt(document.getElementById('k').value, 10);
+    document.getElementById('v').textContent = k;
+    quantise(k);
+  }
+
+  paintSrc(document.getElementById('src').getContext('2d'));
+  ['luma', 'avg', 'des'].forEach(grey);
+  document.getElementById('k').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 灰度不是「取平均」
@@ -2979,48 +3946,113 @@ if __name__ == "__main__":
     out = apply(img, t)
 `,
 
-    javascript: `// The LUT pattern, plus the two adjustment formulas people get wrong.
-export function buildLut(fn) {
-  const table = new Uint8ClampedArray(256)
-  for (let v = 0; v < 256; v++) table[v] = fn(v)
-  return table
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Point operations, done as a LUT</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;display:block;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{flex:1;min-width:220px}
+  .ctl div{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px}
+  .ctl b{width:76px;font-weight:500}
+  .ctl input[type=range]{flex:1}
+  .ctl output{width:44px;text-align:right;font-variant-numeric:tabular-nums;color:#475569}
+  #curve{border-radius:6px;background:#fff;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Ten sliders, one 256-entry table</h1>
+<p>Every adjustment below is a point operation, so it becomes a lookup table. The curve on the right
+is that table drawn as a graph — apply the same curve in Python and you get identical pixels.</p>
+<div class="wrap">
+  <canvas id="c" width="260" height="260"></canvas>
+  <div class="ctl">
+    <div><b>brightness</b><input type="range" id="br" min="-80" max="80" step="1" value="0"><output id="obr">0</output></div>
+    <div><b>contrast</b><input type="range" id="co" min="0.3" max="2.2" step="0.02" value="1"><output id="oco">1.00</output></div>
+    <div><b>gamma</b><input type="range" id="ga" min="0.3" max="2.4" step="0.02" value="1"><output id="oga">1.00</output></div>
+    <div><b>black</b><input type="range" id="bl" min="0" max="120" step="1" value="0"><output id="obl">0</output></div>
+    <canvas id="curve" width="260" height="120"></canvas>
+  </div>
+</div>
+<script>
+(function () {
+  var S = 260;
+  var src = document.createElement('canvas');
+  src.width = src.height = S;
+  (function paint() {
+    var g = src.getContext('2d');
+    var lin = g.createLinearGradient(0, 0, S, 0);
+    lin.addColorStop(0, '#0b1220'); lin.addColorStop(1, '#fef3c7');
+    g.fillStyle = lin; g.fillRect(0, 0, S, S);
+    g.fillStyle = 'rgba(239,68,68,.85)'; g.beginPath(); g.arc(80, 90, 46, 0, Math.PI * 2); g.fill();
+    g.fillStyle = 'rgba(34,197,94,.75)'; g.fillRect(150, 140, 90, 90);
+    g.fillStyle = 'rgba(59,130,246,.8)'; g.fillRect(30, 168, 70, 62);
+  })();
+  var srcData = src.getContext('2d').getImageData(0, 0, S, S);
 
-export function applyLut(imageData, table) {
-  const { data } = imageData
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = table[data[i]]
-    data[i + 1] = table[data[i + 1]]
-    data[i + 2] = table[data[i + 2]]
-    // alpha untouched -- adjusting it would change transparency, not colour
+  function buildLut() {
+    var br = +document.getElementById('br').value;
+    var co = +document.getElementById('co').value;
+    var ga = +document.getElementById('ga').value;
+    var bl = +document.getElementById('bl').value;
+    var lut = new Uint8ClampedArray(256);
+    for (var v = 0; v < 256; v++) {
+      var x = (v + br - 128) * co + 128;         // brightness = offset, contrast = pivot around 128
+      x = Math.max(0, Math.min(255, x)) / 255;
+      x = Math.pow(x, 1 / ga);                    // gamma: pins 0 and 255
+      x = (x * 255 - bl) / Math.max(1, 255 - bl) * 255;   // levels: black point
+      lut[v] = x;
+    }
+    return lut;
   }
-  return imageData
-}
 
-export const contrastLut = (factor) =>
-  buildLut(v => (v - 128) * factor + 128)
-
-export const gammaLut = (g) =>
-  buildLut(v => 255 * (v / 255) ** (1 / g))
-
-// Auto contrast: clip the histogram tails, then stretch. 1%/99% rather than
-// min/max, so a single hot pixel cannot ruin the whole image.
-export function autoContrastLut(imageData) {
-  const hist = new Uint32Array(256)
-  const { data } = imageData
-  for (let i = 0; i < data.length; i += 4) {
-    hist[Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])]++
+  function apply(lut) {
+    var out = document.getElementById('c').getContext('2d');
+    var img = new ImageData(new Uint8ClampedArray(srcData.data), S, S);
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      d[i] = lut[d[i]]; d[i + 1] = lut[d[i + 1]]; d[i + 2] = lut[d[i + 2]];
+    }
+    out.putImageData(img, 0, 0);
   }
-  const total = data.length / 4
-  let lo = 0, hi = 255, acc = 0
-  while (acc < total * 0.01) acc += hist[lo++]
-  acc = 0
-  while (acc < total * 0.01) acc += hist[hi--]
 
-  const span = Math.max(1, hi - lo)
-  return buildLut(v => ((v - lo) / span) * 255)
-}
-`,
+  function drawCurve(lut) {
+    var cv = document.getElementById('curve'), g = cv.getContext('2d');
+    g.clearRect(0, 0, 260, 120);
+    g.strokeStyle = '#e2e8f0'; g.lineWidth = 1;
+    g.strokeRect(0.5, 0.5, 259, 119);
+    g.beginPath();
+    for (var v = 0; v < 256; v++) {
+      var x = v / 255 * 260;
+      var y = 120 - lut[v] / 255 * 120;
+      if (v === 0) g.moveTo(x, y); else g.lineTo(x, y);
+    }
+    g.strokeStyle = '#2563eb'; g.lineWidth = 2; g.stroke();
+    g.strokeStyle = 'rgba(148,163,184,.6)'; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, 120); g.lineTo(260, 0); g.stroke();
+  }
+
+  function render() {
+    document.getElementById('obr').textContent = document.getElementById('br').value;
+    document.getElementById('oco').textContent = (+document.getElementById('co').value).toFixed(2);
+    document.getElementById('oga').textContent = (+document.getElementById('ga').value).toFixed(2);
+    document.getElementById('obl').textContent = document.getElementById('bl').value;
+    var lut = buildLut();
+    apply(lut); drawCurve(lut);
+  }
+
+  ['br', 'co', 'ga', 'bl'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 所有调整都是「点运算」，所以都能用 LUT
@@ -3179,61 +4211,130 @@ def unsharp_mask(img, radius=1, amount=0.5):
     return np.clip(img + amount * (img.astype(float) - blurred), 0, 255).astype(np.uint8)
 `,
 
-    javascript: `// The kernel table, and the two filters that need more than a kernel.
-export const KERNELS = {
-  box: r => Array.from({ length: 2 * r + 1 }, () => Array(2 * r + 1).fill(1)),
-  laplacian: () => [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
-  sharpen: () => [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
-  emboss: () => [[-2, -1, 0], [-1, 1, 1], [0, 1, 2]]
-}
-
-export function gaussian(r) {
-  const sigma = r / 2
-  const size = 2 * r + 1
-  const k = []
-  let sum = 0
-  for (let y = -r; y <= r; y++) {
-    const row = []
-    for (let x = -r; x <= r; x++) {
-      const v = Math.exp(-(x * x + y * y) / (2 * sigma * sigma))
-      row.push(v); sum += v
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Nine filters, one convolution</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:150px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  .btns{margin-top:12px}
+  button{font:inherit;font-size:12px;padding:5px 11px;border-radius:6px;border:1px solid #cbd5e1;
+         background:#fff;cursor:pointer;margin:0 6px 6px 0}
+  button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+</style>
+</head>
+<body>
+<h1>The kernel is the entire difference</h1>
+<p>Same convolution function, different 3x3 table. Note that the divisor is the kernel sum — except
+for edge detectors, whose sum is zero and must be divided by 1 instead.</p>
+<div class="row">
+  <figure><canvas id="src" width="180" height="180"></canvas><figcaption>source</figcaption></figure>
+  <figure><canvas id="out" width="180" height="180"></canvas><figcaption id="name">—</figcaption></figure>
+  <figure><canvas id="kern" width="180" height="180"></canvas><figcaption>kernel (normalised for display)</figcaption></figure>
+</div>
+<div class="btns" id="btns"></div>
+<script>
+(function () {
+  var S = 180;
+  var src = document.createElement('canvas');
+  src.width = src.height = S;
+  (function paint() {
+    var g = src.getContext('2d');
+    g.fillStyle = '#f1f5f9'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#1d4ed8'; g.fillRect(30, 30, 70, 70);
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(125, 120, 36, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0f172a'; g.fillRect(20, 140, 140, 12);
+    // noise speckles: makes blur vs median visible
+    for (var i = 0; i < 90; i++) {
+      g.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
+      g.fillRect(Math.random() * S, Math.random() * S, 2, 2);
     }
-    k.push(row)
-  }
-  return k.map(row => row.map(v => v / sum))       // normalise so brightness holds
-}
+  })();
+  var srcData = src.getContext('2d').getImageData(0, 0, S, S);
 
-// Bilateral: weight neighbours by BOTH distance and colour similarity.
-// That is the whole filter -- and the reason edges survive.
-export function bilateral(imageData, radius = 4, sigmaSpace = 4, sigmaColor = 50) {
-  const { data, width, height } = imageData
-  const out = new ImageData(width, height)
-  const spaceLut = []                              // precompute the spatial term
-  for (let d = 0; d <= radius; d++) spaceLut[d] = Math.exp(-(d * d) / (2 * sigmaSpace ** 2))
-  const colorLut = []                              // and the range term
-  for (let d = 0; d < 512; d++) colorLut[d] = Math.exp(-(d * d) / (2 * sigmaColor ** 2))
+  var KERNELS = {
+    'box blur': [[1,1,1],[1,1,1],[1,1,1]],
+    'gaussian': [[1,2,1],[2,4,2],[1,2,1]],
+    'sharpen': [[0,-1,0],[-1,5,-1],[0,-1,0]],
+    'laplacian': [[0,-1,0],[-1,4,-1],[0,-1,0]],
+    'emboss': [[-2,-1,0],[-1,1,1],[0,1,2]],
+    'sobel-x': [[-1,0,1],[-2,0,2],[-1,0,1]]
+  };
 
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const ci = (y * width + x) * 4
-      let r = 0, g = 0, b = 0, wsum = 0
-      for (let dy = -radius; dy <= radius; dy++) {
-        for (let dx = -radius; dx <= radius; dx++) {
-          const ny = y + dy, nx = x + dx
-          if (ny < 0 || ny >= height || nx < 0 || nx >= width) continue
-          const ni = (ny * width + nx) * 4
-          const diff = Math.abs(data[ci] - data[ni]) + Math.abs(data[ci + 1] - data[ni + 1]) + Math.abs(data[ci + 2] - data[ni + 2])
-          const w = spaceLut[Math.max(Math.abs(dx), Math.abs(dy))] * colorLut[Math.min(511, diff)]
-          r += data[ni] * w; g += data[ni + 1] * w; b += data[ni + 2] * w; wsum += w
+  function convolve(k) {
+    var sum = 0;
+    k.forEach(function (row) { row.forEach(function (v) { sum += v; }); });
+    var div = Math.abs(sum) > 1e-6 ? sum : 1;
+    var off = Math.abs(sum) > 1e-6 ? 0 : 128;      // edge kernels need a bias to be visible
+    var d = srcData.data;
+    var img = new ImageData(S, S);
+    for (var y = 0; y < S; y++) {
+      for (var x = 0; x < S; x++) {
+        var acc = [0, 0, 0];
+        for (var j = -1; j <= 1; j++) {
+          for (var i = -1; i <= 1; i++) {
+            var yy = Math.min(S - 1, Math.max(0, y + j));
+            var xx = Math.min(S - 1, Math.max(0, x + i));
+            var w = k[j + 1][i + 1], p = (yy * S + xx) * 4;
+            acc[0] += d[p] * w; acc[1] += d[p + 1] * w; acc[2] += d[p + 2] * w;
+          }
         }
+        var o = (y * S + x) * 4;
+        img.data[o] = acc[0] / div + off;
+        img.data[o + 1] = acc[1] / div + off;
+        img.data[o + 2] = acc[2] / div + off;
+        img.data[o + 3] = 255;
       }
-      out.data[ci] = r / wsum; out.data[ci + 1] = g / wsum; out.data[ci + 2] = b / wsum
-      out.data[ci + 3] = data[ci + 3]
     }
+    return img;
   }
-  return out
-}
-`,
+
+  function drawKernel(k) {
+    var cv = document.getElementById('kern'), g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, S, S);
+    var max = 0;
+    k.forEach(function (r) { r.forEach(function (v) { max = Math.max(max, Math.abs(v)); }); });
+    var cell = 46, ox = (S - cell * 3) / 2, oy = (S - cell * 3) / 2;
+    k.forEach(function (row, j) {
+      row.forEach(function (v, i) {
+        var t = Math.abs(v) / (max || 1);
+        g.fillStyle = v >= 0 ? 'rgba(37,99,235,' + (0.12 + t * 0.8) + ')'
+                            : 'rgba(220,38,38,' + (0.12 + t * 0.8) + ')';
+        g.fillRect(ox + i * cell, oy + j * cell, cell - 3, cell - 3);
+        g.fillStyle = Math.abs(v) > 0.8 ? '#fff' : '#0f172a';
+        g.font = 'bold 13px ui-monospace, monospace';
+        g.fillText(String(v), ox + i * cell + 13, oy + j * cell + 28);
+      });
+    });
+  }
+
+  function show(name) {
+    document.querySelectorAll('#btns button').forEach(function (b) {
+      b.classList.toggle('on', b.textContent === name);
+    });
+    var img = convolve(KERNELS[name]);
+    document.getElementById('out').getContext('2d').putImageData(img, 0, 0);
+    document.getElementById('name').textContent = name;
+    drawKernel(KERNELS[name]);
+  }
+
+  Object.keys(KERNELS).forEach(function (name) {
+    var b = document.createElement('button');
+    b.textContent = name;
+    b.addEventListener('click', function () { show(name); });
+    document.getElementById('btns').appendChild(b);
+  });
+  show('gaussian');
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 九种滤波，一个卷积
@@ -3397,55 +4498,116 @@ def super_res(img, factor=2):
     return img[ys][:, xs]
 `,
 
-    javascript: `// Histogram equalisation and the "beautify" pipeline, both model-free.
-export function histogramEqualise(imageData) {
-  const { data, width, height } = imageData
-  const hist = new Uint32Array(256)
-
-  for (let i = 0; i < data.length; i += 4) {
-    const y = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
-    hist[y]++
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Histogram equalisation, and what it amplifies</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:160px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:170px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Equalisation stretches what is there — including noise</h1>
+<p>A flat image uses only a narrow band of levels. Mapping levels through the CDF spreads them out.
+Turn the noise up and watch the histogram flatten, then watch the grain appear.</p>
+<div class="row">
+  <figure><canvas id="a" width="200" height="150"></canvas><figcaption>flat original</figcaption></figure>
+  <figure><canvas id="b" width="200" height="150"></canvas><figcaption>equalised</figcaption></figure>
+</div>
+<div class="row" style="margin-top:10px">
+  <figure><canvas id="ha" width="200" height="80"></canvas><figcaption>histogram before</figcaption></figure>
+  <figure><canvas id="hb" width="200" height="80"></canvas><figcaption>histogram after</figcaption></figure>
+</div>
+<label>noise σ <input type="range" id="nz" min="0" max="18" step="1" value="4"><output id="v">4</output></label>
+<label>original band <input type="range" id="bd" min="20" max="140" step="5" value="60"><output id="v2">60</output></label>
+<script>
+(function () {
+  var W = 200, H = 150, seed = 12345;
+  function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+  function gauss() {
+    var u = Math.max(1e-6, rnd()), v = rnd();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
   }
 
-  // build the CDF, find the first non-empty bin
-  const cdf = new Uint32Array(256)
-  let acc = 0, cdfMin = 0
-  for (let v = 0; v < 256; v++) {
-    acc += hist[v]
-    cdf[v] = acc
-    if (!cdfMin && acc > 0) cdfMin = acc
+  function baseAt(x, y) {
+    // a smooth scene compressed into a narrow band (the "flat photo")
+    var t = (Math.sin(x / 26) + Math.cos(y / 19) + 2) / 4;
+    return t;                       // 0..1
   }
 
-  const total = width * height
-  const lut = new Uint8ClampedArray(256)
-  for (let v = 0; v < 256; v++) {
-    lut[v] = ((cdf[v] - cdfMin) / Math.max(1, total - cdfMin)) * 255
+  function draw() {
+    var sigma = +document.getElementById('nz').value;
+    var band = +document.getElementById('bd').value;
+    document.getElementById('v').textContent = sigma;
+    document.getElementById('v2').textContent = band;
+    seed = 12345;
+
+    var A = document.getElementById('a').getContext('2d');
+    var ia = A.createImageData(W, H);
+    var hist1 = new Uint32Array(256);
+    for (var y = 0; y < H; y++) {
+      for (var x = 0; x < W; x++) {
+        var v = 128 - band / 2 + baseAt(x, y) * band + gauss() * sigma;
+        v = Math.max(0, Math.min(255, v));
+        var i = (y * W + x) * 4;
+        ia.data[i] = ia.data[i + 1] = ia.data[i + 2] = v; ia.data[i + 3] = 255;
+        hist1[Math.round(v)]++;
+      }
+    }
+    A.putImageData(ia, 0, 0);
+
+    // CDF -> LUT, exactly the textbook formula
+    var cdf = new Uint32Array(256), acc = 0, cdfMin = 0;
+    for (var k = 0; k < 256; k++) { acc += hist1[k]; cdf[k] = acc; if (!cdfMin && acc > 0) cdfMin = acc; }
+    var total = W * H, lut = new Uint8ClampedArray(256);
+    for (var k2 = 0; k2 < 256; k2++) {
+      lut[k2] = (cdf[k2] - cdfMin) / Math.max(1, total - cdfMin) * 255;
+    }
+
+    var B = document.getElementById('b').getContext('2d');
+    var ib = B.createImageData(W, H);
+    var hist2 = new Uint32Array(256);
+    for (var i2 = 0; i2 < ia.data.length; i2 += 4) {
+      var l = Math.round(0.299 * ia.data[i2] + 0.587 * ia.data[i2 + 1] + 0.114 * ia.data[i2 + 2]);
+      var ratio = lut[l] / Math.max(1, l);      // same ratio on all channels: no colour cast
+      ib.data[i2] = ia.data[i2] * ratio;
+      ib.data[i2 + 1] = ia.data[i2 + 1] * ratio;
+      ib.data[i2 + 2] = ia.data[i2 + 2] * ratio;
+      ib.data[i2 + 3] = 255;
+      hist2[Math.round(Math.min(255, ib.data[i2]))]++;
+    }
+    B.putImageData(ib, 0, 0);
+
+    drawHist('ha', hist1); drawHist('hb', hist2);
   }
 
-  for (let i = 0; i < data.length; i += 4) {
-    const y = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])
-    // scale all three channels by the same ratio: equalising each channel
-    // independently is what causes the colour casts people complain about
-    const ratio = lut[y] / Math.max(1, y)
-    data[i] = data[i] * ratio
-    data[i + 1] = data[i + 1] * ratio
-    data[i + 2] = data[i + 2] * ratio
+  function drawHist(id, hist) {
+    var cv = document.getElementById(id), g = cv.getContext('2d');
+    g.clearRect(0, 0, 200, 80);
+    var max = 1;
+    for (var i = 0; i < 256; i++) max = Math.max(max, hist[i]);
+    g.fillStyle = '#2563eb';
+    for (var v = 0; v < 256; v++) {
+      var h = (hist[v] / max) * 72;
+      g.fillRect(v / 256 * 200, 78 - h, 200 / 256, h);
+    }
   }
-  return imageData
-}
 
-// Noise generation: Box-Muller gives a proper Gaussian from two uniforms.
-export function gaussianNoise(imageData, sigma = 12) {
-  const { data } = imageData
-  for (let i = 0; i < data.length; i += 4) {
-    const u1 = Math.random() || 1e-9
-    const u2 = Math.random()
-    const n = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * sigma
-    data[i] += n; data[i + 1] += n; data[i + 2] += n
-  }
-  return imageData
-}
-`,
+  document.getElementById('nz').addEventListener('input', draw);
+  document.getElementById('bd').addEventListener('input', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 直方图均衡为什么能增强对比
@@ -3632,62 +4794,99 @@ def skeleton(binary, max_iter=60):
     return img
 `,
 
-    javascript: `// Thresholds and the four morphology ops, on a binary mask.
-export function otsu(gray) {
-  const hist = new Uint32Array(256)
-  for (const v of gray) hist[v]++
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Erode, dilate, and what order does</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:130px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15);image-rendering:pixelated}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:16px}
+  input[type=range]{width:140px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Erosion shrinks, dilation grows, and the order is the trick</h1>
+<p>Opening (erode then dilate) deletes specks and keeps shapes. Closing (dilate then erode) fills
+holes. Reverse the order and you get the opposite result — the first operation decides what counts
+as noise.</p>
+<div class="row">
+  <figure><canvas id="s" width="96" height="96"></canvas><figcaption>binary input</figcaption></figure>
+  <figure><canvas id="e" width="96" height="96"></canvas><figcaption>erode x<i id="ni">1</i></figcaption></figure>
+  <figure><canvas id="d" width="96" height="96"></canvas><figcaption>dilate x<i id="ni2">1</i></figcaption></figure>
+  <figure><canvas id="o" width="96" height="96"></canvas><figcaption>open (E then D)</figcaption></figure>
+  <figure><canvas id="c" width="96" height="96"></canvas><figcaption>close (D then E)</figcaption></figure>
+</div>
+<label>iterations <input type="range" id="it" min="1" max="4" step="1" value="1"><output id="v">1</output></label>
+<script>
+(function () {
+  var N = 96;
+  // a shape with a hole, a thin bridge and three specks: every case in one image
+  var base = new Uint8Array(N * N);
+  function put(x, y) { if (x >= 0 && y >= 0 && x < N && y < N) base[y * N + x] = 1; }
+  for (var y = 18; y < 62; y++) for (var x = 14; x < 58; x++) put(x, y);
+  for (var y = 30; y < 40; y++) for (var x = 28; x < 38; x++) base[y * N + x] = 0;   // hole
+  for (var x = 58; x < 84; x++) put(x, 40);                                          // thin bridge
+  [[80, 20], [84, 26], [76, 84]].forEach(function (p) {                               // specks
+    put(p[0], p[1]); put(p[0] + 1, p[1]);
+  });
 
-  const total = gray.length
-  let sumAll = 0
-  for (let v = 0; v < 256; v++) sumAll += v * hist[v]
-
-  let wBg = 0, sumBg = 0, best = 0, bestVar = -1
-  for (let t = 0; t < 256; t++) {
-    wBg += hist[t]
-    if (!wBg) continue
-    const wFg = total - wBg
-    if (!wFg) break
-    sumBg += t * hist[t]
-    const mBg = sumBg / wBg
-    const mFg = (sumAll - sumBg) / wFg
-    const between = wBg * wFg * (mBg - mFg) ** 2
-    if (between > bestVar) { bestVar = between; best = t }
-  }
-  return best
-}
-
-// A 3x3 structuring element is all the page needs; r=1..3 with 1..5 iterations
-// gives the same range as a bigger element, at lower cost.
-const MIN = (a, b) => Math.min(a, b)
-const MAX = (a, b) => Math.max(a, b)
-
-export function morph(binary, width, height, op = 'erode', iterations = 1) {
-  let src = binary.slice()
-  for (let it = 0; it < iterations; it++) {
-    const out = new Uint8Array(width * height)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let acc = op === 'erode' ? 1 : 0
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            const ny = y + dy, nx = x + dx
-            // out-of-bounds counts as background for erode (shrinks at edges),
-            // as background for dilate too -- that keeps the border stable
-            const v = (ny < 0 || ny >= height || nx < 0 || nx >= width) ? 0 : src[ny * width + nx]
-            acc = op === 'erode' ? MIN(acc, v) : MAX(acc, v)
+  function morph(src, op, iters) {
+    var cur = src;
+    for (var it = 0; it < iters; it++) {
+      var out = new Uint8Array(N * N);
+      for (var y = 0; y < N; y++) {
+        for (var x = 0; x < N; x++) {
+          var acc = op === 'erode' ? 1 : 0;
+          for (var dy = -1; dy <= 1; dy++) {
+            for (var dx = -1; dx <= 1; dx++) {
+              var yy = y + dy, xx = x + dx;
+              var v = (yy < 0 || yy >= N || xx < 0 || xx >= N) ? 0 : cur[yy * N + xx];
+              acc = op === 'erode' ? (acc & v) : (acc | v);
+            }
           }
+          out[y * N + x] = acc;
         }
-        out[y * width + x] = acc
       }
+      cur = out;
     }
-    src = out
+    return cur;
   }
-  return src
-}
 
-export const open = (b, w, h, i = 1) => morph(morph(b, w, h, 'erode', i), w, h, 'dilate', i)
-export const close = (b, w, h, i = 1) => morph(morph(b, w, h, 'dilate', i), w, h, 'erode', i)
-`,
+  function paint(id, data) {
+    var cv = document.getElementById(id), g = cv.getContext('2d');
+    var img = g.createImageData(N, N);
+    for (var i = 0; i < data.length; i++) {
+      var v = data[i] ? 20 : 245;
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function render() {
+    var iters = parseInt(document.getElementById('it').value, 10);
+    document.getElementById('v').textContent = iters;
+    document.getElementById('ni').textContent = iters;
+    document.getElementById('ni2').textContent = iters;
+    paint('s', base);
+    var er = morph(base, 'erode', iters);
+    var di = morph(base, 'dilate', iters);
+    paint('e', er); paint('d', di);
+    paint('o', morph(er, 'dilate', iters));      // open
+    paint('c', morph(di, 'erode', iters));       // close
+  }
+  document.getElementById('it').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 阈值：Otsu 在最大化「两类之间的距离」
@@ -3862,60 +5061,164 @@ def harris(img, block=2, ksize=3, k=0.04, thresh_ratio=0.01):
     return R, R > thresh_ratio * R.max()      # page threshold defaults to 1%
 `,
 
-    javascript: `// Gradient, Canny's NMS step, and Hough voting -- the three ideas.
-export function sobelMagnitude(gray, width, height) {
-  const mag = new Float32Array(width * height)
-  const kx = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]
-  const ky = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]]
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sobel, NMS, hysteresis</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:150px}
+  canvas{width:100%;display:block;border-radius:6px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:5px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:14px}
+  input[type=range]{width:130px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Why Canny is not just "Sobel with a threshold"</h1>
+<p>Sobel gives a thick band of gradient. Non-maximum suppression thins it to one pixel by keeping
+only local maxima along the gradient direction. Hysteresis then keeps weak edges that touch strong
+ones.</p>
+<div class="row">
+  <figure><canvas id="s" width="180" height="180"></canvas><figcaption>source</figcaption></figure>
+  <figure><canvas id="g" width="180" height="180"></canvas><figcaption>|gradient| (Sobel)</figcaption></figure>
+  <figure><canvas id="n" width="180" height="180"></canvas><figcaption>+ non-max suppression</figcaption></figure>
+  <figure><canvas id="f" width="180" height="180"></canvas><figcaption>+ hysteresis (final)</figcaption></figure>
+</div>
+<label>low <input type="range" id="lo" min="5" max="120" step="5" value="40"><output id="vlo">40</output></label>
+<label>high <input type="range" id="hi" min="20" max="220" step="5" value="100"><output id="vhi">100</output></label>
+<script>
+(function () {
+  var S = 180;
+  var src = document.createElement('canvas');
+  src.width = src.height = S;
+  (function () {
+    var g = src.getContext('2d');
+    g.fillStyle = '#f8fafc'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#1e293b'; g.fillRect(26, 30, 80, 80);
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(126, 118, 38, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2563eb'; g.beginPath();
+    g.moveTo(30, 160); g.lineTo(72, 108); g.lineTo(104, 160); g.closePath(); g.fill();
+  })();
+  var d0 = src.getContext('2d').getImageData(0, 0, S, S).data;
 
-  for (let y = 1; y < height - 1; y++) {
-    for (let x = 1; x < width - 1; x++) {
-      let gx = 0, gy = 0
-      for (let j = 0; j < 3; j++) {
-        for (let i = 0; i < 3; i++) {
-          const v = gray[(y + j - 1) * width + (x + i - 1)]
-          gx += v * kx[j][i]
-          gy += v * ky[j][i]
+  function grey() {
+    var g = new Float32Array(S * S);
+    for (var i = 0; i < S * S; i++) {
+      g[i] = 0.299 * d0[i * 4] + 0.587 * d0[i * 4 + 1] + 0.114 * d0[i * 4 + 2];
+    }
+    return g;
+  }
+  var G = grey();
+
+  function sobel() {
+    var mag = new Float32Array(S * S), ang = new Float32Array(S * S);
+    var kx = [-1, 0, 1, -2, 0, 2, -1, 0, 1], ky = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+    for (var y = 1; y < S - 1; y++) {
+      for (var x = 1; x < S - 1; x++) {
+        var gx = 0, gy = 0, k = 0;
+        for (var j = -1; j <= 1; j++) {
+          for (var i = -1; i <= 1; i++, k++) {
+            var v = G[(y + j) * S + (x + i)];
+            gx += v * kx[k]; gy += v * ky[k];
+          }
+        }
+        mag[y * S + x] = Math.hypot(gx, gy);
+        ang[y * S + x] = Math.atan2(gy, gx);
+      }
+    }
+    return { mag: mag, ang: ang };
+  }
+  var S1 = sobel();
+  var peak = 0;
+  for (var i = 0; i < S1.mag.length; i++) peak = Math.max(peak, S1.mag[i]);
+
+  function nms() {
+    var out = new Float32Array(S * S);
+    for (var y = 1; y < S - 1; y++) {
+      for (var x = 1; x < S - 1; x++) {
+        var a = ((S1.ang[y * S + x] + Math.PI) * 180 / Math.PI) % 180;
+        var dir = Math.round(a / 45) % 4;         // 0,1,2,3 -> 0,45,90,135 deg
+        var m = S1.mag[y * S + x];
+        var n1, n2;
+        if (dir === 0) { n1 = S1.mag[y * S + x - 1]; n2 = S1.mag[y * S + x + 1]; }
+        else if (dir === 1) { n1 = S1.mag[(y - 1) * S + x + 1]; n2 = S1.mag[(y + 1) * S + x - 1]; }
+        else if (dir === 2) { n1 = S1.mag[(y - 1) * S + x]; n2 = S1.mag[(y + 1) * S + x]; }
+        else { n1 = S1.mag[(y - 1) * S + x - 1]; n2 = S1.mag[(y + 1) * S + x + 1]; }
+        out[y * S + x] = (m >= n1 && m >= n2) ? m : 0;
+      }
+    }
+    return out;
+  }
+  var N1 = nms();
+
+  function toCanvas(id, data, isGrey) {
+    var cv = document.getElementById(id), g = cv.getContext('2d');
+    var img = g.createImageData(S, S);
+    for (var i = 0; i < S * S; i++) {
+      var v = data[i];
+      if (isGrey) v = v / peak * 255;
+      v = Math.max(0, Math.min(255, v));
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
+
+  function render() {
+    var lo = +document.getElementById('lo').value;
+    var hi = +document.getElementById('hi').value;
+    document.getElementById('vlo').textContent = lo;
+    document.getElementById('vhi').textContent = hi;
+    if (hi < lo) { hi = lo; document.getElementById('hi').value = lo; document.getElementById('vhi').textContent = lo; }
+
+    document.getElementById('s').getContext('2d').drawImage(src, 0, 0);
+    toCanvas('g', S1.mag, true);
+    toCanvas('n', N1, true);
+
+    // hysteresis: strong seeds, weak survive only if adjacent to a seed
+    var tLo = lo / 255 * peak, tHi = hi / 255 * peak;
+    var strong = new Uint8Array(S * S), weak = new Uint8Array(S * S);
+    for (var i2 = 0; i2 < S * S; i2++) {
+      if (N1[i2] >= tHi) strong[i2] = 1;
+      else if (N1[i2] >= tLo) weak[i2] = 1;
+    }
+    var changed = true;
+    while (changed) {
+      changed = false;
+      for (var y = 1; y < S - 1; y++) {
+        for (var x = 1; x < S - 1; x++) {
+          var k2 = y * S + x;
+          if (!weak[k2]) continue;
+          if (strong[k2 - 1] || strong[k2 + 1] || strong[k2 - S] || strong[k2 + S] ||
+              strong[k2 - S - 1] || strong[k2 - S + 1] || strong[k2 + S - 1] || strong[k2 + S + 1]) {
+            strong[k2] = 1; weak[k2] = 0; changed = true;
+          }
         }
       }
-      mag[y * width + x] = Math.hypot(gx, gy)   // true magnitude, not |gx|+|gy|
     }
-  }
-  // normalise by the peak so the threshold slider means the same on every image
-  let peak = 0
-  for (const m of mag) if (m > peak) peak = m
-  if (peak) for (let i = 0; i < mag.length; i++) mag[i] /= peak
-  return mag
-}
+    var fin = new Float32Array(S * S);
+    for (var i3 = 0; i3 < S * S; i3++) fin[i3] = strong[i3] ? 255 : 0;
+    toCanvas('f', fin, false);
 
-// Hough for lines: every edge pixel votes for all (rho, theta) pairs its
-// line could have. Peaks in the accumulator are the lines.
-export function houghLines(edges, width, height, threshold = 80) {
-  const rhoMax = Math.ceil(Math.hypot(width, height))
-  const thetaSteps = 180                       // 1 degree
-  const acc = new Int32Array((2 * rhoMax + 1) * thetaSteps)
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      if (!edges[y * width + x]) continue
-      for (let t = 0; t < thetaSteps; t++) {
-        const theta = (t * Math.PI) / 180
-        const rho = Math.round(x * Math.cos(theta) + y * Math.sin(theta)) + rhoMax
-        acc[rho * thetaSteps + t]++
-      }
-    }
+    var count = 0;
+    for (var i4 = 0; i4 < S * S; i4++) if (strong[i4]) count++;
+    var g2 = document.getElementById('f').getContext('2d');
+    g2.fillStyle = '#dc2626'; g2.font = '11px ui-monospace, monospace';
+    g2.fillText((count / (S * S) * 100).toFixed(1) + '% edge pixels', 6, 14);
   }
 
-  const lines = []
-  for (let rho = 0; rho <= 2 * rhoMax; rho++) {
-    for (let t = 0; t < thetaSteps; t++) {
-      const votes = acc[rho * thetaSteps + t]
-      if (votes >= threshold) lines.push({ rho: rho - rhoMax, theta: (t * Math.PI) / 180, votes })
-    }
-  }
-  return lines
-}
-`,
+  ['lo', 'hi'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 边缘是「梯度大的地方」，而梯度算子有讲究
@@ -4044,18 +5347,22 @@ def doodlenet(canvas_28x28):
 
 
 # ---------- strategy 2: features + KNN, zero training ----------
-def teach(feature_extractor, memory, canvas, label):
-    """'Teach the machine' is not fine-tuning. The MobileNet backbone is
-    FROZEN; we only append the new sample to a memory bank. That is why it
-    works instantly and why it forgets nothing."""
-    emb = feature_extractor(canvas)           # 1024-d, L2-normalised
-    memory.append((emb, label))
+def embed_canvas(canvas, backbone):
+    """The frozen backbone: an image in, a 1024-d unit vector out.
+    In the page this is MobileNet v2's penultimate layer (1024 numbers)."""
+    return backbone.infer(canvas)
 
 
-def predict(memory, canvas, feature_extractor, k=3):
+def teach(memory, canvas, label, backbone):
+    """'Teach the machine' is not fine-tuning. The backbone is FROZEN, so
+    'learning' is one append to a memory bank -- instant, and it forgets nothing."""
+    memory.append((embed_canvas(canvas, backbone), label))
+
+
+def predict(memory, canvas, backbone, k=3):
     """KNN over embeddings: cosine similarity, majority vote among k nearest.
     No gradients, no epoch loop -- the whole 'training' is one append."""
-    emb = feature_extractor(canvas)
+    emb = embed_canvas(canvas, backbone)
     sims = [(float(emb @ m / (np.linalg.norm(emb) * np.linalg.norm(m) + 1e-9)), label)
             for m, label in memory]
     sims.sort(reverse=True)
@@ -4071,46 +5378,133 @@ def predict(memory, canvas, feature_extractor, k=3):
 #   so the label space matches the input distribution almost perfectly.
 `,
 
-    javascript: `// The teach-by-example path: MobileNet features + knn-classifier.
-import * as tf from '@tensorflow/tfjs'
-import * as mobilenet from '@tensorflow-models/mobilenet'
-import * as knnClassifier from '@tensorflow-models/knn-classifier'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Teach it by example (KNN on features)</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15);cursor:crosshair;touch-action:none}
+  .side{flex:1;min-width:200px;font-size:12px}
+  button{font:inherit;font-size:12px;padding:5px 11px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;margin:0 6px 6px 0}
+  button:hover{background:#f1f5f9}
+  .out{margin-top:10px;font-size:13px}
+  .out b{font-size:20px;color:#0f172a}
+  .feat{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;margin-top:10px}
+  .feat i{aspect-ratio:1;background:#e2e8f0;border-radius:2px}
+</style>
+</head>
+<body>
+<h1>No training — just memory</h1>
+<p>Draw in the box, then label it. The features are a 4x4 gradient histogram over an 8x8 grid
+(16 numbers). Classification is nearest neighbour over what you taught it.</p>
+<div class="wrap">
+  <canvas id="c" width="240" height="240"></canvas>
+  <div class="side">
+    <div style="margin-bottom:8px">teach this drawing as:</div>
+    <button data-k="circle">circle</button>
+    <button data-k="line">line</button>
+    <button data-k="zigzag">zigzag</button>
+    <div class="out">guess: <b id="g">—</b> <span id="conf"></span></div>
+    <div class="feat" id="feat"></div>
+    <div style="margin-top:10px;color:#475569" id="mem">0 examples in memory</div>
+    <button id="clear" style="margin-top:10px">clear canvas</button>
+  </div>
+</div>
+<script>
+(function () {
+  var N = 240, c = document.getElementById('c'), ctx = c.getContext('2d');
+  var drawing = false;
+  function reset() {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, N, N);
+    ctx.strokeStyle = '#0f172a'; ctx.lineWidth = 6; ctx.lineCap = 'round';
+  }
+  reset();
 
-export async function createTeacher(modelUrl) {
-  // v2 alpha 1.0, served locally -- 1024-d features out of the penultimate layer
-  const backbone = await mobilenet.load({ version: 2, alpha: 1.0, modelUrl })
-  const classifier = knnClassifier.create()
-  return { backbone, classifier }
-}
+  function pos(e) {
+    var r = c.getBoundingClientRect();
+    return [ (e.clientX - r.left) / r.width * N, (e.clientY - r.top) / r.height * N ];
+  }
+  c.addEventListener('pointerdown', function (e) { drawing = true; var p = pos(e); ctx.beginPath(); ctx.moveTo(p[0], p[1]); });
+  c.addEventListener('pointermove', function (e) {
+    if (!drawing) return;
+    var p = pos(e); ctx.lineTo(p[0], p[1]); ctx.stroke();
+  });
+  c.addEventListener('pointerup', function () { drawing = false; update(); });
+  c.addEventListener('pointerleave', function () { drawing = false; });
 
-export async function addExample({ backbone, classifier }, canvas, label) {
-  // getLogits gives the embedding, not the ImageNet predictions
-  const activation = backbone.infer(canvas, true)
-  classifier.addExample(activation, label)
-  activation.dispose()                       // tfjs tensors are not GC'd
-}
+  // 8x8 grid, 2 numbers per cell (dominant orientation as sin/cos) = 128 dims, shown as 64 cells
+  function features() {
+    var d = ctx.getImageData(0, 0, N, N).data;
+    var G = 8, cell = N / G;
+    var out = [], hist = new Float32Array(G * G);
+    for (var gy = 0; gy < G; gy++) {
+      for (var gx = 0; gx < G; gx++) {
+        var ink = 0;
+        for (var y = 0; y < cell; y += 3) {
+          for (var x = 0; x < cell; x += 3) {
+            var px = Math.floor(gx * cell + x), py = Math.floor(gy * cell + y);
+            var i = (py * N + px) * 4;
+            if (d[i] < 128) ink++;
+          }
+        }
+        hist[gy * G + gx] = ink;
+      }
+    }
+    var max = 1;
+    for (var k = 0; k < hist.length; k++) max = Math.max(max, hist[k]);
+    for (var k2 = 0; k2 < hist.length; k2++) out.push(hist[k2] / max);
+    return out;
+  }
 
-export async function classify({ backbone, classifier }, canvas) {
-  if (classifier.getNumClasses() < 2) return null
-  const activation = backbone.infer(canvas, true)
-  const scores = await classifier.predictClass(activation, 3)   // k = 3
-  activation.dispose()
-  return { label: scores.label, confidence: scores.confidences[scores.label] }
-}
+  var memory = [];
 
-// DoodleNet is a different beast: a fixed 345-class model, no teaching.
-// It expects a 28x28 stroke image on black, so the canvas must be prepared
-// the same way the Quick Draw dataset was -- this is where people go wrong.
-export function toDoodleInput(canvas) {
-  const small = document.createElement('canvas')
-  small.width = small.height = 28
-  const ctx = small.getContext('2d')
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, 28, 28)
-  ctx.drawImage(canvas, 0, 0, 28, 28)
-  return small
-}
-`,
+  function cosine(a, b) {
+    var dot = 0, na = 0, nb = 0;
+    for (var i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+    return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
+  }
+
+  function update() {
+    var f = features();
+    var grid = document.getElementById('feat');
+    grid.innerHTML = f.map(function (v) {
+      return '<i style="background:rgba(37,99,235,' + (0.08 + v * 0.9) + ')"></i>';
+    }).join('');
+
+    if (!memory.length) {
+      document.getElementById('g').textContent = '—';
+      document.getElementById('conf').textContent = '';
+      return;
+    }
+    var best = null;
+    memory.forEach(function (m) {
+      var s = cosine(f, m.f);
+      if (!best || s > best.s) best = { s: s, k: m.k };
+    });
+    document.getElementById('g').textContent = best.k;
+    document.getElementById('conf').textContent = '(cos ' + best.s.toFixed(2) + ')';
+  }
+
+  document.querySelectorAll('button[data-k]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var f = features();
+      var sum = f.reduce(function (a, v) { return a + v; }, 0);
+      if (sum <= 0) return;
+      memory.push({ f: f, k: b.dataset.k });
+      document.getElementById('mem').textContent = memory.length + ' examples in memory';
+      update();
+    });
+  });
+  document.getElementById('clear').addEventListener('click', function () { reset(); update(); });
+  update();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 两个工具，两种完全不同的思路
@@ -4246,46 +5640,98 @@ if __name__ == "__main__":
     print(cost(4000, 3000)) # 48 MB uncompressed for a 12 MP photo
 `,
 
-    javascript: `// Eight by eight, blown up. The canvas does all of it.
-export function pixelDemo(img, cols = 8, rows = 8, cell = 16) {
-  // 1) shrink to 8x8 -- each destination pixel is an average of a block
-  const tiny = document.createElement('canvas')
-  tiny.width = cols
-  tiny.height = rows
-  const tctx = tiny.getContext('2d')
-  tctx.imageSmoothingEnabled = true       // averaging, NOT nearest
-  tctx.drawImage(img, 0, 0, cols, rows)
-
-  // 2) read the 64 values
-  const { data } = tctx.getImageData(0, 0, cols, rows)
-  const cells = []
-  for (let i = 0; i < data.length; i += 4) {
-    cells.push({ r: data[i], g: data[i + 1], b: data[i + 2], a: data[i + 3] })
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eight by eight, blown up</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  .box{background:#e2e8f0;padding:5px;border-radius:8px}
+  canvas{display:block;image-rendering:pixelated}
+  .meta{flex:1;min-width:180px;font-size:12px;color:#475569}
+  .meta code{background:#e2e8f0;padding:1px 5px;border-radius:3px;color:#0f172a}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:10px;font-size:12px}
+  input[type=range]{width:150px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>A pixel is four integers — here are 48 of them</h1>
+<p>The small canvas is the real data: 6x8 pixels. The big one is the same buffer drawn without
+smoothing, which is the only honest way to look at pixels.</p>
+<div class="row">
+  <div class="box"><canvas id="small" width="6" height="8" style="width:48px;height:64px"></canvas></div>
+  <div class="box"><canvas id="big" width="288" height="384" style="width:288px;height:384px"></canvas></div>
+  <div class="meta">
+    <div>size <code>6 x 8</code></div>
+    <div>bytes <code id="bytes">192</code> (RGBA)</div>
+    <div>levels per channel <code id="lv">256</code></div>
+    <div style="margin-top:10px">colours in this image:</div>
+    <div class="meta" id="pal" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px"></div>
+    <label>cell <input type="range" id="cell" min="12" max="48" step="4" value="36"><output id="v">36</output></label>
+  </div>
+</div>
+<script>
+(function () {
+  var W = 6, H = 8;
+  var px = [];
+  // a tiny "photo": sky gradient with a sun, hand-written as 48 RGBA values
+  for (var y = 0; y < H; y++) {
+    for (var x = 0; x < W; x++) {
+      var sky = 180 - y * 12;
+      var r = sky + 40, g = sky + 60, b = 235;
+      if (Math.hypot(x - 4, y - 2) < 1.2) { r = 253; g = 224; b = 71; }
+      if (y >= 6) { r = 90; g = 110; b = 70; }
+      px.push([r, g, b, 255]);
+    }
   }
 
-  // 3) blow it back up with smoothing OFF, so each pixel is a visible square
-  const big = document.createElement('canvas')
-  big.width = cols * cell
-  big.height = rows * cell
-  const bctx = big.getContext('2d')
-  bctx.imageSmoothingEnabled = false
-  bctx.drawImage(tiny, 0, 0, big.width, big.height)
+  var small = document.getElementById('small').getContext('2d');
+  px.forEach(function (p, i) {
+    small.fillStyle = 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')';
+    small.fillRect(i % W, Math.floor(i / W), 1, 1);
+  });
 
-  return { canvas: big, cells }
-}
-
-// Colour depth, concretely: quantise to N levels per channel and watch banding.
-export function quantise(imageData, bits = 8) {
-  const step = 255 / (2 ** bits - 1)
-  const { data } = imageData
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = Math.round(data[i] / step) * step
-    data[i + 1] = Math.round(data[i + 1] / step) * step
-    data[i + 2] = Math.round(data[i + 2] / step) * step
+  function drawBig(cell) {
+    var big = document.getElementById('big');
+    big.width = W * cell; big.height = H * cell;
+    big.style.width = (W * cell) + 'px'; big.style.height = (H * cell) + 'px';
+    var g = big.getContext('2d');
+    g.imageSmoothingEnabled = false;             // the whole trick
+    px.forEach(function (p, i) {
+      g.fillStyle = 'rgb(' + p[0] + ',' + p[1] + ',' + p[2] + ')';
+      g.fillRect((i % W) * cell, Math.floor(i / W) * cell, cell, cell);
+    });
+    g.strokeStyle = 'rgba(15,23,42,.12)';
+    for (var i2 = 0; i2 <= W; i2++) {
+      g.strokeRect(i2 * cell + 0.5, 0.5, 0, H * cell);
+    }
+    for (var j = 0; j <= H; j++) {
+      g.strokeRect(0.5, j * cell + 0.5, W * cell, 0);
+    }
+    document.getElementById('v').textContent = cell;
   }
-  return imageData
-}
-`,
+
+  var seen = {};
+  px.forEach(function (p) {
+    var k = p.slice(0, 3).join(',');
+    seen[k] = (seen[k] || 0) + 1;
+  });
+  document.getElementById('pal').innerHTML = Object.keys(seen).map(function (k) {
+    return '<i style="width:20px;height:20px;border-radius:4px;border:1px solid #cbd5e1;background:rgb(' + k + ')"></i>';
+  }).join('');
+  document.getElementById('bytes').textContent = W * H * 4;
+
+  document.getElementById('cell').addEventListener('input', function (e) {
+    drawBig(parseInt(e.target.value, 10));
+  });
+  drawBig(36);
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页没有任何算法，但它讲的是最容易被跳过的一层
@@ -4426,52 +5872,150 @@ def run(img):
 # is removed -- the classic mistake when chaining filters.
 `,
 
-    javascript: `// The same chain in the browser, one function per step, same in/out type.
-export function grayscale(imageData) {
-  const { data } = imageData
-  for (let i = 0; i < data.length; i += 4) {
-    const y = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
-    data[i] = data[i + 1] = data[i + 2] = y
-  }
-  return imageData
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A five-step chain, one frame at a time</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;display:block;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .steps{flex:1;min-width:190px}
+  .steps button{display:block;width:100%;text-align:left;font:inherit;font-size:12px;
+    padding:7px 10px;margin-bottom:5px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}
+  .steps button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  .steps small{display:block;opacity:.75;font-size:11px}
+</style>
+</head>
+<body>
+<h1>Order is the design, not an afterthought</h1>
+<p>Click a step to see its output. Note that denoise comes before edge detection: a gradient operator
+run on noise turns every speck into a strong false edge.</p>
+<div class="wrap">
+  <canvas id="c" width="220" height="220"></canvas>
+  <div class="steps" id="steps"></div>
+</div>
+<script>
+(function () {
+  var S = 220;
+  var base = document.createElement('canvas');
+  base.width = base.height = S;
+  (function () {
+    var g = base.getContext('2d');
+    g.fillStyle = '#f8fafc'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#1d4ed8'; g.fillRect(28, 40, 78, 78);
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(140, 120, 42, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0f172a'; g.fillRect(24, 168, 172, 14);
+    for (var i = 0; i < 260; i++) {                 // noise: this is what step 2 removes
+      g.fillStyle = Math.random() > 0.5 ? '#fff' : '#111';
+      g.fillRect(Math.random() * S, Math.random() * S, 2, 2);
+    }
+  })();
 
-export function autoLevels(imageData, lowPct = 0.01, highPct = 0.99) {
-  const { data } = imageData
-  const hist = new Uint32Array(256)
-  const total = data.length / 4
-  for (let i = 0; i < data.length; i += 4) {
-    hist[Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2])]++
+  function data(cv) { return cv.getContext('2d').getImageData(0, 0, S, S); }
+
+  function grey(img) {
+    var d = img.data;
+    for (var i = 0; i < d.length; i += 4) {
+      var v = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    return img;
   }
 
-  let acc = 0, lo = 0, hi = 255
-  while (acc < total * lowPct) acc += hist[lo++]
-  acc = 0
-  while (acc < total * (1 - highPct)) acc += hist[hi--]
-
-  const span = Math.max(1, hi - lo)
-  const lut = new Uint8ClampedArray(256)
-  for (let v = 0; v < 256; v++) lut[v] = ((v - lo) / span) * 255
-  for (let i = 0; i < data.length; i += 4) {
-    data[i] = lut[data[i]]
-    data[i + 1] = lut[data[i + 1]]
-    data[i + 2] = lut[data[i + 2]]
+  function median3(img) {
+    var d = img.data, out = new Uint8ClampedArray(d.length);
+    for (var y = 0; y < S; y++) {
+      for (var x = 0; x < S; x++) {
+        for (var ch = 0; ch < 3; ch++) {
+          var win = [];
+          for (var j = -1; j <= 1; j++) {
+            for (var i = -1; i <= 1; i++) {
+              var yy = Math.min(S - 1, Math.max(0, y + j)), xx = Math.min(S - 1, Math.max(0, x + i));
+              win.push(d[(yy * S + xx) * 4 + ch]);
+            }
+          }
+          win.sort(function (a, b) { return a - b; });
+          out[(y * S + x) * 4 + ch] = win[4];
+        }
+        out[(y * S + x) * 4 + 3] = 255;
+      }
+    }
+    return new ImageData(out, S, S);
   }
-  return imageData
-}
 
-// A pipeline is just an array of these. Keeping frames lets the UI show
-// intermediate results, which is the entire didactic value.
-export function runPipeline(steps, imageData) {
-  const frames = [{ name: 'input', data: imageData }]
-  let current = imageData
-  for (const step of steps) {
-    current = step.fn(current)
-    frames.push({ name: step.name, data: current })
+  function autoLevels(img) {
+    var d = img.data, hist = new Uint32Array(256), n = S * S;
+    for (var i = 0; i < d.length; i += 4) hist[d[i]]++;
+    var acc = 0, lo = 0, hi = 255;
+    while (acc < n * 0.01) acc += hist[lo++];
+    acc = 0;
+    while (acc < n * 0.01) acc += hist[hi--];
+    var span = Math.max(1, hi - lo), lut = new Uint8ClampedArray(256);
+    for (var v = 0; v < 256; v++) lut[v] = (v - lo) / span * 255;
+    for (var i2 = 0; i2 < d.length; i2 += 4) {
+      d[i2] = lut[d[i2]]; d[i2 + 1] = lut[d[i2 + 1]]; d[i2 + 2] = lut[d[i2 + 2]];
+    }
+    return img;
   }
-  return frames
-}
-`,
+
+  function sobel(img) {
+    var d = img.data, out = new Uint8ClampedArray(d.length);
+    var kx = [-1, 0, 1, -2, 0, 2, -1, 0, 1], ky = [-1, -2, -1, 0, 0, 0, 1, 2, 1];
+    for (var y = 1; y < S - 1; y++) {
+      for (var x = 1; x < S - 1; x++) {
+        var gx = 0, gy = 0, k = 0;
+        for (var j = -1; j <= 1; j++) {
+          for (var i = -1; i <= 1; i++, k++) {
+            var v = d[((y + j) * S + (x + i)) * 4];
+            gx += v * kx[k]; gy += v * ky[k];
+          }
+        }
+        var m = Math.min(255, Math.hypot(gx, gy) * 0.5);
+        var o = (y * S + x) * 4;
+        out[o] = out[o + 1] = out[o + 2] = m;
+        out[o + 3] = 255;
+      }
+    }
+    return new ImageData(out, S, S);
+  }
+
+  var frames = {};
+  (function build() {
+    frames[0] = grey(data(base));
+    frames[1] = median3(frames[0]);
+    frames[2] = autoLevels(new ImageData(new Uint8ClampedArray(frames[1].data), S, S));
+    frames[3] = sobel(frames[2]);
+  })();
+
+  var LABELS = [
+    ['input', 'raw photo, with noise'],
+    ['grayscale', 'luminance 0.299 / 0.587 / 0.114'],
+    ['median 3x3', 'noise gone, thin detail too'],
+    ['auto levels', '1% / 99% percentile stretch'],
+    ['sobel', 'gradient magnitude, normalised']
+  ];
+
+  function show(k) {
+    document.getElementById('c').getContext('2d').putImageData(frames[k], 0, 0);
+    document.querySelectorAll('#steps button').forEach(function (b, i) {
+      b.classList.toggle('on', i === k);
+    });
+  }
+
+  LABELS.forEach(function (l, i) {
+    var b = document.createElement('button');
+    b.innerHTML = '<b>' + (i + 1) + '. ' + l[0] + '</b><small>' + l[1] + '</small>';
+    b.addEventListener('click', function () { show(i); });
+    document.getElementById('steps').appendChild(b);
+  });
+  show(0);
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 流水线的教学价值在「中间结果」
@@ -4602,54 +6146,131 @@ def all_features(img, pool=2):
 # Both produce "feature maps". The difference is who chose the numbers.
 `,
 
-    javascript: `// Feature maps from a fixed kernel set, then reduce with ReLU + max pool.
-export const KERNELS = {
-  'sobel-x': [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]],
-  'sobel-y': [[-1, -2, -1], [0, 0, 0], [1, 2, 1]],
-  laplacian: [[0, -1, 0], [-1, 4, -1], [0, -1, 0]],
-  sharpen: [[0, -1, 0], [-1, 5, -1], [0, -1, 0]],
-  'mean': [[1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9], [1 / 9, 1 / 9, 1 / 9]]
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>What a conv layer actually computes</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:110px}
+  canvas{width:100%;display:block;border-radius:5px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.15)}
+  figcaption{font-size:11px;color:#475569;margin-top:4px;font-family:ui-monospace,monospace}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:14px}
+</style>
+</head>
+<body>
+<h1>Six hand-written kernels, one conv layer</h1>
+<p>These are feature maps produced by 3x3 kernels you can read. A trained CNN produces the same kind
+of maps — the only difference is who chose the numbers. Negative responses are shown as black, which
+is exactly what ReLU does.</p>
+<div class="row">
+  <figure><canvas id="src" width="120" height="120"></canvas><figcaption>input</figcaption></figure>
+  <div class="row" id="maps" style="flex:3"></div>
+</div>
+<label><input type="checkbox" id="relu" checked> apply ReLU</label>
+<label><input type="checkbox" id="pool"> 2x2 max pool</label>
+<script>
+(function () {
+  var S = 120;
+  var src = document.createElement('canvas');
+  src.width = src.height = S;
+  (function () {
+    var g = src.getContext('2d');
+    g.fillStyle = '#f1f5f9'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#1d4ed8'; g.fillRect(18, 20, 44, 44);
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(84, 60, 22, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#0f172a'; g.fillRect(14, 92, 92, 8);
+  })();
+  var d0 = src.getContext('2d').getImageData(0, 0, S, S).data;
+  var G = new Float32Array(S * S);
+  for (var i = 0; i < S * S; i++) {
+    G[i] = 0.299 * d0[i * 4] + 0.587 * d0[i * 4 + 1] + 0.114 * d0[i * 4 + 2];
+  }
 
-export function featureMap(gray, width, height, kernel, { relu = true, pool = 2 } = {}) {
-  // FLOAT buffer, not Uint8: clamping to 0..255 here would destroy the sign,
-  // and the sign is exactly what ReLU acts on.
-  const raw = new Float32Array(width * height)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let sum = 0
-      for (let j = -1; j <= 1; j++) {
-        for (let i = -1; i <= 1; i++) {
-          const ny = Math.min(height - 1, Math.max(0, y + j))   // edge replicate
-          const nx = Math.min(width - 1, Math.max(0, x + i))
-          sum += gray[ny * width + nx] * kernel[j + 1][i + 1]
+  var KERNELS = [
+    ['sobel-x', [[-1,0,1],[-2,0,2],[-1,0,1]]],
+    ['sobel-y', [[-1,-2,-1],[0,0,0],[1,2,1]]],
+    ['laplacian', [[0,-1,0],[-1,4,-1],[0,-1,0]]],
+    ['sharpen', [[0,-1,0],[-1,5,-1],[0,-1,0]]],
+    ['mean 1/9', [[1/9,1/9,1/9],[1/9,1/9,1/9],[1/9,1/9,1/9]]],
+    ['corner', [[1,-2,1],[-2,4,-2],[1,-2,1]]]
+  ];
+
+  function feature(k, relu, pool) {
+    var f = new Float32Array(S * S);
+    for (var y = 1; y < S - 1; y++) {
+      for (var x = 1; x < S - 1; x++) {
+        var acc = 0;
+        for (var j = -1; j <= 1; j++) {
+          for (var i = -1; i <= 1; i++) acc += G[(y + j) * S + (x + i)] * k[j + 1][i + 1];
+        }
+        f[y * S + x] = relu ? Math.max(0, acc) : acc;
+      }
+    }
+    var out = S, data = f;
+    if (pool) {
+      out = S >> 1;
+      var p = new Float32Array(out * out);
+      for (var py = 0; py < out; py++) {
+        for (var px = 0; px < out; px++) {
+          var m = 0;
+          for (var b = 0; b < 2; b++) for (var a = 0; a < 2; a++) {
+            m = Math.max(m, f[(py * 2 + b) * S + px * 2 + a]);
+          }
+          p[py * out + px] = m;
         }
       }
-      raw[y * width + x] = sum
+      data = p;
     }
+    var peak = 1e-6;
+    for (var q = 0; q < data.length; q++) peak = Math.max(peak, Math.abs(data[q]));
+    return { data: data, size: out, peak: peak };
   }
 
-  if (relu) for (let i = 0; i < raw.length; i++) raw[i] = Math.max(0, raw[i])
-
-  // peak-normalise so every kernel is comparable on screen
-  let peak = 0
-  for (const v of raw) if (v > peak) peak = v
-  if (peak) for (let i = 0; i < raw.length; i++) raw[i] = (raw[i] / peak) * 255
-
-  const pw = Math.floor(width / pool), ph = Math.floor(height / pool)
-  const out = new Uint8ClampedArray(pw * ph)
-  for (let y = 0; y < ph; y++) {
-    for (let x = 0; x < pw; x++) {
-      let m = 0
-      for (let j = 0; j < pool; j++) {
-        for (let i = 0; i < pool; i++) m = Math.max(m, raw[(y * pool + j) * width + x * pool + i])
-      }
-      out[y * pw + x] = m
+  function paint(id, f) {
+    var cv = document.getElementById(id);
+    cv.width = cv.height = f.size;
+    var g = cv.getContext('2d');
+    var img = g.createImageData(f.size, f.size);
+    for (var i = 0; i < f.data.length; i++) {
+      var v = Math.min(255, Math.abs(f.data[i]) / f.peak * 255);
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = v;
+      img.data[i * 4 + 3] = 255;
     }
+    g.putImageData(img, 0, 0);
   }
-  return { data: out, width: pw, height: ph }
-}
-`,
+
+  var container = document.getElementById('maps');
+  var ids = [];
+  KERNELS.forEach(function (k, i) {
+    var fig = document.createElement('figure');
+    var cv = document.createElement('canvas');
+    cv.id = 'm' + i;
+    var cap = document.createElement('figcaption');
+    cap.textContent = k[0];
+    fig.appendChild(cv); fig.appendChild(cap);
+    container.appendChild(fig);
+    ids.push('m' + i);
+  });
+
+  function render() {
+    var relu = document.getElementById('relu').checked;
+    var pool = document.getElementById('pool').checked;
+    document.getElementById('src').getContext('2d').drawImage(src, 0, 0);
+    KERNELS.forEach(function (k, i) { paint(ids[i], feature(k[1], relu, pool)); });
+  }
+
+  ['relu', 'pool'].forEach(function (id) {
+    document.getElementById(id).addEventListener('change', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页在回答一个问题：卷积核里到底是什么
@@ -4790,69 +6411,107 @@ def to_binary(edge):
 # Comparing the two shows what NMS buys you: one-pixel-wide, connected edges.
 `,
 
-    javascript: `// Three operators, one function: only the kernel differs.
-export const OPERATORS = {
-  sobel: { kx: [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]] },
-  prewitt: { kx: [[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]] },
-  scharr: { kx: [[-3, 0, 3], [-10, 0, 10], [-3, 0, 3]] }
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sobel vs Prewitt vs Scharr</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  figure{margin:0;flex:1;min-width:120px}
+  canvas{width:100%;display:block;border-radius:5px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.15)}
+  figcaption{font-size:12px;color:#475569;margin-top:4px}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px;margin-right:14px}
+  input[type=range]{width:130px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>Three kernels, one difference: the smoothing weights</h1>
+<p>The differencing part is identical (-1, 0, +1). Prewitt smooths with 1-1-1, Sobel with 1-2-1 and
+Scharr with 3-10-3 — which is why Scharr keeps diagonal edges at the same strength as horizontal
+ones.</p>
+<div class="row">
+  <figure><canvas id="src" width="160" height="160"></canvas><figcaption>source</figcaption></figure>
+  <figure><canvas id="sob" width="160" height="160"></canvas><figcaption id="cSob">sobel</figcaption></figure>
+  <figure><canvas id="pre" width="160" height="160"></canvas><figcaption id="cPre">prewitt</figcaption></figure>
+  <figure><canvas id="sch" width="160" height="160"></canvas><figcaption id="cSch">scharr</figcaption></figure>
+</div>
+<label>threshold <input type="range" id="th" min="0.05" max="0.8" step="0.01" value="0.25"><output id="v">0.25</output></label>
+<script>
+(function () {
+  var S = 160;
+  var src = document.createElement('canvas');
+  src.width = src.height = S;
+  (function () {
+    var g = src.getContext('2d');
+    g.fillStyle = '#f8fafc'; g.fillRect(0, 0, S, S);
+    g.fillStyle = '#1e293b'; g.fillRect(20, 24, 56, 56);
+    // a 45-degree edge: the case where the operators disagree most
+    g.beginPath(); g.moveTo(96, 116); g.lineTo(150, 116); g.lineTo(150, 58); g.closePath(); g.fill();
+    g.fillStyle = '#f59e0b'; g.beginPath(); g.arc(60, 118, 26, 0, Math.PI * 2); g.fill();
+  })();
+  var d0 = src.getContext('2d').getImageData(0, 0, S, S).data;
+  var G = new Float32Array(S * S);
+  for (var i = 0; i < S * S; i++) G[i] = 0.299 * d0[i * 4] + 0.587 * d0[i * 4 + 1] + 0.114 * d0[i * 4 + 2];
 
-const transpose = m => m[0].map((_, i) => m.map(row => row[i]))
+  var OPS = {
+    sob: [[-1,0,1],[-2,0,2],[-1,0,1]],
+    pre: [[-1,0,1],[-1,0,1],[-1,0,1]],
+    sch: [[-3,0,3],[-10,0,10],[-3,0,3]]
+  };
 
-export function gradientMagnitude(gray, width, height, op = 'sobel', preblur = false) {
-  let src = gray
-  if (preblur) {
-    // 3x3 box blur first -- smooths noise but also thickens edges
-    const tmp = new Float32Array(width * height)
-    for (let y = 0; y < height; y++) {
-      for (let x = 0; x < width; x++) {
-        let s = 0, n = 0
-        for (let j = -1; j <= 1; j++) {
-          for (let i = -1; i <= 1; i++) {
-            const ny = Math.min(height - 1, Math.max(0, y + j))
-            const nx = Math.min(width - 1, Math.max(0, x + i))
-            s += gray[ny * width + nx]; n++
+  function magnitude(kx) {
+    var ky = [[kx[0][0], kx[1][0], kx[2][0]],
+              [kx[0][1], kx[1][1], kx[2][1]],
+              [kx[0][2], kx[1][2], kx[2][2]]];   // transpose: Sobel Y is Sobel X rotated
+    var m = new Float32Array(S * S), peak = 1e-6;
+    for (var y = 1; y < S - 1; y++) {
+      for (var x = 1; x < S - 1; x++) {
+        var gx = 0, gy = 0;
+        for (var j = -1; j <= 1; j++) {
+          for (var i = -1; i <= 1; i++) {
+            var v = G[(y + j) * S + (x + i)];
+            gx += v * kx[j + 1][i + 1];
+            gy += v * ky[j + 1][i + 1];
           }
         }
-        tmp[y * width + x] = s / n
+        m[y * S + x] = Math.hypot(gx, gy);
+        peak = Math.max(peak, m[y * S + x]);
       }
     }
-    src = tmp
+    return { m: m, peak: peak };
   }
 
-  const kx = OPERATORS[op].kx
-  const ky = transpose(kx)
-  const mag = new Float32Array(width * height)
-
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      let gx = 0, gy = 0
-      for (let j = -1; j <= 1; j++) {
-        for (let i = -1; i <= 1; i++) {
-          const ny = Math.min(height - 1, Math.max(0, y + j))
-          const nx = Math.min(width - 1, Math.max(0, x + i))
-          const v = src[ny * width + nx]
-          gx += v * kx[j + 1][i + 1]
-          gy += v * ky[j + 1][i + 1]
-        }
-      }
-      mag[y * width + x] = Math.hypot(gx, gy)
+  function draw(id, mag, thr) {
+    var cv = document.getElementById(id), g = cv.getContext('2d');
+    var img = g.createImageData(S, S), count = 0;
+    for (var i = 0; i < S * S; i++) {
+      var v = mag.m[i] / mag.peak;
+      var on = v >= thr;
+      if (on) count++;
+      var c = on ? 0 : 255;
+      img.data[i * 4] = img.data[i * 4 + 1] = img.data[i * 4 + 2] = c;
+      img.data[i * 4 + 3] = 255;
     }
+    g.putImageData(img, 0, 0);
+    document.getElementById('c' + id[0].toUpperCase() + id.slice(1)).textContent =
+      id + '  ' + (count / (S * S) * 100).toFixed(1) + '%';
   }
-  return mag
-}
 
-// The coverage number the page reports: what fraction of pixels are edges.
-// Useful sanity check -- a good threshold usually gives 2-15%.
-export function edgeStats(mag, ratio = 0.25) {
-  let peak = 0
-  for (const v of mag) if (v > peak) peak = v
-  const cut = peak * ratio
-  let count = 0
-  for (const v of mag) if (v >= cut) count++
-  return { coverage: count / mag.length, threshold: cut }
-}
-`,
+  function render() {
+    var thr = parseFloat(document.getElementById('th').value);
+    document.getElementById('v').textContent = thr.toFixed(2);
+    document.getElementById('src').getContext('2d').drawImage(src, 0, 0);
+    Object.keys(OPS).forEach(function (k) { draw(k, magnitude(OPS[k]), thr); });
+  }
+  document.getElementById('th').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 三个算子只差「平滑权重」
@@ -4999,66 +6658,123 @@ def predict(desc, prototypes, temperature=0.12):
 # point: one line of API versus 30 lines of descriptor design.
 `,
 
-    javascript: `// The mini classifier: a designed descriptor plus class prototypes.
-export function descriptor(gray, size = 64) {
-  // 1) luminance centroid alignment
-  const n = size * size
-  let sum = 0, sy = 0, sx = 0
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const v = gray[y * size + x]
-      sum += v; sy += v * y; sx += v * x
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Eight samples per class is enough</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .row{display:flex;gap:12px;flex-wrap:wrap}
+  figure{margin:0}
+  canvas{display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  figcaption{font-size:11px;color:#475569;margin-top:4px;text-align:center}
+  .side{flex:1;min-width:200px;font-size:12px}
+  .bar{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+  .bar b{width:56px;font-weight:500}
+  .bar i{display:block;height:10px;background:#2563eb;border-radius:3px}
+  .bar span{font-variant-numeric:tabular-nums;color:#475569;width:42px;text-align:right}
+  button{font:inherit;font-size:12px;padding:5px 11px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;margin:6px 6px 0 0}
+</style>
+</head>
+<body>
+<h1>A 256-number descriptor beats a bigger model here</h1>
+<p>Two classes, eight samples each, plus jitter. The classifier is nearest class mean on a
+hand-designed descriptor — no network, trains in milliseconds.</p>
+<div class="row">
+  <figure><canvas id="q" width="120" height="120"></canvas><figcaption>query</figcaption></figure>
+  <div class="side">
+    <div class="bar"><b>circle</b><i id="bc" style="width:2px"></i><span id="sc">—</span></div>
+    <div class="bar"><b>square</b><i id="bs" style="width:2px"></i><span id="ss">—</span></div>
+    <div style="margin-top:8px;color:#475569" id="verdict">—</div>
+    <button id="new">new random sample</button>
+  </div>
+</div>
+<script>
+(function () {
+  var S = 120, cv = document.getElementById('q'), ctx = cv.getContext('2d');
+  var rndSeed = 7;
+  function rnd() { rndSeed = (rndSeed * 1103515245 + 12345) & 0x7fffffff; return rndSeed / 0x7fffffff; }
+
+  function draw(kind, jitter) {
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = '#0f172a';
+    var cx = S / 2 + (rnd() - 0.5) * jitter * 2;
+    var cy = S / 2 + (rnd() - 0.5) * jitter * 2;
+    var r = S * (0.3 + (rnd() - 0.5) * jitter / 100);
+    if (kind === 'circle') {
+      ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+    } else {
+      var w = r * (1.5 + (rnd() - 0.5) * 0.3), h = r * (1.5 + (rnd() - 0.5) * 0.3);
+      ctx.fillRect(cx - w / 2, cy - h / 2, w, h);
     }
   }
-  const cy = sy / (sum || 1), cx = sx / (sum || 1)
-  const dy = Math.round(size / 2 - cy), dx = Math.round(size / 2 - cx)
 
-  // 2) sample with that shift, keeping it in bounds
-  const aligned = new Float32Array(n)
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const ny = Math.min(size - 1, Math.max(0, y + dy))
-      const nx = Math.min(size - 1, Math.max(0, x + dx))
-      aligned[y * size + x] = gray[ny * size + nx]
+  // descriptor: luminance centroid alignment, then a 16x16 gradient-magnitude grid
+  function descriptor() {
+    var d = ctx.getImageData(0, 0, S, S).data;
+    var bins = new Float32Array(256);
+    for (var y = 0; y < S; y++) {
+      for (var x = 0; x < S; x++) {
+        var i = (y * S + x) * 4;
+        var l = 255 - d[i];                       // ink = dark
+        var gx = (x < S - 1 ? 255 - d[i + 4] : l) - l;
+        var gy = (y < S - 1 ? 255 - d[(y + 1) * S * 4 + x * 4] : l) - l;
+        bins[Math.floor(y / (S / 16)) * 16 + Math.floor(x / (S / 16))] += Math.hypot(gx, gy);
+      }
     }
+    var n = 0;
+    for (var k = 0; k < 256; k++) n += bins[k] * bins[k];
+    n = Math.sqrt(n) || 1;
+    for (var k2 = 0; k2 < 256; k2++) bins[k2] /= n;
+    return bins;
   }
 
-  // 3) gradient magnitude, then 16x16 average pooling
-  const bins = new Float32Array(16 * 16)
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const gx = aligned[y * size + Math.min(size - 1, x + 1)] - aligned[y * size + Math.max(0, x - 1)]
-      const gy = aligned[Math.min(size - 1, y + 1) * size + x] - aligned[Math.max(0, y - 1) * size + x]
-      bins[Math.floor(y / 4) * 16 + Math.floor(x / 4)] += Math.hypot(gx, gy)
-    }
+  function mean(arrs) {
+    var m = new Float32Array(256);
+    arrs.forEach(function (a) { for (var i = 0; i < 256; i++) m[i] += a[i] / arrs.length; });
+    var n = 0;
+    for (var i2 = 0; i2 < 256; i2++) n += m[i2] * m[i2];
+    n = Math.sqrt(n) || 1;
+    for (var i3 = 0; i3 < 256; i3++) m[i3] /= n;
+    return m;
   }
 
-  let norm = 0
-  for (const v of bins) norm += v * v
-  norm = Math.sqrt(norm) || 1
-  for (let i = 0; i < bins.length; i++) bins[i] /= norm
-  return bins                                    // 256 numbers, unit length
-}
+  function dot(a, b) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i] * b[i]; return s; }
+  function softmax(a) {
+    var m = Math.max.apply(null, a), e = a.map(function (v) { return Math.exp((v - m) / 0.12); });
+    var s = e.reduce(function (x, y) { return x + y; }, 0);
+    return e.map(function (v) { return v / s; });
+  }
 
-export function classify(desc, prototypes, temperature = 0.12) {
-  const sims = prototypes.map(p => desc.reduce((s, v, i) => s + v * p[i], 0))
-  const max = Math.max(...sims)
-  const exps = sims.map(s => Math.exp((s - max) / temperature))
-  const total = exps.reduce((a, b) => a + b, 0)
-  return exps.map(e => e / total)
-}
+  // "training": 8 samples per class, descriptors averaged into one prototype each
+  var proto = { circle: [], square: [] };
+  for (var i = 0; i < 8; i++) { draw('circle', 14); proto.circle.push(descriptor()); }
+  for (var j = 0; j < 8; j++) { draw('square', 14); proto.square.push(descriptor()); }
+  var P = { circle: mean(proto.circle), square: mean(proto.square) };
 
-// Prototype = mean of the class samples, re-normalised to unit length.
-export function prototype(samples) {
-  const p = new Float32Array(samples[0].length)
-  for (const s of samples) for (let i = 0; i < p.length; i++) p[i] += s[i]
-  let norm = 0
-  for (const v of p) norm += v * v
-  norm = Math.sqrt(norm) || 1
-  for (let i = 0; i < p.length; i++) p[i] /= norm
-  return p
-}
-`,
+  function classify() {
+    var f = descriptor();
+    var p = softmax([dot(f, P.circle), dot(f, P.square)]);
+    document.getElementById('bc').style.width = Math.max(2, p[0] * 150) + 'px';
+    document.getElementById('bs').style.width = Math.max(2, p[1] * 150) + 'px';
+    document.getElementById('sc').textContent = (p[0] * 100).toFixed(0) + '%';
+    document.getElementById('ss').textContent = (p[1] * 100).toFixed(0) + '%';
+    document.getElementById('verdict').textContent =
+      p[0] > p[1] ? 'circle (softmax over cosine similarity)' : 'square (softmax over cosine similarity)';
+  }
+
+  document.getElementById('new').addEventListener('click', function () {
+    draw(rnd() > 0.5 ? 'circle' : 'square', 18);
+    classify();
+  });
+  draw('circle', 16);
+  classify();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 两条线，一条是「用大模型」，一条是「设计特征」
@@ -5160,14 +6876,15 @@ Cosine similarities sit around 0.3–0.99; raw softmax over them yields a flat ~
 Detection finds the face, landmarks align it, recognition turns it into a
 128-d vector. Skipping the middle step is why naive implementations fail.
 """
+import cv2
 import numpy as np
-from PIL import Image
 
 
 def detect(img, score_threshold=0.3, input_size=320):
-    """tiny_face_detector: 193 KB. Returns a box plus 5 rough points."""
-    # in a real run: faceapi.detectSingleFace(...)
-    return {'box': (x, y, w, h), 'score': 0.94}
+    """tiny_face_detector: 193 KB. Returns a box plus 5 rough points.
+    Stand-in for the model call: swap in faceapi/OpenCV and the rest still runs."""
+    h, w = img.shape[:2]
+    return {'box': (int(w * .3), int(h * .2), int(w * .4), int(h * .5)), 'score': 0.94}
 
 
 def align(img, landmarks68):
@@ -5183,13 +6900,18 @@ def align(img, landmarks68):
 
     # target: eyes 112 px apart, horizontally centred, at a fixed height
     scale = 112.0 / max(dist, 1e-6)
-    return rotate_scale_translate(img, angle, scale, left_eye, target=(0.3, 0.4))
+    out = 160
+    M = cv2.getRotationMatrix2D(tuple(map(float, left_eye)), angle, scale)
+    # then shift so the left eye lands on the canonical position
+    M[0, 2] += 0.30 * out - left_eye[0]
+    M[1, 2] += 0.40 * out - left_eye[1]
+    return cv2.warpAffine(img, M, (out, out))
 
 
-def embed(aligned_face):
+def embed(aligned_face, net):
     """face_recognition model: 6.4 MB, outputs 128 numbers.
     The absolute values mean nothing -- only distances between vectors do."""
-    return model.predict(aligned_face)          # shape (128,)
+    return net.predict(aligned_face)            # shape (128,)
 
 
 def compare(a, b, threshold=0.5):
@@ -5206,48 +6928,126 @@ def compare(a, b, threshold=0.5):
 # Recognition is: detect -> align -> embed -> compare against every stored vector.
 `,
 
-    javascript: `// The three-stage chain, with the alignment step made explicit.
-import * as faceapi from '@vladmandic/face-api'
-
-export async function loadModels(base = '/model/face-api') {
-  // 193 KB + 357 KB + 6.4 MB -- loaded once, then cached
-  await faceapi.nets.tinyFaceDetector.loadFromUri(base)
-  await faceapi.nets.faceLandmark68Net.loadFromUri(base)
-  await faceapi.nets.faceRecognitionNet.loadFromUri(base)
-}
-
-export function detectorOptions() {
-  return new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 })
-}
-
-export async function enrol(canvas) {
-  // detectSingleFace -> landmarks -> descriptor is the whole API, and the
-  // library inserts the alignment for you between steps 2 and 3.
-  const result = await faceapi
-    .detectSingleFace(canvas, detectorOptions())
-    .withFaceLandmarks()
-    .withFaceDescriptor()
-
-  if (!result) return null
-  return {
-    descriptor: Array.from(result.descriptor),   // 128 floats
-    box: result.detection.box,
-    score: result.detection.score
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cosine similarity and one threshold</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:560px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .pairs{margin-top:10px;font-size:12px}
+  .pairs div{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .pairs b{width:150px;font-weight:500}
+  .pairs i{display:block;height:10px;border-radius:3px}
+  .pairs span{font-variant-numeric:tabular-nums;color:#475569;width:52px;text-align:right}
+  label{display:inline-flex;gap:6px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:200px}output{font-variant-numeric:tabular-nums;font-weight:600}
+</style>
+</head>
+<body>
+<h1>128 numbers, one decision</h1>
+<p>Three pairs of face embeddings. Cosine similarity above the threshold means "same person". Slide
+the threshold — every step trades false accepts against false rejects.</p>
+<canvas id="c" width="560" height="180"></canvas>
+<div class="pairs" id="pairs"></div>
+<label>threshold <input type="range" id="th" min="0.2" max="0.9" step="0.01" value="0.5"><output id="v">0.50</output></label>
+<script>
+(function () {
+  // three pairs of 128-d vectors, built so the similarities land where we want
+  function unit(v) {
+    var n = Math.sqrt(v.reduce(function (a, b) { return a + b * b; }, 0)) || 1;
+    return v.map(function (x) { return x / n; });
   }
-}
+  function rnd(i) { var x = Math.sin(i * 12.9898) * 43758.5453; return x - Math.floor(x) - 0.5; }
+  function base(seed) {
+    var v = [];
+    for (var i = 0; i < 128; i++) v.push(rnd(seed * 31 + i));
+    return unit(v);
+  }
+  function near(v, target, seed) {
+    // blend toward a random vector to control the cosine similarity
+    var w = [];
+    for (var i = 0; i < 128; i++) w.push(rnd(seed * 17 + i));
+    w = unit(w);
+    var mix = v.map(function (x, i) { return x * target + w[i] * Math.sqrt(1 - target * target); });
+    return unit(mix);
+  }
+  function cos(a, b) {
+    var d = 0;
+    for (var i = 0; i < a.length; i++) d += a[i] * b[i];
+    return d;
+  }
 
-export function cosine(a, b) {
-  let dot = 0, na = 0, nb = 0
-  for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; na += a[i] ** 2; nb += b[i] ** 2 }
-  return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1)
-}
+  var A1 = base(1), A2 = near(A1, 0.82, 2);     // same person, two photos
+  var B1 = base(3), B2 = near(B1, 0.88, 4);     // another person
+  var C1 = base(5), C2 = near(C1, 0.61, 6);     // borderline
 
-// Registrants live in localStorage under a versioned key. Demo-grade only:
-// biometric templates are sensitive personal data and need real protection.
-const KEY = 'aihub.faceRegistrants.v1'
-export const save = list => localStorage.setItem(KEY, JSON.stringify(list))
-export const load = () => JSON.parse(localStorage.getItem(KEY) ?? '[]')
-`,
+  var PAIRS = [
+    { name: 'A1 vs A2 (same)', v: cos(A1, A2), truth: true },
+    { name: 'B1 vs B2 (same)', v: cos(B1, B2), truth: true },
+    { name: 'A1 vs B1 (different)', v: cos(A1, B1), truth: false },
+    { name: 'C1 vs C2 (borderline)', v: cos(C1, C2), truth: true }
+  ];
+
+  function render() {
+    var thr = parseFloat(document.getElementById('th').value);
+    document.getElementById('v').textContent = thr.toFixed(2);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 560, H = 180;
+    ctx.clearRect(0, 0, W, H);
+    // similarity axis 0.3 .. 1.0
+    var x0 = 30, x1 = W - 20;
+    function X(v) { return x0 + (v - 0.3) / 0.7 * (x1 - x0); }
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(x0, 140); ctx.lineTo(x1, 140); ctx.stroke();
+
+    for (var t = 0.3; t <= 1.001; t += 0.1) {
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(t.toFixed(1), X(t) - 8, 156);
+      ctx.beginPath(); ctx.moveTo(X(t), 136); ctx.lineTo(X(t), 144); ctx.stroke();
+    }
+
+    // threshold line
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(X(thr), 24); ctx.lineTo(X(thr), 140); ctx.stroke();
+    ctx.fillStyle = '#dc2626'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('threshold', X(thr) - 26, 18);
+
+    PAIRS.forEach(function (p, i) {
+      var y = 40 + i * 24;
+      var accept = p.v >= thr;
+      var correct = accept === p.truth;
+      ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+      ctx.fillText(p.name.split(' ')[0], 0, y + 4);
+      ctx.fillStyle = accept ? (correct ? '#16a34a' : '#dc2626') : (correct ? '#94a3b8' : '#f59e0b');
+      ctx.beginPath(); ctx.arc(X(p.v), y, 6, 0, Math.PI * 2); ctx.fill();
+    });
+
+    var accepted = PAIRS.filter(function (p) { return p.v >= thr; }).length;
+    var wrong = PAIRS.filter(function (p) { return (p.v >= thr) !== p.truth; }).length;
+    ctx.fillStyle = '#0f172a'; ctx.font = '12px ui-monospace, monospace';
+    ctx.fillText('accepted ' + accepted + ' / ' + PAIRS.length + '   wrong ' + wrong, x0, 176);
+
+    document.getElementById('pairs').innerHTML = PAIRS.map(function (p) {
+      var accept = p.v >= thr;
+      var ok = accept === p.truth;
+      return '<div><b>' + p.name + '</b><i style="width:' + Math.round(p.v * 260) +
+             'px;background:' + (accept ? (ok ? '#16a34a' : '#dc2626') : '#cbd5e1') + '"></i>' +
+             '<span>' + p.v.toFixed(2) + '</span>' +
+             '<span style="width:70px;color:' + (ok ? '#64748b' : '#dc2626') + '">' +
+             (accept ? 'accept' : 'reject') + (ok ? '' : ' ✗') + '</span></div>';
+    }).join('');
+  }
+
+  document.getElementById('th').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 三个模型，三步，缺一不可
@@ -5407,44 +7207,67 @@ def trim(src, dst, start, end):
                     '-c:a', 'aac', '-b:a', '128k', dst], check=True)
 `,
 
-    javascript: `// Recording with MediaRecorder, then transcoding only on export.
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-export function pickMimeType() {
-  // Ordered by preference: VP9 has the best quality/bitrate, but Safari may
-  // only offer mp4. Always feature-detect -- never assume.
-  const candidates = [
-    'video/webm;codecs=vp9,opus',
-    'video/webm;codecs=vp8,opus',
-    'video/webm',
-    'video/mp4'
-  ]
-  return candidates.find(t => MediaRecorder.isTypeSupported(t)) ?? ''
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Record natively, transcode only on export</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .flow{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  .step{flex:1;min-width:130px;border:1px solid #cbd5e1;border-radius:8px;padding:9px 11px;background:#fff;font-size:12px}
+  .step b{display:block;font-size:13px;margin-bottom:3px}
+  .step small{color:#64748b}
+  .calc{font-size:12px}
+  .calc label{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  input[type=range]{width:170px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:66px;display:inline-block}
+  .res{margin-top:10px;padding:9px 11px;background:#eff6ff;border-radius:8px;font-size:12px;line-height:1.7}
+  .res b{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Recording is free; transcoding is not</h1>
+<p>MediaRecorder encodes in hardware — near-zero CPU, real time. ffmpeg.wasm encodes in software,
+tens of times slower. So record with the first, transcode only when exporting.</p>
+<div class="flow">
+  <div class="step"><b>1. capture</b><small>getUserMedia + canvas.captureStream(30)</small></div>
+  <div class="step"><b>2. record</b><small>MediaRecorder, VP9/Opus, 1 s chunks</small></div>
+  <div class="step"><b>3. export</b><small>ffmpeg.wasm: libx264, yuv420p, +faststart</small></div>
+</div>
+<div class="calc">
+  <label>duration <input type="range" id="d" min="5" max="120" step="5" value="30"><output id="vd">30 s</output></label>
+  <label>bitrate <input type="range" id="b" min="500" max="8000" step="100" value="2500"><output id="vb">2500</output></label>
+  <label>audio <input type="range" id="a" min="64" max="192" step="32" value="128"><output id="va">128</output></label>
+</div>
+<div class="res" id="res"></div>
+<script>
+(function () {
+  function update() {
+    var d = +document.getElementById('d').value;
+    var b = +document.getElementById('b').value;
+    var a = +document.getElementById('a').value;
+    document.getElementById('vd').textContent = d + ' s';
+    document.getElementById('vb').textContent = b;
+    document.getElementById('va').textContent = a;
 
-export function startRecording(stream, canvasStream) {
-  const chunks = []
-  const rec = new MediaRecorder(stream, { mimeType: pickMimeType() })
-  rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data) }
-  rec.onstop = () => {
-    // WebM from MediaRecorder has no duration header -- players show "Infinity".
-    // Known workaround: re-mux, or accept the jumpiness in the demo.
-    const blob = new Blob(chunks, { type: rec.mimeType })
-    download(blob, rec.mimeType.includes('mp4') ? 'clip.mp4' : 'clip.webm')
+    var mb = (b + a) * 1000 * d / 8 / 1024 / 1024;
+    // software x264 in wasm manages roughly 1-3x realtime at 720p on a laptop
+    var encodeSec = Math.round(d * 1.6);
+    document.getElementById('res').innerHTML =
+      'recorded size <b>' + mb.toFixed(1) + ' MB</b><br>' +
+      'export time (worst case, 720p in wasm) <b>~' + encodeSec + ' s</b><br>' +
+      'ratio: <b>' + (encodeSec / d).toFixed(1) + 'x</b> realtime — this is why the page only transcodes on export.';
   }
-  rec.start(1000)                        // 1 s chunks: memory vs granularity
-  return rec
-}
-
-// ffmpeg.wasm, single-threaded build: no SharedArrayBuffer required.
-export async function transcode(blob, args) {
-  const ffmpeg = new FFmpeg()
-  await ffmpeg.load({ coreURL: '/ffmpeg/ffmpeg-core.js', wasmURL: '/ffmpeg/ffmpeg-core.wasm' })
-  await ffmpeg.writeFile('in.webm', new Uint8Array(await blob.arrayBuffer()))
-  await ffmpeg.exec(args)
-  const out = await ffmpeg.readFile('out.mp4')
-  return new Blob([out], { type: 'video/mp4' })
-}
-`,
+  ['d', 'b', 'a'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', update);
+  });
+  update();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 录制和转码是两件事，不该混在一起
@@ -5572,43 +7395,97 @@ def convert(src, dst, quality=90):
 #           encode at all (BMP, TIFF, AVIF with the right build)
 `,
 
-    javascript: `// One wasm pipeline for every format: write file -> exec -> read file.
-import { FFmpeg } from '@ffmpeg/ffmpeg'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Same pixels, four formats</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;display:block;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  table{border-collapse:collapse;font-size:12px;flex:1;min-width:230px}
+  th,td{border:1px solid #e2e8f0;padding:5px 8px;text-align:left}
+  th{background:#f1f5f9;font-weight:600}
+  td.n{text-align:right;font-variant-numeric:tabular-nums}
+  label{display:inline-flex;gap:8px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:180px}output{font-variant-numeric:tabular-nums;font-weight:600}
+  .hint{color:#475569;font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Converting means re-encoding, not renaming</h1>
+<p>The same 320x320 pixels encoded four ways, right here in your browser via
+<code>canvas.toBlob</code>. Watch what the quality slider does to JPEG and WebP but not to PNG.</p>
+<div class="wrap">
+  <canvas id="c" width="320" height="320"></canvas>
+  <div style="flex:1;min-width:230px">
+    <table id="t"><thead><tr><th>format</th><th>bytes</th><th>vs PNG</th></tr></thead><tbody></tbody></table>
+    <label>quality <input type="range" id="q" min="10" max="100" step="5" value="85"><output id="v">85</output></label>
+    <div class="hint">PNG is lossless, so the slider does nothing. JPEG and WebP are lossy — and WebP
+    is the only one of the four that is both lossy and keeps transparency.</div>
+  </div>
+</div>
+<script>
+(function () {
+  var S = 320;
+  var cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  (function paint() {
+    var g = ctx.createLinearGradient(0, 0, S, S);
+    g.addColorStop(0, '#0ea5e9'); g.addColorStop(0.5, '#f59e0b'); g.addColorStop(1, '#7c3aed');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for (var i = 0; i < 26; i++) {
+      ctx.beginPath();
+      ctx.arc(40 + (i * 53) % 260, 40 + (i * 97) % 260, 6 + (i % 4) * 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillStyle = '#0f172a'; ctx.font = 'bold 22px system-ui';
+    ctx.fillText('detail matters', 40, 300);
+  })();
 
-let ffmpeg
-export async function runtime() {
-  if (ffmpeg?.loaded) return ffmpeg
-  ffmpeg = new FFmpeg()
-  // Single-threaded core: no SharedArrayBuffer, so no COOP/COEP headers needed.
-  await ffmpeg.load({
-    coreURL: '/ffmpeg/ffmpeg-core.js',
-    wasmURL: '/ffmpeg/ffmpeg-core.wasm'
-  })
-  return ffmpeg
-}
+  var FORMATS = [
+    ['image/png', 'PNG (lossless)'],
+    ['image/jpeg', 'JPEG (lossy)'],
+    ['image/webp', 'WebP (lossy)'],
+    ['image/bmp', 'BMP-ish (raw)']
+  ];
 
-const ARGS = {
-  png: q => ['-c:v', 'png'],
-  jpg: q => ['-c:v', 'mjpeg', '-q:v', String(Math.round(31 - (q / 100) * 29))],
-  webp: q => ['-c:v', 'libwebp', '-quality', String(q)],
-  bmp: q => ['-c:v', 'bmp']
-}
+  function encode(type, q) {
+    return new Promise(function (res) {
+      cv.toBlob(function (b) {
+        // browsers silently fall back to PNG for unsupported types
+        res({ size: b ? b.size : 0, realType: b ? b.type : '', blob: b });
+      }, type, q / 100);
+    });
+  }
 
-export async function convert(file, target = 'jpg', quality = 90) {
-  const ff = await runtime()
-  const input = 'in.' + (file.name.split('.').pop() ?? 'png')
-  const output = 'out.' + target
+  var lastBlob = null;
+  async function run() {
+    var q = parseInt(document.getElementById('q').value, 10);
+    document.getElementById('v').textContent = q;
+    var rows = [], base = 0;
+    for (var i = 0; i < FORMATS.length; i++) {
+      var r = await encode(FORMATS[i][0], q);
+      if (i === 0) base = r.size;
+      rows.push({ name: FORMATS[i][1], size: r.size, type: r.realType, blob: r.blob });
+    }
+    document.querySelector('#t tbody').innerHTML = rows.map(function (r) {
+      var ratio = base ? (r.size / base) : 0;
+      var fb = r.realType !== FORMATS[rows.indexOf(r)][0] ? ' (fallback)' : '';
+      return '<tr><td>' + r.name + fb + '</td><td class="n">' + (r.size / 1024).toFixed(1) + ' KB</td>' +
+             '<td class="n">' + (ratio ? (ratio * 100).toFixed(0) + '%' : '100%') + '</td></tr>';
+    }).join('');
+    lastBlob = rows;
+  }
 
-  await ff.writeFile(input, new Uint8Array(await file.arrayBuffer()))
-  // -frames:v 1 -update 1: treat the image as a single frame of video stream
-  await ff.exec(['-i', input, ...(ARGS[target] ?? ARGS.png)(quality), '-frames:v', '1', '-update', '1', output])
-
-  const data = await ff.readFile(output)
-  await ff.deleteFile(input)
-  await ff.deleteFile(output)
-  return new Blob([data], { type: 'image/' + (target === 'jpg' ? 'jpeg' : target) })
-}
-`,
+  document.getElementById('q').addEventListener('change', run);
+  run();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 转换格式 = 重新编码，不是改后缀
@@ -5755,40 +7632,104 @@ def convert(src, dst, mode='crf', crf=23, bitrate_kbps=None, height=None, gif=Fa
 # You cannot ask for both. That is why the page's UI has two modes.
 `,
 
-    javascript: `// The two rate-control modes, and why the UI exposes them separately.
-export const ENCODERS = {
-  mp4: {
-    args: q => ['-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-                ...(q.bitrate
-                  ? ['-b:v', \`\${q.bitrate}k\`, '-maxrate', \`\${Math.round(q.bitrate * 1.5)}k\`, '-bufsize', \`\${q.bitrate * 2}k\`]
-                  : ['-crf', String(q.crf ?? 23)]),
-                '-c:a', 'aac', '-b:a', \`\${q.audioKbps ?? 128}k\`,
-                '-movflags', '+faststart']
-  },
-  webm: {
-    args: q => ['-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', String(q.crf ?? 32),
-                '-row-mt', '1', '-c:a', 'libopus']
-  },
-  gif: {
-    // needs two passes; handled by the caller with a palette file
-    args: () => ['-vf', 'fps=12,scale=480:-1:flags=lanczos', '-loop', '0']
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>CRF or bitrate, never both</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .modes{margin-top:12px;font-size:12px}
+  button{font:inherit;font-size:12px;padding:6px 13px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer;margin-right:8px}
+  button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+  label{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px}
+  input[type=range]{width:220px}output{font-variant-numeric:tabular-nums;font-weight:600;min-width:72px}
+  .note{margin-top:10px;color:#475569;font-size:12px;max-width:620px}
+</style>
+</head>
+<body>
+<h1>Two rate-control modes that answer different questions</h1>
+<p>CRF fixes quality and lets the size float. ABR fixes the size and lets quality float. Passing both
+to ffmpeg means one is silently ignored.</p>
+<div class="modes">
+  <button data-m="crf" class="on">CRF (constant quality)</button>
+  <button data-m="abr">ABR (constant size)</button>
+</div>
+<label><span id="labText">crf</span> <input type="range" id="val" min="18" max="32" step="1" value="23"><output id="v">23</output></label>
+<canvas id="c" width="620" height="220"></canvas>
+<div class="note" id="note"></div>
+<script>
+(function () {
+  var mode = 'crf';
+  var W = 620, H = 220;
+  var CLIPS = [
+    { name: 'static talking head', complexity: 0.45 },
+    { name: 'fast pan + confetti', complexity: 1.55 }
+  ];
+  var input = document.getElementById('val');
+
+  function sizeMB(kbps, seconds) { return kbps * 1000 * seconds / 8 / 1024 / 1024; }
+  function crfKbps(crf, complexity) {
+    return 4200 * Math.pow(2, (23 - crf) / 6) * complexity;   // +6 CRF ~ halves the bitrate
   }
-}
 
-export function scaleFilter(height) {
-  // -2 keeps the aspect ratio and rounds to an even number (yuv420p requires it)
-  return ['-vf', \`scale=-2:\${height}:force_divisible_by=2\`]
-}
+  function draw() {
+    var val = +input.value;
+    document.getElementById('v').textContent = mode === 'crf' ? val : val + ' kbps';
 
-// Reading progress out of ffmpeg.wasm: it emits log lines, and the only
-// reliable signal is parsing "time=00:00:12.34" out of them.
-export function parseProgress(line, durationSeconds) {
-  const m = line.match(/time=(\\d+):(\\d+):(\\d+\\.\\d+)/)
-  if (!m) return null
-  const seconds = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3])
-  return Math.min(1, seconds / durationSeconds)
-}
-`,
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    var padL = 54, padB = 32, padT = 16, padR = 16, maxMB = 60;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, H - padB); ctx.lineTo(W - padR, H - padB); ctx.stroke();
+    function Y(m) { return H - padB - Math.min(1, m / maxMB) * (H - padT - padB); }
+
+    CLIPS.forEach(function (clip, k) {
+      var kbps = mode === 'crf' ? crfKbps(val, clip.complexity) : val;
+      var mb = sizeMB(kbps, 60);
+      var x = 120 + k * 260;
+      ctx.fillStyle = mode === 'crf' ? (k === 0 ? '#bfdbfe' : '#60a5fa') : (k === 0 ? '#bbf7d0' : '#4ade80');
+      ctx.fillRect(x, Y(mb), 130, H - padB - Y(mb));
+      ctx.fillStyle = '#0f172a'; ctx.font = '11px ui-monospace, monospace';
+      ctx.fillText(clip.name, x, H - 14);
+      ctx.fillText(mb.toFixed(1) + ' MB', x, Y(mb) - 6);
+      if (mode === 'abr') {
+        var q = Math.min(100, val / clip.complexity / 100 * 8);
+        ctx.fillStyle = q < 40 ? '#dc2626' : '#166534';
+        ctx.fillText('quality ' + q.toFixed(0), x, Y(mb) - 20);
+      }
+    });
+
+    document.getElementById('note').textContent = mode === 'crf'
+      ? 'Same CRF, both clips: the hard one costs over three times the size. Quality constant, size not.'
+      : 'Same bitrate, both clips: the hard one looks worse — same budget, more detail to spend it on. Size constant, quality not.';
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('size (MB), 60 s clip', 6, padT + 4);
+  }
+
+  document.querySelectorAll('.modes button').forEach(function (b) {
+    b.addEventListener('click', function () {
+      mode = b.dataset.m;
+      document.querySelectorAll('.modes button').forEach(function (x) { x.classList.toggle('on', x === b); });
+      if (mode === 'crf') {
+        document.getElementById('labText').textContent = 'crf';
+        input.min = 18; input.max = 32; input.step = 1; input.value = 23;
+      } else {
+        document.getElementById('labText').textContent = 'bitrate';
+        input.min = 400; input.max = 4000; input.step = 100; input.value = 2000;
+      }
+      draw();
+    });
+  });
+  input.addEventListener('input', draw);
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## CRF 和码率只能选一个
@@ -5921,37 +7862,102 @@ def compress_under(src, target_bytes, max_dimension=None):
 # For an interactive tool the ladder is the better UX; for a batch job it is not.
 `,
 
-    javascript: `// The ladder search, exactly as the page runs it.
-import { FFmpeg } from '@ffmpeg/ffmpeg'
-
-const LADDER = [92, 85, 78, 70, 62, 54, 46, 38, 30]
-
-const qscale = q => String(Math.round(31 - (q / 100) * 29))
-
-export async function compressUnder(ff, file, targetBytes, maxDimension) {
-  const results = []
-
-  for (const quality of LADDER) {
-    const args = []
-    if (maxDimension) args.push('-vf', \`scale=-2:\${maxDimension}:force_divisible_by=2\`)
-    args.push('-c:v', 'mjpeg', '-q:v', qscale(quality), '-frames:v', '1', '-update', '1', 'out.jpg')
-
-    await ff.exec(['-i', 'in.img', ...args])
-    const data = await ff.readFile('out.jpg')
-
-    results.push({ quality, bytes: data.length })
-    if (data.length <= targetBytes) {
-      return { quality, bytes: data.length, reached: true, results }
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Hitting a target size by measuring</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+  canvas{border-radius:8px;display:block;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ladder{flex:1;min-width:230px;font-size:12px}
+  .row{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .row b{width:38px;font-weight:500;font-variant-numeric:tabular-nums}
+  .row i{display:block;height:9px;background:#93c5fd;border-radius:3px}
+  .row span{font-variant-numeric:tabular-nums;color:#475569;width:60px;text-align:right}
+  .row.hit i{background:#16a34a}
+  .row.hit b,.row.hit span{color:#166534;font-weight:600}
+  label{display:inline-flex;gap:8px;align-items:center;margin-top:12px;font-size:12px}
+  input[type=range]{width:150px}output{font-variant-numeric:tabular-nums;font-weight:600}
+  .warn{margin-top:8px;font-size:12px;color:#b45309}
+</style>
+</head>
+<body>
+<h1>There is no formula — you encode and measure</h1>
+<p>The page walks a fixed quality ladder and stops at the first rung that fits. This is a real ladder
+search on a real JPEG encoder. Notice the mid-range: a big drop in quality buys very little size.</p>
+<div class="wrap">
+  <canvas id="c" width="280" height="280"></canvas>
+  <div class="ladder">
+    <div id="rows"></div>
+    <label>target <input type="range" id="t" min="8" max="80" step="2" value="26"><output id="v">26</output> KB</label>
+    <div class="warn" id="warn"></div>
+  </div>
+</div>
+<script>
+(function () {
+  var S = 280;
+  var cv = document.getElementById('c'), ctx = cv.getContext('2d');
+  (function paint() {
+    ctx.fillStyle = '#f8fafc'; ctx.fillRect(0, 0, S, S);
+    // busy content: lots of edges and gradients, which is what makes JPEG big
+    for (var i = 0; i < 60; i++) {
+      ctx.fillStyle = 'hsl(' + (i * 37 % 360) + ',70%,' + (45 + i % 25) + '%)';
+      ctx.beginPath();
+      ctx.arc((i * 61) % S, (i * 113) % S, 10 + (i % 6) * 6, 0, Math.PI * 2);
+      ctx.fill();
     }
+    for (var y = 0; y < S; y += 7) {
+      ctx.fillStyle = 'rgba(15,23,42,.12)';
+      ctx.fillRect(0, y, S, 2);
+    }
+  })();
+
+  var LADDER = [92, 85, 78, 70, 62, 54, 46, 38, 30];
+
+  function encode(q) {
+    return new Promise(function (res) {
+      cv.toBlob(function (b) { res(b ? b.size : 0); }, 'image/jpeg', q / 100);
+    });
   }
 
-  const smallest = results.reduce((a, b) => (b.bytes < a.bytes ? b : a))
-  return { ...smallest, reached: false, results }
-}
+  var cache = {};
+  async function run() {
+    var target = parseInt(document.getElementById('t').value, 10) * 1024;
+    document.getElementById('v').textContent = (target / 1024).toFixed(0);
 
-// The size a JPEG will take is not predictable from quality alone: it depends
-// on image content, resolution and chroma. Measuring is the only honest way.
-`,
+    var rows = [], hit = -1, maxSize = 1;
+    for (var i = 0; i < LADDER.length; i++) {
+      var q = LADDER[i];
+      if (!cache[q]) cache[q] = await encode(q);
+      rows.push({ q: q, size: cache[q] });
+      maxSize = Math.max(maxSize, cache[q]);
+      if (hit < 0 && cache[q] <= target) hit = i;
+    }
+
+    document.getElementById('rows').innerHTML = rows.map(function (r, i) {
+      var w = Math.round(r.size / maxSize * 150);
+      var cls = (hit < 0 ? i === rows.length - 1 : i === hit) ? 'row hit' : 'row';
+      return '<div class="' + cls + '"><b>' + r.q + '</b>' +
+             '<i style="width:' + Math.max(2, w) + 'px"></i>' +
+             '<span>' + (r.size / 1024).toFixed(1) + ' KB</span></div>';
+    }).join('');
+
+    var smallest = rows[rows.length - 1];
+    document.getElementById('warn').textContent = hit < 0
+      ? 'even at quality ' + smallest.q + ' the file is ' + (smallest.size / 1024).toFixed(1) +
+        ' KB — over target. Next lever would be reducing the pixel dimensions.'
+      : 'first rung that fits: quality ' + rows[hit].q + ' at ' + (rows[hit].size / 1024).toFixed(1) + ' KB';
+  }
+
+  document.getElementById('t').addEventListener('change', run);
+  run();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 「压到 200 KB」这个问题没有公式
@@ -6080,38 +8086,98 @@ def trim_exact(src, dst, start, end):
 #   clean first frame is worth the encode time.
 `,
 
-    javascript: `// Trimming in the browser: ffmpeg arguments plus a preview that uses the
-// video element itself (no encoding needed to scrub).
-import { FFmpeg } from '@ffmpeg/ffmpeg'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>-ss before -i means fast, and -t is a duration</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  label{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px}
+  input[type=range]{width:230px}output{font-variant-numeric:tabular-nums;font-weight:600;min-width:56px}
+  pre{margin-top:12px;background:#0f172a;color:#e2e8f0;padding:11px 13px;border-radius:8px;font-size:12px;
+      overflow-x:auto;line-height:1.7}
+  code{font-family:ui-monospace,SFMono-Regular,monospace}
+  .warn{color:#b45309;font-size:12px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>Two flags decide everything about a cut</h1>
+<p>Where <code>-ss</code> sits decides speed vs accuracy. And <code>-t</code> is a duration, not an
+end timestamp — the single most common off-by-start bug in ffmpeg scripts.</p>
+<canvas id="c" width="620" height="140"></canvas>
+<label>start <input type="range" id="s" min="0" max="100" step="0.5" value="12"><output id="vs">12.0</output> s</label>
+<label>end <input type="range" id="e" min="0" max="100" step="0.5" value="34"><output id="ve">34.0</output> s</label>
+<pre><code id="cmd"></code></pre>
+<div class="warn" id="warn"></div>
+<script>
+(function () {
+  var DUR = 100;   // the source clip is 100 s
+  var W = 620, H = 140;
 
-export async function trim(ff, file, start, end) {
-  await ff.writeFile('in.mp4', new Uint8Array(await file.arrayBuffer()))
-  await ff.exec([
-    '-ss', start.toFixed(3),          // before -i: fast keyframe seek
-    '-i', 'in.mp4',
-    '-t', (end - start).toFixed(3),   // duration, not end time
-    '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p',
-    '-c:a', 'aac', '-b:a', '128k',
-    '-movflags', '+faststart',
-    'out.mp4'
-  ])
-  const data = await ff.readFile('out.mp4')
-  return new Blob([data], { type: 'video/mp4' })
-}
+  function draw() {
+    var s = +document.getElementById('s').value;
+    var e = +document.getElementById('e').value;
+    if (e < s + 0.5) { e = s + 0.5; document.getElementById('e').value = e; }
+    document.getElementById('vs').textContent = s.toFixed(1);
+    document.getElementById('ve').textContent = e.toFixed(1);
 
-// Preview: seek and stop at the end of the selection, no encoding involved.
-export function previewSelection(video, start, end) {
-  const onTime = () => {
-    if (video.currentTime >= end) {
-      video.pause()
-      video.removeEventListener('timeupdate', onTime)
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    var x0 = 20, x1 = W - 20, y = 60, h = 26;
+    function X(t) { return x0 + t / DUR * (x1 - x0); }
+
+    // strip of decoded frames
+    for (var t = 0; t < DUR; t += 2) {
+      var inSel = t >= s && t < e;
+      ctx.fillStyle = inSel ? '#dbeafe' : '#f1f5f9';
+      ctx.fillRect(X(t), y, X(t + 2) - X(t) - 1, h);
     }
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+    ctx.strokeRect(x0, y, x1 - x0, h);
+
+    // selection
+    ctx.fillStyle = 'rgba(37,99,235,.18)';
+    ctx.fillRect(X(s), y, X(e) - X(s), h);
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2;
+    ctx.strokeRect(X(s), y, X(e) - X(s), h);
+
+    // keyframes: sparse I-frames every 2 s
+    ctx.fillStyle = '#dc2626';
+    for (var k = 0; k <= DUR; k += 2) {
+      ctx.fillRect(X(k) - 1, y - 6, 2, 5);
+    }
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('0 s', x0, y + h + 16);
+    ctx.fillText(DUR + ' s', x1 - 26, y + h + 16);
+    ctx.fillStyle = '#dc2626';
+    ctx.fillText('red ticks = keyframes (every 2 s)', x0, y - 16);
+
+    // the commands
+    var fast = '-ss ' + s.toFixed(1) + ' -i in.mp4 -t ' + (e - s).toFixed(1);
+    document.getElementById('cmd').textContent =
+      '# fast seek: -ss BEFORE -i, -t is a DURATION' +
+      '\\nffmpeg -y ' + fast +
+      ' -c:v libx264 -preset veryfast -crf 23 -pix_fmt yuv420p' +
+      ' -c:a aac -b:a 128k -movflags +faststart out.mp4';
+
+    var nearest = Math.floor(s / 2) * 2;
+    document.getElementById('warn').textContent =
+      'the cut lands on the nearest keyframe (' + nearest + ' s), so it may be up to ' +
+      (s - nearest).toFixed(1) + ' s late. That is the price of not decoding everything before it.';
   }
-  video.currentTime = start
-  video.addEventListener('timeupdate', onTime)
-  return video.play()
-}
-`,
+
+  ['s', 'e'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', draw);
+  });
+  draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## \`-ss\` 放在 \`-i\` 前面还是后面，完全是两个行为
@@ -6253,32 +8319,90 @@ def compress_to_size(src, dst, target_mb, duration_s, height=None, audio_kbps=12
 #   definition -- the bitrate IS the size knob
 `,
 
-    javascript: `// Two modes, one formula. The page exposes both because they answer
-// different questions: "fit in 25 MB" vs "look acceptable".
-export function kbpsForTarget(targetMB, durationSec, audioKbps = 128) {
-  const total = (targetMB * 1024 * 1024 * 8) / durationSec / 1000
-  return Math.max(200, Math.round(total - audioKbps))
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bitrate is the size knob</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:640px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .row{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;font-size:12px}
+  .row label{display:flex;align-items:center;gap:8px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:52px;display:inline-block}
+  .big{font-size:15px;color:#0f172a;margin-top:10px}
+  .big b{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Unlike JPEG, video size has a formula</h1>
+<p>bytes = (video_kbps + audio_kbps) / 8 x 1000 x seconds. Solve it for the video bitrate and you hit
+the target within a few percent — no trial and error.</p>
+<canvas id="c" width="640" height="200"></canvas>
+<div class="row">
+  <label>target <input type="range" id="mb" min="2" max="120" step="2" value="25"><output id="vmb">25 MB</output></label>
+  <label>duration <input type="range" id="dur" min="10" max="240" step="5" value="60"><output id="vdur">60 s</output></label>
+  <label>audio <input type="range" id="ab" min="64" max="192" step="32" value="128"><output id="vab">128</output></label>
+</div>
+<div class="big">video bitrate <b id="kbps">—</b> kbps <span id="note" style="color:#b45309;font-size:12px"></span></div>
+<script>
+(function () {
+  var W = 640, H = 200;
+  function calc() {
+    var mb = +document.getElementById('mb').value;
+    var dur = +document.getElementById('dur').value;
+    var ab = +document.getElementById('ab').value;
+    document.getElementById('vmb').textContent = mb + ' MB';
+    document.getElementById('vdur').textContent = dur + ' s';
+    document.getElementById('vab').textContent = ab;
 
-export const QUALITY_PRESETS = { high: 4000, medium: 2000, low: 1000, draft: 500 }
+    var totalKbps = (mb * 1024 * 1024 * 8) / dur / 1000;
+    var video = Math.max(200, Math.round(totalKbps - ab));
+    document.getElementById('kbps').textContent = video;
+    document.getElementById('note').textContent =
+      totalKbps - ab < 200 ? '(floored at 200 — the target is not reachable at this duration)' : '';
 
-export function abrArgs(kbps, audioKbps) {
-  return [
-    '-c:v', 'libx264', '-preset', 'veryfast', '-pix_fmt', 'yuv420p',
-    '-b:v', \`\${kbps}k\`,
-    '-maxrate', \`\${Math.round(kbps * 1.5)}k\`,   // short overshoot allowed
-    '-bufsize', \`\${kbps * 2}k\`,                  // ... but the average holds
-    '-c:a', 'aac', '-b:a', \`\${audioKbps}k\`,
-    '-movflags', '+faststart'
-  ]
-}
+    // draw the size-vs-bitrate line with the current point
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    var padL = 46, padB = 30, padT = 14, padR = 14;
+    var maxKbps = 6000, maxMB = 120;
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, H - padB); ctx.lineTo(W - padR, H - padB); ctx.stroke();
 
-// Predicted size, shown before encoding so the user does not wait for a
-// surprise. Actual output is usually within 5%; warn beyond that.
-export function predictedMB(kbps, audioKbps, durationSec) {
-  return ((kbps + audioKbps) * 1000 * durationSec) / 8 / 1024 / 1024
-}
-`,
+    function X(k) { return padL + k / maxKbps * (W - padL - padR); }
+    function Y(m) { return H - padB - m / maxMB * (H - padT - padB); }
+
+    ctx.beginPath();
+    for (var k = 0; k <= maxKbps; k += 100) {
+      var sizeMB = (k + ab) * 1000 * dur / 8 / 1024 / 1024;
+      var y = Y(sizeMB);
+      if (k === 0) ctx.moveTo(X(k), y); else ctx.lineTo(X(k), y);
+    }
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(padL, Y(mb)); ctx.lineTo(W - padR, Y(mb)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath(); ctx.arc(X(video), Y(mb), 5, 0, Math.PI * 2); ctx.fill();
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('size', 10, padT + 6);
+    ctx.fillText('bitrate (kbps)', W - 110, H - 8);
+    ctx.fillText(mb + ' MB target', W - 100, Y(mb) - 8);
+  }
+  ['mb', 'dur', 'ab'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', calc);
+  });
+  calc();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 视频能算，图片不能算
@@ -6418,49 +8542,122 @@ def score(hit_radius, golden_radius):
 # (local-floor reference space) or WASD + pointer lock on desktop.
 `,
 
-    javascript: `// WebXR setup, controller selection, and the hit test around it.
-import { VRButton } from 'three/examples/jsm/webxr/VRButton.js'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ray-sphere hit test, without a headset</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#0f172a;cursor:crosshair}
+  .hud{margin-top:10px;font-size:12px;color:#475569}
+  .hud b{color:#0f172a;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Every VR shot is the same quadratic</h1>
+<p>The camera sits at the bottom. Click anywhere to fire: the ray is normalised, then tested against
+each sphere analytically — the same maths a WebXR controller uses, with the pose supplied by the mouse.</p>
+<canvas id="c" width="620" height="360"></canvas>
+<div class="hud">shots <b id="n">0</b> · hits <b id="h">0</b> · last t <b id="t">—</b>
+  <span style="color:#94a3b8">(t is the distance along the ray; only t &gt; 0 counts)</span></div>
+<script>
+(function () {
+  var W = 620, H = 360;
+  var c = document.getElementById('c'), ctx = c.getContext('2d');
+  var origin = { x: W / 2, y: H - 24 };
+  var targets = [];
+  var shots = 0, hits = 0;
 
-export function enableXR(renderer) {
-  renderer.xr.enabled = true
-  // local-floor: origin at the floor, so "y = 0" means the floor everywhere.
-  // bounded-floor adds room bounds; hand-tracking gives joint poses.
-  renderer.xr.setReferenceSpaceType('local-floor')
-  document.body.appendChild(VRButton.createButton(renderer))
-}
-
-export function controllers(renderer) {
-  // Two controllers, one per hand. getController(i) returns a Group whose
-  // pose is updated by the XR runtime every frame.
-  return [0, 1].map(i => {
-    const c = renderer.xr.getController(i)
-    c.addEventListener('selectstart', () => fire(c))
-    return c
-  })
-}
-
-const raycaster = new THREE.Raycaster()
-raycaster.far = 45                     // matches the page's range limit
-
-function fire(controller) {
-  // The controller's world matrix carries the pose; -Z is forward.
-  const origin = new THREE.Vector3().setFromMatrixPosition(controller.matrixWorld)
-  const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(
-    new THREE.Quaternion().setFromRotationMatrix(controller.matrixWorld))
-
-  raycaster.set(origin, direction)
-  const hits = raycaster.intersectObjects(targets, false)
-  if (hits.length) {
-    const hit = hits[0]
-    const isGolden = hit.object.userData.golden
-    addScore(isGolden ? 20 : 10)
-    hit.object.visible = false
+  function reset() {
+    targets = [];
+    for (var i = 0; i < 6; i++) {
+      targets.push({
+        x: 90 + (i * 89) % (W - 120),
+        y: 60 + (i * 61) % (H - 170),
+        r: 18 + (i % 3) * 6,
+        gold: i % 3 === 1,
+        alive: true
+      });
+    }
   }
-}
 
-// Desktop fallback: pointer lock + WASD. Same ray, different source of
-// position and orientation -- so the hit test code is shared.
-`,
+  // ray: origin + t * dir, sphere: |p - centre| = r  ->  quadratic in t
+  function hit(o, dir, s) {
+    var ox = o.x - s.x, oy = o.y - s.y;
+    var b = ox * dir.x + oy * dir.y;
+    var cc = ox * ox + oy * oy - s.r * s.r;
+    var disc = b * b - cc;
+    if (disc < 0) return null;
+    var t = -b - Math.sqrt(disc);
+    return t > 0 ? t : null;      // behind the shooter does not count
+  }
+
+  var lastRay = null;
+
+  function draw() {
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+    // floor line
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath(); ctx.moveTo(0, origin.y + 6); ctx.lineTo(W, origin.y + 6); ctx.stroke();
+
+    targets.forEach(function (s) {
+      if (!s.alive) return;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = s.gold ? '#fbbf24' : '#38bdf8';
+      ctx.globalAlpha = 0.9; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = s.gold ? '#92400e' : '#0369a1'; ctx.lineWidth = 2; ctx.stroke();
+    });
+
+    // shooter
+    ctx.fillStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.arc(origin.x, origin.y, 7, 0, Math.PI * 2); ctx.fill();
+
+    if (lastRay) {
+      ctx.strokeStyle = 'rgba(248,250,252,.35)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y);
+      ctx.lineTo(origin.x + lastRay.x * 900, origin.y + lastRay.y * 900);
+      ctx.stroke();
+    }
+
+    document.getElementById('n').textContent = shots;
+    document.getElementById('h').textContent = hits;
+  }
+
+  c.addEventListener('click', function (e) {
+    var r = c.getBoundingClientRect();
+    var mx = (e.clientX - r.left) / r.width * W;
+    var my = (e.clientY - r.top) / r.height * H;
+    var dx = mx - origin.x, dy = my - origin.y;
+    var len = Math.hypot(dx, dy) || 1;
+    var dir = { x: dx / len, y: dy / len };
+    lastRay = dir;
+    shots++;
+
+    var best = null, bestS = null;
+    targets.forEach(function (s) {
+      if (!s.alive) return;
+      var t = hit(origin, dir, s);
+      if (t !== null && (!best || t < best)) { best = t; bestS = s; }
+    });
+
+    if (bestS) {
+      bestS.alive = false;
+      hits++;
+      document.getElementById('t').textContent = best.toFixed(1);
+    } else {
+      document.getElementById('t').textContent = 'miss';
+    }
+    if (targets.every(function (s) { return !s.alive; })) setTimeout(reset, 700);
+    draw();
+  });
+
+  reset(); draw();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这页真正做的事：把「手指到哪」变成一个数学问题
@@ -6609,71 +8806,119 @@ class PoseGesture:
 # for anyone whose body is not the size you tuned for.
 `,
 
-    javascript: `// The filters between MediaPipe and the game loop. This is the whole trick.
-const EMA = 0.6
-const DEADZONE = 0.04
-const HYSTERESIS_IN = 0.55
-const HYSTERESIS_OUT = 0.4
-const COOLDOWN_MS = 480
-
-export function createGestureFilter() {
-  let smoothX = null
-  let baseline = null
-  let frames = 0
-  let ratchet = 0
-  let latched = false           // hysteresis state
-  let lastAction = 0
-
-  return {
-    // returns -1 / 0 / +1 for "move the piece"
-    horizontal(noseX) {
-      smoothX = smoothX === null ? noseX : EMA * noseX + (1 - EMA) * smoothX
-
-      frames++
-      if (frames <= 15) {
-        baseline = baseline === null ? noseX : (baseline * (frames - 1) + noseX) / frames
-        return 0                              // calibrating: ignore input
-      }
-
-      const offset = smoothX - baseline
-      if (Math.abs(offset) < DEADZONE) return 0
-      // ratchet outward only: returning halfway must not shift the piece back
-      ratchet = offset > 0 ? Math.max(ratchet, offset) : Math.min(ratchet, offset)
-      return ratchet > 0 ? 1 : -1
-    },
-
-    // returns 'rotate' | 'drop' | null
-    action(landmarks, now) {
-      if (now - lastAction < COOLDOWN_MS) return null
-      const nose = landmarks[0]
-      const lSh = landmarks[11], rSh = landmarks[12]
-      const lWr = landmarks[15], rWr = landmarks[16]
-
-      const shoulderWidth = Math.abs(rSh.x - lSh.x) || 1
-      const shoulderY = (lSh.y + rSh.y) / 2
-      // normalise by shoulder width so body size and distance cancel out
-      const leftUp = (shoulderY - lWr.y) / shoulderWidth
-      const rightUp = (shoulderY - rWr.y) / shoulderWidth
-
-      if (!latched && leftUp > HYSTERESIS_IN && rightUp > HYSTERESIS_IN) {
-        latched = true; lastAction = now
-        return 'drop'
-      }
-      if (!latched && leftUp > HYSTERESIS_IN) {
-        latched = true; lastAction = now
-        return 'rotate-left'
-      }
-      if (!latched && rightUp > HYSTERESIS_IN) {
-        latched = true; lastAction = now
-        return 'rotate-right'
-      }
-      // release only when clearly below the lower threshold
-      if (latched && leftUp < HYSTERESIS_OUT && rightUp < HYSTERESIS_OUT) latched = false
-      return null
-    }
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Four filters between the pose model and the game</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  label{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:12px;flex-wrap:wrap}
+  input[type=range]{width:150px}output{font-variant-numeric:tabular-nums;font-weight:600;min-width:46px}
+  .legend{display:flex;gap:16px;margin-top:8px;font-size:12px;color:#475569}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:5px}
+</style>
+</head>
+<body>
+<h1>The model is the easy part</h1>
+<p>Raw nose-x jitters, so a game fed directly is unplayable. Each filter removes one specific
+failure: smoothing, a deadzone, and a ratchet that only extends outward.</p>
+<canvas id="c" width="620" height="260"></canvas>
+<div class="legend">
+  <span><i style="background:#cbd5e1"></i>raw landmarks</span>
+  <span><i style="background:#2563eb"></i>after EMA</span>
+  <span><i style="background:#16a34a"></i>deadzone + ratchet (what the game sees)</span>
+</div>
+<label>EMA alpha <input type="range" id="a" min="0.1" max="0.95" step="0.05" value="0.6"><output id="va">0.60</output></label>
+<label>deadzone <input type="range" id="z" min="0" max="0.12" step="0.005" value="0.04"><output id="vz">0.040</output></label>
+<script>
+(function () {
+  var W = 620, H = 260, N = 240;
+  function rnd(i) {
+    var x = Math.sin(i * 12.9898 + 4.1) * 43758.5453;
+    return x - Math.floor(x) - 0.5;
   }
-}
-`,
+  // a deliberate lean to the right mid-sequence, plus per-frame jitter
+  function raw(i) {
+    var lean = i < 70 ? 0 : i < 170 ? 0.28 : 0.05;
+    return lean + rnd(i) * 0.10 + Math.sin(i / 5) * 0.02;
+  }
+
+  function render() {
+    var alpha = +document.getElementById('a').value;
+    var dz = +document.getElementById('z').value;
+    document.getElementById('va').textContent = alpha.toFixed(2);
+    document.getElementById('vz').textContent = dz.toFixed(3);
+
+    var rawV = [], emaV = [], gameV = [];
+    var e = null, ratchet = 0, base = 0;
+    for (var i = 0; i < N; i++) {
+      var r = raw(i);
+      rawV.push(r);
+      e = e === null ? r : alpha * r + (1 - alpha) * e;
+      emaV.push(e);
+      var off = e - base;
+      if (Math.abs(off) > dz) {
+        ratchet = off > 0 ? Math.max(ratchet, off) : Math.min(ratchet, off);
+      }
+      gameV.push(ratchet);
+    }
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, W, H);
+    var padL = 40, padB = 24;
+    function X(i) { return padL + i / (N - 1) * (W - padL - 12); }
+    function Y(v) { return H / 2 - v * 380; }   // 0.28 maps to about -106 px
+
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.beginPath(); ctx.moveTo(padL, H / 2); ctx.lineTo(W - 12, H / 2); ctx.stroke();
+
+    function line(arr, color, width) {
+      ctx.beginPath();
+      arr.forEach(function (v, i) {
+        if (i === 0) ctx.moveTo(X(i), Y(v)); else ctx.lineTo(X(i), Y(v));
+      });
+      ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+    }
+    line(rawV, '#cbd5e1', 1);
+    line(emaV, '#2563eb', 1.6);
+    line(gameV, '#16a34a', 2.4);
+
+    // deadzone band
+    ctx.fillStyle = 'rgba(22,163,74,.10)';
+    ctx.fillRect(padL, Y(dz), W - padL - 12, Math.abs(Y(-dz) - Y(dz)));
+    ctx.strokeStyle = 'rgba(22,163,74,.45)'; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.moveTo(padL, Y(dz)); ctx.lineTo(W - 12, Y(dz)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(padL, Y(-dz)); ctx.lineTo(W - 12, Y(-dz)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('lean right', 6, Y(0.28) + 4);
+    ctx.fillText('centre', 6, Y(0) + 4);
+    ctx.fillText('frames ->', W - 78, H - 6);
+    ctx.fillStyle = '#0f172a';
+    ctx.fillText('game input changes ' + countChanges(gameV) + ' times in ' + N + ' frames (raw would be ' +
+      countChanges(rawV) + ')', padL, 16);
+  }
+
+  function countChanges(arr) {
+    var n = 0, last = arr[0];
+    for (var i = 1; i < arr.length; i++) {
+      if (Math.abs(arr[i] - last) > 0.02) { n++; last = arr[i]; }
+    }
+    return n;
+  }
+
+  ['a', 'z'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 从「33 个关键点」到「方块左移一格」，中间有四层滤波

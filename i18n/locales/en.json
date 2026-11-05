@@ -1656,6 +1656,12 @@
     "principle": "How it works",
     "copy": "Copy code",
     "copied": "Copied",
-    "jumpToDetail": "Full explanation and runnable code below"
+    "jumpToDetail": "Full explanation and runnable code below",
+    "html": "HTML · runnable",
+    "run": "Run",
+    "stop": "Stop",
+    "rerun": "Restart",
+    "result": "Output",
+    "close": "Close"
   }
 }

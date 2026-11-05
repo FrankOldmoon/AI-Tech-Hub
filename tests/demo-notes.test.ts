@@ -60,12 +60,26 @@ describe('demo-notes 路径', () => {
 describe('demo-notes 内容', () => {
   for (const [path, note] of entries) {
     describe(path, () => {
-      it('Python 与 JavaScript 都是多行、非空、且语言不同', () => {
+      /** 第二段代码：新内容是完整 HTML，旧内容（robot）仍是 JS 片段 */
+      const second = note.html ?? note.javascript ?? ''
+
+      it('Python 与第二段代码都是多行、非空、且内容不同', () => {
         expect(note.python.trim().length).toBeGreaterThan(200)
-        expect(note.javascript.trim().length).toBeGreaterThan(200)
+        expect(second.trim().length).toBeGreaterThan(200)
         expect(note.python.split('\n').length).toBeGreaterThanOrEqual(10)
-        expect(note.javascript.split('\n').length).toBeGreaterThanOrEqual(10)
-        expect(note.python).not.toBe(note.javascript)
+        expect(second.split('\n').length).toBeGreaterThanOrEqual(10)
+        expect(note.python).not.toBe(second)
+      })
+
+      it('可运行 HTML 必须自包含（能直接丢进沙箱 iframe）', () => {
+        if (!note.html) return
+        expect(note.html.toLowerCase()).toContain('<!doctype html>')
+        expect(note.html).toContain('<script')
+        expect(note.html).toContain('</html>')
+        // 不允许任何外链：运行环境是 sandbox="allow-scripts" 的 iframe，拿不到本站也不该依赖网络
+        expect(note.html).not.toMatch(/<script[^>]+src=["']https?:/i)
+        expect(note.html).not.toMatch(/<link[^>]+href=["']https?:/i)
+        expect(note.html).not.toMatch(/<img[^>]+src=["']https?:/i)
       })
 
       it('原理说明中英都有，且足够长（不是一句话占位）', () => {

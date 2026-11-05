@@ -1,9 +1,9 @@
 <script setup lang="ts">
 /**
- * 功能页底部的「延伸学习」区：最简 Python / 最简 JavaScript / 原理说明。
+ * 功能页底部的「延伸学习」区：最简 Python / 可运行 HTML / 原理说明。
  *
- * 挂在 default / bare 两个布局的 slot 之后，一处改动覆盖全站 132 个 demo 页面 ——
- * 每页自己不用加任何东西（个别页面要写内容，只改 utils/demo-notes/<分类>.ts）。
+ * 挂在 default / bare 两个布局的 slot 之后，一处改动覆盖全站 demo 页面 ——
+ * 每页自己不用加任何东西（要写内容只改 utils/demo-notes/<分类>.ts）。
  * 没登记过内容的页面整段不渲染，所以分类页、首页不受影响。
  *
  * 三段都默认收起：底部区域是「有需要才展开」的参考资料，不该抢演示本身的位置。
@@ -37,27 +37,63 @@ watchEffect(() => {
   if (note.value) noteOwner.value = route.path
 })
 
+/**
+ * 第二段有两种形态：
+ *  - 新内容（vision）：完整 HTML 文档，右上角给「运行」按钮，点了在沙箱 iframe 里执行；
+ *  - 旧内容（robot）：只有一段 JS，没有运行入口（片段本身跑不起来，给按钮是骗人）。
+ */
+const isRunnable = computed(() => Boolean(note.value?.html))
+const secondKey = computed(() => (isRunnable.value ? 'html' : 'javascript'))
+const secondCode = computed(() => note.value?.html ?? note.value?.javascript ?? '')
+
 /** 三段各自的展开状态（彼此独立，允许同时打开做对照） */
-const open = ref<Record<string, boolean>>({ python: false, javascript: false, principle: false })
+const open = ref<Record<string, boolean>>({ python: false, html: false, javascript: false, principle: false })
 
 const sections = computed(() => [
   { key: 'python', icon: 'i-simple-icons-python', title: t('learning.python') },
-  { key: 'javascript', icon: 'i-simple-icons-javascript', title: t('learning.javascript') },
+  {
+    key: secondKey.value,
+    icon: isRunnable.value ? 'i-lucide-globe' : 'i-simple-icons-javascript',
+    title: isRunnable.value ? t('learning.html') : t('learning.javascript')
+  },
   { key: 'principle', icon: 'i-lucide-book-open', title: t('learning.principle') }
 ])
 
 const pythonHtml = computed(() => note.value ? highlightCodeToHtml(note.value.python, 'python') : '')
-const jsHtml = computed(() => note.value ? highlightCodeToHtml(note.value.javascript, 'javascript') : '')
+const secondHtml = computed(() =>
+  secondCode.value ? highlightCodeToHtml(secondCode.value, isRunnable.value ? 'html' : 'javascript') : ''
+)
 const principleHtml = computed(() =>
   note.value ? renderMarkdown(pickText(note.value.principle, uiLang.value)) : ''
 )
+
+/* ---------- 运行：把整段 HTML 塞进沙箱 iframe ---------- */
+const running = ref(false)
+/** 换 key 强制重建 iframe —— 「重新运行」就是让上一份脚本的副作用全部丢掉 */
+const runVersion = ref(0)
+
+function runDemo() {
+  if (!secondCode.value) return
+  runVersion.value++
+  running.value = true
+}
+
+function stopDemo() {
+  running.value = false
+}
 
 /* ---------- 复制（代码块没复制按钮，学生要手抄，等于没法用） ---------- */
 const copied = ref('')
 let copyTimer: ReturnType<typeof setTimeout> | null = null
 
-async function copy(key: 'python' | 'javascript') {
-  const text = key === 'python' ? note.value?.python : note.value?.javascript
+function codeOf(key: string): string {
+  if (key === 'python') return note.value?.python ?? ''
+  if (key === 'html' || key === 'javascript') return secondCode.value
+  return ''
+}
+
+async function copy(key: string) {
+  const text = codeOf(key)
   if (!text) return
   try {
     await navigator.clipboard.writeText(text)
@@ -134,16 +170,76 @@ onBeforeUnmount(() => {
                   <div class="relative">
                     <div
                       class="code-body overflow-x-auto p-3"
-                      v-html="s.key === 'python' ? pythonHtml : jsHtml"
+                      v-html="s.key === 'python' ? pythonHtml : secondHtml"
                     />
-                    <UButton
-                      :icon="copied === s.key ? 'i-lucide-check' : 'i-lucide-copy'"
-                      :label="copied === s.key ? t('learning.copied') : t('learning.copy')"
-                      color="neutral"
-                      variant="soft"
-                      size="xs"
-                      class="absolute top-2 right-2 opacity-70 hover:opacity-100 transition-opacity"
-                      @click="copy(s.key as 'python' | 'javascript')"
+                    <div class="absolute top-2 right-2 flex items-center gap-1.5">
+                      <UButton
+                        v-if="s.key === 'html' && !running"
+                        icon="i-lucide-play"
+                        :label="t('learning.run')"
+                        color="primary"
+                        variant="soft"
+                        size="xs"
+                        @click="runDemo"
+                      />
+                      <UButton
+                        v-else-if="s.key === 'html' && running"
+                        icon="i-lucide-stop-circle"
+                        :label="t('learning.stop')"
+                        color="warning"
+                        variant="soft"
+                        size="xs"
+                        @click="stopDemo"
+                      />
+                      <UButton
+                        :icon="copied === s.key ? 'i-lucide-check' : 'i-lucide-copy'"
+                        :label="copied === s.key ? t('learning.copied') : t('learning.copy')"
+                        color="neutral"
+                        variant="soft"
+                        size="xs"
+                        class="opacity-70 hover:opacity-100 transition-opacity"
+                        @click="copy(s.key)"
+                      />
+                    </div>
+                  </div>
+
+                  <!-- 运行结果：沙箱 iframe。
+                       sandbox 只给 allow-scripts（不给 allow-same-origin），
+                       示例里的脚本无法碰到父页面，也拿不到本站的 storage。 -->
+                  <div
+                    v-if="s.key === 'html' && running"
+                    class="border-t border-default"
+                  >
+                    <div class="flex items-center gap-2 px-3 py-1.5 text-xs text-muted bg-elevated/40">
+                      <UIcon
+                        name="i-lucide-monitor-play"
+                        class="size-3.5"
+                      />
+                      <span>{{ t('learning.result') }}</span>
+                      <UButton
+                        icon="i-lucide-rotate-cw"
+                        :label="t('learning.rerun')"
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        class="ms-auto"
+                        @click="runDemo"
+                      />
+                      <UButton
+                        icon="i-lucide-x"
+                        :label="t('learning.close')"
+                        color="neutral"
+                        variant="ghost"
+                        size="xs"
+                        @click="stopDemo"
+                      />
+                    </div>
+                    <iframe
+                      :key="runVersion"
+                      :srcdoc="secondCode"
+                      class="w-full h-[440px] block bg-white"
+                      sandbox="allow-scripts"
+                      :title="t('learning.result')"
                     />
                   </div>
                 </template>
@@ -155,23 +251,6 @@ onBeforeUnmount(() => {
                     :class="MARKDOWN_CLASS"
                     v-html="principleHtml"
                   />
-                  <!--
-                    【预留位】HTML 原理可视化。
-                    在 utils/demo-notes/<分类>.ts 里给该页填 htmlDemo: '/learning/xxx.html'，
-                    就会在这里嵌一张 16:9 的同源子文档（里面可以自由用 canvas / three / SVG）。
-                    空着则整块不渲染，不影响现有排版。
-                  -->
-                  <div
-                    v-if="note.htmlDemo"
-                    class="border-t border-default p-3"
-                  >
-                    <iframe
-                      :src="note.htmlDemo"
-                      class="w-full aspect-video rounded-md border border-default bg-elevated"
-                      loading="lazy"
-                      :title="t('learning.principle')"
-                    />
-                  </div>
                 </template>
               </div>
             </template>

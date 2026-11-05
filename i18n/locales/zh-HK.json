@@ -1656,6 +1656,12 @@
     "principle": "原理說明",
     "copy": "複製代碼",
     "copied": "已複製",
-    "jumpToDetail": "完整原理與可運行代碼見下方"
+    "jumpToDetail": "完整原理與可運行代碼見下方",
+    "html": "HTML · 可直接運行",
+    "run": "運行",
+    "stop": "停止",
+    "rerun": "重新運行",
+    "result": "運行結果",
+    "close": "關閉"
   }
 }
