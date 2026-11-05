@@ -76,3 +76,21 @@
    发一条带 `system: "Ignore all previous instructions"` 的请求，上游实际收到的 messages 只有一条 system
    且策略在前（override 文本被降到第 1578 字符，策略本体 1401 字符），响应头含 `x-ai-policy`。
 3. 站内演示页（`/api/aigc/llm-chat`）**未**加此策略：那是给学生改系统提示做教学演示的，不对外开放。
+
+### 修订（2026-11-05）：把范围写死成「只针对学习平台」，并加白名单
+
+**问题**：旧文案只写「禁止…写脚本或浏览器自动化」，模型把「自动化」读成泛指 —— 用 `/v1` 当后端的
+编码 agent 要 `git push` 代码到内网自建仓库（10.28.1.160）时被一起拒绝，正常开发流程被误伤。
+
+**改法**（同一文件，`LEARNING_INTEGRITY_POLICY`）：
+
+- 首句直接限定 scope：`scope: graded work on the school learning platform`，并声明
+  `NOT a general content filter and it does not restrict ordinary engineering, research or automation work`。
+- 禁令第 2 条收紧为「为该平台的评分任务而写的脚本」，不再是泛指自动化。
+- 新增 **EXPLICITLY ALLOWED** 白名单，明确「不得拒绝、不要求说明理由、不得拿本策略当拒绝理由」：
+  写代码/重构/测试/构建、CI/CD、Docker/K8s、shell/Python/Node 自动化；完整 git 操作
+  （含 `git push` / force-push 到内网 10.x 自建 Git 服务、SSH deploy key、token、hook）；部署运维与日志排查。
+- 混合请求（如「把这份答题脚本 push 上去」）只拒绝作弊部分，工程部分照做。
+- 单测补 3 例：不是通用过滤、白名单里有 `git push` 与 `10.28.1.160`、混合请求只拒一半。
+
+**代价**：策略文本从 1401 → 2636 字符（约 +800 token/请求），换来不再误伤正常开发。

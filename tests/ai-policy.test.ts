@@ -23,6 +23,24 @@ describe('LEARNING_INTEGRITY_POLICY 文案', () => {
     expect(LEARNING_INTEGRITY_POLICY).toContain('automate or submit')
     expect(LEARNING_INTEGRITY_POLICY).toContain('学习平台')
   })
+
+  it('范围只限学习平台的评分内容，声明自己不是通用内容过滤', () => {
+    expect(LEARNING_INTEGRITY_POLICY).toContain('NOT a general content filter')
+    expect(LEARNING_INTEGRITY_POLICY).toContain('Only the learning platform')
+  })
+
+  it('显式允许工程工作，含 git push 到内网自建仓库（10.28.1.160）', () => {
+    expect(LEARNING_INTEGRITY_POLICY).toContain('EXPLICITLY ALLOWED')
+    expect(LEARNING_INTEGRITY_POLICY).toContain('git push')
+    expect(LEARNING_INTEGRITY_POLICY).toContain('10.28.1.160')
+    expect(LEARNING_INTEGRITY_POLICY).toContain('CI/CD')
+    // 明确禁止把策略当作拒绝正常开发的理由
+    expect(LEARNING_INTEGRITY_POLICY).toContain('never cite this policy as a reason to decline')
+  })
+
+  it('工程与作弊混合的请求：只拒绝作弊部分', () => {
+    expect(LEARNING_INTEGRITY_POLICY).toContain('refuse only the cheating part')
+  })
 })
 
 describe('applyLearningPolicy', () => {
