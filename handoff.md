@@ -200,3 +200,27 @@ letterbox 还原并对比错解；depth 页真做 min-max 量化与色带映射�
 - 模板字符串里写 `\n` 会变成真换行，`'...\n...'` 在产物里就成了未终止字符串 → "Invalid or unexpected token"。
   要写 `\\n`
 - 注释里写 Markdown 的反引号会直接终止 TS 模板字符串（之前栽过一次）
+
+### 6. nlp / aigc 内容补齐（2026-11-05）
+
+| 分类 | 条目 | 文件 | 结果 |
+| --- | --- | --- | --- |
+| nlp | 10/10 | `app/utils/demo-notes/nlp.ts` | 浏览器执行 10/10，Python AST 全过 |
+| aigc | 9/9 | `app/utils/demo-notes/aigc.ts` | 浏览器执行 9/9，Python AST 全过 |
+
+**nlp 的关键事实**（写原理前必须核实，别凭印象）：
+- 全部浏览器端推理；`mediapipe-text` 三个任务共 32 MB（语言检测 **315 KB** / 句向量 6.1 MB / 分类 25.7 MB）
+- `transformers` 页六个 pipeline 共 **706 MB**，靠 `task|model|device` 三元组缓存，只实例化选中的那个
+- HTML 示例刻意用**真算法**而非示意：字符 n-gram 语言识别、TF-IDF 余弦、BIO 合并、TextRank、span 打分
+
+**aigc 的关键事实**：
+- 两条链路：本地（WebLLM q4f16 / Transformers.js / ONNX）vs 服务端代理（`/api/aigc/llm-chat`）
+- **`/api/aigc/llm-chat` 故意不走 `enforceLearningPolicy`** —— 这一页就是让学生改 system prompt；
+  对外 `/v1/chat/completions` 才强制。这个边界别改错
+- `capabilities` 页真调 `navigator.gpu`，HTML 示例也真调（沙箱里可能被拒，那是预期行为）
+- 分模块 dtype：视觉解码器必须 fp32（q4 会出现可见色块），语言部分可 q4
+
+**踩的坑（和 vision 那次同一个）**：模板字符串里 `\n` 会变真换行，`'...\n...'` 到产物里
+就是未终止字符串。`reasoning-chat` 那条又栽了一次，改成数组 `.join('<br>')` 才彻底避开。
+
+**剩余**：speech 25、ml 28、robot 14（robot 已有内容，需把 `javascript` 升级为 `html`）。
