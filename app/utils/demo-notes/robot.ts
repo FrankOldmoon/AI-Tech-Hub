@@ -50,35 +50,133 @@ if __name__ == "__main__":
         print(f"v={v:5.1f} km/h  gap={gap:5.1f} m")
 `,
 
-    javascript: `// Same car-following policy as the auto-drive page, in ES module form.
-// Run with: node car-follow.js
-const DT = 0.1
-const CRUISE_KMH = 40.0
-const ACCEL_KMH_S = 13.0
-const BRAKE_KMH_S = 30.0
-const SAFE_GAP_M = 6.0
-const HEADWAY_S = 1.2
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Car following: one gain, two limits</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:130px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:52px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Speed control is a saturated integrator</h1>
+<p>The page's auto mode does longitudinal control only: pick a target speed, brake when the gap closes.
+Drag the gain — too low and it never reaches the set speed, too high and it oscillates.</p>
+<canvas id="c" width="620" height="220"></canvas>
+<div class="ctl">
+  <label>gain K <input type="range" id="k" min="0.2" max="4" step="0.1" value="1.6"><output id="vk">1.6</output></label>
+  <label>target <input type="range" id="t" min="10" max="80" step="5" value="40"><output id="vt">40</output> km/h</label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">The two limits (ACCEL 3.2, BRAKE 6.0 m/s²) are what make it a <i>saturated</i> controller:
+past them the gain slider stops mattering, because the output is clamped.</div>
+<script>
+(function () {
+  var DT = 0.05, ACCEL = 3.2, BRAKE = 6.0;
+  var v = 20, gap = 42, hist = [];
+  var running = true, t = 0;
 
-function speedStep(egoKmh, leadKmh, gapM) {
-  let target
-  if (leadKmh == null) {
-    target = CRUISE_KMH
-  } else {
-    // Allowed closing speed is linear in the remaining gap.
-    const allowed = Math.max(0, (gapM - SAFE_GAP_M) / HEADWAY_S) * 3.6
-    target = Math.min(CRUISE_KMH, leadKmh + allowed)
+  function step(target) {
+    var targetMs = target / 3.6;
+    var err = targetMs - v / 3.6;
+    // stop for the lead car: no closer than 6 m at current speed
+    var safe = 6 + (v / 3.6) * 0.9;
+    var cmd = Math.max(-BRAKE, Math.min(ACCEL, err * 2));
+    if (gap < safe) cmd = Math.min(cmd, -BRAKE * 0.6);
+    v = Math.max(0, v + cmd * DT * 3.6);
+    gap -= (v / 3.6) * DT;
+    if (gap < 3) gap = 3;
+    t += DT;
   }
-  const err = target - egoKmh
-  return egoKmh + Math.max(-BRAKE_KMH_S, Math.min(ACCEL_KMH_S, err)) * DT
-}
 
-let v = 60, gap = 30
-for (let i = 0; i < 40; i++) {
-  v = speedStep(v, 20, gap)
-  gap -= ((v - 20) / 3.6) * DT
-  console.log(\`v=\${v.toFixed(1)} km/h  gap=\${gap.toFixed(1)} m\`)
-}
-`,
+  function draw() {
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 220;
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // road
+    ctx.fillStyle = '#1e293b';
+    ctx.fillRect(0, 130, W, 60);
+    ctx.strokeStyle = '#fbbf24'; ctx.setLineDash([26, 22]);
+    ctx.beginPath(); ctx.moveTo(0, 160); ctx.lineTo(W, 160); ctx.stroke();
+    ctx.setLineDash([]);
+
+    // ego car
+    var egoX = 90;
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(egoX - 26, 138, 52, 24);
+    // lead car: position from the gap, scaled
+    var leadX = Math.min(W - 60, egoX + 60 + gap * 6);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(leadX - 26, 138, 52, 24);
+
+    // gap annotation
+    ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(egoX + 28, 176); ctx.lineTo(leadX - 28, 176); ctx.stroke();
+    ctx.fillStyle = '#cbd5e1'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText(gap.toFixed(1) + ' m', (egoX + leadX) / 2 - 18, 192);
+
+    // speed trace
+    hist.push(v / 3.6);
+    if (hist.length > 200) hist.shift();
+    ctx.beginPath();
+    for (var i = 0; i < hist.length; i++) {
+      var x = 20 + i * 2.9;
+      var y = 110 - Math.min(1, hist[i] / 25) * 86;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.8; ctx.stroke();
+
+    // set speed line
+    var tv = +document.getElementById('t').value / 3.6;
+    ctx.strokeStyle = 'rgba(251,191,36,.6)'; ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(20, 110 - Math.min(1, tv / 25) * 86);
+    ctx.lineTo(W - 20, 110 - Math.min(1, tv / 25) * 86);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillText('speed (m/s) vs set speed', 20, 20);
+    ctx.fillText('t = ' + t.toFixed(1) + ' s', W - 90, 20);
+  }
+
+  function loop() {
+    if (running) {
+      var target = +document.getElementById('t').value;
+      var k = +document.getElementById('k').value;
+      ACCEL = 3.2 * k / 1.6;
+      BRAKE = 6.0 * Math.min(1.4, k / 1.6);
+      step(target);
+      draw();
+      document.getElementById('stat').innerHTML =
+        'ego <b>' + (v).toFixed(1) + ' km/h</b> · gap <b>' + gap.toFixed(1) +
+        ' m</b> · accel limit <b>' + ACCEL.toFixed(1) + ' m/s²</b>';
+    }
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('k').addEventListener('input', function (e) {
+    document.getElementById('vk').textContent = (+e.target.value).toFixed(1);
+  });
+  document.getElementById('t').addEventListener('input', function (e) {
+    document.getElementById('vt').textContent = e.target.value;
+  });
+  loop();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这一页在模拟什么
@@ -180,38 +278,103 @@ if __name__ == "__main__":
             print(f"t={i / 60:4.1f}s  y={pos[1]:5.2f} m  vy={vel[1]:5.2f} m/s")
 `,
 
-    javascript: `// The drone page's flight model, as a standalone ES module.
-// node drone-flight.js -- prints a take-off to 7 m and a hover.
-const THROTTLE = 8.0
-const ALT_KP = 1.2
-const LIMIT_Y = 26.0
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cascaded PID: gain, overshoot, oscillation</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:140px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Why a drone needs two loops</h1>
+<p>Position error becomes a velocity target (outer loop); velocity error becomes thrust (inner loop).
+Cut the damping and the altitude rings for seconds — that is the classic P-only failure.</p>
+<canvas id="c" width="620" height="200"></canvas>
+<div class="ctl">
+  <label>Kp <input type="range" id="p" min="0.5" max="8" step="0.1" value="3"><output id="vp">3.0</output></label>
+  <label>Kd <input type="range" id="d" min="0" max="5" step="0.1" value="2.4"><output id="vd">2.4</output></label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">Damping below ~1.5 with Kp at 3 gives sustained oscillation; above ~4 the response is
+sluggish but stable. The page runs the same structure on attitude and position, nested.</div>
+<script>
+(function () {
+  var DT = 0.02;
+  var y = 0, vy = 0, target = 1.0, hist = [], t = 0;
 
-function step(pos, stick, altTarget, dt = 1 / 60) {
-  let [sx, sz] = stick
-  const n = Math.hypot(sx, sz)
-  if (n > 1) { sx /= n; sz /= n }
-
-  const vx = sx * THROTTLE
-  const vz = sz * THROTTLE
-  // Altitude hold: proportional, clamped so a large error cannot teleport.
-  let vy = (altTarget - pos.y) * ALT_KP
-  vy = Math.max(-3, Math.min(3, vy))
-
-  return {
-    x: pos.x + vx * dt,
-    y: Math.min(LIMIT_Y, Math.max(0, pos.y + vy * dt)),
-    z: pos.z + vz * dt,
-    vy
+  function step(kp, kd) {
+    // position error -> velocity target -> acceleration
+    var vTarget = (target - y) * 0.9;
+    var a = (vTarget - vy) * kp - vy * kd * 0.2;
+    vy += a * DT;
+    y += vy * DT;
+    t += DT;
+    hist.push({ y: y, t: t });
+    if (hist.length > 260) hist.shift();
   }
-}
 
-let pos = { x: 0, y: 0, z: 0 }
-for (let i = 0; i < 180; i++) {
-  const next = step(pos, [0, 0], 7)
-  pos = { x: next.x, y: next.y, z: next.z }
-  if (i % 30 === 0) console.log(\`t=\${(i / 60).toFixed(1)}s  y=\${pos.y.toFixed(2)} m\`)
-}
-`,
+  function render() {
+    var kp = +document.getElementById('p').value;
+    var kd = +document.getElementById('d').value;
+    document.getElementById('vp').textContent = kp.toFixed(1);
+    document.getElementById('vd').textContent = kd.toFixed(1);
+
+    for (var i = 0; i < 3; i++) step(kp, kd);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 200;
+    ctx.clearRect(0, 0, W, H);
+
+    // target line
+    var Y = v => H - 30 - Math.min(1.6, v) / 1.6 * (H - 56);
+    ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([5, 4]);
+    ctx.beginPath(); ctx.moveTo(30, Y(target)); ctx.lineTo(W - 16, Y(target)); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      var x = 30 + i / 259 * (W - 46);
+      if (i === 0) ctx.moveTo(x, Y(p.y)); else ctx.lineTo(x, Y(p.y));
+    });
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.stroke();
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('altitude vs target', 30, 16);
+    ctx.fillText('0 m', 8, H - 26);
+    ctx.fillText('1 m', 8, Y(1) + 4);
+
+    var overshoot = Math.max.apply(null, hist.map(function (p) { return p.y; })) - target;
+    var settled = Math.abs(hist[hist.length - 1].y - target) < 0.02;
+    document.getElementById('stat').innerHTML =
+      'altitude <b>' + y.toFixed(2) + ' m</b> · overshoot <b>' +
+      (overshoot > 0 ? '+' + overshoot.toFixed(3) : '0') + ' m</b> · ' +
+      (settled ? '<span style="color:#16a34a">settled</span>'
+               : '<span style="color:#b45309">still moving</span>');
+  }
+
+  document.getElementById('p').addEventListener('input', render);
+  document.getElementById('d').addEventListener('input', render);
+
+  var raf;
+  (function loop() {
+    render();
+    raf = requestAnimationFrame(loop);
+  })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 简化的地方，就是教学重点
@@ -322,52 +485,104 @@ if __name__ == "__main__":
         print(f"coverage={ratio:.1%}  yaw={yaw:5.2f}")
 `,
 
-    javascript: `// Coverage grid + reactive steering, extracted from the vacuum page.
-// node vacuum.js
-const CELL = 0.5
-const BRUSH_R = 0.85
-const FRONT_STOP = 1.3
-const TURN_GAIN = 1.6
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Coverage without a map</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:420px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;align-items:center}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:130px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:52px}
+  button{font:inherit;font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>No SLAM, no map — just a grid it writes to</h1>
+<p>The robot cleans where it has not been. Coverage rises monotonically because each cell is marked the
+moment it is visited; the wall bounce is a simple reflection, not path planning.</p>
+<canvas id="c" width="420" height="420"></canvas>
+<div class="ctl">
+  <label>speed <input type="range" id="s" min="1" max="8" step="1" value="3"><output id="vs">3</output></label>
+  <button id="reset">reset</button>
+</div>
+<div class="note">This is the same idea as /robot/envsense's coverage grid on the real page: a 2D array of
+counters, no geometry, no map. That is why it runs in a browser.</div>
+<script>
+(function () {
+  var G = 28, CELL = 15, S = G * CELL;
+  var grid, rx, ry, dir, cover = 0;
 
-function cleanAround(grid, x, z, r = BRUSH_R) {
-  const c0 = Math.floor((x - r) / CELL), c1 = Math.floor((x + r) / CELL)
-  const r0 = Math.floor((z - r) / CELL), r1 = Math.floor((z + r) / CELL)
-  for (let c = c0; c <= c1; c++) {
-    for (let rw = r0; rw <= r1; rw++) {
-      const row = grid[rw]
-      if (!row || row[c] == null) continue          // null = wall / drop
-      const cx = (c + 0.5) * CELL, cz = (rw + 0.5) * CELL
-      if (Math.hypot(cx - x, cz - z) <= r) row[c] = true
+  function reset() {
+    grid = [];
+    for (var y = 0; y < G; y++) {
+      var row = [];
+      for (var x = 0; x < G; x++) row.push(0);
+      grid.push(row);
+    }
+    // a few obstacles
+    for (var i = 0; i < 24; i++) {
+      var ox = 4 + (i * 7) % (G - 8), oy = 4 + (i * 11) % (G - 8);
+      grid[oy][ox] = 2;
+    }
+    rx = 1; ry = 1; dir = 0; cover = 0;
+  }
+
+  function step() {
+    var speed = +document.getElementById('s').value;
+    for (var k = 0; k < speed; k++) {
+      var dx = [1, 0, -1, 0][dir], dy = [0, 1, 0, -1][dir];
+      var nx = rx + dx, ny = ry + dy;
+      if (nx < 0 || ny < 0 || nx >= G || ny >= G || grid[ny][nx] === 2) {
+        dir = (dir + 1) % 4;                      // wall: turn, no planning
+      } else {
+        rx = nx; ry = ny;
+        // occasionally turn to emulate a reactive policy
+        if (Math.random() < 0.04) dir = (dir + (Math.random() < 0.5 ? 1 : 3)) % 4;
+      }
+      if (grid[ry][rx] === 0) { grid[ry][rx] = 1; cover++; }
     }
   }
-  let done = 0, total = 0
-  for (const row of grid) {
-    for (const v of row) {
-      if (v !== null) total++
-      if (v === true) done++
+
+  function render() {
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, S, S);
+
+    for (var y = 0; y < G; y++) {
+      for (var x = 0; x < G; x++) {
+        var v = grid[y][x];
+        if (v === 1) { ctx.fillStyle = '#bfdbfe'; ctx.fillRect(x * CELL, y * CELL, CELL, CELL); }
+        else if (v === 2) { ctx.fillStyle = '#94a3b8'; ctx.fillRect(x * CELL, y * CELL, CELL, CELL); }
+      }
     }
+
+    ctx.fillStyle = '#16a34a';
+    ctx.beginPath();
+    ctx.arc(rx * CELL + CELL / 2, ry * CELL + CELL / 2, CELL * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#0f172a'; ctx.font = '11px ui-monospace, monospace';
+    var total = G * G - 24;
+    var pct = cover / total;
+    ctx.fillText('coverage ' + Math.round(pct * 100) + '%  ·  ' + cover + '/' + total + ' cells', 8, S - 8);
   }
-  return total ? done / total : 0
-}
 
-// Reflex policy: brake-and-turn when blocked, edge-follow otherwise.
-function steer(front, left, right) {
-  if (front < FRONT_STOP) return left > right ? TURN_GAIN : -TURN_GAIN
-  const err = Math.min(left, right) - FRONT_STOP
-  return Math.max(-1, Math.min(1, err * TURN_GAIN * 0.3))
-}
-
-const grid = Array.from({ length: 18 }, () => Array(24).fill(false))
-grid[5][5] = null
-let x = 1, z = 1, yaw = 0
-for (let i = 0; i < 600; i++) {
-  yaw += steer(2.0, 1.5, 0.9) / 60
-  x += Math.cos(yaw) * 2.4 / 60
-  z += Math.sin(yaw) * 2.4 / 60
-  const ratio = cleanAround(grid, x % 12, z % 9)
-  if (i % 60 === 0) console.log(\`coverage=\${(ratio * 100).toFixed(1)}%\`)
-}
-`,
+  document.getElementById('reset').addEventListener('click', function () { reset(); render(); });
+  document.getElementById('s').addEventListener('input', function (e) {
+    document.getElementById('vs').textContent = e.target.value;
+  });
+  document.getElementById('vs').textContent = 3;
+  reset();
+  (function loop() { step(); render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 覆盖率不是「走了多远」，而是「扫过多少格」
@@ -460,35 +675,101 @@ if __name__ == "__main__":
         print(f"t={t * 0.5:4.1f}s  v={v * 3.6:5.1f} km/h  gap={gap:5.1f} m")
 `,
 
-    javascript: `// Ray-cast scan + TTC braking, extracted from the avsim page.
-const N_RAYS = 200
-const FOV = (120 * Math.PI) / 180
-const MAX_RANGE = 46.0
-const DECEL = 6.0
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>200 rays, one obstacle</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:560px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:54px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Angular resolution is a hard ceiling</h1>
+<p>200 rays over 120°, so one ray every 0.6°. Shrink the obstacle and watch it fall between rays — no
+algorithm recovers a target that was never sampled.</p>
+<canvas id="c" width="560" height="340"></canvas>
+<div class="ctl">
+  <label>obstacle radius <input type="range" id="r" min="4" max="40" step="1" value="14"><output id="vr">14</output></label>
+  <label>distance <input type="range" id="d" min="60" max="240" step="5" value="150"><output id="vd">150</output></label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">The car is at the bottom. Grey dots are ray hits; the red circle is the obstacle. When
+the dots stop covering the circle, the car is blind to it — exactly what happens to a pedestrian at 40 m.</div>
+<script>
+(function () {
+  var W = 560, H = 340, CX = W / 2, CY = H - 30;
+  var N = 200, FOV = 120 * Math.PI / 180, MAXR = 300;
 
-function scan(raycast, x, z, heading, out = new Float32Array(N_RAYS)) {
-  for (let i = 0; i < N_RAYS; i++) {
-    const a = heading - FOV / 2 + (FOV * i) / (N_RAYS - 1)
-    let best = MAX_RANGE
-    for (const pitch of [-0.16, 0, 0.16]) {
-      const d = raycast(x, z, a, pitch, MAX_RANGE)
-      if (d != null && d < best) best = d
+  function render() {
+    var rad = +document.getElementById('r').value;
+    var dist = +document.getElementById('d').value;
+    document.getElementById('vr').textContent = rad;
+    document.getElementById('vd').textContent = dist;
+
+    // obstacle sits straight ahead
+    var ox = CX, oy = CY - dist;
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // rays
+    var hits = 0, nearest = MAXR;
+    for (var i = 0; i < N; i++) {
+      var a = -Math.PI / 2 - FOV / 2 + FOV * i / (N - 1);
+      var dx = Math.cos(a), dy = Math.sin(a);
+
+      // ray-circle: solve |o + t d - c| = r for the smallest positive t
+      var ex = CX - ox, ey = CY - oy;
+      var b = ex * dx + ey * dy;
+      var cc = ex * ex + ey * ey - rad * rad;
+      var disc = b * b - cc;
+      var t = disc >= 0 ? -b - Math.sqrt(disc) : MAXR;
+      if (t < 0) t = MAXR;
+      var hit = t < MAXR;
+      if (hit) { hits++; nearest = Math.min(nearest, t); }
+
+      var px = CX + dx * Math.min(t, MAXR);
+      var py = CY + dy * Math.min(t, MAXR);
+      ctx.fillStyle = hit ? '#f97316' : 'rgba(148,163,184,.35)';
+      ctx.fillRect(px - 1, py - 1, hit ? 2.4 : 1.6, hit ? 2.4 : 1.6);
     }
-    out[i] = best
+
+    // obstacle
+    ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(ox, oy, rad, 0, Math.PI * 2); ctx.stroke();
+
+    // ego
+    ctx.fillStyle = '#22c55e';
+    ctx.fillRect(CX - 12, CY - 8, 24, 16);
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText(N + ' rays · ' + (FOV * 180 / Math.PI).toFixed(0) + '° FOV · ' + (FOV / N * 180 / Math.PI).toFixed(2) + '° per ray', 10, 16);
+
+    var angular = 2 * Math.atan(rad / dist) * 180 / Math.PI;
+    document.getElementById('stat').innerHTML =
+      'hits <b>' + hits + '/' + N + '</b> · obstacle subtends <b>' + angular.toFixed(2) +
+      '°</b> · ' + (angular >= FOV / N * 180 / Math.PI ? '<span style="color:#16a34a">visible</span>'
+        : '<span style="color:#dc2626">between rays — invisible</span>');
   }
-  return out
-}
 
-// Stopping distance grows with v^2, so the cap falls fast: v = sqrt(2·a·d).
-const allowedSpeed = (v, d) => Math.min(v, Math.sqrt(2 * DECEL * Math.max(0, d)))
-
-let v = 34 / 3.6, gap = 30
-for (let i = 0; i < 10; i++) {
-  v = allowedSpeed(v, gap)
-  gap -= v * 0.5
-  console.log(\`t=\${(i * 0.5).toFixed(1)}s  v=\${(v * 3.6).toFixed(1)} km/h  gap=\${gap.toFixed(1)} m\`)
-}
-`,
+  ['r', 'd'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 一个数字决定了这页能「看见」什么：角分辨率
@@ -587,31 +868,126 @@ if __name__ == "__main__":
         print(f"t={step / 5:.1f}  eased={k:.3f}  drone0=({p[0]:6.2f},{p[1]:6.2f},{p[2]:6.2f})")
 `,
 
-    javascript: `// Formation maths from the drone-dance page, runnable in node.
-const GOLDEN = Math.PI * (3 - Math.sqrt(5))
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Golden angle, then easing</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:520px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;align-items:center}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  button{font:inherit;font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Even coverage without clustering at the poles</h1>
+<p>Fibonacci sphere: uniform height, 137.5° of rotation per step. Drag the angle to 90° and the points
+collapse onto four meridians — that is resonance from a rational ratio.</p>
+<canvas id="c" width="520" height="360"></canvas>
+<div class="ctl">
+  <label>angle <input type="range" id="a" min="60" max="180" step="0.5" value="137.5"><output id="va">137.5°</output></label>
+  <button id="roll">morph →</button>
+</div>
+<div class="note">The morph uses easeInOutCubic: zero velocity at both ends, so 420 drones do not visibly
+jerk when a transition starts or stops.</div>
+<script>
+(function () {
+  var W = 520, H = 360, CX = W / 2, CY = H / 2;
+  var N = 420, R = 140;
+  var morph = 0, dir = 0;
 
-function sphere(n, radius) {
-  const pts = []
-  for (let i = 0; i < n; i++) {
-    const y = 1 - (2 * (i + 0.5)) / n
-    const r = Math.sqrt(Math.max(0, 1 - y * y))
-    const a = GOLDEN * i
-    pts.push([Math.cos(a) * r * radius, y * radius, Math.sin(a) * r * radius])
+  function sphere(angleDeg) {
+    var pts = [], ga = angleDeg * Math.PI / 180;
+    for (var i = 0; i < N; i++) {
+      var y = 1 - 2 * (i + 0.5) / N;
+      var r = Math.sqrt(Math.max(0, 1 - y * y));
+      var a = ga * i;
+      pts.push({ x: Math.cos(a) * r, y: y, z: Math.sin(a) * r });
+    }
+    return pts;
   }
-  return pts
-}
 
-const easeInOutCubic = t => (t < 0.5 ? 4 * t ** 3 : 1 - (-2 * t + 2) ** 3 / 2)
-const blend = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k)
+  function targetShape(pts) {
+    // a cone: keep the height, pull the radius in
+    return pts.map(function (p) {
+      var k = 0.35 + (1 - (p.y + 1) / 2) * 0.6;
+      return { x: p.x * k, y: p.y, z: p.z * k };
+    });
+  }
 
-const start = sphere(420, 30)
-const target = start.map(([x, , z]) => [x * 0.4, 20 - Math.abs(x) * 0.2, z * 0.4])
-for (let s = 0; s <= 5; s++) {
-  const k = easeInOutCubic(s / 5)
-  const p = blend(start[0], target[0], k)
-  console.log(\`t=\${(s / 5).toFixed(1)} eased=\${k.toFixed(3)} drone0=\${p.map(v => v.toFixed(2))}\`)
-}
-`,
+  var ease = function (t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+
+  function project(p) {
+    // simple isometric-ish projection with depth -> size
+    var k = 1 / (2.6 - p.z * 0.35);
+    return { x: CX + p.x * R * k, y: CY + p.y * R * k * 0.9, depth: p.z };
+  }
+
+  function render() {
+    var angle = +document.getElementById('a').value;
+    document.getElementById('va').textContent = angle.toFixed(1) + '°';
+
+    var A = sphere(angle);
+    var B = targetShape(A);
+    var k = ease(Math.min(1, Math.max(0, morph)));
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // equator hint
+    ctx.strokeStyle = 'rgba(148,163,184,.18)';
+    ctx.beginPath(); ctx.ellipse(CX, CY, R, R * 0.28, 0, 0, Math.PI * 2); ctx.stroke();
+
+    var list = A.map(function (p, i) {
+      var q = B[i];
+      return {
+        x: p.x + (q.x - p.x) * k,
+        y: p.y + (q.y - p.y) * k,
+        z: p.z + (q.z - p.z) * k
+      };
+    });
+    list.sort(function (a, b) { return a.z - b.z; });   // far first
+
+    list.forEach(function (p) {
+      var s = project(p);
+      var lit = 0.35 + (p.z + 1) / 2 * 0.65;
+      ctx.fillStyle = 'rgba(' + Math.round(56 + lit * 80) + ',' +
+        Math.round(140 + lit * 90) + ',255,' + (0.35 + lit * 0.55) + ')';
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, 1.4 + lit * 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    });
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText(N + ' drones · ' + (Math.abs(angle - 137.5) < 1 ? 'golden angle' : angle.toFixed(1) + '°'), 12, 20);
+    ctx.fillText('morph ' + Math.round(k * 100) + '%', 12, H - 14);
+  }
+
+  document.getElementById('a').addEventListener('input', render);
+  document.getElementById('roll').addEventListener('click', function () {
+    dir = dir === 0 ? 1 : 0;
+    if (dir === 1) {
+      var t0 = performance.now();
+      (function anim() {
+        var t = Math.min(1, (performance.now() - t0) / 1400);
+        morph = t;
+        render();
+        if (t < 1) requestAnimationFrame(anim);
+        else { morph = 0; }
+      })();
+    }
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 为什么用黄金角铺球面
@@ -710,33 +1086,108 @@ if __name__ == "__main__":
         print(f"t={t:4.2f}s  FL=({fl_hip:+.2f},{fl_knee:.2f})  FR=({fr_hip:+.2f})")
 `,
 
-    javascript: `// URDF joint posing + a scripted trot, as on the embodied page.
-const axisAngleQuat = (axis, angle) => {
-  const [x, y, z] = axis
-  const s = Math.sin(angle / 2)
-  return [x * s, y * s, z * s, Math.cos(angle / 2)]
-}
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>One sine, four legs, two phases</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:560px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>The gait is a phase offset, nothing more</h1>
+<p>Diagonal legs share a phase (FL+RR, then FR+RL). Knees only bend during the swing half, because the
+stance leg has to carry load. Drag the cycle time and watch the two support triangles alternate.</p>
+<canvas id="c" width="560" height="320"></canvas>
+<div class="ctl">
+  <label>cycle <input type="range" id="c" min="0.6" max="3" step="0.1" value="1.9"><output id="vc">1.9 s</output></label>
+  <label>lift <input type="range" id="l" min="0.1" max="0.8" step="0.05" value="0.35"><output id="vl">0.35</output></label>
+</div>
+<div class="note">No IK, no physics. The page uses the same sine gait for the quadruped model, and the
+G1 page replaces it with a learned policy — that is the whole difference between the two demos.</div>
+<script>
+(function () {
+  var W = 560, H = 320, CX = W / 2, CY = 150;
+  var t0 = performance.now();
 
-// Diagonal pairs share a phase: FL+RR, then FR+RL.
-function trot(phase, kneeBase = 0.55, lift = 0.35) {
-  const offset = { fl: 0, rr: 0, fr: 0.5, rl: 0.5 }
-  const out = {}
-  for (const [name, off] of Object.entries(offset)) {
-    const p = (phase + off) % 1
-    const hip = Math.sin(p * 2 * Math.PI) * 0.6
-    const knee = kneeBase + (p >= 0.5 ? lift : 0)
-    out[name] = { hip, knee }
+  // body-relative foot anchor positions
+  var LEGS = [
+    { name: 'FL', x: -0.55, y: -0.45, off: 0.0 },
+    { name: 'RR', x: 0.55, y: 0.45, off: 0.0 },
+    { name: 'FR', x: 0.55, y: -0.45, off: 0.5 },
+    { name: 'RL', x: -0.55, y: 0.45, off: 0.5 }
+  ];
+
+  function render() {
+    var cycle = +document.getElementById('c').value;
+    var lift = +document.getElementById('l').value;
+    document.getElementById('vc').textContent = cycle.toFixed(1) + ' s';
+    document.getElementById('vl').textContent = lift.toFixed(2);
+
+    var t = ((performance.now() - t0) / 1000) % cycle;
+    var phase = t / cycle;
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // ground
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath(); ctx.moveTo(0, CY + 96); ctx.lineTo(W, CY + 96); ctx.stroke();
+
+    // body
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.ellipse(CX, CY - 20, 96, 54, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    LEGS.forEach(function (leg) {
+      var p = (phase + leg.off) % 1;
+      var swing = Math.sin(p * Math.PI * 2);           // fore/aft
+      var inSwing = p >= 0.5;
+      var knee = inSwing ? lift : 0;                   // bend only to clear ground
+      var footX = CX + leg.x * 96 + swing * 34;
+      var footY = CY + 70 - knee * 60 + (inSwing ? Math.max(0, Math.sin((p - 0.5) * 2 * Math.PI)) * 18 : 0);
+      var hipX = CX + leg.x * 84;
+      var hipY = CY + 10;
+
+      ctx.strokeStyle = inSwing ? '#38bdf8' : '#22c55e';
+      ctx.lineWidth = inSwing ? 5 : 7;
+      ctx.beginPath();
+      ctx.moveTo(hipX, hipY);
+      // two-segment leg through a knee at the midpoint plus the lift
+      var kx = (hipX + footX) / 2 + swing * 8;
+      var ky = (hipY + footY) / 2 - knee * 26;
+      ctx.lineTo(kx, ky);
+      ctx.lineTo(footX, footY);
+      ctx.stroke();
+
+      ctx.fillStyle = inSwing ? '#38bdf8' : '#22c55e';
+      ctx.beginPath(); ctx.arc(footX, footY, 6, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#94a3b8'; ctx.font = '10px ui-monospace, monospace';
+      ctx.fillText(leg.name, footX - 8, footY + 22);
+    });
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('phase ' + phase.toFixed(2) + ' · ' +
+      (phase < 0.5 ? 'FL+RR in swing' : 'FR+RL in swing'), 12, 20);
+    ctx.fillText('green = stance · blue = swing', 12, H - 14);
   }
-  return out
-}
 
-const cycle = 1.9
-for (let i = 0; i < 8; i++) {
-  const t = (i * cycle) / 8
-  const legs = trot((t / cycle) % 1)
-  console.log(\`t=\${t.toFixed(2)}s FL=\${legs.fl.hip.toFixed(2)} FR=\${legs.fr.hip.toFixed(2)}\`)
-}
-`,
+  document.getElementById('c').addEventListener('input', render);
+  document.getElementById('l').addEventListener('input', render);
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## URDF 是什么，这一页怎么用它
@@ -834,34 +1285,119 @@ if __name__ == "__main__":
         print(f"{hour:02d}:00  T1={reading['T1']:5.1f}C  C1={reading['C1']:6.0f}ppm")
 `,
 
-    javascript: `// Sensor synthesis from the envsense page: drivers -> targets -> lag.
-const solar = h => Math.max(0, Math.cos(((h - 12) / 12) * Math.PI))
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>One driver, seven sensors, one lag</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>The sun drives everything, then a lag filters it</h1>
+<p>Temperature and CO₂ are not computed independently — both chase a target set by one driver. The
+low-pass is what makes the sensor lag behind reality, which is the whole point of the page.</p>
+<canvas id="c" width="620" height="200"></canvas>
+<div class="ctl">
+  <label>occupants <input type="range" id="n" min="0" max="30" step="1" value="6"><output id="vn">6</output></label>
+  <label>ventilation <input type="range" id="v" min="0" max="4" step="1" value="1"><output id="vv">1</output></label>
+  <label>k <input type="range" id="k" min="0.01" max="0.3" step="0.01" value="0.06"><output id="vk">0.06</output></label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">k is the per-frame blend of a first-order lag: out += (target - out) * k. Small k means
+a slow sensor — visible as a curve that lags the dashed target.</div>
+<script>
+(function () {
+  var temp = 22, co2 = 500, hour = 6;
+  var hist = [];
 
-function targets(hour, occupants = 3, vent = 1, weather = 1) {
-  const s = solar(hour) * weather
-  return {
-    T1: 21 + 5 * s,
-    H1: 65 - 15 * s,
-    C1: 410 + occupants * 900 - vent * 260,
-    L1: 20 + 900 * s,
-    P1: 1005 + 4 * Math.sin((hour / 24) * 2 * Math.PI),
-    N1: 34 + 8 * s,
-    S1: 0.3 + 4.2 * s
+  function target() {
+    var solar = Math.max(0, Math.cos((hour - 12) / 12 * Math.PI));
+    var n = +document.getElementById('n').value;
+    var v = +document.getElementById('v').value;
+    return {
+      temp: 21 + 5 * solar + n * 0.08,
+      co2: 410 + n * 90 - v * 120
+    };
   }
-}
 
-// First-order lag: no sensor jumps, it chases. k per frame sets the speed.
-const lowPass = (cur, tgt, k) => cur + (tgt - cur) * k
-
-let reading = targets(6)
-for (let hour = 6; hour <= 18; hour++) {
-  const want = targets(hour, hour >= 9 && hour <= 17 ? 12 : 2)
-  for (let f = 0; f < 60; f++) {
-    for (const k of Object.keys(reading)) reading[k] = lowPass(reading[k], want[k], 0.08)
+  function step() {
+    var k = +document.getElementById('k').value;
+    var tg = target();
+    temp += (tg.temp - temp) * k;
+    co2 += (tg.co2 - co2) * k;
+    hour += 0.02;
+    if (hour > 24) hour = 0;
+    hist.push({ t: temp, c: co2, tt: tg.temp });
+    if (hist.length > 320) hist.shift();
   }
-  console.log(\`\${String(hour).padStart(2, '0')}:00  T1=\${reading.T1.toFixed(1)}C  C1=\${reading.C1.toFixed(0)}ppm\`)
-}
-`,
+
+  function render() {
+    document.getElementById('vn').textContent = document.getElementById('n').value;
+    document.getElementById('vv').textContent = document.getElementById('v').value;
+    document.getElementById('vk').textContent = (+document.getElementById('k').value).toFixed(2);
+
+    for (var i = 0; i < 2; i++) step();
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 200;
+    ctx.clearRect(0, 0, W, H);
+
+    function Y(v, lo, hi) { return H - 26 - (v - lo) / (hi - lo) * (H - 48); }
+
+    // target (dashed) and actual (solid) for temperature
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      var x = 30 + i / 319 * (W - 46);
+      if (i === 0) ctx.moveTo(x, Y(p.tt, 18, 32)); else ctx.lineTo(x, Y(p.tt, 18, 32));
+    });
+    ctx.strokeStyle = '#f59e0b'; ctx.setLineDash([4, 4]); ctx.lineWidth = 1.2; ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      var x = 30 + i / 319 * (W - 46);
+      if (i === 0) ctx.moveTo(x, Y(p.t, 18, 32)); else ctx.lineTo(x, Y(p.t, 18, 32));
+    });
+    ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2; ctx.stroke();
+
+    // CO2 normalised into the same box
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      var x = 30 + i / 319 * (W - 46);
+      var v = 400 + (p.c - 400) / 2500 * 12;      // squeeze into 18..32
+      if (i === 0) ctx.moveTo(x, Y(v, 18, 32)); else ctx.lineTo(x, Y(v, 18, 32));
+    });
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 1.6; ctx.stroke();
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('red = temperature · dashed = target · blue = CO2 (scaled)', 30, 16);
+    ctx.fillText('hour ' + hour.toFixed(1), W - 92, 16);
+
+    var tg = target();
+    document.getElementById('stat').innerHTML =
+      'T <b>' + temp.toFixed(1) + ' °C</b> (target ' + tg.temp.toFixed(1) + ') · CO₂ <b>' +
+      Math.round(co2) + ' ppm</b> (target ' + Math.round(tg.co2) + ')';
+  }
+
+  ['n', 'v', 'k'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 这页模拟的是「传感器」，不是「房间」
@@ -959,36 +1495,121 @@ def control_step(env, policy, obs_mean, obs_std):
 #   [cart_pos, sin(pole), cos(pole), cart_vel, pole_vel] -> one force slider
 `,
 
-    javascript: `// The G1 inference loop, browser flavour: onnxruntime-web + mujoco-wasm.
-import * as ort from 'onnxruntime-web'
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Balance is unstable — that is the whole problem</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:560px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;align-items:center}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:130px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  button{font:inherit;font-size:12px;padding:5px 12px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>No controller, no balance</h1>
+<p>Turn the gain to zero and the pole falls in about a second — the open-loop system is unstable, which
+is why this task needs a policy rather than a script. Turn it up and watch it recover.</p>
+<canvas id="c" width="560" height="300"></canvas>
+<div class="ctl">
+  <label>Kp <input type="range" id="p" min="0" max="14" step="0.5" value="9"><output id="vp">9.0</output></label>
+  <label>Kd <input type="range" id="d" min="0" max="4" step="0.1" value="1.8"><output id="vd">1.8</output></label>
+  <button id="kick">push it</button>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">The physics here is the linearised cart-pole: θ'' = (g/L)·sinθ − u/L. Good enough to show
+instability; the page's G1 model uses MuJoCo with contacts and 29 joints.</div>
+<script>
+(function () {
+  var DT = 0.008, G = 9.81, L = 0.9;
+  var theta = 0.12, dtheta = 0, cartX = 0, cartV = 0;
+  var trail = [];
 
-const DECIMATION = 20                     // 20 ms control / 1 ms physics
-const ACTION_SCALE = new Float32Array(29) // per-joint scale from training
-
-export async function createController(modelUrl, env) {
-  const session = await ort.InferenceSession.create(modelUrl, {
-    executionProviders: ['wasm']           // 'webgpu' also works, sometimes faster
-  })
-
-  return function step(obs, obsMean, obsStd) {
-    // Normalise with training statistics -- see the Python note.
-    const x = new Float32Array(obs.length)
-    for (let i = 0; i < obs.length; i++) x[i] = (obs[i] - obsMean[i]) / obsStd[i]
-
-    const feeds = { obs: new ort.Tensor('float32', x, [1, x.length]) }
-    const action = session.run(feeds).output.data   // 29 values in [-1, 1]
-
-    // Hold the decision for one control period of physics steps.
-    for (let k = 0; k < DECIMATION; k++) {
-      for (let j = 0; j < action.length; j++) {
-        env.ctrl[j] = env.defaultPos[j] + Math.max(-1, Math.min(1, action[j])) * ACTION_SCALE[j]
-      }
-      env.step()                            // one 1 ms mj_step
-    }
-    return action
+  function step(kp, kd) {
+    // PD on the pole angle; the action is a horizontal force
+    var u = kp * theta + kd * dtheta;
+    var acc = (G / L) * Math.sin(theta) - u / L;
+    dtheta += acc * DT;
+    theta += dtheta * DT;
+    // cart reacts to the same force (roughly)
+    cartV += -u * DT * 0.4;
+    cartX += cartV * DT;
+    cartX = Math.max(-1, Math.min(1, cartX));
+    if (Math.abs(theta) > 1.2) { theta = 0.12 * (theta > 0 ? 1 : -1); dtheta = 0; }
+    trail.push(theta);
+    if (trail.length > 240) trail.shift();
   }
-}
-`,
+
+  function render() {
+    var kp = +document.getElementById('p').value;
+    var kd = +document.getElementById('d').value;
+    document.getElementById('vp').textContent = kp.toFixed(1);
+    document.getElementById('vd').textContent = kd.toFixed(1);
+
+    for (var i = 0; i < 3; i++) step(kp, kd);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 560, H = 300, ground = 210;
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#1e293b';
+    ctx.beginPath(); ctx.moveTo(0, ground); ctx.lineTo(W, ground); ctx.stroke();
+
+    var cx = W / 2 + cartX * 170;
+    // cart
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(cx - 34, ground - 20, 68, 20);
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath(); ctx.arc(cx - 20, ground, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(cx + 20, ground, 7, 0, Math.PI * 2); ctx.fill();
+
+    // pole
+    var px = cx + Math.sin(theta) * 130;
+    var py = ground - 20 - Math.cos(theta) * 130;
+    ctx.strokeStyle = Math.abs(theta) > 0.5 ? '#ef4444' : '#fbbf24';
+    ctx.lineWidth = 8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(cx, ground - 20); ctx.lineTo(px, py); ctx.stroke();
+    ctx.fillStyle = '#fbbf24';
+    ctx.beginPath(); ctx.arc(px, py, 8, 0, Math.PI * 2); ctx.fill();
+
+    // angle trace
+    ctx.beginPath();
+    trail.forEach(function (a, i) {
+      var x = 20 + i / 239 * (W - 40);
+      var y = 90 - a * 60;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.6; ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('pole angle over time', 20, 20);
+    ctx.fillText('θ = ' + (theta * 180 / Math.PI).toFixed(1) + '°', W - 110, 20);
+
+    document.getElementById('stat').innerHTML =
+      'θ <b>' + (theta * 180 / Math.PI).toFixed(1) + '°</b> · ' +
+      (Math.abs(theta) < 0.2 ? '<span style="color:#16a34a">balanced</span>'
+        : Math.abs(theta) < 0.6 ? '<span style="color:#b45309">drifting</span>'
+        : '<span style="color:#dc2626">falling</span>');
+  }
+
+  document.getElementById('p').addEventListener('input', render);
+  document.getElementById('d').addEventListener('input', render);
+  document.getElementById('kick').addEventListener('click', function () {
+    dtheta += 0.9;                    // a disturbance, like a shove
+  });
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 两个时钟：1 kHz 物理，50 Hz 决策
@@ -1090,27 +1711,115 @@ def pd(target, q, dq, kp, kd):
     return kp * (target - q) - kd * dq
 `,
 
-    javascript: `// Motion tracking: build the 623-dim observation, then step the PD loop.
-const FUTURE_STEPS = [0, 2, 4, 8, 16]   // 0.32 s look-ahead at 50 Hz
-const HISTORY = [0, 1, 2, 3, 4, 8]
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tracking lags without the future</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:140px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:48px}
+  label.chk{display:inline-flex;gap:6px;align-items:center;font-size:12px;margin-top:10px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Feedback alone is always late</h1>
+<p>Yellow is the reference joint angle. Blue is PD tracking with feedback only — it lags. Tick
+"feed-forward" and the policy sees the reference 0.32 s ahead, which removes most of the lag.</p>
+<canvas id="c" width="620" height="200"></canvas>
+<div class="ctl">
+  <label>Kp <input type="range" id="p" min="2" max="40" step="1" value="14"><output id="vp">14</output></label>
+  <label>Kd <input type="range" id="d" min="0" max="6" step="0.2" value="2"><output id="vd">2.0</output></label>
+</div>
+<label class="chk"><input type="checkbox" id="ff"> feed-forward (look 0.32 s ahead)</label>
+<div class="stat" id="stat"></div>
+<div class="note">This is the difference between the G1 balance page (feedback only, 93-dim obs) and this
+one (623-dim obs, which is mostly the same reference sampled at five future offsets).</div>
+<script>
+(function () {
+  var DT = 0.01, t = 0;
+  var q = 0, dq = 0, hist = [];
+  var LOOKAHEAD = 0.32;
 
-function buildObs(q, dq, prevActions, t, ref, dt = 0.02) {
-  const i = Math.round(t / dt)
-  const parts = [q, dq, prevActions]
-
-  for (const k of FUTURE_STEPS) {
-    const f = ref[Math.min(i + k, ref.length - 1)]
-    parts.push(f.jointPos, [f.rootZ], f.gravity)
+  function ref(tt) {
+    // a walking-like joint trajectory: two harmonics
+    return 0.6 * Math.sin(tt * 3.1) + 0.25 * Math.sin(tt * 6.6 + 0.8);
   }
-  for (const k of HISTORY) {
-    parts.push(ref[Math.max(0, i - k)].jointPos)
-  }
-  return Float32Array.from(parts.flat())
-}
 
-// PD: the policy outputs positions; torque comes from error and velocity.
-const pd = (target, q, dq, kp, kd) => kp * (target - q) - kd * dq
-`,
+  function step(kp, kd, ff) {
+    var target = ref(t + (ff ? LOOKAHEAD : 0));
+    var tau = kp * (target - q) - kd * dq;
+    dq += tau * DT;
+    q += dq * DT;
+    t += DT;
+    hist.push({ target: ref(t), q: q });
+    if (hist.length > 300) hist.shift();
+  }
+
+  function render() {
+    var kp = +document.getElementById('p').value;
+    var kd = +document.getElementById('d').value;
+    var ff = document.getElementById('ff').checked;
+    document.getElementById('vp').textContent = kp;
+    document.getElementById('vd').textContent = kd.toFixed(1);
+
+    for (var i = 0; i < 2; i++) step(kp, kd, ff);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 200;
+    ctx.clearRect(0, 0, W, H);
+    var X = i => 30 + i / 299 * (W - 46);
+    var Y = v => H / 2 - v * 60;
+
+    ctx.strokeStyle = '#f1f5f9';
+    ctx.beginPath(); ctx.moveTo(30, H / 2); ctx.lineTo(W - 16, H / 2); ctx.stroke();
+
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      if (i === 0) ctx.moveTo(X(i), Y(p.target)); else ctx.lineTo(X(i), Y(p.target));
+    });
+    ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 1.6; ctx.stroke();
+
+    ctx.beginPath();
+    hist.forEach(function (p, i) {
+      if (i === 0) ctx.moveTo(X(i), Y(p.q)); else ctx.lineTo(X(i), Y(p.q));
+    });
+    ctx.strokeStyle = '#2563eb'; ctx.lineWidth = 2; ctx.stroke();
+
+    var err = 0;
+    hist.slice(-80).forEach(function (p) { err += Math.abs(p.target - p.q); });
+    err /= Math.min(80, hist.length);
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('reference (yellow) vs actual (blue)', 30, 16);
+    ctx.fillText(ff ? 'feed-forward on: target = ref(t + 0.32)' : 'feedback only: target = ref(t)', 30, H - 10);
+
+    document.getElementById('stat').innerHTML =
+      'mean error <b>' + err.toFixed(3) + ' rad</b> · ' +
+      (err < 0.05 ? '<span style="color:#16a34a">tight tracking</span>'
+                  : err < 0.15 ? '<span style="color:#b45309">visible lag</span>'
+                  : '<span style="color:#dc2626">falling behind</span>');
+  }
+
+  ['p', 'd'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  document.getElementById('ff').addEventListener('change', function () {
+    hist = []; t = 0; q = 0; dq = 0;      // restart so the comparison is honest
+  });
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 「跟踪动作」和「走到某点」是两种任务
@@ -1230,42 +1939,103 @@ def step(env, policy, obs):
     return action
 `,
 
-    javascript: `// MicroDuck observation layout + control loop (onnxruntime-web + mujoco-wasm).
-const DECIMATION = 4               // 4 x 5 ms = 20 ms per decision
-const ACTION_SCALE = 1.0
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>61 numbers, one order, no room for error</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;align-items:center}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:120px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:44px}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>The observation layout is the interface</h1>
+<p>Three gyro, three gravity, fourteen joints, fourteen velocities, fourteen last actions, thirteen
+commands. Shift any block by one slot and the robot falls — with no error message anywhere.</p>
+<canvas id="c" width="620" height="220"></canvas>
+<div class="ctl">
+  <label>vx <input type="range" id="x" min="-1" max="1" step="0.05" value="0.4"><output id="vx">0.40</output></label>
+  <label>wz <input type="range" id="w" min="-1" max="1" step="0.05" value="0"><output id="vw">0.00</output></label>
+  <label>phase <input type="range" id="p" min="0" max="1" step="0.02" value="0.25"><output id="vp">0.25</output></label>
+</div>
+<div class="note">The gait clock is stored as sin/cos precisely so the phase wraps smoothly: at phase
+1.00 the pair reads the same as at 0.00, so the policy never sees a jump.</div>
+<script>
+(function () {
+  var BLOCKS = [
+    { name: 'gyro', n: 3, color: '#2563eb' },
+    { name: 'gravity', n: 3, color: '#0ea5e9' },
+    { name: 'qpos', n: 14, color: '#16a34a' },
+    { name: 'qvel', n: 14, color: '#65a30d' },
+    { name: 'last action', n: 14, color: '#f59e0b' },
+    { name: 'command', n: 13, color: '#7c3aed' }
+  ];
 
-function buildObs(gyro, gravity, q, dq, lastAction, command) {
-  // Order matters: 3 + 3 + 14 + 14 + 14 + 13 = 61
-  const obs = new Float32Array(61)
-  let o = 0
-  obs.set(gyro, o); o += 3
-  obs.set(gravity, o); o += 3
-  obs.set(q, o); o += 14
-  obs.set(dq, o); o += 14
-  obs.set(lastAction, o); o += 14
-  obs.set(command, o)
-  return obs
-}
+  function render() {
+    var vx = +document.getElementById('x').value;
+    var wz = +document.getElementById('w').value;
+    var phase = +document.getElementById('p').value;
+    document.getElementById('vx').textContent = vx.toFixed(2);
+    document.getElementById('vw').textContent = wz.toFixed(2);
+    document.getElementById('vp').textContent = phase.toFixed(2);
 
-function commandVector(vx, vy, wz, gaitPhase, height) {
-  const cmd = new Float32Array(13)
-  cmd[0] = vx; cmd[1] = vy; cmd[2] = wz
-  // Gait clock as sin/cos: a continuous phase the caller owns.
-  cmd[3] = Math.sin(2 * Math.PI * gaitPhase)
-  cmd[4] = Math.cos(2 * Math.PI * gaitPhase)
-  cmd[5] = height
-  return cmd
-}
+    // build the command block: vx, vy, wz, sin, cos, height, then padding
+    var cmd = [vx, 0, wz, Math.sin(2 * Math.PI * phase), Math.cos(2 * Math.PI * phase), 0.28];
+    while (cmd.length < 13) cmd.push(0);
 
-function step(env, action) {
-  const target = env.defaultCtrl.map((d, i) =>
-    d + Math.max(-1, Math.min(1, action[i])) * ACTION_SCALE)
-  for (let k = 0; k < DECIMATION; k++) {
-    env.ctrl.set(target)
-    env.step()
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 220;
+    ctx.clearRect(0, 0, W, H);
+
+    var total = BLOCKS.reduce(function (a, b) { return a + b.n; }, 0);
+    var x = 20, y = 60, bw = (W - 40) / total;
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('61 values, in this order', 20, 36);
+
+    BLOCKS.forEach(function (b) {
+      ctx.fillStyle = b.color + '33';
+      ctx.fillRect(x, y, b.n * bw, 40);
+      ctx.strokeStyle = b.color; ctx.lineWidth = 1.4;
+      ctx.strokeRect(x, y, b.n * bw, 40);
+      ctx.fillStyle = b.color;
+      ctx.fillText(b.name, x + 4, y + 58);
+      ctx.fillText(b.n + '', x + 4, y + 74);
+      x += b.n * bw;
+    });
+
+    // the command block in detail
+    ctx.fillStyle = '#0f172a'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('command block:', 20, 150);
+    cmd.forEach(function (v, i) {
+      var cx = 20 + i * 44;
+      var lit = Math.abs(v);
+      ctx.fillStyle = i < 6 ? 'rgba(124,58,237,' + (0.15 + Math.min(1, lit) * 0.7) + ')' : '#f1f5f9';
+      ctx.fillRect(cx, 160, 40, 26);
+      ctx.strokeStyle = '#cbd5e1'; ctx.strokeRect(cx, 160, 40, 26);
+      ctx.fillStyle = '#334155';
+      ctx.fillText(v.toFixed(2).slice(0, 5), cx + 3, 178);
+    });
+
+    ctx.fillStyle = '#64748b';
+    ctx.fillText('vx  vy  wz  sin(phase)  cos(phase)  height  …  padding', 20, 208);
   }
-}
-`,
+
+  ['x', 'w', 'p'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 观测顺序就是接口
@@ -1376,34 +2146,106 @@ def altitude(phase_t, hover_y=5.0, ground_y=0.26):
     return hover_y + math.sin(phase_t * 2.1) * 0.06
 `,
 
-    javascript: `// Gesture debounce + phase machine, the logic of the multimodal page.
-const STABLE_FRAMES = 6
-const COOLDOWN_S = 1.5
-const CLIMB_S = 2.6
-
-const history = []
-function vote(label) {
-  history.push(label)
-  if (history.length > STABLE_FRAMES) history.shift()
-  if (history.length < STABLE_FRAMES) return null
-  return history.every(h => h === label) ? label : null
-}
-
-function command(label, now, lastCmdAt) {
-  if (now - lastCmdAt < COOLDOWN_S) return ''
-  return { Thumb_Up: 'takeoff', Open_Palm: 'land' }[label] ?? ''
-}
-
-// Smoothstep for the climb, sine bob while hovering.
-function altitude(t, hoverY = 5, groundY = 0.26) {
-  if (t < 0) return groundY
-  if (t < CLIMB_S) {
-    const k = t / CLIMB_S
-    return groundY + (hoverY - groundY) * (k * k * (3 - 2 * k))
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gesture to command: three filters</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:620px;display:block;border-radius:8px;background:#fff;box-shadow:0 1px 4px rgba(15,23,42,.15)}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:130px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:44px}
+  .log{margin-top:8px;font:12px/1.7 ui-monospace,monospace;color:#334155;max-height:70px;overflow:auto}
+  .log b{color:#2563eb}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>One misread frame must not launch a drone</h1>
+<p>Three filters in series: EMA smoothing, a deadzone, then six-frame agreement. Move the slider to see
+how many frames are rejected before a command is accepted.</p>
+<canvas id="c" width="620" height="160"></canvas>
+<div class="ctl">
+  <label>EMA alpha <input type="range" id="a" min="0.1" max="0.9" step="0.05" value="0.6"><output id="va">0.60</output></label>
+  <label>stable frames <input type="range" id="s" min="1" max="12" step="1" value="6"><output id="vs">6</output></label>
+</div>
+<div class="log" id="log"></div>
+<div class="note">With 1 stable frame every flicker fires a command; with 12 the response feels laggy.
+Six frames at 30 fps is 0.2 s — the value the page's drone demo settled on.</div>
+<script>
+(function () {
+  // a noisy classification stream: Thumb_Up for ~0.5 s, then Open_Palm
+  var seq = [];
+  for (var i = 0; i < 90; i++) {
+    var base = i < 45 ? 'Thumb_Up' : 'Open_Palm';
+    // 30% chance of a wrong label on any frame
+    var r = Math.sin(i * 12.9898) * 43758.5453;
+    var noise = (r - Math.floor(r));
+    seq.push(noise < 0.3 ? (base === 'Thumb_Up' ? 'None' : 'Thumb_Up') : base);
   }
-  return hoverY + Math.sin(t * 2.1) * 0.06
-}
-`,
+
+  function render() {
+    var alpha = +document.getElementById('a').value;
+    var need = +document.getElementById('s').value;
+    document.getElementById('va').textContent = alpha.toFixed(2);
+    document.getElementById('vs').textContent = need;
+
+    // filter 1: EMA over a numeric code, filter 2: deadzone, filter 3: run length
+    var CODE = { None: 0, Thumb_Up: 1, Open_Palm: -1 };
+    var smooth = 0, hist = [], accepted = [], counts = { Thumb_Up: 0, Open_Palm: 0 };
+
+    seq.forEach(function (lab, i) {
+      smooth = alpha * CODE[lab] + (1 - alpha) * smooth;
+      if (Math.abs(smooth) < 0.35) { hist.push(null); return; }   // deadzone
+      var cur = smooth > 0 ? 'Thumb_Up' : 'Open_Palm';
+      hist.push(cur);
+      var run = 0;
+      for (var k = hist.length - 1; k >= 0 && hist[k] === cur; k--) run++;
+      if (run === need) { accepted.push({ at: i, cmd: cur }); counts[cur]++; }
+    });
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    var W = 620, H = 160;
+    ctx.clearRect(0, 0, W, H);
+    var X = i => 20 + i / seq.length * (W - 40);
+
+    seq.forEach(function (lab, i) {
+      ctx.fillStyle = lab === 'Thumb_Up' ? '#bfdbfe' : lab === 'Open_Palm' ? '#bbf7d0' : '#e2e8f0';
+      ctx.fillRect(X(i), 40, Math.max(1, (W - 40) / seq.length - 0.5), 22);
+    });
+    hist.forEach(function (h, i) {
+      if (!h) return;
+      ctx.fillStyle = h === 'Thumb_Up' ? '#2563eb' : '#16a34a';
+      ctx.fillRect(X(i), 70, Math.max(1, (W - 40) / seq.length - 0.5), 14);
+    });
+    accepted.forEach(function (a) {
+      ctx.strokeStyle = '#dc2626'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(X(a.at), 92); ctx.lineTo(X(a.at), 118); ctx.stroke();
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath(); ctx.arc(X(a.at), 118, 4, 0, Math.PI * 2); ctx.fill();
+    });
+
+    ctx.fillStyle = '#475569'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('raw classifier  →  EMA + deadzone  →  run-length gate', 20, 26);
+    ctx.fillText('commands accepted: ' + accepted.length, 20, 148);
+    ctx.fillText('blue = Thumb_Up · green = Open_Palm · red = accepted', 20, 132);
+
+    document.getElementById('log').innerHTML = accepted.map(function (a) {
+      return '<div>frame ' + a.at + ' → <b>' + a.cmd + '</b> (after ' + need + ' agreeing frames)</div>';
+    }).join('') || '<div>no command accepted — raise the run length or lower the deadzone</div>';
+  }
+
+  document.getElementById('a').addEventListener('input', render);
+  document.getElementById('s').addEventListener('input', render);
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 识别不难，稳定才难
@@ -1528,58 +2370,146 @@ def ik(fk, q0, target, iters=120, tol=1.5e-3):
     return q
 `,
 
-    javascript: `// Damped least squares IK for a 6-axis arm (ReBot page logic).
-const EPS = 4e-4
-const LAMBDA = 0.05
-const MAX_STEP = 0.35
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Damped least squares: why it needs damping at all</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:520px;display:block;border-radius:8px;background:#0f172a;cursor:crosshair}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:140px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:50px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>Click anywhere — the solver walks to it</h1>
+<p>Two links, numeric Jacobian by finite differences, damped least squares. Set the damping to 0 and
+click far away: the pseudo-inverse blows up near a straight-arm singularity.</p>
+<canvas id="c" width="520" height="380"></canvas>
+<div class="ctl">
+  <label>damping λ <input type="range" id="l" min="0" max="0.3" step="0.01" value="0.05"><output id="vl">0.05</output></label>
+  <label>step cap <input type="range" id="m" min="0.05" max="1" step="0.05" value="0.35"><output id="vm">0.35</output></label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">The solver runs a few iterations per frame, so you can watch it converge instead of
+snapping. Red segments mean a joint hit the step cap — the arm is asking for more speed than allowed.</div>
+<script>
+(function () {
+  var W = 520, H = 380, OX = W / 2, OY = H - 60;
+  var L1 = 120, L2 = 105;
+  var q = [0.6, -0.9];
+  var target = { x: OX + 90, y: OY - 150 };
+  var clamped = false;
 
-function jacobian(fk, q) {
-  const p0 = fk(q)                              // returns [x, y, z] of the tool
-  const J = []                                  // one row per joint, 3 cols (dx,dy,dz)
-  for (let i = 0; i < q.length; i++) {
-    const dq = q.slice()
-    dq[i] += EPS
-    const p = fk(dq)
-    J.push(p.map((v, k) => (v - p0[k]) / EPS))
+  function fk(q0, q1) {
+    var x = Math.sin(q0) * L1 + Math.sin(q0 + q1) * L2;
+    var y = -Math.cos(q0) * L1 - Math.cos(q0 + q1) * L2;
+    return { x: OX + x, y: OY + y };
   }
-  return J                                      // J[joint][axis]
-}
 
-// Solve (J J^T + λ²I) y = err with a tiny Gaussian elimination.
-function solve3(A, b) {
-  const M = A.map((row, i) => [...row, b[i]])
-  for (let c = 0; c < 3; c++) {
-    const piv = Math.max(c, ...M.map((r, i) => (Math.abs(r[c]) > 1e-12 ? i : c)))
-    ;[M[c], M[piv]] = [M[piv], M[c]]
-    for (let r = 0; r < 3; r++) {
-      if (r === c) continue
-      const f = M[r][c] / M[c][c]
-      for (let k = c; k < 4; k++) M[r][k] -= f * M[c][k]
+  function solve(lam, cap) {
+    clamped = false;
+    for (var it = 0; it < 6; it++) {
+      var p = fk(q[0], q[1]);
+      var e = [target.x - p.x, target.y - p.y];
+      if (Math.hypot(e[0], e[1]) < 1.2) break;
+
+      // numeric Jacobian: d(position)/d(joint), 2x2
+      var eps = 0.0004;
+      var pa = fk(q[0] + eps, q[1]);
+      var pb = fk(q[0], q[1] + eps);
+      var J = [
+        [(pa.x - p.x) / eps, (pb.x - p.x) / eps],
+        [(pa.y - p.y) / eps, (pb.y - p.y) / eps]
+      ];
+
+      // (J J^T + λ²I) y = e ;  dq = J^T y
+      var a = J[0][0] * J[0][0] + J[0][1] * J[0][1] + lam * lam;
+      var b = J[0][0] * J[1][0] + J[0][1] * J[1][1];
+      var d = J[1][0] * J[1][0] + J[1][1] * J[1][1] + lam * lam;
+      var det = a * d - b * b;
+      if (Math.abs(det) < 1e-9) break;
+      var y0 = (d * e[0] - b * e[1]) / det;
+      var y1 = (a * e[1] - b * e[0]) / det;
+      var dq = [J[0][0] * y0 + J[1][0] * y1, J[0][1] * y0 + J[1][1] * y1];
+
+      var mx = Math.max(Math.abs(dq[0]), Math.abs(dq[1]));
+      if (mx > cap) { var k = cap / mx; dq[0] *= k; dq[1] *= k; clamped = true; }
+      q[0] += dq[0]; q[1] += dq[1];
     }
   }
-  return M.map((r, i) => r[3] / r[i][i])
-}
 
-function ik(fk, q0, target, iters = 120, tol = 1.5e-3) {
-  let q = q0.slice()
-  for (let it = 0; it < iters; it++) {
-    const p = fk(q)
-    const err = target.map((t, i) => t - p[i])
-    if (Math.hypot(...err) < tol) break
-    const J = jacobian(fk, q)
-    // A = J J^T + λ²I  (3x3)
-    const A = [0, 1, 2].map(r => [0, 1, 2].map(c =>
-      J.reduce((s, row, j) => s + row[r] * row[c], 0) + (r === c ? LAMBDA ** 2 : 0)))
-    const y = solve3(A, err)
-    // dq = J^T y : here J is (6 joints x 3 axes), so row j dotted with y
-    const dq = q.map((_, j) => J[j].reduce((s, v, r) => s + v * y[r], 0))
-    const mx = Math.max(...dq.map(Math.abs)) || 1e-9
-    const k = Math.min(1, MAX_STEP / mx)
-    q = q.map((v, j) => v + dq[j] * k)
+  function render() {
+    var lam = +document.getElementById('l').value;
+    var cap = +document.getElementById('m').value;
+    document.getElementById('vl').textContent = lam.toFixed(2);
+    document.getElementById('vm').textContent = cap.toFixed(2);
+
+    solve(lam, cap);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // base
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(OX - 34, OY, 68, 16);
+
+    var p1 = { x: OX + Math.sin(q[0]) * L1, y: OY - Math.cos(q[0]) * L1 };
+    var p2 = fk(q[0], q[1]);
+
+    ctx.strokeStyle = clamped ? '#ef4444' : '#38bdf8';
+    ctx.lineWidth = 10; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(OX, OY); ctx.lineTo(p1.x, p1.y); ctx.stroke();
+    ctx.strokeStyle = clamped ? '#f87171' : '#22c55e';
+    ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+
+    // joints
+    [[OX, OY], [p1.x, p1.y], [p2.x, p2.y]].forEach(function (p, i) {
+      ctx.fillStyle = i === 2 ? '#fbbf24' : '#e2e8f0';
+      ctx.beginPath(); ctx.arc(p[0], p[1], i === 2 ? 7 : 5, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // target
+    ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 3]);
+    ctx.beginPath(); ctx.arc(target.x, target.y, 10, 0, Math.PI * 2); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(target.x - 14, target.y); ctx.lineTo(target.x + 14, target.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(target.x, target.y - 14); ctx.lineTo(target.x, target.y + 14); ctx.stroke();
+
+    var err = Math.hypot(target.x - p2.x, target.y - p2.y);
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('q = [' + q[0].toFixed(2) + ', ' + q[1].toFixed(2) + '] rad', 12, 20);
+    ctx.fillText('error ' + err.toFixed(1) + ' px' + (clamped ? ' · step capped' : ''), 12, 36);
+
+    document.getElementById('stat').innerHTML =
+      'error <b>' + err.toFixed(1) + ' px</b> · λ = <b>' + lam.toFixed(2) + '</b> · ' +
+      (err < 2 ? '<span style="color:#16a34a">converged</span>'
+               : clamped ? '<span style="color:#dc2626">clamped, still moving</span>'
+               : 'converging');
   }
-  return q
-}
-`,
+
+  document.getElementById('c').addEventListener('click', function (e) {
+    var r = e.currentTarget.getBoundingClientRect();
+    target = {
+      x: (e.clientX - r.left) / r.width * W,
+      y: (e.clientY - r.top) / r.height * H
+    };
+  });
+  ['l', 'm'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', render);
+  });
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 正运动学容易，逆运动学才难
@@ -1705,39 +2635,122 @@ if __name__ == "__main__":
         print(f"phase={ph:.2f}  foot=({y:+.2f},{z:+.2f})  hip={hip:+.3f} knee={knee:.3f}")
 `,
 
-    javascript: `// Closed-form 2-link IK + a stance/swing gait, as on the SOMA page.
-const L1 = 0.42, L2 = 0.44
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Two links, a triangle, no iteration</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:520px;display:block;border-radius:8px;background:#0f172a;cursor:crosshair}
+  .ctl{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px}
+  .ctl label{display:flex;align-items:center;gap:7px}
+  input[type=range]{width:150px}
+  output{font-variant-numeric:tabular-nums;font-weight:600;min-width:50px}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+  .note{color:#64748b;font-size:12px;margin-top:6px}
+</style>
+</head>
+<body>
+<h1>A leg is a triangle, so the answer is closed-form</h1>
+<p>Drag the foot. The knee angle comes from the law of cosines on the hip–knee–foot triangle — no
+iteration, which is why this runs for every leg every frame.</p>
+<canvas id="c" width="520" height="380"></canvas>
+<div class="ctl">
+  <label>reach limit <input type="range" id="r" min="0.6" max="1" step="0.02" value="0.98"><output id="vr">0.98</output></label>
+</div>
+<div class="stat" id="stat"></div>
+<div class="note">Push the foot past the leg length and the clamp kicks in: d is capped at L1+L2, so the
+leg straightens instead of producing NaN. That clamp is one line and saves a lot of debugging.</div>
+<script>
+(function () {
+  var W = 520, H = 380, HX = W / 2, HY = 80;
+  var L1 = 130, L2 = 120;
+  var foot = { x: HX + 60, y: HY + 220 };
 
-function legIK(ty, tz) {
-  let d = Math.hypot(ty, tz)
-  d = Math.max(1e-6, Math.min(d, L1 + L2 - 1e-6))
+  function ik(fx, fy, limit) {
+    var dy = fy - HY, dx = fx - HX;
+    var d = Math.hypot(dx, dy);
+    var maxD = (L1 + L2) * limit;
+    var clamped = d > maxD;
+    if (clamped) d = maxD;
 
-  // Law of cosines: knee angle depends only on the distance to the target.
-  const cosKnee = (d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2)
-  const knee = Math.acos(Math.max(-1, Math.min(1, cosKnee)))
+    // law of cosines: interior knee angle depends only on d
+    var cosKnee = (d * d - L1 * L1 - L2 * L2) / (2 * L1 * L2);
+    var knee = Math.acos(Math.max(-1, Math.min(1, cosKnee)));
 
-  // Hip offset that makes the chain reach the target exactly.
-  const hipOff = Math.atan2(L2 * Math.sin(knee), L1 + L2 * Math.cos(knee))
-  const hip = Math.atan2(tz, ty) + hipOff
-  return { hip, knee: Math.PI - knee }
-}
-
-function footTarget(phase, stride = 0.34, lift = 0.3) {
-  if (phase < 0.62) {
-    const k = phase / 0.62
-    return [stride * (1 - 2 * k), 0]          // stance: planted, slides back
+    // the hip must be offset or the chain never reaches the target
+    var hipOff = Math.atan2(L2 * Math.sin(knee), L1 + L2 * Math.cos(knee));
+    var hip = Math.atan2(dx, dy) + hipOff;
+    return { hip: hip, knee: Math.PI - knee, clamped: clamped, d: d };
   }
-  const k = (phase - 0.62) / 0.38
-  return [stride * (2 * k - 1), Math.sin(Math.PI * k) * lift]   // swing: lifts
-}
 
-for (let i = 0; i < 8; i++) {
-  const ph = i / 8
-  const [y, z] = footTarget(ph)
-  const { hip, knee } = legIK(y, z)
-  console.log(\`phase=\${ph.toFixed(2)} foot=(\${y.toFixed(2)},\${z.toFixed(2)}) hip=\${hip.toFixed(3)} knee=\${knee.toFixed(3)}\`)
-}
-`,
+  function render() {
+    var limit = +document.getElementById('r').value;
+    document.getElementById('vr').textContent = limit.toFixed(2);
+
+    var sol = ik(foot.x, foot.y, limit);
+
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    // hip -> knee -> foot
+    var kx = HX + Math.sin(sol.hip) * L1;
+    var ky = HY + Math.cos(sol.hip) * L1;
+    // the foot direction after the knee bend
+    var a2 = sol.hip - sol.knee;
+    var fx = kx + Math.sin(a2) * L2;
+    var fy = ky + Math.cos(a2) * L2;
+
+    // triangle hint
+    ctx.strokeStyle = 'rgba(148,163,184,.35)'; ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(HX, HY); ctx.lineTo(foot.x, foot.y); ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 9; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(HX, HY); ctx.lineTo(kx, ky); ctx.stroke();
+    ctx.strokeStyle = '#22c55e';
+    ctx.beginPath(); ctx.moveTo(kx, ky); ctx.lineTo(fx, fy); ctx.stroke();
+
+    [[HX, HY, 6, '#e2e8f0'], [kx, ky, 6, '#fbbf24'], [fx, fy, 7, '#22c55e']].forEach(function (j) {
+      ctx.fillStyle = j[3];
+      ctx.beginPath(); ctx.arc(j[0], j[1], j[2], 0, Math.PI * 2); ctx.fill();
+    });
+
+    // requested foot position
+    ctx.strokeStyle = ctx.fillStyle = '#fbbf24';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(foot.x, foot.y, 9, 0, Math.PI * 2); ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('hip ' + (sol.hip * 180 / Math.PI).toFixed(1) + '°  knee ' +
+      (sol.knee * 180 / Math.PI).toFixed(1) + '°', 12, 20);
+    ctx.fillText('d = ' + sol.d.toFixed(0) + ' px' + (sol.clamped ? ' (clamped)' : ''), 12, 36);
+
+    document.getElementById('stat').innerHTML =
+      'hip <b>' + (sol.hip * 180 / Math.PI).toFixed(1) + '°</b> · knee <b>' +
+      (sol.knee * 180 / Math.PI).toFixed(1) + '°</b> · ' +
+      (sol.clamped ? '<span style="color:#b45309">out of reach — clamped to the rim</span>'
+                   : '<span style="color:#16a34a">reachable</span>');
+  }
+
+  document.getElementById('c').addEventListener('pointermove', function (e) {
+    if (e.buttons === 0 && e.pointerType === 'mouse') return;
+    var r = e.currentTarget.getBoundingClientRect();
+    foot = { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+  });
+  document.getElementById('c').addEventListener('click', function (e) {
+    var r = e.currentTarget.getBoundingClientRect();
+    foot = { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H };
+  });
+  document.getElementById('r').addEventListener('input', render);
+  (function loop() { render(); requestAnimationFrame(loop); })();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## 两条腿骨 = 一个三角形，所以有解析解
@@ -1855,44 +2868,108 @@ if __name__ == "__main__":
         print("q =", q, "-> tool at", np.round(T[:3, 3], 3))
 `,
 
-    javascript: `// DH forward kinematics: six 4x4 matrices chained, nothing else.
-const DH = [
-  [0.0, 0.4, 0.025, -Math.PI / 2],
-  [0.0, 0.0, 0.315, 0.0],
-  [0.0, 0.0, 0.035, -Math.PI / 2],
-  [0.0, 0.365, 0.0, Math.PI / 2],
-  [0.0, 0.0, 0.0, -Math.PI / 2],
-  [0.0, 0.08, 0.0, 0.0]
-]
+    html: `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>DH: four numbers per joint, multiplied</title>
+<style>
+  body{margin:0;padding:14px;font:13px/1.6 system-ui,sans-serif;color:#0f172a;background:#f8fafc}
+  h1{font-size:15px;margin:0 0 6px}p{margin:0 0 10px;color:#475569}
+  canvas{width:100%;max-width:520px;display:block;border-radius:8px;background:#0f172a}
+  .ctl{display:flex;flex-direction:column;gap:6px;margin-top:10px;font-size:12px;max-width:400px}
+  .ctl label{display:flex;align-items:center;gap:8px}
+  .ctl b{width:34px;font-family:ui-monospace,monospace;font-weight:500}
+  input[type=range]{flex:1}
+  output{font-variant-numeric:tabular-nums;font-weight:600;width:56px;text-align:right}
+  .stat{margin-top:8px;font-size:12px;color:#475569}
+  .stat b{color:#0f172a;font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>Chain three transforms, get the tool pose</h1>
+<p>Each slider is one joint angle. The forward kinematics multiplies three DH matrices — nothing is
+looked up, the coordinates come out of the product.</p>
+<canvas id="c" width="520" height="360"></canvas>
+<div class="ctl" id="ctl"></div>
+<div class="stat" id="stat"></div>
+<div class="note">The real page chains six joints and reads the tool position out of three's matrixWorld.
+Same maths, one fewer joint, no scene graph.</div>
+<script>
+(function () {
+  var W = 520, H = 360, OX = W / 2, OY = H - 50;
+  var L = [110, 95, 80];                     // link lengths, the "a" of each DH row
+  var q = [0.4, -0.9, 0.7];
 
-function dhMatrix(theta, d, a, alpha) {
-  const ct = Math.cos(theta), st = Math.sin(theta)
-  const ca = Math.cos(alpha), sa = Math.sin(alpha)
-  return [
-    [ct, -st * ca, st * sa, a * ct],
-    [st, ct * ca, -ct * sa, a * st],
-    [0, sa, ca, d],
-    [0, 0, 0, 1]
-  ]
-}
-
-const mul = (A, B) => A.map((row, i) =>
-  B[0].map((_, j) => row.reduce((s, v, k) => s + v * B[k][j], 0)))
-
-function fk(q) {
-  let T = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]]
-  for (let i = 0; i < 6; i++) {
-    const [off, d, a, alpha] = DH[i]
-    T = mul(T, dhMatrix(off + q[i], d, a, alpha))
+  function fk() {
+    // composed in 2D: each link rotates in the plane, so the chain is just angles
+    var x = 0, y = 0, ang = 0;
+    var joints = [{ x: 0, y: 0 }];
+    for (var i = 0; i < 3; i++) {
+      ang += q[i];
+      x += Math.sin(ang) * L[i];
+      y += Math.cos(ang) * L[i];
+      joints.push({ x: x, y: y, ang: ang });
+    }
+    return { joints: joints, tool: { x: OX + x, y: OY + y } };
   }
-  return T
-}
 
-for (const q of [[0, 0, 0, 0, 0, 0], [0.3, -0.5, 0.8, 0, 0.4, 0]]) {
-  const T = fk(q)
-  console.log('q =', q, '-> tool at', T.map(r => r[3].toFixed(3)).slice(0, 3))
-}
-`,
+  function render() {
+    var k = fk();
+    var c = document.getElementById('c'), ctx = c.getContext('2d');
+    ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(OX - 30, OY, 60, 14);
+
+    var colors = ['#38bdf8', '#22c55e', '#fbbf24'];
+    for (var i = 0; i < 3; i++) {
+      var a = k.joints[i], b = k.joints[i + 1];
+      ctx.strokeStyle = colors[i];
+      ctx.lineWidth = 11 - i * 2;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(OX + a.x, OY + a.y);
+      ctx.lineTo(OX + b.x, OY + b.y);
+      ctx.stroke();
+    }
+    k.joints.forEach(function (j, i) {
+      ctx.fillStyle = i === 3 ? '#fbbf24' : '#e2e8f0';
+      ctx.beginPath(); ctx.arc(OX + j.x, OY + j.y, i === 3 ? 7 : 5, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // reach circles
+    ctx.strokeStyle = 'rgba(148,163,184,.15)';
+    ctx.beginPath(); ctx.arc(OX, OY, L[0] + L[1] + L[2], 0, Math.PI * 2); ctx.stroke();
+
+    ctx.fillStyle = '#94a3b8'; ctx.font = '11px ui-monospace, monospace';
+    ctx.fillText('tool at (' + (k.tool.x - OX).toFixed(0) + ', ' + (k.tool.y - OY).toFixed(0) + ') px', 12, 20);
+
+    document.getElementById('stat').innerHTML =
+      'tool <b>(' + (k.tool.x - OX).toFixed(1) + ', ' + (k.tool.y - OY).toFixed(1) +
+      ')</b> px · total rotation <b>' + ((k.joints[3].ang) * 180 / Math.PI).toFixed(1) + '°</b>';
+  }
+
+  // build the sliders
+  var ctl = document.getElementById('ctl');
+  q.forEach(function (v, i) {
+    var lab = document.createElement('label');
+    lab.innerHTML = '<b>q' + (i + 1) + '</b>' +
+      '<input type="range" min="-1.6" max="1.6" step="0.02" value="' + v + '" data-i="' + i + '">' +
+      '<output>' + v.toFixed(2) + '</output>';
+    ctl.appendChild(lab);
+  });
+  ctl.addEventListener('input', function (e) {
+    var i = +e.target.dataset.i;
+    q[i] = +e.target.value;
+    e.target.nextElementSibling.textContent = q[i].toFixed(2);
+    render();
+  });
+  render();
+})();
+</script>
+</body>
+</html>`,
 
     principle: {
       zh: `## DH 参数：四个数描述一个关节
