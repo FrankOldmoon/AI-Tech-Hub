@@ -43,8 +43,9 @@ export interface DroneSimHandle {
   rtl: () => void
   reset: () => void
   setThrottle: (v: number) => void
-  isFollow: () => boolean
-  setFollow: (follow: boolean) => void
+  /** 第一人称（FPV）开关；false = 第三人称（默认） */
+  isFpv: () => boolean
+  setFpv: (fpv: boolean) => void
 }
 
 /* =========================================================
@@ -535,8 +536,11 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
 
   /* ---------- 状态 ---------- */
   const ROBOT_HOME = new THREE.Vector3(0, 0, 0)
-  // follow=false：默认自由第三人称（OrbitControls 手动环视）；follow=true：第一人称（相机贴机头）
-  const sim = { follow: false, rtl: false }
+  // 视角两态，默认第三人称（fpv=false）：
+  //   third = 落地/未起飞时 OrbitControls 自由环视（拆解教学要绕机看），
+  //           起飞后相机自动跟随机尾后上方（不跟的话飞出去 40m 就出画面）；
+  //   fpv   = 第一人称，相机贴机头朝前。
+  const sim = { fpv: false, rtl: false }
   const d = {
     pos: new THREE.Vector3(0, 0, 0),
     yaw: 0, pitch: 0, roll: 0,
@@ -581,7 +585,8 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
     const sl = (key('KeyA') || key('ArrowLeft') || cmd.l) ? 1 : 0
     const up = (key('Space') || cmd.u) ? 1 : 0
     const dn = (key('ShiftLeft') || key('ShiftRight')) ? 1 : 0
-    return { f: f - b, s: sf - sl, y: key('KeyE') - key('KeyQ'), u: up - dn }
+    // Q/E 左右偏航已互换（原 E-Q → Q-E）：要再换回去只动这一处
+    return { f: f - b, s: sf - sl, y: key('KeyQ') - key('KeyE'), u: up - dn }
   }
   // 方向键盘区：移动为点按开关，偏航为固定步进
   root.querySelectorAll('.pad button').forEach((b) => {
@@ -617,8 +622,8 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
 
   const btnFollow = $('#ds-follow')
   btnFollow?.addEventListener('click', () => {
-    sim.follow = !sim.follow
-    btnFollow.classList.toggle('active', sim.follow)
+    sim.fpv = !sim.fpv
+    btnFollow.classList.toggle('active', sim.fpv)
   })
   const hudMode = $('#ds-mode')
   const btnTakeoff = $('#ds-takeoff')
@@ -907,10 +912,12 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
     else if (d.rtl) vy = (d.altTarget - d.pos.y) * 1.5
     else {
       vy = inp.u * THROTTLE * 0.8
-      if (d.mode === 'landing') vy = (0 - d.pos.y) * 1.5
+      // 落地给一个最小下沉速度：纯比例是指数逼近，pos.y 永远差一点点到 0，
+      // 会一直卡在 Landing（d.flying 不归零 → 落地后也拿不回自由环视）
+      if (d.mode === 'landing') vy = Math.min((0 - d.pos.y) * 1.5, -1.0)
       else if (d.mode === 'flying' && inp.u === 0) vy = (d.altTarget - d.pos.y) * 1.2
     }
-    if (d.battery <= 0 && !d.crash) vy = Math.min(vy, (0 - d.pos.y) * 1.5)
+    if (d.battery <= 0 && !d.crash) vy = Math.min(vy, Math.min((0 - d.pos.y) * 1.5, -0.8))
     d.pos.y += vy * dt
     if (d.pos.y < 0) {
       d.pos.y = 0
@@ -954,11 +961,14 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
 
   /* ---------- 视觉更新 ---------- */
   const tmpTarget = new THREE.Vector3()
-  // 第一人称退出后的回位过渡目标：与初始机位一致（自由第三人称）
+  const tmpCam = new THREE.Vector3()
+  const tmpLook = new THREE.Vector3()
+  const tmpFwd = new THREE.Vector3()
+  // 初始第三人称机位（重置时回位）；CHASE_* = 跟随态机尾后上方的偏移
   const HOME_POS = new THREE.Vector3(14, 12, 16)
   const HOME_TGT = new THREE.Vector3(0, 1.5, 0)
-  const tmpFwd = new THREE.Vector3()
-  let returning = false
+  const CHASE_BACK = 7.5
+  const CHASE_UP = 3.4
   function updateVisuals(dt: number) {
     comps.forEach((c) => {
       if (c.spin && !c.detached) c.root.rotation.y += dt * 30
@@ -968,29 +978,35 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
       const tgt = c.base.clone().add((c.extracted || d.exploded) ? c.explode : tmpTarget.set(0, 0, 0))
       c.root.position.lerp(tgt, 0.12)
     })
-    if (sim.follow) {
+    tmpFwd.set(Math.sin(d.yaw), 0, Math.cos(d.yaw))
+    if (sim.fpv) {
       // 第一人称（FPV 舱内视角）：相机贴机头前上方，视线随机头 yaw 朝前、微微下俯
-      if (controls.enabled) {
-        controls.enabled = false
-        returning = false
-      }
-      tmpFwd.set(Math.sin(d.yaw), 0, Math.cos(d.yaw))
+      if (controls.enabled) controls.enabled = false
       camera.position.copy(d.pos).addScaledVector(tmpFwd, 0.95)
       camera.position.y += 0.3
       tmpTarget.copy(d.pos).addScaledVector(tmpFwd, 14)
       tmpTarget.y += 0.3 - 1.2
       controls.target.copy(tmpTarget)
       camera.lookAt(tmpTarget)
+    } else if (d.flying) {
+      // 第三人称跟随：机位锁在机尾后上方并随 yaw 转；用 lerp 而非硬贴，
+      // 转向时有点甩尾手感，加速时相机略微落在后面，更像跟拍。
+      if (controls.enabled) controls.enabled = false
+      tmpCam.copy(d.pos).addScaledVector(tmpFwd, -CHASE_BACK)
+      tmpCam.y = d.pos.y + CHASE_UP
+      camera.position.lerp(tmpCam, Math.min(1, dt * 3.6))
+      tmpLook.copy(d.pos).setY(d.pos.y + 0.7)
+      controls.target.lerp(tmpLook, Math.min(1, dt * 5))
+      camera.lookAt(controls.target)
     } else {
+      // 未起飞 / 已落地：交还 OrbitControls 自由环视（拆解教学要绕机看）。
       if (!controls.enabled) {
-        // 刚从第一人称退回：解锁手动环视，并把相机平滑送回默认第三人称机位
+        // 从第一人称 / 跟随态退回（或刚落地）：贴机头的近景没法用，
+        // 直接摆到机尾后上方再交给手动环视，视线仍在飞机上（不回原点）。
         controls.enabled = true
-        returning = true
-      }
-      if (returning) {
-        camera.position.lerp(HOME_POS, Math.min(1, dt * 3.2))
-        controls.target.lerp(HOME_TGT, Math.min(1, dt * 3.2))
-        if (camera.position.distanceTo(HOME_POS) < 0.3) returning = false
+        camera.position.copy(d.pos).addScaledVector(tmpFwd, -CHASE_BACK)
+        camera.position.y = d.pos.y + CHASE_UP
+        controls.target.copy(d.pos).setY(d.pos.y + 0.7)
       }
     }
     const wp = new THREE.Vector3()
@@ -1086,6 +1102,9 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
     d.low = false
     sim.rtl = false
     setMode('landed')
+    // 相机回初始第三人称机位：否则飞远后点重置，画面里找不到回到原点的飞机
+    camera.position.copy(HOME_POS)
+    controls.target.copy(HOME_TGT)
     reattachAll()
     addLog('good', t().logReset)
   }
@@ -1134,10 +1153,10 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
       if (speedEl) speedEl.value = String(v)
       if (speedVal) speedVal.textContent = String(v)
     },
-    isFollow: () => sim.follow,
-    setFollow(follow) {
-      sim.follow = follow
-      btnFollow?.classList.toggle('active', follow)
+    isFpv: () => sim.fpv,
+    setFpv(fpv) {
+      sim.fpv = fpv
+      btnFollow?.classList.toggle('active', fpv)
     }
   }
 }
