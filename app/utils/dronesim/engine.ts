@@ -564,11 +564,13 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
   const keys: Record<string, boolean> = {}
   const cmd = { f: false, s: false, l: false, r: false, u: false }
   let yawStep = 0
+  // 这些键交给飞行控制，别让浏览器拿去滚页面（↑/↓/空格 默认都会滚动）
+  const GAME_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'])
   const onKeydown = (e: KeyboardEvent) => {
     const tag = ((e.target && (e.target as HTMLElement).tagName) || '').toLowerCase()
     if (tag === 'input' || tag === 'textarea') return
     keys[e.code] = true
-    if (e.code === 'Space') e.preventDefault()
+    if (GAME_KEYS.has(e.code)) e.preventDefault()
     if (e.key === 'Escape') infoCard?.style.setProperty('display', 'none')
   }
   const onKeyup = (e: KeyboardEvent) => {
@@ -578,9 +580,9 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
   window.addEventListener('keyup', onKeyup)
   const key = (k: string) => (keys[k] ? 1 : 0)
   function input() {
-    // 原版映射：S/↓/▼ = 前进（推杆式），W/↑/▲ = 后退
-    const f = (key('KeyS') || key('ArrowDown') || cmd.s) ? 1 : 0
-    const b = (key('KeyW') || key('ArrowUp') || cmd.f) ? 1 : 0
+    // 直觉映射：W/↑/▲ = 前进（往屏幕深处飞），S/↓/▼ = 后退，A/← 左移，D/→ 右移
+    const f = (key('KeyW') || key('ArrowUp') || cmd.f) ? 1 : 0
+    const b = (key('KeyS') || key('ArrowDown') || cmd.s) ? 1 : 0
     const sf = (key('KeyD') || key('ArrowRight') || cmd.r) ? 1 : 0
     const sl = (key('KeyA') || key('ArrowLeft') || cmd.l) ? 1 : 0
     const up = (key('Space') || cmd.u) ? 1 : 0
@@ -880,8 +882,9 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
         const yaw = inp.y + yawStep
         yawStep = 0
         d.yaw += yaw * 1.6 * dt
+        // 机头朝 +Z：右手系下「机体右侧」= F × up = (-cos, 0, sin)
         const F = new THREE.Vector3(Math.sin(d.yaw), 0, Math.cos(d.yaw))
-        const R = new THREE.Vector3(Math.cos(d.yaw), 0, -Math.sin(d.yaw))
+        const R = new THREE.Vector3(-Math.cos(d.yaw), 0, Math.sin(d.yaw))
         const move = new THREE.Vector3().addScaledVector(F, fwd).addScaledVector(R, str)
         if (move.lengthSq() > 0) {
           move.normalize().multiplyScalar(THROTTLE * dt)
@@ -1019,7 +1022,7 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
   function sizeFPV() {
     const w = fpvCanvas.clientWidth || 320
     const h = fpvCanvas.clientHeight || 230
-    fpvRenderer.setSize(w, h, false)
+    fpvRenderer.setSize(w, h, true)
     droneCamera.aspect = w / h
     droneCamera.updateProjectionMatrix()
     if (fpvRes) fpvRes.textContent = `${Math.round(w)}×${Math.round(h)}`
@@ -1074,7 +1077,9 @@ export function createDroneSim(root: HTMLElement, options: DroneSimOptions): Dro
     const h = Math.max(stage.clientHeight, 1)
     camera.aspect = w / h
     camera.updateProjectionMatrix()
-    renderer.setSize(w, h, false)
+    // updateStyle=true：否则 HiDPI 上 canvas 的 CSS 尺寸仍是 width/height 属性值(=dpr 倍)，
+    // 会被 .ds-root 的 overflow:hidden 裁成「左上角放大图」，无人机就永远贴在右下角。
+    renderer.setSize(w, h, true)
     sizeFPV()
   }
   const ro = new ResizeObserver(resize)

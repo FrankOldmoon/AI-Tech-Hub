@@ -181,7 +181,7 @@ onBeforeUnmount(() => {
       />
 
       <p class="hint">
-        {{ pick({ zh: 'WASD / 方向键 = 飞行（S/↓ 前进）· Q/E = 偏航 · 空格/Shift = 升降 · 点机身部件可抽出查看', en: 'WASD / Arrows = fly (S/↓ forward) · Q/E = yaw · Space/Shift = up/down · Click a drone part to pull it out & inspect' }) }}
+        {{ pick({ zh: 'WASD / 方向键 = 飞行（W/↑ 前进·A/D 左右）· Q/E = 偏航 · 空格/Shift = 升降 · 点机身部件可抽出查看', en: 'WASD / Arrows = fly (W/↑ forward, A/D strafe) · Q/E = yaw · Space/Shift = up/down · Click a drone part to pull it out & inspect' }) }}
       </p>
 
       <!-- 右上角全屏按钮：悬浮独立于 HUD/FPV 之上，避免被面板遮挡 -->
